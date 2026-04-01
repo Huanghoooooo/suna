@@ -2,14 +2,14 @@
 
 **The Autonomous Company Operating System**
 
-A cloud computer where AI agents run your company. Full Linux sandbox, persistent memory, skills, integrations, cron/webhook triggers, multi-channel access. Agents work 24/7 — code, APIs, documents, infrastructure — whether you're there or not. Everything is linux, bash, files. The agent runtime is [OpenCode](https://github.com/nichochar/opencode).
+A cloud computer where AI agents run your company. Full Linux sandbox, persistent memory, skills, integrations, cron/webhook triggers, multi-channel access. Agents work 24/7 — code, APIs, documents, infrastructure — whether you're there or not. Everything is linux, bash, files. The agent runtime is [OpenCode](https://github.com/anomalyco/opencode).
 
 ## Quick Start
 
 Run locally on your laptop or on a VPS/server — the installer handles both.
 
 ```bash
-curl -fsSL https://kortix.com/install | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/kortix-ai/suna/main/scripts/get-kortix.sh)
 ```
 
 The installer will ask where you're running:
