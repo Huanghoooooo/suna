@@ -610,7 +610,7 @@ const KortixPlugin: Plugin = async (ctx) => {
 
 	// Fetch available agent names from the runtime — no hardcoding
 	let cachedAgentNames: string[] | null = null // null = not yet loaded
-	const agentListReady = (client.agents?.() as Promise<any> | undefined)
+	const agentListReady = ((client as any).agents?.() as Promise<any> | undefined)
 		?.then((res: any) => {
 			const agents = res?.data ?? res ?? []
 			if (Array.isArray(agents) && agents.length > 0) {
@@ -712,7 +712,7 @@ const KortixPlugin: Plugin = async (ctx) => {
 		project_list: tool({
 				description: "List all projects from Kortix SQLite.",
 				args: {},
-				execute(): string {
+				async execute(): Promise<string> {
 					const ps = mgr.listProjects()
 					if (!ps.length) return "No projects yet. Use `project_create` to create one."
 					const lines = ps.map(p => {
@@ -726,7 +726,7 @@ const KortixPlugin: Plugin = async (ctx) => {
 			project_get: tool({
 				description: "Get project details and session info.",
 				args: { name: tool.schema.string().describe("Name or path") },
-				execute(args: { name: string }): string {
+				async execute(args: { name: string }): Promise<string> {
 					const p = mgr.getProject(args.name)
 					if (!p) return `Project not found: "${args.name}"`
 					const sessionStats = db.prepare("SELECT status, COUNT(*) as c FROM delegations WHERE project_id=$pid GROUP BY status").all({ $pid: p.id }) as Array<{ status: string; c: number }>
@@ -802,8 +802,8 @@ const KortixPlugin: Plugin = async (ctx) => {
 				args: {
 					project: tool.schema.string().describe('"" for all projects.'),
 				},
-				async execute(args: { project: string }): Promise<string> {
-					return listBackgroundSessions.execute(args)
+				async execute(args: { project: string }, toolCtx: ToolContext): Promise<string> {
+					return listBackgroundSessions.execute(args, toolCtx)
 				},
 			}),
 

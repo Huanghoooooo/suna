@@ -6,7 +6,7 @@
  */
 
 import { Database } from "bun:sqlite"
-import { mkdirSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs"
 import * as path from "node:path"
 import { type Plugin, tool } from "@opencode-ai/plugin"
 
@@ -48,6 +48,42 @@ interface Row {
 	pipedream_slug: string | null; env_keys: string | null; notes: string | null
 }
 
+function resolveConnectorRoot(): string | null {
+	const explicit = process.env.OPENCODE_CONFIG_DIR?.trim()
+	if (explicit) return path.join(path.resolve(explicit), "connectors")
+	const workspace = process.env.KORTIX_WORKSPACE?.trim()
+	if (workspace) return path.join(path.resolve(workspace), ".opencode", "connectors")
+	return path.join(process.cwd(), ".opencode", "connectors")
+}
+
+function discoverFileConnectors(): Row[] {
+	const root = resolveConnectorRoot()
+	if (!root || !existsSync(root)) return []
+	const rows: Row[] = []
+	for (const entry of readdirSync(root, { withFileTypes: true })) {
+		if (!entry.isDirectory()) continue
+		const md = path.join(root, entry.name, "CONNECTOR.md")
+		if (!existsSync(md)) continue
+		const text = readFileSync(md, "utf8")
+		const match = text.match(/^---\n([\s\S]*?)\n---/)
+		const frontmatter = match?.[1] ?? ""
+		const field = (name: string): string | null => {
+			const line = frontmatter.split("\n").find((l) => l.startsWith(`${name}:`))
+			if (!line) return null
+			return line.slice(name.length + 1).trim().replace(/^"|"$/g, "") || null
+		}
+		rows.push({
+			name: field("name") ?? entry.name,
+			description: field("description"),
+			source: field("source"),
+			pipedream_slug: field("pipedream_slug"),
+			env_keys: null,
+			notes: null,
+		})
+	}
+	return rows
+}
+
 const ConnectorsPlugin: Plugin = async () => {
 	return {
 		tool: {
@@ -58,9 +94,13 @@ const ConnectorsPlugin: Plugin = async () => {
 				},
 				async execute(args: { filter: string }): Promise<string> {
 					let rows = db().query("SELECT * FROM connectors ORDER BY name").all() as Row[]
+					for (const discovered of discoverFileConnectors()) {
+						if (!rows.some((r) => r.name === discovered.name)) rows.push(discovered)
+					}
+					rows.sort((a, b) => a.name.localeCompare(b.name))
 					const f = args.filter?.toLowerCase().trim()
 					if (f) rows = rows.filter(r =>
-						r.name.includes(f) || r.source?.includes(f) || r.description?.toLowerCase().includes(f)
+						r.name.toLowerCase().includes(f) || r.source?.toLowerCase().includes(f) || r.description?.toLowerCase().includes(f)
 					)
 					if (!rows.length) return "No connectors found."
 					const lines = rows.map(r => `| ${r.name} | ${r.description || ""} | ${r.source || "—"} |`)
@@ -72,7 +112,10 @@ const ConnectorsPlugin: Plugin = async () => {
 				description: "Get a connector's full metadata.",
 				args: { name: tool.schema.string().describe("Connector name.") },
 				async execute(args: { name: string }): Promise<string> {
-					const row = db().query("SELECT * FROM connectors WHERE name = ? OR name LIKE ?").get(args.name, `%${args.name}%`) as Row | null
+					let row = db().query("SELECT * FROM connectors WHERE name = ? OR name LIKE ?").get(args.name, `%${args.name}%`) as Row | null
+					if (!row) {
+						row = discoverFileConnectors().find((r) => r.name === args.name || r.name.includes(args.name)) ?? null
+					}
 					if (!row) {
 						const all = (db().query("SELECT name FROM connectors ORDER BY name").all() as { name: string }[]).map(r => r.name)
 						return `Not found: "${args.name}". Available: ${all.join(", ") || "none"}`
@@ -80,7 +123,7 @@ const ConnectorsPlugin: Plugin = async () => {
 					const parts = [`name: ${row.name}`]
 					if (row.description) parts.push(`description: ${row.description}`)
 					if (row.source) parts.push(`source: ${row.source}`)
-					if (row.pipedream_slug) parts.push(`pipedream: ${row.pipedream_slug}`)
+					if (row.pipedream_slug) parts.push(`pipedream_slug: ${row.pipedream_slug}`)
 					if (row.env_keys) parts.push(`env: ${row.env_keys}`)
 					if (row.notes) parts.push(`notes: ${row.notes}`)
 					return parts.join("\n")

@@ -343,6 +343,9 @@ function doServe(base: string, port: number) {
       const presMatch = pathname.match(/^\/presentations\/([^/]+)\/?(.*)$/);
       if (presMatch) {
         const presName = presMatch[1];
+        if (!presName) {
+          return new Response("Presentation not found", { status: 404, headers: corsHeaders });
+        }
         const rest = presMatch[2] || "";
         const presDir = join(presRoot, presName);
 

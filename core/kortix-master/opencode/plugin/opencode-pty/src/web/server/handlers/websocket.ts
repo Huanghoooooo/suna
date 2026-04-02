@@ -124,12 +124,12 @@ class WebSocketHandler {
     }
   }
 
-  private handleSpawn(ws: ServerWebSocket<undefined>, message: WSMessageClientSpawnSession) {
-    const sessionInfo = manager.spawn(message)
-    if (message.subscribe) {
-      this.handleSubscribe(ws, { type: 'subscribe', sessionId: sessionInfo.id })
-    }
-  }
+	private async handleSpawn(ws: ServerWebSocket<undefined>, message: WSMessageClientSpawnSession) {
+		const sessionInfo = await manager.spawn(message)
+		if (message.subscribe) {
+			this.handleSubscribe(ws, { type: 'subscribe', sessionId: sessionInfo.id })
+		}
+	}
 
   private handleInput(message: WSMessageClientInput) {
     manager.write(message.sessionId, message.data)

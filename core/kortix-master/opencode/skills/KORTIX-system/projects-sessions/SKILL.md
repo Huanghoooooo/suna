@@ -141,9 +141,9 @@ Use when a conversation continued across compression or resumed sessions.
 
 ---
 
-## Background Sessions (Orchestration)
+## Background Sessions (Autowork Team Substrate)
 
-Background sessions are the primary mechanism for parallel autonomous work. They run the `/autowork` loop and report back when done.
+Background sessions are the primary mechanism for parallel autonomous work. They are the substrate behind `/autowork-team`, and each worker typically runs the `/autowork` loop before reporting back.
 
 ### Primary Tools
 
@@ -190,6 +190,7 @@ session_start_background({
 ### Command Variants
 
 - `""` or `"/autowork"` — full autowork loop with DONE/VERIFIED protocol
+- `/autowork-team` is the preferred leader-side command for parallel user-facing execution; spawned workers still usually run `/autowork`
 - `"none"` — one-shot (no continuation loop)
 - Any other command string — that command is prepended to the assignment
 

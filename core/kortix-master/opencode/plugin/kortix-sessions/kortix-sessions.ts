@@ -37,7 +37,7 @@ export const KortixSessionsPlugin: Plugin = async ({ client, directory }) => {
 
 	return {
 		hooks: {
-			"event": async ({ event }) => {
+			"event": async ({ event }: { event: any }) => {
 				try {
 					if (event.type === "session.created") {
 						currentSessionId = (event as any).properties?.sessionID ?? currentSessionId
@@ -46,7 +46,7 @@ export const KortixSessionsPlugin: Plugin = async ({ client, directory }) => {
 					console.error(`[kortix-sessions] event hook failed: ${err}`)
 				}
 			},
-			"experimental.chat.messages.transform": async (_input, output) => {
+			"experimental.chat.messages.transform": async (_input: any, output: { messages: any[] }) => {
 				try {
 					const parts: string[] = []
 					if (currentSessionId) {

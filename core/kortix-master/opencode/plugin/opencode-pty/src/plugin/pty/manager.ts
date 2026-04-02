@@ -13,7 +13,7 @@ let _bunPtyLoadError: string | null = null
 
 try {
   // Dynamic require so a missing native addon doesn't kill the module graph
-  const bunPty = await import('bun-pty')
+  const bunPty = await import('bun-pty') as any
   const Terminal = bunPty.Terminal ?? bunPty.default?.Terminal
   const bunPtyPkg = await import('bun-pty/package.json')
   const bunPtyVersion: string = bunPtyPkg.version ?? bunPtyPkg.default?.version ?? 'unknown'

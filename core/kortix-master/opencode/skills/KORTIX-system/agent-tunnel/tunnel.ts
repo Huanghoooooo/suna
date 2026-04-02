@@ -169,9 +169,14 @@ class TunnelClient {
         return online.tunnelId;
       }
       if (connections.length > 0) {
-        this.cachedTunnelId = connections[0].tunnelId;
+        const first = connections[0];
+        if (!first) {
+          this.cachedTunnelId = null;
+          throw new TunnelClientError(-1, "No tunnel connection found.");
+        }
+        this.cachedTunnelId = first.tunnelId;
         this.cacheTimestamp = Date.now();
-        return connections[0].tunnelId;
+        return first.tunnelId;
       }
     }
 

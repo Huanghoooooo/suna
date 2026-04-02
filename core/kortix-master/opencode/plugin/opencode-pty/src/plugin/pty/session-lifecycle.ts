@@ -23,7 +23,7 @@ async function getBunPtySpawn(): Promise<(...args: any[]) => any> {
 
   _bunPtyLoadAttempted = true
   try {
-    const mod = await import('bun-pty')
+    const mod = await import('bun-pty') as any
     _bunPtySpawn = mod.spawn ?? mod.default?.spawn
     if (!_bunPtySpawn) {
       throw new Error(`bun-pty module loaded but 'spawn' export not found. Exports: ${Object.keys(mod).join(', ')}`)

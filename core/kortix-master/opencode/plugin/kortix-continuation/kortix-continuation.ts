@@ -13,11 +13,12 @@
  *
  * Activation:
  *   - /autowork slash command (KORTIX_AUTOWORK marker)
- *   - Keywords in user messages: autowork, ultrawork, ulw, hyperwork, gigawork
+ *   - /autowork-team slash command (KORTIX_AUTOWORK marker)
+ *   - Keyword in user messages: autowork
  *
  * Stop:
- *   - /autowork-stop (KORTIX_AUTOWORK_STOP marker) — ONLY way to kill the loop.
- *     Permanent within the session. (Use /autowork again to re-start.)
+ *   - /autowork-cancel (KORTIX_AUTOWORK_CANCEL marker) — preferred way to kill the loop.
+ *     Permanent within the session. (Use /autowork or /autowork-team to re-start.)
  *
  * Loop persistence:
  *   - Once active, the loop SURVIVES new user messages.
@@ -68,10 +69,6 @@ import {
 	loadAllPersistedLoopStates,
 	persistLoopState,
 	removePersistedLoopState,
-	kubetShouldRunCritic,
-	kubetRecordCritic,
-	buildKubetCriticPrompt,
-	saumyaAdvancePhase,
 } from "./src/loop"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -104,7 +101,7 @@ function cleanTextForKeywordDetection(text: string): string {
 }
 
 /** Check if a message text was injected by the system (contains internal marker).
- *  IMPORTANT: KORTIX_AUTOWORK and KORTIX_AUTOWORK_STOP markers must NOT be treated
+ *  IMPORTANT: KORTIX_AUTOWORK and KORTIX_AUTOWORK_CANCEL markers must NOT be treated
  *  as internal — they are user-facing command templates that need to pass through
  *  to the autowork detection logic below. Only KORTIX_INTERNAL (the continuation
  *  engine's own injected prompts) and system reminders are truly internal. */
@@ -262,7 +259,7 @@ const KortixContinuationPlugin: Plugin = async ({ client }) => {
 	const continuationStates = new SessionStateMap<ContinuationState>(
 		(sid) => { const s = createInitialState(); s.sessionId = sid; return s },
 	)
-	// Per-session config overrides (e.g., continuation disabled by /autowork-stop)
+	// Per-session config overrides (e.g., continuation disabled by /autowork-cancel)
 	const sessionConfigOverrides = new Map<string, Partial<ContinuationConfig["features"]>>()
 
 	// Recover persisted loop states on startup
@@ -294,8 +291,8 @@ const KortixContinuationPlugin: Plugin = async ({ client }) => {
 	return {
 		// ── HOOK: command.execute.before ──────────────────────────────────────
 		// Fires BEFORE the command template is expanded into a message.
-		// We capture the raw command name here so chat.message can determine
-		// which algorithm to activate.
+		// We capture the raw autowork command so chat.message can route
+		// single-owner execution, team execution, or cancellation cleanly.
 		"command.execute.before": async (input: any, _output: any) => {
 			const command = input?.command as string | undefined
 			const sessionId = input?.sessionID as string | undefined
@@ -303,7 +300,7 @@ const KortixContinuationPlugin: Plugin = async ({ client }) => {
 			if (!command || !sessionId) return
 
 			// Only capture autowork commands
-			if (/^autowork[123]?$/.test(command) || command === "autowork-stop") {
+			if (["autowork", "autowork-team", "autowork-cancel"].includes(command)) {
 				pendingCommand.set(sessionId, { command, args })
 				log("info", `[autowork][${sid(sessionId)}] command.execute.before: ${command} "${args.slice(0, 60)}"`)
 			}
@@ -332,42 +329,43 @@ const KortixContinuationPlugin: Plugin = async ({ client }) => {
 
 				const cleanText = cleanTextForKeywordDetection(messageText)
 
-				// ── /autowork-stop — kill the loop, permanent within session ──
-				if (messageText.includes("KORTIX_AUTOWORK_STOP") || /\/autowork-stop\b/.test(messageText)) {
+				// ── /autowork-cancel — kill the loop, permanent within session ──
+				if (messageText.includes("KORTIX_AUTOWORK_CANCEL") || /\/autowork-cancel\b/.test(messageText)) {
 					if (loopState.active) loopState = stopLoop(loopState)
 					loopState = markStopped(loopState)
 					loopStates.set(sessionId, loopState)
 					sessionConfigOverrides.set(sessionId, { continuation: false })
-					log("info", `[autowork][${sid(sessionId)}] Permanently stopped — use /autowork to restart`)
+					log("info", `[autowork][${sid(sessionId)}] Permanently stopped — use /autowork or /autowork-team to restart`)
 					return
 				}
 
-				// ── /autowork, /autowork1, /autowork2, /autowork3 — start or append to loop ──
+				// ── /autowork or /autowork-team — start or append to loop ──
 				const pending = pendingCommand.get(sessionId)
-				const autoworkMatch = pending?.command?.startsWith("autowork")
+				const autoworkMatch = pending?.command === "autowork"
+					|| pending?.command === "autowork-team"
 					|| messageText.includes("KORTIX_AUTOWORK")
-					|| /\/autowork[123]?\b/.test(messageText)
+					|| /\/autowork(?:-team)?\b/.test(messageText)
 				if (autoworkMatch) {
-					// Determine algorithm from the pending command (set by command.execute.before),
-					// falling back to regex on message text, then template content detection.
+					// Determine the loop mode from the captured autowork command.
 					let algorithm: AutoworkAlgorithm = "kraemer"
 					if (pending?.command) {
 						algorithm = COMMAND_TO_ALGORITHM[pending.command] || "kraemer"
 					} else {
-						const cmdMatch = messageText.match(/\/autowork([123])?\b/)
-						if (cmdMatch) {
-							const cmdName = `autowork${cmdMatch[1] || ""}`
+						const cmdName = messageText.match(/\/(autowork(?:-team)?)\b/)?.[1]
+						if (cmdName) {
 							algorithm = COMMAND_TO_ALGORITHM[cmdName] || "kraemer"
-						} else if (messageText.includes("Saumya Algorithm")) algorithm = "saumya"
-						else if (messageText.includes("Ino Algorithm")) algorithm = "ino"
-						else if (messageText.includes("Kubet Algorithm")) algorithm = "kubet"
+						}
 					}
 
-					const task = pending?.args
-						|| messageText
-							.replace(/^.*?\/autowork[123]?\s*/i, "")
-							.replace(/<!--[\s\S]*?-->/g, "")
-							.trim()
+					const explicitTask = pending?.args?.trim()
+					const task = explicitTask
+						|| (pending?.command
+							? "Continue the active task in this conversation and drive it to verified completion."
+							: messageText
+								.replace(/^.*?\/autowork(?:-team)?\s*/i, "")
+								.replace(/<!--[\s\S]*?-->/g, "")
+								.trim()
+						)
 						|| "Unspecified task"
 
 					// Clear the pending command
@@ -545,37 +543,9 @@ const KortixContinuationPlugin: Plugin = async ({ client }) => {
 
 						const allTexts = extractAssistantTexts(messages, loopState.messageCountAtStart)
 
-						// ── Kubet async critic — runs periodically during work phase ──
-						// The critic injects a process-optimization prompt INSTEAD of
-						// the normal continuation for this iteration. Only during work
-						// phase (not during verification).
-						if (kubetShouldRunCritic(loopState) && !loopState.inVerification) {
-							const criticPrompt = wrapSystemPrompt(buildKubetCriticPrompt(loopState, allTexts), "autowork-critic")
-							loopState = kubetRecordCritic(advanceIteration(loopState))
-							loopStates.set(sessionId, loopState)
-							log("info", `[autowork:kubet][${sid(sessionId)}] Critic intervention #${loopState.kubetCriticCount}`)
-							await client.session.promptAsync({
-								path: { id: sessionId },
-								body: { parts: [{ type: "text" as const, text: criticPrompt }] },
-							}).catch((err: unknown) => {
-								log("warn", `[autowork:kubet][${sid(sessionId)}] Critic promptAsync failed: ${err}`)
-								loopState = recordFailure(loopState)
-								loopStates.set(sessionId, loopState)
-							})
-							return // critic was injected — skip normal evaluation this cycle
-						}
-
 						// Evaluate loop decision
 						const decision = evaluateLoop(loopState, allTexts, loopTodos)
-						const algTag = loopState.algorithm !== "kraemer" ? `:${loopState.algorithm}` : ""
-						log("info", `[autowork${algTag}][${sid(sessionId)}] ${decision.action} — ${decision.reason}`)
-
-						// Saumya: advance phase if the evaluator says so
-						if (decision.saumyaNextPhase) {
-							loopState = saumyaAdvancePhase(loopState)
-							loopStates.set(sessionId, loopState)
-							log("info", `[autowork:saumya][${sid(sessionId)}] Phase → ${decision.saumyaNextPhase}`)
-						}
+						log("info", `[autowork][${sid(sessionId)}] ${decision.action} — ${decision.reason}`)
 
 						if (decision.action === "verify" && decision.prompt) {
 							loopState = advanceIteration(enterVerification(loopState))
@@ -584,7 +554,7 @@ const KortixContinuationPlugin: Plugin = async ({ client }) => {
 								path: { id: sessionId },
 								body: { parts: [{ type: "text" as const, text: wrapSystemPrompt(decision.prompt, "autowork-verify") }] },
 							}).catch((err: unknown) => {
-								log("warn", `[autowork${algTag}][${sid(sessionId)}] promptAsync failed: ${err}`)
+								log("warn", `[autowork][${sid(sessionId)}] promptAsync failed: ${err}`)
 								loopState = recordFailure(loopState)
 								loopStates.set(sessionId, loopState)
 							})
@@ -595,14 +565,14 @@ const KortixContinuationPlugin: Plugin = async ({ client }) => {
 								path: { id: sessionId },
 								body: { parts: [{ type: "text" as const, text: wrapSystemPrompt(decision.prompt, "autowork-continue") }] },
 							}).catch((err: unknown) => {
-								log("warn", `[autowork${algTag}][${sid(sessionId)}] promptAsync failed: ${err}`)
+								log("warn", `[autowork][${sid(sessionId)}] promptAsync failed: ${err}`)
 								loopState = recordFailure(loopState)
 								loopStates.set(sessionId, loopState)
 							})
 						} else if (decision.action === "stop") {
 							loopState = stopLoop(loopState)
 							loopStates.set(sessionId, loopState)
-							log("info", `[autowork${algTag}][${sid(sessionId)}] Complete: ${decision.reason}`)
+							log("info", `[autowork][${sid(sessionId)}] Complete: ${decision.reason}`)
 						}
 					} catch (err) {
 						log("warn", `[autowork][${sid(sessionId)}] Evaluation error: ${err}`)

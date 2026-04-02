@@ -75,14 +75,16 @@ async function connect(apps: string | string[]) {
       results.push({ app, error: e.message });
     }
   }));
-  const ok = results.filter(r => r.connectUrl);
-  const failed = results.filter(r => r.error);
-  out({
-    success: ok.length > 0,
-    connections: ok.map(r => ({ app: r.app, connectUrl: r.connectUrl })),
-    errors: failed.length > 0 ? failed : undefined,
-    message: `${ok.length} connect URL(s) generated${failed.length ? `, ${failed.length} failed` : ""}`,
-  });
+	const ok = results.filter(r => r.connectUrl);
+	const failed = results.filter(r => r.error);
+	const singleConnectUrl = ok.length === 1 ? ok[0]?.connectUrl : undefined;
+	out({
+		success: ok.length > 0,
+		connectUrl: singleConnectUrl,
+		connections: ok.map(r => ({ app: r.app, connectUrl: r.connectUrl })),
+		errors: failed.length > 0 ? failed : undefined,
+		message: `${ok.length} connect URL(s) generated${failed.length ? `, ${failed.length} failed` : ""}`,
+	});
 }
 
 async function list() {
