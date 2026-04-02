@@ -26,6 +26,7 @@ import { sendWorkspaceReadyEmail } from './email-notification';
 const POLL_INTERVAL_MS = 8_000;       // 8s between sweeps
 const JUSTAVPS_TIMEOUT_MS = 10_000;   // 10s per machine fetch
 const MAX_CONCURRENT = 5;             // don't hammer JustAVPS
+const CREATION_GRACE_MS = 60_000;     // 60s grace period before treating 404 as fatal
 
 let _intervalId: ReturnType<typeof setInterval> | null = null;
 let _running = false;
@@ -125,7 +126,12 @@ async function pollSingleSandbox(sandbox: typeof sandboxes.$inferSelect): Promis
 
     if (!res.ok) {
       if (res.status === 404) {
-        // Machine deleted — mark as error
+        const ageMs = Date.now() - new Date(sandbox.createdAt).getTime();
+        if (ageMs < CREATION_GRACE_MS) {
+          console.log(`[provision-poller] ${sandbox.sandboxId} got 404 but sandbox is only ${Math.round(ageMs / 1000)}s old — will retry`);
+          return;
+        }
+
         await db
           .update(sandboxes)
           .set({
