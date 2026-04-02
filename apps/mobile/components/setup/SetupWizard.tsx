@@ -351,6 +351,7 @@ async function submitOAuthCallback(sandboxUrl: string, providerId: string, metho
 
 function ProviderStep({ onContinue, isDark, themeColors }: StepProps & { onContinue: () => void }) {
   const { sandboxUrl } = useSandboxContext();
+  const insets = useSafeAreaInsets();
   const { data: providersData, isLoading, refetch } = useOpenCodeProviders(sandboxUrl);
   const sheetRef = useRef<BottomSheetModal>(null);
 
@@ -546,16 +547,15 @@ function ProviderStep({ onContinue, isDark, themeColors }: StepProps & { onConti
       {/* ── Provider connection bottom sheet ── */}
       <BottomSheetModal
         ref={sheetRef}
-        snapPoints={sheetView === 'list' ? ['75%'] : ['55%']}
+        enableDynamicSizing
         enablePanDownToClose
-        enableDynamicSizing={false}
         backdropComponent={renderBackdrop}
         backgroundStyle={{ backgroundColor: sheetBg, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}
         handleIndicatorStyle={{ backgroundColor: isDark ? '#3F3F46' : '#D4D4D8', width: 36, height: 5, borderRadius: 3, marginTop: 8 }}
       >
         {sheetView === 'list' && (
           /* ── Provider list ── */
-          <BottomSheetScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}>
+          <BottomSheetScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: Math.max(insets.bottom, 20) + 16 }}>
             <Text style={{ fontSize: 17, fontFamily: 'Roobert-SemiBold', color: colors.fg, textAlign: 'center', marginTop: 4, marginBottom: 2 }}>
               Choose a provider
             </Text>
@@ -587,7 +587,7 @@ function ProviderStep({ onContinue, isDark, themeColors }: StepProps & { onConti
 
         {sheetView === 'methods' && selectedProvider && (
           /* ── Auth method selection ── */
-          <BottomSheetView style={{ flex: 1, paddingHorizontal: 24 }}>
+          <BottomSheetView style={{ flex: 1, paddingHorizontal: 24, paddingBottom: Math.max(insets.bottom, 20) + 16 }}>
             <Pressable onPress={() => { setSheetView('list'); setSelectedProvider(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 16 }}>
               <ChevronLeft size={16} color={colors.muted} />
               <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: colors.muted }}>Back</Text>
@@ -651,7 +651,7 @@ function ProviderStep({ onContinue, isDark, themeColors }: StepProps & { onConti
 
         {sheetView === 'apikey' && selectedProvider && (
           /* ── API key input ── */
-          <BottomSheetView style={{ flex: 1, paddingHorizontal: 24 }}>
+          <BottomSheetView style={{ flex: 1, paddingHorizontal: 24, paddingBottom: Math.max(insets.bottom, 20) + 16 }}>
             <View style={{ flex: 1, justifyContent: 'center', paddingBottom: 24 }}>
               <Pressable onPress={() => authMethods.length > 1 ? setSheetView('methods') : (setSheetView('list'), setSelectedProvider(null))} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, position: 'absolute', top: 0, left: 0, zIndex: 1 }}>
                 <ChevronLeft size={16} color={colors.muted} />
@@ -714,49 +714,60 @@ function ProviderStep({ onContinue, isDark, themeColors }: StepProps & { onConti
 
         {sheetView === 'oauth' && selectedProvider && (
           /* ── OAuth flow — open browser + paste redirect URL ── */
-          <BottomSheetView style={{ flex: 1, paddingHorizontal: 24 }}>
-            <View style={{ flex: 1, justifyContent: 'center', paddingBottom: 24 }}>
-              <Pressable onPress={() => setSheetView('methods')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, position: 'absolute', top: 0, left: 0, zIndex: 1 }}>
-                <ChevronLeft size={16} color={colors.muted} />
-                <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: colors.muted }}>Back</Text>
-              </Pressable>
+          <BottomSheetView style={{ flex: 1, paddingHorizontal: 24, paddingBottom: Math.max(insets.bottom, 20) + 16 }}>
+            {/* Back button */}
+            <Pressable onPress={() => setSheetView('methods')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 24 }}>
+              <ChevronLeft size={16} color={colors.muted} />
+              <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: colors.muted }}>Back</Text>
+            </Pressable>
 
-              <View style={{ alignItems: 'center', gap: 6, marginBottom: 20 }}>
-                <View style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}>
-                  <Sparkles size={18} color={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)'} />
+            {/* Header */}
+            <View style={{ alignItems: 'center', gap: 6, marginBottom: 28 }}>
+              <ProviderIcon providerId={selectedProvider} size={28} isDark={isDark} />
+              <Text style={{ fontSize: 16, fontFamily: 'Roobert-SemiBold', color: colors.fg, marginTop: 4 }}>
+                Connect {PROVIDER_LABELS[selectedProvider] || selectedProvider}
+              </Text>
+            </View>
+
+            {/* Steps */}
+            <View style={{ gap: 12, marginBottom: 28 }}>
+              {[
+                'Open the link below to sign in',
+                'Authorize access to your account',
+                'Copy the redirect URL from your browser',
+                'Paste it below and tap Connect',
+              ].map((step, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                  <View style={{ width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: themeColors.primary }}>
+                    <Text style={{ fontSize: 11, fontFamily: 'Roobert-SemiBold', color: themeColors.primaryForeground }}>{i + 1}</Text>
+                  </View>
+                  <Text style={{ flex: 1, fontSize: 13, fontFamily: 'Roobert', color: colors.fg, lineHeight: 18, paddingTop: 2 }}>{step}</Text>
                 </View>
-                <Text style={{ fontSize: 16, fontFamily: 'Roobert-SemiBold', color: colors.fg }}>
-                  {PROVIDER_LABELS[selectedProvider] || selectedProvider}
-                </Text>
-                {oauthInstructions ? (
-                  <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: colors.muted, textAlign: 'center', lineHeight: 17, paddingHorizontal: 8 }}>
-                    {oauthInstructions}
-                  </Text>
-                ) : (
-                  <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: colors.muted, textAlign: 'center' }}>
-                    Sign in via browser, then paste the redirect URL below
-                  </Text>
-                )}
-              </View>
+              ))}
+            </View>
 
-              {/* Open browser button */}
-              <Pressable
-                onPress={() => { if (oauthUrl) Linking.openURL(oauthUrl); }}
-                style={{
-                  height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
-                  flexDirection: 'row', gap: 8, marginBottom: 14,
-                  backgroundColor: themeColors.primary,
-                }}
-              >
-                <ExternalLink size={16} color={themeColors.primaryForeground} />
-                <Text style={{ fontSize: 14, fontFamily: 'Roobert-SemiBold', color: themeColors.primaryForeground }}>
-                  Open in Browser
-                </Text>
-              </Pressable>
+            {/* Open browser button */}
+            <Pressable
+              onPress={() => { if (oauthUrl) Linking.openURL(oauthUrl); }}
+              style={{
+                height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+                flexDirection: 'row', gap: 8, marginBottom: 20,
+                backgroundColor: themeColors.primary,
+              }}
+            >
+              <ExternalLink size={16} color={themeColors.primaryForeground} />
+              <Text style={{ fontSize: 14, fontFamily: 'Roobert-SemiBold', color: themeColors.primaryForeground }}>
+                Open Authorization Page
+              </Text>
+            </Pressable>
 
-              {/* Paste redirect URL */}
+            {/* Bottom section: input + connect */}
+            <View style={{ gap: 10 }}>
+              <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: colors.muted, paddingLeft: 2 }}>
+                Paste the redirect URL here
+              </Text>
               <BottomSheetTextInput
-                placeholder="Paste the redirect URL here..."
+                placeholder="http://localhost..."
                 placeholderTextColor={isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'}
                 value={oauthCode}
                 onChangeText={(t: string) => { setOauthCode(t); setConnectError(null); }}
@@ -765,13 +776,13 @@ function ProviderStep({ onContinue, isDark, themeColors }: StepProps & { onConti
                 style={{
                   height: 44, borderRadius: 12, paddingHorizontal: 14,
                   fontSize: 13, fontFamily: 'Roobert',
-                  color: colors.fg, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-                  borderWidth: 1, borderColor: connectError ? (isDark ? 'rgba(239,68,68,0.4)' : 'rgba(220,38,38,0.3)') : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'),
+                  color: colors.fg, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
+                  borderWidth: 1, borderColor: connectError ? (isDark ? 'rgba(239,68,68,0.4)' : 'rgba(220,38,38,0.3)') : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'),
                 }}
               />
 
               {connectError && (
-                <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: isDark ? '#f87171' : '#dc2626', marginTop: 8, textAlign: 'center' }}>
+                <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: isDark ? '#f87171' : '#dc2626', textAlign: 'center' }}>
                   {connectError}
                 </Text>
               )}
@@ -781,14 +792,15 @@ function ProviderStep({ onContinue, isDark, themeColors }: StepProps & { onConti
                 disabled={connecting || !oauthCode.trim()}
                 style={{
                   height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
-                  flexDirection: 'row', gap: 6, marginTop: 14,
-                  backgroundColor: isDark ? '#F8F8F8' : '#121215', opacity: oauthCode.trim() ? 1 : 0.5,
+                  flexDirection: 'row', gap: 6,
+                  backgroundColor: oauthCode.trim() ? themeColors.primary : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                  opacity: oauthCode.trim() ? 1 : 0.5,
                 }}
               >
                 {connecting ? (
-                  <><SpinningLoader size={14} color={isDark ? '#121215' : '#F8F8F8'} /><Text style={{ fontSize: 14, fontFamily: 'Roobert-SemiBold', color: isDark ? '#121215' : '#F8F8F8' }}>Connecting…</Text></>
+                  <><SpinningLoader size={14} color={themeColors.primaryForeground} /><Text style={{ fontSize: 14, fontFamily: 'Roobert-SemiBold', color: themeColors.primaryForeground }}>Connecting…</Text></>
                 ) : (
-                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-SemiBold', color: isDark ? '#121215' : '#F8F8F8' }}>Connect</Text>
+                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-SemiBold', color: oauthCode.trim() ? themeColors.primaryForeground : colors.muted }}>Connect</Text>
                 )}
               </Pressable>
             </View>
