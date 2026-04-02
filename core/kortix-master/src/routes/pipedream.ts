@@ -7,6 +7,20 @@ import { ErrorResponse } from '../schemas/common'
 const pipedreamRouter = new Hono()
 
 /**
+ * Derive the v1 API base URL from KORTIX_API_URL.
+ * KORTIX_API_URL may contain a path suffix (e.g. "/v1/router") used by other
+ * subsystems. We only need the origin (scheme + host + port) for direct API calls.
+ */
+function getApiV1(): string {
+  try {
+    return new URL(config.KORTIX_API_URL).origin + '/v1'
+  } catch {
+    // Fallback: strip any path and append /v1
+    return config.KORTIX_API_URL.replace(/\/+$/, '').replace(/\/v1\/.*$/, '') + '/v1'
+  }
+}
+
+/**
  * Build X-Pipedream-* headers from sandbox env vars.
  * These let the sandbox send its own Pipedream credentials to kortix-api,
  * which uses them instead of (or as fallback for) its global config.
@@ -36,22 +50,9 @@ pipedreamRouter.use('*', async (c, next) => {
     }, 503)
   }
 
-  const missing = [
-    !process.env.PIPEDREAM_CLIENT_ID && 'PIPEDREAM_CLIENT_ID',
-    !process.env.PIPEDREAM_CLIENT_SECRET && 'PIPEDREAM_CLIENT_SECRET',
-    !process.env.PIPEDREAM_PROJECT_ID && 'PIPEDREAM_PROJECT_ID',
-  ].filter(Boolean) as string[]
-
-  if (missing.length > 0) {
-    return c.json({
-      error: `Pipedream credentials not configured. Missing: ${missing.join(', ')}. ` +
-        'Set them via the secrets manager: curl -X POST "http://localhost:8000/env/<VAR>" ' +
-        '-H "Content-Type: application/json" -d \'{"value":"...","restart":true}\'. ' +
-        'Get credentials from https://pipedream.com/settings/apps.',
-      missing,
-    }, 503)
-  }
-
+  // Local PIPEDREAM_* env vars are optional overrides.
+  // If present, getPipedreamHeaders() sends them as X-Pipedream-* headers.
+  // If absent, kortix-api uses its own defaults (env or per-account DB creds).
   await next()
 })
 
@@ -74,7 +75,7 @@ pipedreamRouter.post('/token',
   async (c) => {
     try {
       const body = await c.req.json()
-      const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+      const apiUrl = getApiV1()
       const res = await fetch(`${apiUrl}/pipedream/token`, {
         method: 'POST',
         headers: {
@@ -115,7 +116,7 @@ pipedreamRouter.post('/proxy',
   async (c) => {
     try {
       const body = await c.req.json()
-      const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+      const apiUrl = getApiV1()
       const res = await fetch(`${apiUrl}/pipedream/proxy`, {
         method: 'POST',
         headers: {
@@ -155,7 +156,7 @@ pipedreamRouter.get('/list',
   }),
   async (c) => {
     try {
-      const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+      const apiUrl = getApiV1()
       const res = await fetch(`${apiUrl}/pipedream/list`, {
         headers: {
           Authorization: `Bearer ${config.KORTIX_TOKEN}`,
@@ -200,7 +201,7 @@ pipedreamRouter.get('/actions',
       if (query) params.set('q', query)
       if (limit) params.set('limit', limit)
 
-      const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+      const apiUrl = getApiV1()
       const res = await fetch(`${apiUrl}/pipedream/actions?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${config.KORTIX_TOKEN}`,
@@ -237,7 +238,7 @@ pipedreamRouter.post('/connect',
   async (c) => {
     try {
       const body = await c.req.json()
-      const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+      const apiUrl = getApiV1()
       const res = await fetch(`${apiUrl}/pipedream/connect`, {
         method: 'POST',
         headers: {
@@ -283,7 +284,7 @@ pipedreamRouter.get('/search-apps',
       if (query) params.set('q', query)
       if (limit) params.set('limit', limit)
 
-      const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+      const apiUrl = getApiV1()
       const res = await fetch(`${apiUrl}/pipedream/search-apps?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${config.KORTIX_TOKEN}`,
@@ -320,7 +321,7 @@ pipedreamRouter.post('/run-action',
   async (c) => {
     try {
       const body = await c.req.json()
-      const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+      const apiUrl = getApiV1()
       const res = await fetch(`${apiUrl}/pipedream/run-action`, {
         method: 'POST',
         headers: {
@@ -360,7 +361,7 @@ pipedreamRouter.get('/triggers/available', async (c) => {
       if (query) params.set('q', query)
       if (limit) params.set('limit', limit)
 
-      const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+      const apiUrl = getApiV1()
       const res = await fetch(`${apiUrl}/pipedream/triggers/available?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${config.KORTIX_TOKEN}`,
@@ -382,7 +383,7 @@ pipedreamRouter.get('/triggers/available', async (c) => {
 pipedreamRouter.post('/triggers/deploy', async (c) => {
     try {
       const body = await c.req.json()
-      const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+      const apiUrl = getApiV1()
       const res = await fetch(`${apiUrl}/pipedream/triggers/deploy`, {
         method: 'POST',
         headers: {
@@ -408,7 +409,7 @@ pipedreamRouter.post('/triggers/deploy', async (c) => {
 
 pipedreamRouter.get('/triggers/deployed', async (c) => {
     try {
-      const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+      const apiUrl = getApiV1()
       const res = await fetch(`${apiUrl}/pipedream/triggers/deployed`, {
         headers: {
           Authorization: `Bearer ${config.KORTIX_TOKEN}`,
@@ -430,7 +431,7 @@ pipedreamRouter.get('/triggers/deployed', async (c) => {
 pipedreamRouter.delete('/triggers/deployed/:id', async (c) => {
     try {
       const id = c.req.param('id')
-      const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+      const apiUrl = getApiV1()
       const res = await fetch(`${apiUrl}/pipedream/triggers/deployed/${id}`, {
         method: 'DELETE',
         headers: {
@@ -454,7 +455,7 @@ pipedreamRouter.put('/triggers/deployed/:id', async (c) => {
     try {
       const id = c.req.param('id')
       const body = await c.req.json()
-      const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+      const apiUrl = getApiV1()
       const res = await fetch(`${apiUrl}/pipedream/triggers/deployed/${id}`, {
         method: 'PUT',
         headers: {
@@ -481,7 +482,7 @@ pipedreamRouter.put('/triggers/deployed/:id', async (c) => {
 pipedreamRouter.put('/credentials', async (c) => {
   try {
     const body = await c.req.json()
-    const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+    const apiUrl = getApiV1()
     const res = await fetch(`${apiUrl}/pipedream/credentials`, {
       method: 'PUT',
       headers: {
@@ -502,7 +503,7 @@ pipedreamRouter.put('/credentials', async (c) => {
 
 pipedreamRouter.get('/credentials', async (c) => {
   try {
-    const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+    const apiUrl = getApiV1()
     const res = await fetch(`${apiUrl}/pipedream/credentials`, {
       headers: { Authorization: `Bearer ${config.KORTIX_TOKEN}` },
       signal: AbortSignal.timeout(15_000),
@@ -531,7 +532,7 @@ export async function pushPipedreamCredsToApi(): Promise<void> {
   }
 
   try {
-    const apiUrl = `${config.KORTIX_API_URL.replace(/\/+$/, '')}/v1`
+    const apiUrl = getApiV1()
     const res = await fetch(`${apiUrl}/pipedream/credentials`, {
       method: 'PUT',
       headers: {
