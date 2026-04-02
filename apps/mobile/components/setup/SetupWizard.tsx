@@ -49,7 +49,6 @@ import {
   Loader2,
   Link,
   ChevronLeft,
-  Cpu,
   Bot,
   MessageSquare,
 } from 'lucide-react-native';
@@ -64,6 +63,12 @@ import {
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 
 import { KortixLogo } from '@/components/ui/KortixLogo';
+import AnthropicIcon from '@/assets/images/models/Anthropic.svg';
+import OAIIcon from '@/assets/images/models/OAI.svg';
+import GeminiIcon from '@/assets/images/models/Gemini.svg';
+import GrokIcon from '@/assets/images/models/Grok.svg';
+import MoonshotIcon from '@/assets/images/models/Moonshot.svg';
+import type { SvgProps } from 'react-native-svg';
 import { useSandboxContext } from '@/contexts/SandboxContext';
 import { useOpenCodeProviders, flattenModels, type FlatModel } from '@/lib/opencode/hooks/use-opencode-data';
 import { useLocalConfigStore } from '@/lib/opencode/hooks/use-local-config';
@@ -144,6 +149,41 @@ async function sandboxFetch(sandboxUrl: string, path: string, options?: RequestI
   });
 }
 
+// ─── Provider icons ──────────────────────────────────────────────────────────
+
+const PROVIDER_ICON_MAP: Record<string, React.FC<SvgProps>> = {
+  anthropic: AnthropicIcon,
+  openai: OAIIcon,
+  google: GeminiIcon,
+  xai: GrokIcon,
+  moonshotai: MoonshotIcon,
+};
+
+const PROVIDER_INITIALS: Record<string, string> = {
+  openrouter: 'OR',
+  groq: 'GQ',
+  deepseek: 'DS',
+  mistral: 'MI',
+  cerebras: 'CE',
+};
+
+function ProviderIcon({ providerId, size = 20, isDark }: { providerId: string; size?: number; isDark: boolean }) {
+  const SvgIcon = PROVIDER_ICON_MAP[providerId];
+  const iconColor = isDark ? '#F8F8F8' : '#121215';
+
+  if (SvgIcon) {
+    return <SvgIcon width={size} height={size} fill={iconColor} color={iconColor} />;
+  }
+
+  // Fallback to initials
+  const initials = PROVIDER_INITIALS[providerId] || (PROVIDER_LABELS[providerId] || providerId).slice(0, 2).toUpperCase();
+  return (
+    <Text style={{ fontSize: size * 0.5, fontFamily: 'Roobert-SemiBold', color: isDark ? 'rgba(248,248,248,0.6)' : 'rgba(18,18,21,0.5)' }}>
+      {initials}
+    </Text>
+  );
+}
+
 // ─── Provider connection helpers ──────────────────────────────────────────────
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -214,6 +254,38 @@ function StepIndicator({ currentStep, totalSteps, isDark, onStepPress }: {
         );
       })}
     </View>
+  );
+}
+
+// ─── Provider Row (reusable in bottom sheet) ─────────────────────────────────
+
+function ProviderRow({ id, idx, total, isConnected, isDark, colors, onPress }: {
+  id: string; idx: number; total: number; isConnected: boolean; isDark: boolean;
+  colors: ReturnType<typeof useStepColors>; onPress: (id: string) => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => onPress(id)}
+      style={{
+        flexDirection: 'row', alignItems: 'center', gap: 12,
+        paddingVertical: 11, paddingHorizontal: 4,
+        borderBottomWidth: idx < total - 1 ? StyleSheet.hairlineWidth : 0,
+        borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+      }}
+    >
+      <View style={{ width: 24, alignItems: 'center' }}>
+        {isConnected ? <Check size={18} color="#34d399" strokeWidth={2.5} /> : <ProviderIcon providerId={id} size={20} isDark={isDark} />}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 15, fontFamily: 'Roobert', color: colors.fg }}>
+          {PROVIDER_LABELS[id] || id}
+        </Text>
+        {isConnected && (
+          <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: '#34d399', marginTop: 1 }}>Connected</Text>
+        )}
+      </View>
+      <ChevronRight size={16} color={isConnected ? '#34d399' : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)')} strokeWidth={2} />
+    </Pressable>
   );
 }
 
@@ -483,38 +555,32 @@ function ProviderStep({ onContinue, isDark, themeColors }: StepProps & { onConti
       >
         {sheetView === 'list' && (
           /* ── Provider list ── */
-          <BottomSheetScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 32 }}>
+          <BottomSheetScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}>
             <Text style={{ fontSize: 17, fontFamily: 'Roobert-SemiBold', color: colors.fg, textAlign: 'center', marginTop: 4, marginBottom: 2 }}>
               Choose a provider
             </Text>
-            <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: colors.muted, textAlign: 'center', marginBottom: 16 }}>
+            <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: colors.muted, textAlign: 'center', marginBottom: 20 }}>
               Select one to connect
             </Text>
-            <View style={{ paddingHorizontal: 6 }}>
-              {POPULAR_PROVIDER_ORDER.map((id, idx) => {
-                const isConnected = connectedSet.has(id);
-                return (
-                  <Pressable
-                    key={id}
-                    onPress={() => handleSelectProvider(id)}
-                    style={{
-                      flexDirection: 'row', alignItems: 'center', gap: 12,
-                      paddingVertical: 14, paddingHorizontal: 2,
-                      borderBottomWidth: idx < POPULAR_PROVIDER_ORDER.length - 1 ? StyleSheet.hairlineWidth : 0,
-                      borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
-                    }}
-                  >
-                    <Cpu size={20} color={isConnected ? '#34d399' : (isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)')} strokeWidth={2} />
-                    <Text style={{ flex: 1, fontSize: 17, fontFamily: 'Roobert-Medium', color: colors.fg }}>
-                      {PROVIDER_LABELS[id] || id}
-                    </Text>
-                    {isConnected
-                      ? <Check size={16} color="#34d399" strokeWidth={2.5} />
-                      : <ChevronRight size={16} color={isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)'} strokeWidth={2} />
-                    }
-                  </Pressable>
-                );
-              })}
+
+            {/* Popular section */}
+            <Text style={{ fontSize: 11, fontFamily: 'Roobert-Medium', color: colors.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, paddingLeft: 4 }}>
+              Popular
+            </Text>
+            <View style={{ marginBottom: 16 }}>
+              {POPULAR_PROVIDER_ORDER.slice(0, 4).map((id, idx) => (
+                <ProviderRow key={id} id={id} idx={idx} total={4} isConnected={connectedSet.has(id)} isDark={isDark} colors={colors} onPress={handleSelectProvider} />
+              ))}
+            </View>
+
+            {/* More section */}
+            <Text style={{ fontSize: 11, fontFamily: 'Roobert-Medium', color: colors.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, paddingLeft: 4 }}>
+              More
+            </Text>
+            <View>
+              {POPULAR_PROVIDER_ORDER.slice(4).map((id, idx) => (
+                <ProviderRow key={id} id={id} idx={idx} total={POPULAR_PROVIDER_ORDER.length - 4} isConnected={connectedSet.has(id)} isDark={isDark} colors={colors} onPress={handleSelectProvider} />
+              ))}
             </View>
           </BottomSheetScrollView>
         )}
@@ -528,9 +594,7 @@ function ProviderStep({ onContinue, isDark, themeColors }: StepProps & { onConti
             </Pressable>
 
             <View style={{ alignItems: 'center', gap: 6, marginBottom: 20 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}>
-                <Cpu size={18} color={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)'} />
-              </View>
+              <ProviderIcon providerId={selectedProvider} size={28} isDark={isDark} />
               <Text style={{ fontSize: 16, fontFamily: 'Roobert-SemiBold', color: colors.fg }}>
                 Connect {PROVIDER_LABELS[selectedProvider] || selectedProvider}
               </Text>
@@ -554,14 +618,13 @@ function ProviderStep({ onContinue, isDark, themeColors }: StepProps & { onConti
                   onPress={() => handleSelectMethod(selectedProvider, authMethods, idx)}
                   style={{
                     flexDirection: 'row', alignItems: 'center', gap: 12,
-                    paddingVertical: 14, paddingHorizontal: 12,
-                    borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-                    borderRadius: 14, marginBottom: 8,
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
+                    paddingVertical: 12, paddingHorizontal: 4,
+                    borderBottomWidth: idx < authMethods.length - 1 ? StyleSheet.hairlineWidth : 0,
+                    borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
                   }}
                 >
-                  <View style={{ width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}>
-                    <MethodIcon size={16} color={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)'} />
+                  <View style={{ width: 24, alignItems: 'center' }}>
+                    <MethodIcon size={18} color={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)'} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: colors.fg }}>
@@ -596,8 +659,8 @@ function ProviderStep({ onContinue, isDark, themeColors }: StepProps & { onConti
               </Pressable>
 
               <View style={{ alignItems: 'center', gap: 6, marginBottom: 20 }}>
-                <View style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}>
-                  <Cpu size={18} color={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)'} />
+                <View style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
+                  <ProviderIcon providerId={selectedProvider} size={20} isDark={isDark} />
                 </View>
                 <Text style={{ fontSize: 16, fontFamily: 'Roobert-SemiBold', color: colors.fg }}>
                   {PROVIDER_LABELS[selectedProvider] || selectedProvider}
