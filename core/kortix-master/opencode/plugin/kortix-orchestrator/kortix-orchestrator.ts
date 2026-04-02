@@ -190,16 +190,6 @@ class Manager {
 			await fs.mkdir(path.join(pp, d), { recursive: true })
 		ensureGlobalMemoryFiles(import.meta.dir)
 		await wm(path.join(pp, ".kortix", "CONTEXT.md"), `# ${name}\n\n${desc || "No description."}\n`)
-		await wm(path.join(pp, ".gitignore"), "node_modules/\n.env\n.env.*\n!.env.example\n*.log\ndist/\n.DS_Store\n")
-		if (!existsSync(path.join(pp, ".git"))) {
-			try {
-				await Bun.spawn(["git", "init"], { cwd: pp, stdout: "pipe", stderr: "pipe" }).exited
-				await Bun.spawn(["git", "config", "user.email", "kortix@project.local"], { cwd: pp, stdout: "pipe", stderr: "pipe" }).exited
-				await Bun.spawn(["git", "config", "user.name", "Kortix"], { cwd: pp, stdout: "pipe", stderr: "pipe" }).exited
-				await Bun.spawn(["git", "add", "-A"], { cwd: pp, stdout: "pipe", stderr: "pipe" }).exited
-				await Bun.spawn(["git", "commit", "-m", "Init", "--allow-empty"], { cwd: pp, stdout: "pipe", stderr: "pipe" }).exited
-			} catch {}
-		}
 
 		// Write to SQLite — the single source of truth
 		const id = projectId(name), now = new Date().toISOString()
@@ -865,8 +855,7 @@ Also works on ANY session ID (not just spawned ones) — use session_list (built
 			const sessionId = input.sessionID
 			if (!sessionId) return // no session context — can't gate
 
-			// Wrap DB access in try-catch — if the DB is broken, fail OPEN (allow)
-			// rather than blocking every tool with "disk I/O error"
+			// Wrap DB access in try-catch — if the DB is broken, fail open, don't block work
 			try {
 				// Check if session already has a project (in-memory cache → DB fallback, once per session)
 				const linked = mgr.getSessionProject(sessionId)
@@ -879,8 +868,8 @@ Also works on ANY session ID (not just spawned ones) — use session_list (built
 
 			// No project — block with descriptive error
 			throw new Error(
-				`No project selected for this session. You must select a project before using ${toolName}.\n` +
-				`Use project_list to see available projects, then project_select to choose one.\n` +
+				`No project selected for this session. You must select or create a project first.\n` +
+				`Use project_list to see existing projects, then project_select to choose one.\n` +
 				`Or use project_create to register a new project directory.`
 			)
 		},

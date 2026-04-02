@@ -9,10 +9,10 @@ import { unlinkSync, rmSync, existsSync, readFileSync } from "node:fs"
 import * as path from "node:path"
 
 const PACKAGE_ROOT = path.resolve(import.meta.dir, "../../")
-const REPO_ROOT = path.resolve(import.meta.dir, "../../../../")
+const WORKSPACE_ROOT = path.resolve(import.meta.dir, "../../../../../")
 const NESTED_PLUGIN_DIR = path.join(PACKAGE_ROOT, "plugin", "kortix-orchestrator")
-const TEST_PROJECT = path.join(REPO_ROOT, "projects", "e2e-test-project")
-const DB_PATH = path.join(REPO_ROOT, ".kortix", "kortix.db")
+const TEST_PROJECT = path.join(WORKSPACE_ROOT, "projects", "e2e-test-project")
+const DB_PATH = path.join(WORKSPACE_ROOT, ".kortix", "kortix.db")
 
 // Cleanup before test
 function cleanup() {
@@ -103,10 +103,9 @@ async function run() {
 	)
 	assert(createResult.includes("e2e-test-project"), "project_create returns project name")
 	assert(existsSync(TEST_PROJECT), "Project directory created")
-	assert(existsSync(path.join(TEST_PROJECT, ".kortix", "project.json")), "project.json marker exists")
 	assert(existsSync(path.join(TEST_PROJECT, ".kortix", "CONTEXT.md")), "CONTEXT.md exists")
-	assert(existsSync(path.join(TEST_PROJECT, ".opencode")), ".opencode dir exists")
-	assert(existsSync(path.join(TEST_PROJECT, ".git")), "Git initialized")
+	assert(existsSync(path.join(TEST_PROJECT, ".kortix", "docs")), ".kortix/docs exists")
+	assert(existsSync(path.join(TEST_PROJECT, ".kortix", "sessions")), ".kortix/sessions exists")
 
 	// Idempotent — calling again doesn't crash
 	const createAgain = await tools.project_create.execute(
@@ -128,8 +127,8 @@ async function run() {
 	assert(updateResult.includes("New description") || updateResult.includes("Updated"), "project_update works")
 
 	// Existing directory — should not overwrite
-	const marker = JSON.parse(readFileSync(path.join(TEST_PROJECT, ".kortix", "project.json"), "utf8"))
-	assert(marker.name === "e2e-test-project", "Marker file preserved on re-create")
+	const contextBody = readFileSync(path.join(TEST_PROJECT, ".kortix", "CONTEXT.md"), "utf8")
+	assert(contextBody.includes("# e2e-test-project"), "CONTEXT.md preserved on re-create")
 
 	console.log("\n── 3. Session spawn ──")
 	spawnedSessions = []

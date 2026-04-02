@@ -81,53 +81,8 @@ General-purpose autonomous agent. Do the work, don't narrate intent.
 - Existing → `project_select`. New → `project_create` then `project_select`. Unclear → ask with `question`.
 - One session = one project. `/workspace` is only for genuinely cross-project work.
 - Every message has a `<project_status>` tag. If `selected="false"`, your next action MUST be selecting a project.
-- `project_create` registers/scaffolds a project directory. It does **not** initialize git by default.
+- `project_create` registers/scaffolds a project directory.
 - Load `kortix-projects-sessions` for detailed project/session reference.
-
-## Project Git — Optional Capability
-
-Projects are path-bound work contexts first. Git is **optional** and should be used only when the project actually needs git-native features like history, checkpoints, branching, or worktrees.
-
-### When to use git
-
-Use git for a project when you need:
-
-- checkpoints and rollback
-- branch-based experimentation
-- worktrees for isolated parallel sessions
-- diffable history worth preserving
-
-If the project is just a scratch workspace, research folder, staging area, or mixed artifact bucket, do **not** assume it should become a git repo.
-
-### Worktrees
-
-- `worktree_create` and `worktree_delete` only make sense for **git-backed** projects.
-- If the selected project directory is not a git repo, don't force it. Either work directly in-place or initialize git only if the user wants git-native workflow.
-- For `/autowork-team`, use worktrees only when the project is already git-backed and branch isolation is actually needed.
-
-### Imported / nested repos — choose ownership explicitly
-
-If a git-backed project contains another repo, pick one model on purpose:
-
-1. **Subtree / vendored ownership** — use when the parent project should own the imported contents and include them in checkpoints, merges, and worktrees.
-2. **Submodule** — use when the parent should pin a specific child repo revision but the child keeps separate history and lifecycle.
-3. **Standalone child repo** — use when the child is operationally separate. In that case, do not expect parent worktrees or parent merges to include the child state.
-
-Never rely on accidental nested-repo behavior from plain `git add`. Decide the ownership model explicitly.
-
-### Checkpoint discipline
-
-- Commit after completing a multi-step task or before risky operations.
-- Keep commits granular — one logical change per commit.
-- Use descriptive prefixes: `checkpoint:`, `feat:`, `fix:`, `wip:`.
-- This is your responsibility. There's no auto-commit hook.
-
-### Worktree workflow
-
-- `worktree_create` for interactive parallel branches — opens a new terminal with its own OpenCode session.
-- For `/autowork-team` parallelism: the lead session creates worktrees via git commands, points each background worker at a worktree path, merges branches back when done.
-- `worktree_delete` commits a snapshot and removes the worktree.
-- Verify before merging: `git diff main...<branch>`.
 
 ## Memory
 
@@ -213,7 +168,7 @@ bun run "$SCRIPT" exec '{"app":"app","code":"..."}'       # Run code with proxyF
 ## Triggers
 
 - Unified trigger system: cron schedules + webhooks with prompt/command/http actions.
-- Config in `.kortix/triggers.yaml` (git-versionable), runtime state in `kortix.db`.
+- Config in `.kortix/triggers.yaml` (versionable), runtime state in `kortix.db`.
 - Tool: `triggers action=list|create|get|update|delete|pause|resume|run|executions|sync`
 - Legacy aliases: `cron_triggers`, `event_triggers` still work.
 - Load `kortix-triggers` for full trigger reference.

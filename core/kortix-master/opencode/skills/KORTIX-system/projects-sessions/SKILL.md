@@ -47,20 +47,12 @@ This is not optional. The `question` tool approach is the correct default when t
 ```
 <project>/
 ├── .kortix/
-│   ├── project.json        # identity marker { name, description, created }
 │   ├── CONTEXT.md          # shared project context — auto-injected for linked sessions
-│   ├── plans/              # plans and roadmaps
 │   ├── docs/               # shared docs for cross-session context
 │   └── sessions/           # persisted session results (auto-written on completion)
-├── .opencode/
-│   ├── agents/
-│   ├── skills/
-│   ├── commands/
-│   └── opencode.jsonc
-└── .gitignore
 ```
 
-A git repo is initialized automatically if one doesn't exist.
+`project_create` scaffolds the directory and registers it with Kortix.
 
 ### Project Context (`CONTEXT.md`)
 
@@ -78,11 +70,9 @@ Keep `CONTEXT.md` concise. Put deeper project notes in `.kortix/docs/*.md` and r
 
 ### Project Discovery
 
-`project_list()` uses three sources:
-
-1. **Filesystem scan** — walks up to 2 levels from workspace root looking for `.kortix/project.json`
-2. **OpenCode project sync** — queries the OpenCode API to register any OC projects missing from Kortix, and link `opencode_id` bidirectionally
-3. **Unlinked resolution** — triggers OC registration for projects with `.git` but no `opencode_id`
+- `project_list()` reads the Kortix SQLite registry.
+- `project_create()` registers new projects there.
+- There are no `.kortix/project.json` markers and no automatic filesystem scanning.
 
 ### Session-Project Link
 
