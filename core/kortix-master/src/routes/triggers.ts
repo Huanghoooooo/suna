@@ -1,75 +1,468 @@
+/**
+ * Unified Triggers Router — Full CRUD for all trigger types.
+ * Replaces both the old /kortix/triggers (read-only list) and /kortix/cron/* routes.
+ *
+ * Writes go through TriggerManager which handles YAML + DB write-through.
+ */
 import { Hono } from 'hono'
-import { discoverAgentsWithTriggers, type WebhookTriggerConfig } from '../../triggers/src/index'
-import { getCronManager } from '../services/cron-manager'
+import { describeRoute } from 'hono-openapi'
+import { z } from 'zod'
+import { TriggerStore, TriggerYaml, isValidCronExpression, describeCron, getNextRun } from '../../triggers/src/index'
+import type { TriggerRecord, TriggerResponse, ExecutionResponse } from '../../triggers/src/types'
+
+// ─── Singleton store + yaml sync ────────────────────────────────────────────
+// These are initialized once and shared across all requests.
+// The TriggerManager in the plugin handles the lifecycle; these are the
+// direct DB/YAML accessors for the HTTP API layer.
+
+let store: TriggerStore | null = null
+let yamlSync: TriggerYaml | null = null
+
+function getStore(): TriggerStore {
+  if (!store) {
+    store = new TriggerStore('/workspace/.kortix/kortix.db')
+  }
+  return store
+}
+
+function getYamlSync(): TriggerYaml {
+  if (!yamlSync) {
+    yamlSync = new TriggerYaml(getStore(), '/workspace')
+  }
+  return yamlSync
+}
+
+// ─── Response mappers ───────────────────────────────────────────────────────
+
+function mapTriggerToResponse(t: TriggerRecord): TriggerResponse {
+  const sourceConfig = JSON.parse(t.source_config) as Record<string, unknown>
+  const actionConfig = JSON.parse(t.action_config) as Record<string, unknown>
+  const contextConfig = JSON.parse(t.context_config || '{}') as Record<string, unknown>
+  const pipedreamProps = JSON.parse(t.pipedream_props || '{}') as Record<string, unknown>
+  const metadata = JSON.parse(t.metadata || '{}') as Record<string, unknown>
+
+  const isCron = t.source_type === 'cron'
+  const isWebhook = t.source_type === 'webhook'
+
+  return {
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    source_type: t.source_type as any,
+    source_config: sourceConfig,
+    action_type: t.action_type as any,
+    action_config: actionConfig,
+    context_config: contextConfig,
+    agent_name: t.agent_name,
+    model_id: t.model_id,
+    session_mode: t.session_mode,
+    session_id: t.session_id,
+    pipedream: t.pipedream_app ? {
+      app: t.pipedream_app,
+      component: t.pipedream_component,
+      deployed_id: t.pipedream_deployed_id,
+      webhook_url: t.pipedream_webhook_url,
+      props: pipedreamProps,
+    } : null,
+    is_active: !!t.is_active,
+    last_run_at: t.last_run_at,
+    next_run_at: t.next_run_at,
+    last_event_at: t.last_event_at,
+    event_count: t.event_count,
+    metadata,
+    created_at: t.created_at,
+    updated_at: t.updated_at,
+    // Frontend compat fields
+    triggerId: t.id,
+    type: t.source_type,
+    sourceType: 'manual', // all triggers are now "manual" (user-created)
+    prompt: (actionConfig.prompt as string) ?? '',
+    enabled: !!t.is_active,
+    isActive: !!t.is_active,
+    editable: true,
+    cronExpr: isCron ? (sourceConfig.cron_expr as string) ?? null : null,
+    timezone: isCron ? (sourceConfig.timezone as string) ?? 'UTC' : null,
+    nextRunAt: t.next_run_at,
+    lastRunAt: t.last_run_at,
+    sessionMode: t.session_mode ?? 'new',
+    agentName: t.agent_name,
+    modelId: t.model_id,
+    modelProviderId: t.model_id?.includes('/') ? t.model_id.split('/')[0] : null,
+    webhook: isWebhook ? {
+      path: (sourceConfig.path as string) ?? '',
+      method: (sourceConfig.method as string) ?? 'POST',
+      secretProtected: !!(sourceConfig.secret),
+    } : null,
+    agentFilePath: null,
+    maxRetries: 0,
+    timeoutMs: (actionConfig.timeout_ms as number) ?? 300000,
+  }
+}
+
+function mapExecution(e: any): ExecutionResponse {
+  return {
+    executionId: e.id,
+    triggerId: e.trigger_id,
+    status: e.status,
+    sessionId: e.session_id ?? null,
+    errorMessage: e.error_message ?? null,
+    stdout: e.stdout ?? null,
+    stderr: e.stderr ?? null,
+    exitCode: e.exit_code ?? null,
+    httpStatus: e.http_status ?? null,
+    retryCount: e.retry_count ?? 0,
+    metadata: e.metadata ? (typeof e.metadata === 'string' ? JSON.parse(e.metadata) : e.metadata) : {},
+    startedAt: e.started_at,
+    completedAt: e.completed_at ?? null,
+    durationMs: e.duration_ms ?? null,
+    createdAt: e.created_at,
+  }
+}
+
+// ─── Validation schemas ─────────────────────────────────────────────────────
+
+const createSchema = z.object({
+  name: z.string().min(1).max(255),
+  description: z.string().optional(),
+  source: z.object({
+    type: z.enum(['cron', 'webhook']),
+    cron_expr: z.string().optional(),
+    timezone: z.string().optional(),
+    path: z.string().optional(),
+    method: z.string().optional(),
+    secret: z.string().optional(),
+  }),
+  action: z.object({
+    type: z.enum(['prompt', 'command', 'http']).optional().default('prompt'),
+    prompt: z.string().optional(),
+    agent: z.string().optional(),
+    model: z.string().optional(),
+    session_mode: z.enum(['new', 'reuse']).optional(),
+    command: z.string().optional(),
+    args: z.array(z.string()).optional(),
+    workdir: z.string().optional(),
+    env: z.record(z.string(), z.string()).optional(),
+    timeout_ms: z.number().optional(),
+    url: z.string().optional(),
+    method: z.string().optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+    body_template: z.string().optional(),
+  }).optional().default({ type: 'prompt' }),
+  context: z.object({
+    extract: z.record(z.string(), z.string()).optional(),
+    include_raw: z.boolean().optional(),
+  }).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  // Legacy compat: accept flat fields from old cron API
+  cron_expr: z.string().optional(),
+  timezone: z.string().optional(),
+  prompt: z.string().optional(),
+  agent_name: z.string().optional(),
+  model_provider_id: z.string().optional(),
+  model_id: z.string().optional(),
+  session_mode: z.enum(['new', 'reuse']).optional(),
+}).passthrough()
+
+function notFound(c: any, resource: string) {
+  return c.json({ error: `${resource} not found` }, 404)
+}
+
+// ─── Router ─────────────────────────────────────────────────────────────────
 
 const triggersRouter = new Hono()
-const cronManager = getCronManager()
 
-triggersRouter.get('/', (c) => {
-  const cronTriggers = cronManager.listTriggers()
-  const cronByName = new Map(cronTriggers.map((trigger) => [trigger.name, trigger]))
-  const discovered = discoverAgentsWithTriggers({ directory: '/workspace', homeDir: '/workspace' })
+// GET /triggers — List all triggers
+triggersRouter.get('/',
+  describeRoute({ tags: ['Triggers'], summary: 'List all triggers', responses: { 200: { description: 'Trigger list' } } }),
+  (c) => {
+    const db = getStore()
+    const sourceType = c.req.query('source_type')
+    const isActiveParam = c.req.query('is_active')
+    const filter: { source_type?: string; is_active?: boolean } = {}
+    if (sourceType) filter.source_type = sourceType
+    if (isActiveParam === 'true') filter.is_active = true
+    if (isActiveParam === 'false') filter.is_active = false
 
-  const data = [
-    ...cronTriggers.map((trigger) => ({
-      id: trigger.triggerId,
-      triggerId: trigger.triggerId,
-      type: 'cron',
-      sourceType: trigger.name.includes(':') ? 'agent' : 'manual',
-      name: trigger.name,
-      description: trigger.description,
-      prompt: trigger.prompt,
-      enabled: trigger.isActive,
-      isActive: trigger.isActive,
-      editable: !trigger.name.includes(':'),
-      cronExpr: trigger.cronExpr,
-      timezone: trigger.timezone,
-      nextRunAt: trigger.nextRunAt,
-      lastRunAt: trigger.lastRunAt,
-      sessionMode: trigger.sessionMode,
-      agentName: trigger.agentName,
-      modelId: trigger.modelId,
-      modelProviderId: trigger.modelProviderId,
-      webhook: null,
-      agentFilePath: null,
-      createdAt: trigger.createdAt,
-      updatedAt: trigger.updatedAt,
-    })),
-    ...discovered.flatMap((agent) =>
-      agent.triggers
-        .filter((trigger): trigger is WebhookTriggerConfig => trigger.source.type === 'webhook')
-        .map((trigger) => ({
-          id: `${agent.name}:${trigger.name}`,
-          triggerId: null,
-          type: 'webhook',
-          sourceType: 'agent',
-          name: trigger.name,
-          description: null,
-          prompt: trigger.execution.prompt,
-          enabled: trigger.enabled !== false,
-          isActive: trigger.enabled !== false,
-          editable: false,
-          cronExpr: null,
-          timezone: null,
-          nextRunAt: null,
-          lastRunAt: null,
-          sessionMode: trigger.execution.sessionMode ?? 'new',
-          agentName: trigger.execution.agentName ?? agent.name,
-          modelId: trigger.execution.modelId ?? null,
-          modelProviderId: trigger.execution.modelId?.split('/')[0] ?? null,
-          webhook: {
-            path: trigger.source.path,
-            method: trigger.source.method ?? 'POST',
-            secretProtected: Boolean(trigger.source.secret),
-          },
-          agentFilePath: agent.filePath,
-          createdAt: cronByName.get(`${agent.name}:${trigger.name}`)?.createdAt ?? new Date().toISOString(),
-          updatedAt: cronByName.get(`${agent.name}:${trigger.name}`)?.updatedAt ?? new Date().toISOString(),
-        })),
-    ),
-  ]
+    const triggers = db.list(filter)
+    const data = triggers.map(mapTriggerToResponse)
+    return c.json({ success: true, data, total: data.length })
+  },
+)
 
-  return c.json({ success: true, data, total: data.length })
-})
+// POST /triggers — Create trigger
+triggersRouter.post('/',
+  describeRoute({ tags: ['Triggers'], summary: 'Create trigger', responses: { 201: { description: 'Created' }, 400: { description: 'Invalid' } } }),
+  async (c) => {
+    const body = await c.req.json()
+    const db = getStore()
+    const ys = getYamlSync()
+
+    // Handle legacy flat format (from old /kortix/cron API)
+    if (body.cron_expr && !body.source) {
+      body.source = { type: 'cron', cron_expr: body.cron_expr, timezone: body.timezone ?? 'UTC' }
+      body.action = { type: 'prompt', prompt: body.prompt }
+      if (body.agent_name) body.action.agent = body.agent_name
+      if (body.model_id) body.action.model = body.model_id
+      if (body.session_mode) body.action.session_mode = body.session_mode
+    }
+
+    const parsed = createSchema.safeParse(body)
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.issues.map((i) => i.message).join(', ') }, 400)
+    }
+    const data = parsed.data
+
+    // Validate source
+    if (data.source.type === 'cron') {
+      const expr = data.source.cron_expr
+      if (!expr) return c.json({ error: 'cron_expr is required for cron triggers' }, 400)
+      if (!isValidCronExpression(expr)) return c.json({ error: 'Invalid cron expression. Use 6-field format: second minute hour day month weekday' }, 400)
+    } else if (data.source.type === 'webhook') {
+      if (!data.source.path) return c.json({ error: 'path is required for webhook triggers' }, 400)
+    }
+
+    // Validate action
+    const actionType = data.action.type ?? 'prompt'
+    if (actionType === 'prompt' && !data.action.prompt) {
+      return c.json({ error: 'prompt is required for prompt actions' }, 400)
+    }
+    if (actionType === 'command' && !data.action.command) {
+      return c.json({ error: 'command is required for command actions' }, 400)
+    }
+    if (actionType === 'http' && !data.action.url) {
+      return c.json({ error: 'url is required for http actions' }, 400)
+    }
+
+    // Build source config
+    const sourceConfig: Record<string, unknown> = data.source.type === 'cron'
+      ? { cron_expr: data.source.cron_expr, timezone: data.source.timezone ?? 'UTC' }
+      : { path: data.source.path, method: data.source.method ?? 'POST', secret: data.source.secret }
+
+    // Build action config
+    const actionConfig: Record<string, unknown> = {}
+    if (actionType === 'prompt') {
+      actionConfig.prompt = data.action.prompt
+    } else if (actionType === 'command') {
+      actionConfig.command = data.action.command
+      if (data.action.args) actionConfig.args = data.action.args
+      if (data.action.workdir) actionConfig.workdir = data.action.workdir
+      if (data.action.env) actionConfig.env = data.action.env
+      if (data.action.timeout_ms) actionConfig.timeout_ms = data.action.timeout_ms
+    } else if (actionType === 'http') {
+      actionConfig.url = data.action.url
+      if (data.action.method) actionConfig.method = data.action.method
+      if (data.action.headers) actionConfig.headers = data.action.headers
+      if (data.action.body_template) actionConfig.body_template = data.action.body_template
+      if (data.action.timeout_ms) actionConfig.timeout_ms = data.action.timeout_ms
+    }
+
+    const trigger = db.create({
+      name: data.name,
+      description: data.description,
+      source_type: data.source.type,
+      source_config: sourceConfig,
+      action_type: actionType,
+      action_config: actionConfig,
+      context_config: data.context,
+      agent_name: data.action.agent ?? data.agent_name ?? null,
+      model_id: data.action.model ?? data.model_id ?? null,
+      session_mode: data.action.session_mode ?? data.session_mode ?? 'new',
+      metadata: data.metadata,
+    })
+
+    // Write through to YAML
+    ys.writeThrough()
+
+    return c.json({ success: true, data: mapTriggerToResponse(trigger) }, 201)
+  },
+)
+
+// GET /triggers/:id
+triggersRouter.get('/:id',
+  describeRoute({ tags: ['Triggers'], summary: 'Get trigger', responses: { 200: { description: 'Trigger detail' }, 404: { description: 'Not found' } } }),
+  (c) => {
+    const db = getStore()
+    const trigger = db.get(c.req.param('id')) ?? db.getByName(c.req.param('id'))
+    if (!trigger) return notFound(c, 'Trigger')
+    return c.json({ success: true, data: mapTriggerToResponse(trigger) })
+  },
+)
+
+// PATCH /triggers/:id
+triggersRouter.patch('/:id',
+  describeRoute({ tags: ['Triggers'], summary: 'Update trigger', responses: { 200: { description: 'Updated' }, 404: { description: 'Not found' } } }),
+  async (c) => {
+    const db = getStore()
+    const ys = getYamlSync()
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    const current = db.get(id)
+    if (!current) return notFound(c, 'Trigger')
+
+    const patch: any = {}
+
+    // Handle structured source/action updates
+    if (body.source) {
+      const currentSc = JSON.parse(current.source_config)
+      patch.source_config = { ...currentSc, ...body.source }
+    }
+    if (body.action) {
+      const currentAc = JSON.parse(current.action_config)
+      patch.action_config = { ...currentAc, ...body.action }
+      if (body.action.agent !== undefined) patch.agent_name = body.action.agent
+      if (body.action.model !== undefined) patch.model_id = body.action.model
+      if (body.action.session_mode !== undefined) patch.session_mode = body.action.session_mode
+      if (body.action.type !== undefined) patch.action_type = body.action.type
+    }
+    if (body.context) patch.context_config = body.context
+
+    // Handle flat field updates (legacy compat)
+    if (body.name) patch.name = body.name
+    if (body.description !== undefined) patch.description = body.description
+    if (body.cron_expr) {
+      const currentSc = JSON.parse(current.source_config)
+      patch.source_config = { ...currentSc, cron_expr: body.cron_expr, ...(body.timezone ? { timezone: body.timezone } : {}) }
+    }
+    if (body.timezone && !body.cron_expr) {
+      const currentSc = JSON.parse(current.source_config)
+      patch.source_config = { ...currentSc, timezone: body.timezone }
+    }
+    if (body.prompt) {
+      const currentAc = JSON.parse(current.action_config)
+      patch.action_config = { ...currentAc, prompt: body.prompt }
+    }
+    if (body.agent_name !== undefined) patch.agent_name = body.agent_name
+    if (body.model_id !== undefined) patch.model_id = body.model_id
+    if (body.session_mode) patch.session_mode = body.session_mode
+    if (body.is_active !== undefined) patch.is_active = body.is_active
+    if (body.metadata) patch.metadata = body.metadata
+
+    const trigger = db.update(id, patch)
+    if (!trigger) return notFound(c, 'Trigger')
+
+    // Write through to YAML (skip for runtime-only changes like is_active)
+    const hasConfigChange = body.source || body.action || body.name || body.description !== undefined || body.cron_expr || body.prompt || body.context
+    if (hasConfigChange) ys.writeThrough()
+
+    return c.json({ success: true, data: mapTriggerToResponse(trigger) })
+  },
+)
+
+// DELETE /triggers/:id
+triggersRouter.delete('/:id',
+  describeRoute({ tags: ['Triggers'], summary: 'Delete trigger', responses: { 200: { description: 'Deleted' }, 404: { description: 'Not found' } } }),
+  (c) => {
+    const db = getStore()
+    const ys = getYamlSync()
+    const deleted = db.delete(c.req.param('id'))
+    if (!deleted) return notFound(c, 'Trigger')
+    ys.writeThrough()
+    return c.json({ success: true, message: 'Trigger deleted' })
+  },
+)
+
+// POST /triggers/:id/pause
+triggersRouter.post('/:id/pause',
+  describeRoute({ tags: ['Triggers'], summary: 'Pause trigger', responses: { 200: { description: 'Paused' }, 404: { description: 'Not found' } } }),
+  (c) => {
+    const db = getStore()
+    const trigger = db.update(c.req.param('id'), { is_active: false })
+    if (!trigger) return notFound(c, 'Trigger')
+    return c.json({ success: true, data: mapTriggerToResponse(trigger) })
+  },
+)
+
+// POST /triggers/:id/resume
+triggersRouter.post('/:id/resume',
+  describeRoute({ tags: ['Triggers'], summary: 'Resume trigger', responses: { 200: { description: 'Resumed' }, 404: { description: 'Not found' } } }),
+  (c) => {
+    const db = getStore()
+    const trigger = db.update(c.req.param('id'), { is_active: true })
+    if (!trigger) return notFound(c, 'Trigger')
+    return c.json({ success: true, data: mapTriggerToResponse(trigger) })
+  },
+)
+
+// POST /triggers/:id/run
+triggersRouter.post('/:id/run',
+  describeRoute({ tags: ['Triggers'], summary: 'Fire trigger manually', responses: { 200: { description: 'Fired' }, 404: { description: 'Not found' } } }),
+  async (c) => {
+    const db = getStore()
+    const trigger = db.get(c.req.param('id'))
+    if (!trigger) return notFound(c, 'Trigger')
+
+    // Create an execution record for the manual run
+    const execution = db.createExecution(trigger.id, {
+      status: 'running',
+      metadata: { manual: true },
+    })
+
+    return c.json({
+      success: true,
+      data: {
+        execution_id: execution.id,
+        status: 'running',
+        message: 'Trigger execution started',
+      },
+    })
+  },
+)
+
+// GET /triggers/:id/executions
+triggersRouter.get('/:id/executions',
+  describeRoute({ tags: ['Triggers'], summary: 'Get trigger execution history', responses: { 200: { description: 'Executions' }, 404: { description: 'Not found' } } }),
+  (c) => {
+    const db = getStore()
+    const trigger = db.get(c.req.param('id')) ?? db.getByName(c.req.param('id'))
+    if (!trigger) return notFound(c, 'Trigger')
+    const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 200)
+    const offset = parseInt(c.req.query('offset') || '0', 10)
+    const result = db.listExecutions({ triggerId: trigger.id, limit, offset })
+    return c.json({
+      success: true,
+      data: result.data.map(mapExecution),
+      total: result.total,
+      limit,
+      offset,
+    })
+  },
+)
+
+// GET /triggers/executions — all executions
+triggersRouter.get('/executions',
+  describeRoute({ tags: ['Triggers'], summary: 'List all executions', responses: { 200: { description: 'All executions' } } }),
+  (c) => {
+    const db = getStore()
+    const triggerId = c.req.query('trigger_id')
+    const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 200)
+    const offset = parseInt(c.req.query('offset') || '0', 10)
+    const result = db.listExecutions({ triggerId: triggerId ?? undefined, limit, offset })
+    return c.json({ success: true, data: result.data.map(mapExecution), total: result.total, limit, offset })
+  },
+)
+
+// POST /triggers/sync — Force re-read YAML
+triggersRouter.post('/sync',
+  describeRoute({ tags: ['Triggers'], summary: 'Force sync triggers.yaml to DB', responses: { 200: { description: 'Sync result' } } }),
+  (c) => {
+    const ys = getYamlSync()
+    const result = ys.syncFromYaml()
+    return c.json({ success: true, ...result })
+  },
+)
+
+// ─── Legacy compat: /executions/by-trigger/:triggerId ───────────────────────
+// The frontend currently calls this endpoint
+triggersRouter.get('/executions/by-trigger/:triggerId',
+  (c) => {
+    const db = getStore()
+    const trigger = db.get(c.req.param('triggerId')) ?? db.getByName(c.req.param('triggerId'))
+    if (!trigger) return notFound(c, 'Trigger')
+    const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 200)
+    const offset = parseInt(c.req.query('offset') || '0', 10)
+    const result = db.listExecutions({ triggerId: trigger.id, limit, offset })
+    return c.json({ success: true, data: result.data.map(mapExecution), total: result.total, limit, offset })
+  },
+)
 
 export default triggersRouter

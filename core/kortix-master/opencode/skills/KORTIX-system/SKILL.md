@@ -14,7 +14,7 @@ Route to the most specific skill. Don't stay here — go deeper.
 | Connectors, Pipedream | `kortix-connectors` |
 | Env vars, secrets | `kortix-environment-secrets` |
 | Services (start/stop/register) | `service-manager` |
-| Triggers (cron, webhook, event) | `kortix-agent-triggers` |
+| Triggers (cron, webhook, prompt/command/http) | `kortix-triggers` |
 | Channels (Slack, Telegram, Discord) | `kortix-channels` |
 | CLI auth, PTY patterns | `cli-maxxing` |
 | Agent/skill authoring | `kortix-agent-harness`, `kortix-skill-authoring` |

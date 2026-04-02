@@ -55,8 +55,10 @@
     "./plugin/kortix-orchestrator/kortix-orchestrator.ts",
     "./plugin/worktree/worktree.ts",
     "./plugin/kortix-sessions/kortix-sessions.ts",
-    "./plugin/kortix-continuation/kortix-continuation.ts",
+    "./plugin/kortix-todo-enforcing/kortix-todo-enforcing.ts",
+    "./plugin/kortix-autowork/kortix-autowork.ts",
     "./plugin/connectors/connectors.ts",
+    "./plugin/agent-triggers.ts",
     "./plugin/btw/btw.ts"
     // "./plugin/opencode-morph-plugin/opencode-morph-plugin.ts",
   ],

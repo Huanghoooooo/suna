@@ -1,44 +1,25 @@
-# Testing Guide — opencode-agent-triggers
+# Testing Guide — @kortix/triggers
 
-The package uses a hermetic E2E harness inspired by `opencode-channels`.
+Tests live in `core/kortix-master/tests/unit/` and `tests/e2e/`.
 
-## Quick Start
+## Run tests
 
 ```bash
-pnpm test:e2e
-pnpm docker:e2e
-pnpm docker:typecheck
+# From core/kortix-master/
+bun test tests/unit/trigger-store.test.ts
+bun test tests/unit/trigger-yaml.test.ts
+bun test tests/unit/trigger-actions.test.ts
+bun test tests/e2e/triggers-api.test.ts
+
+# All trigger tests
+bun test tests/unit/trigger-store.test.ts tests/unit/trigger-yaml.test.ts tests/unit/trigger-actions.test.ts tests/e2e/triggers-api.test.ts
 ```
 
-## Test topology
+## Test suites
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Test Runner                             │
-│                                                             │
-│  temp agent dir  -> real TriggerManager/plugin             │
-│                          |                                  │
-│                          +--> embedded cron scheduler      │
-│                          +--> persisted cron state file    │
-│                          +--> real webhook server          │
-│                          +--> mock OpenCode client         │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## What gets verified
-
-- Default OpenCode agent discovery semantics: project `.opencode/agents` plus global `~/.config/opencode/agents`
-- Agent markdown discovery from `.opencode/agents`
-- Self-contained cron state creation from markdown
-- Manual cron execution through the embedded scheduler
-- Automatic cron execution by the embedded scheduler
-- Webhook trigger dispatch into OpenCode sessions
-- Prompt templating from extracted trigger event context
-- Webhook secret rejection via `X-Kortix-OpenCode-Trigger-Secret`
-- Session reuse for webhook triggers with `execution.session_mode: reuse`
-- Live resync of changed markdown declarations (cron updates + webhook route replacement)
-- Real OpenCode plugin tool surface (`agent_triggers`, `sync_agent_triggers`, `cron_triggers`)
-
-## Test files
-
-- `test/e2e.test.ts` — isolated full-flow verification for the self-contained scheduler + webhook runtime
+| Suite | Tests | What it covers |
+|---|---|---|
+| `trigger-store.test.ts` | 27 | SQLite CRUD, filtering, executions, runtime state helpers |
+| `trigger-yaml.test.ts` | 15 | YAML read/write, sync, round-trip, self-trigger suppression |
+| `trigger-actions.test.ts` | 11 | Prompt dispatch, command exec (stdout/stderr/exit), HTTP action, concurrency |
+| `triggers-api.test.ts` | 17 | Full HTTP API lifecycle, filtering, validation, YAML sync, execution history |

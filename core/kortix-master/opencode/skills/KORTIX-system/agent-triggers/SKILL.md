@@ -1,87 +1,75 @@
 ---
-name: kortix-agent-triggers
-description: "Kortix agent triggers reference: cron, webhook, and Pipedream event triggers, frontmatter configuration, runtime state, and management tools."
+name: kortix-triggers
+description: "Kortix unified trigger system: cron schedules, webhooks, with prompt/command/http actions. Config in triggers.yaml, runtime in DB. Full CRUD via API, CLI, and agent tool."
 ---
 
-# Agent Triggers — Cron, Webhook, and Event-Driven Execution
+# Triggers — Unified Cron, Webhook, and Action System
 
-Automated agent execution via scheduled, HTTP, or third-party event triggers.
+Schedule cron jobs, receive webhooks, run commands, call HTTP endpoints, or send prompts to AI agents — all through one system.
 
 ---
 
 ## Overview
 
-The `@kortix/opencode-agent-triggers` plugin supports three trigger types:
-
-| Type | How it works | Use case |
+| Source (when) | Action (what) | Example |
 |---|---|---|
-| Cron | Embedded scheduler inside sandbox | Daily reports, periodic maintenance |
-| Webhook | HTTP server on port `8099` | CI callbacks, internal events |
-| Event (Pipedream) | External event workers POST into sandbox | Gmail, GitHub, Slack, Notion app events |
+| `cron` — time-based schedule | `prompt` — send to AI agent | "Every day at 9am, generate a report" |
+| `webhook` — incoming HTTP | `command` — run shell command | "On deploy webhook, run ./deploy.sh" |
+| | `http` — outbound HTTP call | "On alert, POST to Slack" |
+
+Config lives in `.kortix/triggers.yaml` (git-versionable). Runtime state lives in `kortix.db`.
 
 ---
 
-## Declarative Triggers in Agent Frontmatter
-
-Agents declare triggers directly in YAML frontmatter:
+## triggers.yaml Format
 
 ```yaml
----
-description: "My Agent"
-mode: primary
 triggers:
   - name: "Daily Report"
-    enabled: true
     source:
-      type: "cron"
-      expr: "0 0 9 * * *"
-      timezone: "America/New_York"
-    execution:
-      prompt: "Generate the daily report"
-      model_id: "kortix/power"
-      session_mode: "reuse"
-  - name: "Inbound Webhook"
-    enabled: true
+      type: cron
+      cron_expr: "0 0 9 * * *"
+      timezone: "UTC"
+    action:
+      type: prompt
+      prompt: "Generate the daily status report"
+      agent: kortix
+      session_mode: new
+
+  - name: "Nightly Backup"
     source:
-      type: "webhook"
+      type: cron
+      cron_expr: "0 0 2 * * *"
+    action:
+      type: command
+      command: "bash"
+      args: ["-c", "/workspace/scripts/backup.sh"]
+
+  - name: "Deploy Hook"
+    source:
+      type: webhook
       path: "/hooks/deploy"
-      method: "POST"
-      secret: "my-secret"
+      secret: "${DEPLOY_SECRET}"
+    action:
+      type: prompt
+      prompt: "Deploy event: {{ data.body.repository }}"
     context:
       extract:
-        sender: "data.body.sender"
+        repo: "data.body.repository"
       include_raw: true
-    execution:
-      prompt: "Handle deployment from {{ sender }}"
-      session_mode: "new"
-  - name: "New GitHub Issue"
-    enabled: true
+
+  - name: "Slack Relay"
     source:
-      type: "pipedream"
-      componentKey: "github-new-issue"
-      app: "github"
-      configuredProps:
-        repoFullName: "owner/repo"
-    execution:
-      prompt: "Triage new GitHub issue."
-      session_mode: "new"
----
+      type: webhook
+      path: "/hooks/alert"
+    action:
+      type: http
+      url: "https://hooks.slack.com/services/XXX"
+      method: POST
+      body_template: '{"text": "Alert: {{ data.body.message }}"}'
 ```
 
-### Execution Fields
-
-| Field | Description |
-|---|---|
-| `prompt` | Prompt sent to agent. Supports `{{ var }}` templates |
-| `session_mode` | `new` (fresh session) or `reuse` (continue existing) |
-| `agent_name` | Optional: override which agent executes |
-| `model_id` | Optional: override model |
-
----
-
-## Cron Triggers
-
-### 6-field format
+### Cron (6-field)
 
 ```
 second minute hour day month weekday
@@ -90,110 +78,187 @@ second minute hour day month weekday
 0      0      8    *   *     1        # Mondays at 8am
 ```
 
-### HTTP API
+---
+
+## `triggers` Tool
+
+One unified tool for all trigger management.
+
+```
+triggers action=list [source_type=cron|webhook] [is_active=true|false]
+triggers action=create name="..." source_type=cron cron_expr="..." action_type=prompt prompt="..."
+triggers action=create name="..." source_type=webhook path="/hooks/x" action_type=command command="bash" args='["-c","./run.sh"]'
+triggers action=get trigger_id=xxx
+triggers action=update trigger_id=xxx prompt="new prompt"
+triggers action=delete trigger_id=xxx
+triggers action=pause trigger_id=xxx
+triggers action=resume trigger_id=xxx
+triggers action=run trigger_id=xxx
+triggers action=executions trigger_id=xxx
+triggers action=sync
+```
+
+### Legacy aliases (still work)
+
+| Old tool | Maps to |
+|---|---|
+| `cron_triggers action=list` | `triggers action=list source_type=cron` |
+| `cron_triggers action=create ...` | `triggers action=create source_type=cron ...` |
+| `event_triggers action=setup ...` | `triggers action=create source_type=webhook ...` (+ Pipedream deploy) |
+| `agent_triggers` | `triggers action=list` |
+| `sync_agent_triggers` | `triggers action=sync` |
+
+---
+
+## REST API
+
+All endpoints on `http://localhost:8000/kortix/triggers`.
 
 ```bash
-# Create
-curl -X POST "http://localhost:8000/kortix/cron/triggers" \
+# ─── List ────────────────────────────────────────────────
+curl -s http://localhost:8000/kortix/triggers | jq
+curl -s 'http://localhost:8000/kortix/triggers?source_type=cron' | jq
+
+# ─── Create cron + prompt ────────────────────────────────
+curl -s -X POST http://localhost:8000/kortix/triggers \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "Daily Report",
+    "source": {"type":"cron","cron_expr":"0 0 9 * * *","timezone":"UTC"},
+    "action": {"type":"prompt","prompt":"Generate the report","agent":"kortix"}
+  }' | jq
+
+# ─── Create cron + command (no LLM) ─────────────────────
+curl -s -X POST http://localhost:8000/kortix/triggers \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "Nightly Backup",
+    "source": {"type":"cron","cron_expr":"0 0 2 * * *"},
+    "action": {"type":"command","command":"bash","args":["-c","./scripts/backup.sh"]}
+  }' | jq
+
+# ─── Create webhook + http ───────────────────────────────
+curl -s -X POST http://localhost:8000/kortix/triggers \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "Slack Alert",
+    "source": {"type":"webhook","path":"/hooks/alert"},
+    "action": {"type":"http","url":"https://hooks.slack.com/xxx","method":"POST","body_template":"{\"text\":\"alert\"}"}
+  }' | jq
+
+# ─── CRUD ────────────────────────────────────────────────
+curl -s http://localhost:8000/kortix/triggers/ID | jq
+curl -s -X PATCH http://localhost:8000/kortix/triggers/ID \
+  -H 'Content-Type: application/json' \
+  -d '{"action":{"prompt":"Updated prompt"}}' | jq
+curl -s -X DELETE http://localhost:8000/kortix/triggers/ID | jq
+
+# ─── Lifecycle ───────────────────────────────────────────
+curl -s -X POST http://localhost:8000/kortix/triggers/ID/pause | jq
+curl -s -X POST http://localhost:8000/kortix/triggers/ID/resume | jq
+curl -s -X POST http://localhost:8000/kortix/triggers/ID/run | jq
+
+# ─── Executions ──────────────────────────────────────────
+curl -s http://localhost:8000/kortix/triggers/ID/executions | jq
+
+# ─── Sync YAML → DB ─────────────────────────────────────
+curl -s -X POST http://localhost:8000/kortix/triggers/sync | jq
+
+# ─── Fire a webhook ─────────────────────────────────────
+curl -s -X POST http://localhost:8000/hooks/deploy \
+  -H 'Content-Type: application/json' \
+  -H 'X-Kortix-Trigger-Secret: mysecret' \
+  -d '{"repo":"kortix-ai/suna"}'
+```
+
+---
+
+## Webhook External Access
+
+Webhooks are accessible externally through the Kortix Master proxy:
+
+```
+External caller  →  Kortix API (cloud)  →  Sandbox Proxy  →  Kortix Master (:8000)  →  /hooks/*  →  Trigger Webhook Server (:8099)
+```
+
+**Full external URL format:**
+```
+https://<sandbox-public-url>/hooks/<your-path>
+```
+
+For cloud sandboxes, the sandbox public URL is typically:
+```
+https://<platform-url>/p/<sandbox-external-id>/8000
+```
+
+**Auth**: Webhook paths (`/hooks/*`) skip the Kortix Master auth middleware. Per-trigger authentication is done via the `X-Kortix-Trigger-Secret` header. If a trigger has a `secret` configured, callers MUST include this header.
+
+**Example — fire a webhook from outside:**
+```bash
+# Without secret
+curl -X POST "https://<sandbox-url>/hooks/deploy" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Daily Report","cron_expr":"0 0 9 * * *","prompt":"Generate the daily report"}'
+  -d '{"repo": "kortix-ai/suna", "branch": "main"}'
 
-# List
-curl "http://localhost:8000/kortix/cron/triggers"
-
-# Get one
-curl "http://localhost:8000/kortix/cron/triggers/{id}"
-
-# Update
-curl -X PATCH "http://localhost:8000/kortix/cron/triggers/{id}" -d '{"prompt":"new prompt"}'
-
-# Delete
-curl -X DELETE "http://localhost:8000/kortix/cron/triggers/{id}"
-
-# Pause / Resume / Run now
-curl -X POST "http://localhost:8000/kortix/cron/triggers/{id}/pause"
-curl -X POST "http://localhost:8000/kortix/cron/triggers/{id}/resume"
-curl -X POST "http://localhost:8000/kortix/cron/triggers/{id}/run"
+# With secret
+curl -X POST "https://<sandbox-url>/hooks/deploy" \
+  -H "Content-Type: application/json" \
+  -H "X-Kortix-Trigger-Secret: my-secret-value" \
+  -d '{"repo": "kortix-ai/suna", "branch": "main"}'
 ```
 
-### cron_triggers tool
-
-```
-cron_triggers action=create name="Nightly Cleanup" cron_expr="0 0 3 * * *" prompt="Run cleanup"
-cron_triggers action=list
-cron_triggers action=pause trigger_id="..."
-cron_triggers action=resume trigger_id="..."
-cron_triggers action=run trigger_id="..."
-cron_triggers action=executions trigger_id="..."
-cron_triggers action=delete trigger_id="..."
+**From inside the sandbox** (e.g. from a script or another trigger), you can hit Kortix Master directly:
+```bash
+curl -X POST "http://localhost:8000/hooks/deploy" \
+  -H "Content-Type: application/json" \
+  -d '{"event": "test"}'
 ```
 
 ---
 
-## Webhook Triggers
-
-- Internal server on port `8099`
-- External traffic arrives through Kortix Master on `8000`
-- If `source.secret` is set, callers must send `x-kortix-trigger-secret` header
-- URL format: `<publicBaseUrl>/<agent-name><path>`
-
----
-
-## Event Triggers (Pipedream)
-
-Pipedream hosts the polling/trigger worker. The sandbox only receives normalized event deliveries.
-
-### Prerequisites
-
-1. App connected via Pipedream (see `kortix-connectors` skill)
-2. `KORTIX_TOKEN` configured
-3. `SANDBOX_PUBLIC_URL` configured
-4. Trigger plugin loaded
-
-### event_triggers tool
-
-| Action | Purpose |
-|---|---|
-| `list_available` | List trigger components for an app |
-| `setup` | Deploy a new listener |
-| `list` | List active listeners |
-| `get` | Get listener details |
-| `remove` | Delete listener + remote trigger |
-| `pause` | Stop accepting events |
-| `resume` | Resume event delivery |
-
-### Example: Gmail new email
+## Architecture
 
 ```
-event_triggers action=list_available app=gmail
-
-event_triggers action=setup \
-  name="New Email Alert" \
-  app=gmail \
-  component_key=gmail-new-email-received \
-  prompt="New email from {{ from }}. Subject: {{ subject }}." \
-  configured_props="{\"withTextPayload\": true, \"timer\": {\"intervalSeconds\": 60}}"
+triggers.yaml (git)  ←→  kortix.db:triggers (runtime)  ←→  REST API  ←→  Frontend
+                                    ↓
+                          ActionDispatcher
+                      ┌───────┼───────┐
+                   prompt  command   http
 ```
 
----
-
-## Trigger Management Tools
-
-| Tool | Description |
-|---|---|
-| `agent_triggers` | List trigger definitions and sync state |
-| `sync_agent_triggers` | Re-read agent markdown and register triggers |
-| `cron_triggers` | CRUD for cron triggers |
-| `event_triggers` | Manage Pipedream event listeners |
+- **Config** (what triggers exist) lives in `.kortix/triggers.yaml` — git-versionable
+- **Runtime state** (is_active, last_run, executions) lives in `kortix.db` — not git-tracked
+- UI creates/edits write to **both** YAML + DB
+- File changes detected by watcher → synced to DB
+- Cron scheduling via `croner` library
+- Webhook server on port `8099` (internal), proxied through Kortix Master on `:8000/hooks/*` (external)
 
 ---
 
-## Runtime
+## Action Types
 
-- Cron state: `.opencode/agent-triggers/cron-state.json`
-- Event listener state: `/tmp/kortix-agent-triggers/listener-state.json`
-- Agents discovered from `.opencode/agents/` and `~/.config/opencode/agents/`
-- Webhook server starts on plugin load (port 8099)
-- Triggers namespaced as `{agent}:{trigger}` in the scheduler
+### prompt
+Sends a prompt to an OpenCode agent session. Supports `{{ var }}` templates for webhook payloads.
 
-**Note:** `/tmp` paths don't survive container restarts unless restored externally.
+### command
+Runs a shell command via `Bun.spawn`. Captures stdout, stderr, and exit code. No LLM involved.
+
+### http
+Makes an outbound HTTP request. Captures response status and body. Supports `{{ var }}` templates in body_template and headers.
+
+---
+
+## Pipedream Events
+
+Pipedream events are modeled as webhook triggers with extra metadata. Use `event_triggers action=setup` or the unified `triggers` tool to create them. Pipedream watches the external app and POSTs events to the webhook path.
+
+```
+triggers action=create name="New PR" source_type=webhook path="/events/pipedream/github-pr" action_type=prompt prompt="Review new PR"
+```
+
+Or via the `event_triggers` tool for the full Pipedream deploy flow:
+
+```
+event_triggers action=list_available app=github
+event_triggers action=setup name="New PR" app=github component_key=github-new-pull-request prompt="Review this PR"
+```

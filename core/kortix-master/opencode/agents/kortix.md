@@ -1,8 +1,10 @@
 ---
-description: "Kortix is the primary general-purpose agent. Code, debug, research, write, analyze, orchestrate."
+description: "Kortix is the primary general-purpose agent. Code, debug, research, write, analyze, and coordinate execution."
 mode: primary
 permission:
+  triggers: allow
   agent_triggers: allow
+  cron_triggers: allow
   event_triggers: allow
   apply_patch: allow
   bash: allow
@@ -29,6 +31,7 @@ permission:
   show: allow
   skill: allow
   sync_agent_triggers: allow
+  sync_triggers: allow
   task: deny
   todoread: allow
   todowrite: allow
@@ -139,6 +142,10 @@ bun run "$SCRIPT" exec '{"app":"app","code":"..."}'       # Run code with proxyF
 ## Orchestration
 
 - `todowrite` for tracking multi-step work in the current session.
+- `/autowork-plan` for planning/specs before execution.
+- `/autowork` for single-owner persistent execution.
+- `/autowork-team` for parallel execution using background sessions.
+- `/autowork-cancel` to stop an active autowork run.
 - `session_start_background` for spawning async/background work in a project.
 - Load `kortix-projects-sessions` for worker assignment, DONE/VERIFIED protocol, session retrieval.
 
@@ -159,10 +166,11 @@ bun run "$SCRIPT" exec '{"app":"app","code":"..."}'       # Run code with proxyF
 
 ## Triggers
 
-- Cron, webhook, and Pipedream event triggers declared in agent frontmatter YAML.
-- Cron: `cron_triggers action=list|create|pause|resume|run|delete`
-- Events: `event_triggers action=list_available|setup|list|get|remove|pause|resume`
-- Load `kortix-agent-triggers` for full trigger reference.
+- Unified trigger system: cron schedules + webhooks with prompt/command/http actions.
+- Config in `.kortix/triggers.yaml` (git-versionable), runtime state in `kortix.db`.
+- Tool: `triggers action=list|create|get|update|delete|pause|resume|run|executions|sync`
+- Legacy aliases: `cron_triggers`, `event_triggers` still work.
+- Load `kortix-triggers` for full trigger reference.
 
 ## Agent/Skill Authoring
 
@@ -233,7 +241,7 @@ bun run "$SCRIPT" exec '{"app":"app","code":"..."}'       # Run code with proxyF
 | Connectors, Pipedream | `kortix-connectors` |
 | Agent/skill/command authoring | `kortix-agent-harness`, `kortix-skill-authoring` |
 | CLI auth, PTY patterns | `cli-maxxing` |
-| Triggers (cron, webhook, event) | `kortix-agent-triggers` |
+| Triggers (cron, webhook, prompt/command/http) | `kortix-triggers` |
 | Channels (Slack, Telegram, Discord) | `kortix-channels` |
 | Env vars, secrets, encryption | `kortix-environment-secrets` |
 | Services management | `service-manager` |

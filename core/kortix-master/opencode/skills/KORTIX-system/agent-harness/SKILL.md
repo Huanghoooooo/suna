@@ -272,58 +272,53 @@ Good: `"Reviews code for security vulnerabilities. Use for PR reviews and audits
 
 ## Layer 5: Activation
 
-What wakes the agent up. Load `kortix-agent-triggers` for the full trigger reference.
+What wakes the agent up. Load `kortix-triggers` for the full trigger reference.
 
-### Cron triggers
+Triggers are defined in `.kortix/triggers.yaml` (git-versionable). Runtime state lives in `kortix.db`.
+
+### Cron + Prompt
 
 ```yaml
+# .kortix/triggers.yaml
 triggers:
   - name: "Daily Standup"
-    enabled: true
     source:
-      type: "cron"
-      expr: "0 0 9 * * 1-5"     # 9am Mon-Fri
+      type: cron
+      cron_expr: "0 0 9 * * 1-5"
       timezone: "America/New_York"
-    execution:
+    action:
+      type: prompt
       prompt: "Generate a daily standup summary."
-      session_mode: "new"
+      agent: kortix
+      session_mode: new
 ```
 
-### Webhook triggers
+### Webhook + Command
 
 ```yaml
-triggers:
-  - name: "GitHub PR"
-    enabled: true
+  - name: "Deploy Hook"
     source:
-      type: "webhook"
-      path: "/hooks/github-pr"
-      method: "POST"
+      type: webhook
+      path: "/hooks/deploy"
       secret: "your-secret"
-    context:
-      extract:
-        pr_title: "data.body.pull_request.title"
-      include_raw: true
-    execution:
-      prompt: "Review PR: {{ pr_title }}"
-      session_mode: "new"
+    action:
+      type: command
+      command: "bash"
+      args: ["-c", "./scripts/deploy.sh"]
 ```
 
-### Pipedream triggers
+### Webhook + HTTP relay
 
 ```yaml
-triggers:
-  - name: "New GitHub Issue"
-    enabled: true
+  - name: "Slack Alert"
     source:
-      type: "pipedream"
-      componentKey: "github-new-issue"
-      app: "github"
-      configuredProps:
-        repoFullName: "owner/repo"
-    execution:
-      prompt: "Triage this new GitHub issue."
-      session_mode: "new"
+      type: webhook
+      path: "/hooks/alert"
+    action:
+      type: http
+      url: "https://hooks.slack.com/services/XXX"
+      method: POST
+      body_template: '{"text": "Alert: {{ data.body.message }}"}'
 ```
 
 ---

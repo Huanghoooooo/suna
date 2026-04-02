@@ -28,12 +28,10 @@ import connectorsRouter from './routes/connectors'
 import suggestionsRouter from './routes/suggestions'
 import coreRouter from './routes/core'
 import reloadRouter from './routes/reload'
-import cronRouter from './routes/cron'
 import triggersRouter from './routes/triggers'
 import marketplaceRouter from './routes/marketplace'
 import projectsRouter from './routes/projects'
 import { serviceManager } from './services/service-manager'
-import { getCronManager } from './services/cron-manager'
 import { config } from './config'
 import { loadBootstrapEnv, saveBootstrapEnv } from './services/bootstrap-env'
 import { HealthResponse, PortsResponse } from './schemas/common'
@@ -126,7 +124,8 @@ if (process.env.KORTIX_DISABLE_CORE_SUPERVISOR !== 'true') {
   )
 }
 
-getCronManager().start()
+// Cron scheduling + webhook routing handled by unified triggers plugin.
+// TriggerManager starts cron jobs from .kortix/triggers.yaml + DB on boot.
 
 // Global middleware
 app.use('*', logger())
@@ -183,8 +182,11 @@ app.use('*', async (c, next) => {
   if (pathname.startsWith('/channels/api/webhooks/')) return next()
   // Skip auth for Pipedream event delivery — Pipedream POSTs events to
   // /events/pipedream/:listenerId. The listener ID acts as a secret token
-  // (UUID, not guessable). Events are forwarded to the agent-triggers webhook server.
+  // (UUID, not guessable). Events are forwarded to the triggers webhook server.
   if (pathname.startsWith('/events/pipedream/')) return next()
+  // Skip auth for user-defined webhook triggers at /hooks/* — external callers
+  // authenticate via the X-Kortix-Trigger-Secret header (per-trigger secret).
+  if (pathname.startsWith('/hooks/')) return next()
 
   // Skip auth for requests from inside the sandbox (localhost/loopback)
   if (isLocalRequest(c)) return next()
@@ -339,9 +341,10 @@ if (config.KORTIX_DEPLOYMENTS_ENABLED) {
 // Services — unified "what's running" for the frontend
 app.route('/kortix/services', servicesRouter)
 
-// Scheduled tasks
-app.route('/kortix/cron', cronRouter)
+// Triggers — unified CRUD for all trigger types (cron, webhook, etc.)
 app.route('/kortix/triggers', triggersRouter)
+// Legacy compat: /kortix/cron/* → forwards to /kortix/triggers/*
+app.route('/kortix/cron', triggersRouter)
 
 // Core supervisor management
 app.route('/kortix/core', coreRouter)
@@ -363,8 +366,35 @@ app.route('/kortix/connectors', connectorsRouter)
 // Pipedream integration proxy — forwards to kortix-api
 app.route('/api/pipedream', pipedreamRouter)
 
+// Webhook trigger proxy — forwards /hooks/* to the triggers webhook server (port 8099).
+// Auth is skipped (see auth middleware) — per-trigger secret via X-Kortix-Trigger-Secret header.
+app.all('/hooks/*', async (c) => {
+  const pathname = new URL(c.req.url).pathname
+  try {
+    const body = ['GET', 'HEAD'].includes(c.req.method) ? undefined : await c.req.text()
+    const headers: Record<string, string> = {
+      'Content-Type': c.req.header('content-type') || 'application/json',
+    }
+    // Forward the trigger secret header
+    const secret = c.req.header('x-kortix-trigger-secret') ?? c.req.header('x-kortix-opencode-trigger-secret')
+    if (secret) headers['x-kortix-trigger-secret'] = secret
+
+    const res = await fetch(`http://localhost:8099${pathname}`, {
+      method: c.req.method,
+      headers,
+      body,
+      signal: AbortSignal.timeout(30_000),
+    })
+    const data = await res.json()
+    return c.json(data, res.status as any)
+  } catch (err) {
+    console.error(`[Kortix Master] Webhook proxy error for ${pathname}:`, err)
+    return c.json({ ok: false, error: 'Failed to forward webhook to trigger server' }, 502)
+  }
+})
+
 // Pipedream event receiver — forwards events from Pipedream to the
-// agent-triggers webhook server (port 8099). Auth is skipped for this
+// triggers webhook server (port 8099). Auth is skipped for this
 // path (see auth middleware above) — the listener ID (UUID) is the secret.
 app.post('/events/pipedream/:listenerId', async (c) => {
   const listenerId = c.req.param('listenerId')
@@ -385,7 +415,7 @@ app.post('/events/pipedream/:listenerId', async (c) => {
     return c.json(data, res.status as any)
   } catch (err) {
     console.error(`[Kortix Master] Pipedream event forward error for ${listenerId}:`, err)
-    return c.json({ ok: false, error: 'Failed to forward event to agent-triggers' }, 502)
+    return c.json({ ok: false, error: 'Failed to forward event to triggers webhook server' }, 502)
   }
 })
 
