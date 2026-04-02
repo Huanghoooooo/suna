@@ -243,8 +243,12 @@ export function ConnectProviderContent({
         const data = result.data!;
         setOauthUrl(data.url);
 
-        if (data.method === 'code' || data.method === 'auto') {
+        if (data.method === 'code') {
           setOauthMethod('code');
+          setOauthState('complete');
+          window.open(data.url, '_blank');
+        } else if (data.method === 'auto') {
+          setOauthMethod('auto');
           setOauthInstructions(data.instructions || '');
           setOauthState('complete');
         }
@@ -304,6 +308,39 @@ export function ConnectProviderContent({
       setSaving(false);
     }
   }, [view, oauthCode, methodIndex, completeConnection]);
+
+  // --- Auto-callback for 'auto' OAuth methods (OpenAI browser/headless) ---
+  // When method is 'auto', open the auth URL in a new tab, then call the callback
+  // endpoint (no code) — the backend blocks until auth completes.
+  useEffect(() => {
+    if (view.type !== 'connect' || oauthMethod !== 'auto' || oauthState !== 'complete') return;
+    let cancelled = false;
+
+    // Open auth URL automatically
+    if (oauthUrl) {
+      window.open(oauthUrl, '_blank');
+    }
+
+    (async () => {
+      try {
+        const client = getClient();
+        const result = await client.provider.oauth.callback({
+          providerID: view.providerID,
+          method: methodIndex,
+        });
+        if (cancelled) return;
+        if (result.error) throw result.error;
+        await completeConnection(view.providerID);
+      } catch (err) {
+        if (cancelled) return;
+        setOauthState('error');
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    })();
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, oauthMethod, oauthState]);
 
   // --- Submit custom provider ---
   const handleCustomSubmit = useCallback(async (e?: React.FormEvent) => {
@@ -735,17 +772,26 @@ export function ConnectProviderContent({
           )}
 
           {showOAuthAuto && (
-            <div className="space-y-3 rounded-2xl border border-border/50 bg-muted/20 p-4">
-              <p className="text-sm text-muted-foreground">
-                Complete authorization in the{' '}
-                <a href={oauthUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">browser window</a>.
-              </p>
+            <div className="space-y-4 rounded-2xl border border-border/50 bg-muted/20 p-5">
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>A browser tab should have opened automatically. Complete the authorization there, then return here.</p>
+              </div>
               {oauthInstructions && (
-                <div className="px-3 py-2 rounded-lg bg-background border border-border/30 font-mono text-xs select-all break-all">
+                <div className="px-3 py-2.5 rounded-lg bg-background border border-border/30 font-mono text-sm select-all break-all text-center font-bold tracking-widest">
                   {oauthInstructions.includes(':') ? oauthInstructions.split(':')[1]?.trim() : oauthInstructions}
                 </div>
               )}
-              <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full h-10 rounded-lg gap-2"
+                onClick={() => window.open(oauthUrl, '_blank')}
+              >
+                <ExternalLink className="h-4 w-4" />
+                Open Authorization Page
+              </Button>
+              <div className="flex items-center gap-2.5 text-sm text-muted-foreground justify-center">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 <span>Waiting for authorization...</span>
               </div>
