@@ -438,7 +438,7 @@ function ProviderStep({ onContinue, isDark, themeColors }: StepProps & { onConti
 
 // ─── Step 2: Default Model Selection ─────────────────────────────────────────
 
-function DefaultModelStep({ onContinue, isDark, themeColors }: StepProps & { onContinue: () => void }) {
+function DefaultModelStep({ onContinue, onBack, isDark, themeColors }: StepProps & { onContinue: () => void; onBack: () => void }) {
   const { sandboxUrl } = useSandboxContext();
   const { data: providersData, isLoading } = useOpenCodeProviders(sandboxUrl);
   const allModels = useMemo(() => (providersData ? flattenModels(providersData) : []), [providersData]);
@@ -542,8 +542,8 @@ function DefaultModelStep({ onContinue, isDark, themeColors }: StepProps & { onC
         ))}
       </ScrollView>
 
-      {/* Sticky bottom button */}
-      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+      {/* Sticky bottom buttons */}
+      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, gap: 10 }}>
         <Pressable
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onContinue(); }}
           style={{
@@ -560,6 +560,13 @@ function DefaultModelStep({ onContinue, isDark, themeColors }: StepProps & { onC
             {selected ? 'Continue' : 'Skip for now'}
           </Text>
           <ChevronRight size={16} color={themeColors.primaryForeground} strokeWidth={2} />
+        </Pressable>
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onBack(); }}
+          style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4, paddingVertical: 4 }}
+        >
+          <ChevronLeft size={14} color={colors.muted} strokeWidth={2} />
+          <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: colors.muted }}>Back</Text>
         </Pressable>
       </View>
     </View>
@@ -924,7 +931,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
         {/* ── Step content ── */}
         <View style={{ flex: 1, width: '100%', maxWidth: 380, alignSelf: 'center' }}>
           {step === 1 && <ProviderStep onContinue={() => setStep(2)} isDark={isDark} themeColors={themeColors} />}
-          {step === 2 && <DefaultModelStep onContinue={() => setStep(3)} isDark={isDark} themeColors={themeColors} />}
+          {step === 2 && <DefaultModelStep onContinue={() => setStep(3)} onBack={() => setStep(1)} isDark={isDark} themeColors={themeColors} />}
           {step === 3 && <ToolSecretsStep onContinue={() => setStep(4)} isDark={isDark} themeColors={themeColors} />}
           {step === 4 && <PipedreamStep onComplete={() => setStep(5)} completing={false} isDark={isDark} themeColors={themeColors} />}
           {step === 5 && <GetStartedStep onComplete={markSetupComplete} completing={completing} isDark={isDark} themeColors={themeColors} />}
