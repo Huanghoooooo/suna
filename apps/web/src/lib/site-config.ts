@@ -27,7 +27,7 @@ export const siteConfig = {
       title: 'Resources',
       links: [
         { id: 6, title: 'Tutorials', url: '/tutorials' },
-        { id: 7, title: 'Documentation', url: 'https://github.com/kortix-ai/suna' },
+        { id: 7, title: 'Documentation', url: '/docs' },
         { id: 8, title: 'Discord', url: 'https://discord.com/invite/RvFhXUdZ9H' },
         { id: 9, title: 'GitHub', url: 'https://github.com/kortix-ai/suna' },
       ],

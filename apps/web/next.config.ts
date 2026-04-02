@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next';
 import path from 'path';
+import { createMDX } from 'fumadocs-mdx/next';
 
 const nextConfig = (): NextConfig => ({
   output: 'standalone',
@@ -103,5 +104,7 @@ const nextConfig = (): NextConfig => ({
   skipTrailingSlashRedirect: true,
 });
 
-export default nextConfig;
+const withMDX = createMDX();
+
+export default withMDX(nextConfig());
 // env rebuild 1774513733

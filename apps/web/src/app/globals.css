@@ -3,12 +3,58 @@
  * CSS linters may show warnings but these are false positives
  */
 @import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
 @import 'tw-animate-css';
 @plugin 'tailwind-scrollbar';
 @plugin 'tailwind-scrollbar-hide';
 
 /* Streamdown source for Tailwind CSS v4 */
 @source "../node_modules/streamdown/dist/*.js";
+@source "../node_modules/fumadocs-ui/dist/**/*.js";
+
+/* ─── Fumadocs → Kortix brand overrides ─── */
+:root {
+  --color-fd-background: oklch(0.985 0 0);
+  --color-fd-foreground: oklch(0.145 0 0);
+  --color-fd-muted: oklch(0.955 0 0);
+  --color-fd-muted-foreground: oklch(0.45 0 0);
+  --color-fd-popover: oklch(1 0 0);
+  --color-fd-popover-foreground: oklch(0.145 0 0);
+  --color-fd-card: oklch(0.97 0 0);
+  --color-fd-card-foreground: oklch(0.145 0 0);
+  --color-fd-border: oklch(0.885 0 0 / 0.6);
+  --color-fd-primary: oklch(0.205 0 0);
+  --color-fd-primary-foreground: oklch(0.985 0 0);
+  --color-fd-secondary: oklch(0.955 0 0);
+  --color-fd-secondary-foreground: oklch(0.205 0 0);
+  --color-fd-accent: oklch(0.92 0 0 / 0.5);
+  --color-fd-accent-foreground: oklch(0.205 0 0);
+  --color-fd-ring: oklch(0.708 0 0);
+}
+.dark {
+  --color-fd-background: oklch(0.18 0 0);
+  --color-fd-foreground: oklch(0.94 0 0);
+  --color-fd-muted: oklch(0.27 0 0);
+  --color-fd-muted-foreground: oklch(0.60 0 0);
+  --color-fd-popover: oklch(0.24 0 0);
+  --color-fd-popover-foreground: oklch(0.94 0 0);
+  --color-fd-card: oklch(0.21 0 0);
+  --color-fd-card-foreground: oklch(0.94 0 0);
+  --color-fd-border: oklch(0.30 0 0 / 0.5);
+  --color-fd-primary: oklch(0.94 0 0);
+  --color-fd-primary-foreground: oklch(0.18 0 0);
+  --color-fd-secondary: oklch(0.27 0 0);
+  --color-fd-secondary-foreground: oklch(0.94 0 0);
+  --color-fd-accent: oklch(0.35 0 0 / 0.5);
+  --color-fd-accent-foreground: oklch(0.94 0 0);
+  --color-fd-ring: oklch(0.50 0 0);
+}
+.dark #nd-sidebar {
+  --color-fd-muted: oklch(0.22 0 0);
+  --color-fd-secondary: oklch(0.25 0 0);
+  --color-fd-muted-foreground: oklch(0.60 0 0);
+}
 
 @custom-variant dark (&:where(.dark, .dark *));
 
