@@ -294,7 +294,7 @@ function resolveReachableKortixApiUrl(): string {
 
 export function buildCustomerCloudInitScript(dockerImage: string): string {
   return [
-    'curl -fsSL https://raw.githubusercontent.com/kortix-ai/computer/main/scripts/start-sandbox.sh -o /usr/local/bin/kortix-start-sandbox.sh',
+    'curl -fsSL https://raw.githubusercontent.com/kortix-ai/suna/main/scripts/start-sandbox.sh -o /usr/local/bin/kortix-start-sandbox.sh',
     'chmod +x /usr/local/bin/kortix-start-sandbox.sh',
     `/usr/local/bin/kortix-start-sandbox.sh ${shellEscape(dockerImage)}`,
   ].join('\n');
