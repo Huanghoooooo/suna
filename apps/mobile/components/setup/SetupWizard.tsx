@@ -293,32 +293,32 @@ function ProviderStep({ onContinue, isDark, themeColors }: StepProps & { onConti
     <View style={{ width: '100%', flex: 1, justifyContent: 'center' }}>
       <View style={{ gap: 24 }}>
         <View style={{ alignItems: 'center', gap: 8 }}>
-          <View style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: hasLLMProvider ? 'rgba(52,211,153,0.1)' : (isDark ? 'rgba(248,248,248,0.06)' : 'rgba(18,18,21,0.04)') }}>
-            {hasLLMProvider ? <Check size={20} color="#34d399" /> : <Sparkles size={20} color={isDark ? 'rgba(248,248,248,0.5)' : 'rgba(18,18,21,0.4)'} />}
+          <View style={{ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: hasLLMProvider ? 'rgba(52,211,153,0.1)' : (isDark ? 'rgba(248,248,248,0.06)' : 'rgba(18,18,21,0.04)'), marginBottom: 8 }}>
+            {hasLLMProvider ? <Check size={22} color="#34d399" /> : <Sparkles size={22} color={isDark ? 'rgba(248,248,248,0.5)' : 'rgba(18,18,21,0.4)'} />}
           </View>
-          <Text style={{ fontSize: 15, fontFamily: 'Roobert-Medium', color: isDark ? '#F8F8F8' : '#121215', textAlign: 'center' }}>
-            {hasLLMProvider ? 'Provider connected' : 'Connect an LLM provider'}
+          <Text style={{ fontSize: 18, fontFamily: 'Roobert-SemiBold', color: isDark ? '#F8F8F8' : '#121215', textAlign: 'center' }}>
+            {hasLLMProvider ? 'Provider connected' : 'LLM Providers'}
           </Text>
-          <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: isDark ? 'rgba(248,248,248,0.5)' : 'rgba(18,18,21,0.5)', textAlign: 'center', lineHeight: 18, paddingHorizontal: 16 }}>
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: isDark ? 'rgba(248,248,248,0.5)' : 'rgba(18,18,21,0.5)', textAlign: 'center', lineHeight: 18, paddingHorizontal: 8, maxWidth: 300 }}>
             {hasLLMProvider
               ? `${connectedCount} provider${connectedCount > 1 ? 's' : ''} ready. You can add more anytime from settings.`
-              : 'Connect your existing OpenAI, Anthropic, or other LLM subscription with an API key.'}
+              : 'Configure which AI models to use with your Kortix agent. Connect OpenAI, Anthropic, Google, or any supported provider.'}
           </Text>
         </View>
 
         <View style={{ gap: 8 }}>
-          <Pressable onPress={handleOpenSheet} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 44, borderRadius: 12, backgroundColor: hasLLMProvider ? 'transparent' : themeColors.primary, borderWidth: hasLLMProvider ? 1 : 0, borderColor: isDark ? 'rgba(248,248,248,0.1)' : 'rgba(18,18,21,0.1)' }}>
-            <Settings2 size={14} color={hasLLMProvider ? (isDark ? '#F8F8F8' : '#121215') : themeColors.primaryForeground} />
-            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: hasLLMProvider ? (isDark ? '#F8F8F8' : '#121215') : themeColors.primaryForeground }}>
-              {hasLLMProvider ? 'Manage Providers' : 'Add LLM Provider'}
+          <Pressable onPress={handleOpenSheet} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 14, backgroundColor: hasLLMProvider ? 'transparent' : themeColors.primary, borderWidth: hasLLMProvider ? 1 : 0, borderColor: isDark ? 'rgba(248,248,248,0.1)' : 'rgba(18,18,21,0.1)' }}>
+            <Settings2 size={16} color={hasLLMProvider ? (isDark ? '#F8F8F8' : '#121215') : themeColors.primaryForeground} />
+            <Text style={{ fontSize: 14, fontFamily: 'Roobert-SemiBold', color: hasLLMProvider ? (isDark ? '#F8F8F8' : '#121215') : themeColors.primaryForeground }}>
+              {hasLLMProvider ? 'Manage Providers' : 'Connect Provider'}
             </Text>
           </Pressable>
 
-          <Pressable onPress={handleContinue} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 12, backgroundColor: hasLLMProvider ? themeColors.primary : 'transparent' }}>
-            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: hasLLMProvider ? themeColors.primaryForeground : (isDark ? 'rgba(248,248,248,0.5)' : 'rgba(18,18,21,0.5)') }}>
+          <Pressable onPress={handleContinue} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 48, borderRadius: 14, backgroundColor: hasLLMProvider ? themeColors.primary : 'transparent' }}>
+            <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: hasLLMProvider ? themeColors.primaryForeground : (isDark ? 'rgba(248,248,248,0.5)' : 'rgba(18,18,21,0.5)') }}>
               {hasLLMProvider ? 'Continue' : 'Skip for now'}
             </Text>
-            {hasLLMProvider && <ChevronRight size={14} color={themeColors.primaryForeground} />}
+            {hasLLMProvider && <ChevronRight size={16} color={themeColors.primaryForeground} />}
           </Pressable>
         </View>
       </View>
