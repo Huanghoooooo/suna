@@ -20,7 +20,7 @@ export const ptyKill = tool({
 
     const wasRunning = session.status === 'running'
     const cleanup = args.cleanup ?? false
-    const success = manager.kill(args.id, cleanup)
+    const success = await manager.kill(args.id, cleanup)
 
     if (!success) {
       throw new Error(`Failed to kill PTY session '${args.id}'.`)

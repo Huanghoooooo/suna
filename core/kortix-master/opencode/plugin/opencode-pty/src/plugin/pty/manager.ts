@@ -1,77 +1,22 @@
 import type { OpencodeClient } from '@opencode-ai/sdk'
-import { NotificationManager } from './notification-manager.ts'
-import { OutputManager } from './output-manager.ts'
-import { SessionLifecycleManager } from './session-lifecycle.ts'
-import type { PTYSessionInfo, ReadResult, SearchResult, SpawnOptions } from './types.ts'
-import { withSession } from './utils.ts'
+import { RingBuffer } from './buffer.ts'
+import type { PTYSession, PTYSessionInfo, ReadResult, SearchResult, SpawnOptions } from './types.ts'
 
-// ── bun-pty availability probe ──────────────────────────────────────────────
-// We try-catch the import so the plugin can still load and give a clear error
-// at tool-call time instead of crashing the entire plugin at import.
-let _bunPtyAvailable = false
-let _bunPtyLoadError: string | null = null
-
-try {
-  // Dynamic require so a missing native addon doesn't kill the module graph
-  const bunPty = await import('bun-pty') as any
-  const Terminal = bunPty.Terminal ?? bunPty.default?.Terminal
-  const bunPtyPkg = await import('bun-pty/package.json')
-  const bunPtyVersion: string = bunPtyPkg.version ?? bunPtyPkg.default?.version ?? 'unknown'
-
-  // Monkey-patch bun-pty to fix race condition in _startReadLoop
-  // Temporary workaround until https://github.com/sursaone/bun-pty/pull/37 is merged
-  // Softened: warn instead of hard-throw if version is newer than expected.
-  const { semver } = await import('bun')
-  if (semver.order(bunPtyVersion, '0.4.8') > 0) {
-    console.warn(
-      `[opencode-pty] bun-pty ${bunPtyVersion} is newer than 0.4.8 — monkey-patch skipped. ` +
-        `If you see race conditions in _startReadLoop, remove the workaround or update the patch.`
-    )
-  } else if (Terminal) {
-    const proto = Terminal.prototype as unknown as {
-      _startReadLoop?: (...args: unknown[]) => unknown
-    }
-    const original = proto._startReadLoop
-    if (typeof original === 'function') {
-      proto._startReadLoop = async function (
-        this: InstanceType<typeof Terminal>,
-        ...args: unknown[]
-      ) {
-        await Promise.resolve() // Yield to allow event handlers to be registered
-        return original.apply(this, args)
-      }
-    }
-  }
-
-  _bunPtyAvailable = true
-  console.log(`[opencode-pty] bun-pty ${bunPtyVersion} loaded successfully`)
-} catch (err: unknown) {
-  const msg = err instanceof Error ? err.message : String(err)
-  _bunPtyLoadError = msg
-  _bunPtyAvailable = false
-  console.error(
-    `[opencode-pty] bun-pty failed to load — PTY tools will be unavailable.\n` +
-      `  Error: ${msg}\n` +
-      `  Platform: ${process.platform}/${process.arch}\n` +
-      `  Runtime: ${typeof Bun !== 'undefined' ? `Bun ${(Bun as any).version}` : 'NOT Bun (bun-pty requires Bun!)'}\n` +
-      `  Fix: cd plugin/opencode-pty && bun install`
-  )
+type BuiltinPtyInfo = {
+  id: string
+  title: string
+  command: string
+  args: string[]
+  cwd: string
+  status: 'running' | 'exited'
+  pid: number
 }
 
-/** Check if bun-pty loaded successfully. Call before any PTY operation. */
-export function isBunPtyAvailable(): boolean {
-  return _bunPtyAvailable
-}
-
-/** If bun-pty failed to load, returns the error message. */
-export function bunPtyLoadError(): string | null {
-  return _bunPtyLoadError
-}
-
-// ── Session update callbacks ────────────────────────────────────────────────
 type SessionUpdateCallback = (session: PTYSessionInfo) => void
+type RawOutputCallback = (session: PTYSessionInfo, rawData: string) => void
 
 export const sessionUpdateCallbacks: SessionUpdateCallback[] = []
+export const rawOutputCallbacks: RawOutputCallback[] = []
 
 export function registerSessionUpdateCallback(callback: SessionUpdateCallback) {
   sessionUpdateCallbacks.push(callback)
@@ -79,25 +24,8 @@ export function registerSessionUpdateCallback(callback: SessionUpdateCallback) {
 
 export function removeSessionUpdateCallback(callback: SessionUpdateCallback) {
   const index = sessionUpdateCallbacks.indexOf(callback)
-  if (index !== -1) {
-    sessionUpdateCallbacks.splice(index, 1)
-  }
+  if (index !== -1) sessionUpdateCallbacks.splice(index, 1)
 }
-
-function notifySessionUpdate(session: PTYSessionInfo) {
-  for (const callback of sessionUpdateCallbacks) {
-    try {
-      callback(session)
-    } catch {
-      // Ignore callback errors
-    }
-  }
-}
-
-// ── Raw output callbacks ────────────────────────────────────────────────────
-type RawOutputCallback = (session: PTYSessionInfo, rawData: string) => void
-
-export const rawOutputCallbacks: RawOutputCallback[] = []
 
 export function registerRawOutputCallback(callback: RawOutputCallback): void {
   rawOutputCallbacks.push(callback)
@@ -105,8 +33,14 @@ export function registerRawOutputCallback(callback: RawOutputCallback): void {
 
 export function removeRawOutputCallback(callback: RawOutputCallback): void {
   const index = rawOutputCallbacks.indexOf(callback)
-  if (index !== -1) {
-    rawOutputCallbacks.splice(index, 1)
+  if (index !== -1) rawOutputCallbacks.splice(index, 1)
+}
+
+function notifySessionUpdate(session: PTYSessionInfo) {
+  for (const callback of sessionUpdateCallbacks) {
+    try {
+      callback(session)
+    } catch {}
   }
 }
 
@@ -114,123 +48,323 @@ function notifyRawOutput(session: PTYSessionInfo, rawData: string): void {
   for (const callback of rawOutputCallbacks) {
     try {
       callback(session, rawData)
-    } catch {
-      // Ignore callback errors
-    }
+    } catch {}
   }
 }
 
-// ── PTY Manager ─────────────────────────────────────────────────────────────
-class PTYManager {
-  private lifecycleManager = new SessionLifecycleManager()
-  private outputManager = new OutputManager()
-  private notificationManager = new NotificationManager()
+let _client: OpencodeClient | null = null
+let _directory = process.cwd()
+let _httpBase = 'http://127.0.0.1:4096'
+let _wsBase = 'ws://127.0.0.1:4096'
+let _backendAvailable = true
+let _backendLoadError: string | null = null
 
-  init(client: OpencodeClient): void {
-    this.notificationManager.init(client)
+function normalizeBase(input: URL | string | undefined, protocol: 'http' | 'ws'): string {
+  const url = typeof input === 'string' ? new URL(input) : new URL(input?.toString() ?? 'http://127.0.0.1:4096')
+  if (url.hostname === '0.0.0.0') url.hostname = '127.0.0.1'
+  url.protocol = protocol === 'ws'
+    ? (url.protocol === 'https:' ? 'wss:' : 'ws:')
+    : (url.protocol === 'wss:' ? 'https:' : 'http:')
+  url.pathname = ''
+  url.search = ''
+  url.hash = ''
+  return url.toString().replace(/\/$/, '')
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${_httpBase}${path}`, init)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`PTY backend ${init?.method ?? 'GET'} ${path} failed: ${res.status} ${body}`)
+  }
+  return (await res.json()) as T
+}
+
+function escapeXml(text: string): string {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+}
+
+class PTYManager {
+  private sessions = new Map<string, PTYSession>()
+
+  init(client: OpencodeClient, serverUrl?: URL, directory?: string): void {
+    _client = client
+    if (directory) _directory = directory
+    _httpBase = normalizeBase(serverUrl, 'http')
+    _wsBase = normalizeBase(serverUrl, 'ws')
+    _backendAvailable = true
+    _backendLoadError = null
+  }
+
+  async probe(): Promise<void> {
+    try {
+      await request<BuiltinPtyInfo[]>('/pty')
+      _backendAvailable = true
+      _backendLoadError = null
+    } catch (err) {
+      _backendAvailable = false
+      _backendLoadError = err instanceof Error ? err.message : String(err)
+    }
   }
 
   clearAllSessions(): void {
-    this.lifecycleManager.clearAllSessions()
+    for (const session of this.sessions.values()) {
+      try {
+        session.process?.kill?.()
+      } catch {}
+    }
+    this.sessions.clear()
+  }
+
+  private toInfo(session: PTYSession): PTYSessionInfo {
+    return {
+      id: session.id,
+      title: session.title,
+      description: session.description,
+      command: session.command,
+      args: session.args,
+      workdir: session.workdir,
+      status: session.status,
+      exitCode: session.exitCode,
+      exitSignal: session.exitSignal,
+      pid: session.pid,
+      createdAt: session.createdAt,
+      lineCount: session.buffer.length,
+    }
+  }
+
+  private async sendExitNotification(session: PTYSession): Promise<void> {
+    if (!_client || !session.notifyOnExit) return
+    const lines = [
+      '<pty_exited>',
+      `ID: ${session.id}`,
+      `Title: ${session.title}`,
+      `Exit code: ${session.exitCode ?? 'unknown'}`,
+      `Output lines: ${session.buffer.length}`,
+      '</pty_exited>',
+    ]
+    try {
+      await _client.session.prompt({
+        path: { id: session.parentSessionId },
+        body: { noReply: true, parts: [{ type: 'text', text: lines.join('\n') }] },
+      })
+    } catch {}
+  }
+
+  private connectSocket(session: PTYSession): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(`${_wsBase}/pty/${session.id}/connect`)
+      let settled = false
+      const settle = (fn: () => void) => {
+        if (settled) return
+        settled = true
+        fn()
+      }
+
+      ws.onopen = () => {
+        session.process = {
+          pid: session.pid,
+          onData: () => {},
+          onExit: () => {},
+          write: (data: string) => ws.send(data),
+          kill: () => ws.close(),
+        }
+        settle(resolve)
+      }
+
+      ws.onmessage = (event) => {
+        const text = typeof event.data === 'string' ? event.data : ''
+        if (!text) return
+        session.buffer.append(text)
+        notifyRawOutput(this.toInfo(session), text)
+        notifySessionUpdate(this.toInfo(session))
+      }
+
+      ws.onclose = async () => {
+        session.status = session.status === 'killing' ? 'killed' : 'exited'
+        notifySessionUpdate(this.toInfo(session))
+        await this.sendExitNotification(session)
+      }
+
+      ws.onerror = () => {
+        settle(() => reject(new Error(`PTY websocket connection failed for ${session.id}`)))
+      }
+    })
   }
 
   async spawn(opts: SpawnOptions): Promise<PTYSessionInfo> {
-    if (!_bunPtyAvailable) {
-      throw new Error(
-        `[PTY manager] Cannot spawn: bun-pty is not available. Load error: ${_bunPtyLoadError ?? 'unknown'}`
-      )
+    if (!_backendAvailable) {
+      throw new Error(`[PTY manager] Cannot spawn: PTY backend is unavailable. Load error: ${_backendLoadError ?? 'unknown'}`)
     }
 
-    try {
-      const session = await this.lifecycleManager.spawn(
-        opts,
-        (session, data) => {
-          notifyRawOutput(this.lifecycleManager.toInfo(session), data)
-        },
-        async (session, exitCode) => {
-          notifySessionUpdate(this.lifecycleManager.toInfo(session))
-          if (session?.notifyOnExit) {
-            await this.notificationManager.sendExitNotification(session, exitCode || 0)
-          }
-        }
-      )
-      notifySessionUpdate(session)
-      return session
-    } catch (err: unknown) {
-      // Add manager-level context if not already a PTY diagnostic
-      if (err instanceof Error && err.message.includes('[PTY spawn')) {
-        throw err // Already has rich diagnostics
-      }
-      const msg = err instanceof Error ? err.message : String(err)
-      throw new Error(
-        `[PTY manager] spawn failed for "${opts.command} ${(opts.args ?? []).join(' ')}": ${msg}`
-      )
+    const cwd = opts.workdir ?? _directory
+    const created = await request<BuiltinPtyInfo>('/pty', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        command: opts.command,
+        args: opts.args ?? [],
+        cwd,
+        title: opts.title,
+        env: opts.env,
+      }),
+    })
+
+    const session: PTYSession = {
+      id: created.id,
+      title: created.title,
+      description: opts.description,
+      command: created.command,
+      args: created.args,
+      workdir: created.cwd,
+      env: opts.env,
+      status: created.status,
+      pid: created.pid,
+      createdAt: new Date().toISOString(),
+      parentSessionId: opts.parentSessionId,
+      parentAgent: opts.parentAgent,
+      notifyOnExit: opts.notifyOnExit ?? false,
+      buffer: new RingBuffer(),
+      process: null,
     }
+
+    this.sessions.set(session.id, session)
+    try {
+      await this.connectSocket(session)
+    } catch (err) {
+      this.sessions.delete(session.id)
+      await request(`/pty/${session.id}`, { method: 'DELETE' }).catch(() => undefined)
+      throw err
+    }
+
+    notifySessionUpdate(this.toInfo(session))
+    return this.toInfo(session)
   }
 
-  write(id: string, data: string): boolean {
-    return withSession(
-      this.lifecycleManager,
-      id,
-      (session) => this.outputManager.write(session, data),
-      false
-    )
+  async write(id: string, data: string): Promise<boolean> {
+    const session = this.sessions.get(id)
+    if (!session || !session.process) return false
+    session.process.write(data)
+    return true
   }
 
   read(id: string, offset: number = 0, limit?: number): ReadResult | null {
-    return withSession(
-      this.lifecycleManager,
-      id,
-      (session) => this.outputManager.read(session, offset, limit),
-      null
-    )
+    const session = this.sessions.get(id)
+    if (!session) return null
+    const lines = session.buffer.read(offset, limit)
+    const totalLines = session.buffer.length
+    return {
+      lines,
+      totalLines,
+      offset,
+      hasMore: offset + lines.length < totalLines,
+    }
   }
 
   search(id: string, pattern: RegExp, offset: number = 0, limit?: number): SearchResult | null {
-    return withSession(
-      this.lifecycleManager,
-      id,
-      (session) => this.outputManager.search(session, pattern, offset, limit),
-      null
-    )
+    const session = this.sessions.get(id)
+    if (!session) return null
+    const matches = session.buffer.search(pattern)
+    const paged = limit !== undefined ? matches.slice(offset, offset + limit) : matches.slice(offset)
+    return {
+      matches: paged,
+      totalMatches: matches.length,
+      totalLines: session.buffer.length,
+      offset,
+      hasMore: offset + paged.length < matches.length,
+    }
   }
 
-  list(): PTYSessionInfo[] {
-    return this.lifecycleManager.listSessions().map((s) => this.lifecycleManager.toInfo(s))
+  async list(): Promise<PTYSessionInfo[]> {
+    try {
+      const live = await request<BuiltinPtyInfo[]>('/pty')
+      const liveIds = new Set(live.map((item) => item.id))
+      for (const item of live) {
+        const existing = this.sessions.get(item.id)
+        if (existing) {
+          existing.title = item.title
+          existing.command = item.command
+          existing.args = item.args
+          existing.workdir = item.cwd
+          existing.status = item.status
+          existing.pid = item.pid
+        } else {
+          this.sessions.set(item.id, {
+            id: item.id,
+            title: item.title,
+            command: item.command,
+            args: item.args,
+            workdir: item.cwd,
+            status: item.status,
+            pid: item.pid,
+            createdAt: new Date().toISOString(),
+            parentSessionId: '',
+            notifyOnExit: false,
+            buffer: new RingBuffer(),
+            process: null,
+          })
+        }
+      }
+      for (const [id, session] of this.sessions) {
+        if (!liveIds.has(id) && session.status === 'running') session.status = 'exited'
+      }
+    } catch {}
+    return Array.from(this.sessions.values()).map((session) => this.toInfo(session))
   }
 
   get(id: string): PTYSessionInfo | null {
-    return withSession(
-      this.lifecycleManager,
-      id,
-      (session) => this.lifecycleManager.toInfo(session),
-      null
-    )
+    const session = this.sessions.get(id)
+    return session ? this.toInfo(session) : null
   }
 
-  getRawBuffer(id: string): { raw: string; byteLength: number } | null {
-    return withSession(
-      this.lifecycleManager,
-      id,
-      (session) => ({
-        raw: session.buffer.readRaw(),
-        byteLength: session.buffer.byteLength,
-      }),
-      null
-    )
-  }
-
-  kill(id: string, cleanup: boolean = false): boolean {
-    return this.lifecycleManager.kill(id, cleanup)
+  async kill(id: string, cleanup: boolean = false): Promise<boolean> {
+    const session = this.sessions.get(id)
+    if (!session) return false
+    session.status = 'killing'
+    try {
+      await request(`/pty/${id}`, { method: 'DELETE' })
+    } catch {
+      return false
+    }
+    session.status = 'killed'
+    try {
+      session.process?.kill?.()
+    } catch {}
+    if (cleanup) {
+      session.buffer.clear()
+      this.sessions.delete(id)
+    }
+    notifySessionUpdate(this.toInfo(session))
+    return true
   }
 
   cleanupBySession(parentSessionId: string): void {
-    this.lifecycleManager.cleanupBySession(parentSessionId)
+    for (const [id, session] of this.sessions) {
+      if (session.parentSessionId === parentSessionId) {
+        this.kill(id, true).catch(() => undefined)
+      }
+    }
   }
 }
 
 export const manager = new PTYManager()
 
-export function initManager(opcClient: OpencodeClient): void {
-  manager.init(opcClient)
+export function isBunPtyAvailable(): boolean {
+  return _backendAvailable
+}
+
+export function bunPtyLoadError(): string | null {
+  return _backendLoadError
+}
+
+export function initManager(opcClient: OpencodeClient, serverUrl?: URL, directory?: string): void {
+  manager.init(opcClient, serverUrl, directory)
+  manager.probe().catch(() => undefined)
+}
+
+export function wrapPtyText(text: string): string {
+  return escapeXml(text)
 }

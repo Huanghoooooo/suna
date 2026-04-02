@@ -80,7 +80,7 @@ export const ptyWrite = tool({
       }
     }
 
-    const success = manager.write(args.id, parsedData)
+    const success = await manager.write(args.id, parsedData)
     if (!success) {
       throw new Error(`Failed to write to PTY '${args.id}'.`)
     }

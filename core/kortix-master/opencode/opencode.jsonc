@@ -51,7 +51,7 @@
   },
   "plugin": [
     "./plugin/anthropic-auth.ts",
-    "./plugin/opencode-pty/src/plugin.ts",
+    "./plugin/pty-tools.ts",
     "./plugin/kortix-orchestrator/kortix-orchestrator.ts",
     "./plugin/worktree/worktree.ts",
     "./plugin/kortix-sessions/kortix-sessions.ts",

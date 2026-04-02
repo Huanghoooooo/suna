@@ -1,5 +1,4 @@
 import type { RingBuffer } from './buffer.ts'
-import type moment from 'moment'
 
 // IPty interface from bun-pty — defined inline so we don't need a static
 // import of the native module (which crashes if bun-pty isn't available).
@@ -26,7 +25,7 @@ export interface PTYSession {
   exitCode?: number
   exitSignal?: number | string
   pid: number
-  createdAt: moment.Moment
+  createdAt: string
   parentSessionId: string
   parentAgent?: string
   notifyOnExit: boolean

@@ -30,12 +30,10 @@ export const ptySpawn = tool({
       const loadErr = bunPtyLoadError()
       throw new Error(
         [
-          `[pty_spawn] bun-pty native module is not available — PTY tools cannot work.`,
+          `[pty_spawn] PTY backend is not available — PTY tools cannot work.`,
           `  Load error: ${loadErr ?? 'unknown'}`,
-          `  Platform: ${process.platform}/${process.arch}, Runtime: ${typeof Bun !== 'undefined' ? `Bun ${Bun.version}` : 'Node.js (bun-pty requires Bun!)'}`,
-          `  Fix: Ensure you are running under Bun and bun-pty is installed:`,
-          `    cd plugin/opencode-pty && bun install`,
-          `  If running in a container, ensure the bun-pty native addon was compiled for this arch.`,
+          `  Platform: ${process.platform}/${process.arch}, Runtime: ${typeof Bun !== 'undefined' ? `Bun ${Bun.version}` : 'Node.js'}`,
+          `  Fix: Ensure the OpenCode /pty backend is up and websocket connections succeed.`,
         ].join('\n')
       )
     }
