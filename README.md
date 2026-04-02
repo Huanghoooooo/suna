@@ -22,8 +22,8 @@ Kortix works best when it can run 24/7 — even when your laptop is closed. We r
 On any server, just SSH in and run the same install command:
 
 ```bash
-# SSH into your server, then:
-curl -fsSL https://kortix.com/install | bash
+# SSH into your server, then run the same install:
+bash <(curl -fsSL https://raw.githubusercontent.com/kortix-ai/suna/main/scripts/get-kortix.sh)
 ```
 
 After install, manage everything with the `kortix` CLI:
