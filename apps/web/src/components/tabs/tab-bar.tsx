@@ -800,8 +800,18 @@ export function TabBar() {
 
   const handleClose = useCallback(
     (tabId: string) => {
-      closingTabIds.current.add(tabId);
       const state = useTabStore.getState();
+      const tab = state.tabs[tabId];
+
+      // Guard: confirm before closing a dirty (unsaved) file tab
+      if (tab?.dirty && tab.type === 'file') {
+        const confirmed = window.confirm(
+          'You have unsaved changes. Are you sure you want to close this file?'
+        );
+        if (!confirmed) return;
+      }
+
+      closingTabIds.current.add(tabId);
       const nextTabId = state.closeTab(tabId);
       if (nextTabId) {
         const nextTab = useTabStore.getState().tabs[nextTabId];

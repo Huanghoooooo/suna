@@ -13,6 +13,8 @@ import {
   Globe,
   Loader2,
   Save,
+  RotateCcw,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useFileContent } from '../hooks';
@@ -145,10 +147,6 @@ function RendererFallback() {
 }
 
 // ---------------------------------------------------------------------------
-// Binary blob loading — uses shared hook from hooks/use-binary-blob.ts
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // FileContentRenderer — the shared file content rendering component
 // ---------------------------------------------------------------------------
 
@@ -170,6 +168,8 @@ export interface FileContentRendererProps {
   errorFallback?: (error: string, filePath: string) => React.ReactNode;
   /** 1-indexed line number to scroll to after mount */
   targetLine?: number | null;
+  /** When true, the file is displayed in view-only mode — no editing, no save. */
+  readOnly?: boolean;
 }
 
 export function FileContentRenderer({
@@ -181,13 +181,18 @@ export function FileContentRenderer({
   className,
   errorFallback,
   targetLine,
+  readOnly = false,
 }: FileContentRendererProps) {
   // Text content (for code/text files, CSV, images)
   const { data: fileContent, isLoading, error, refetch } = useFileContent(filePath);
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveFlash, setSaveFlash] = useState(false);
+  // Tracks the latest editor content so we can save from the header button.
   const latestContentRef = useRef<string>('');
+  // Bumped on discard to force-remount the CodeEditor and reset its internal state.
+  const [discardKey, setDiscardKey] = useState(0);
 
   const fileName = filePath.split('/').pop() || '';
   const language = getLanguageFromExt(fileName);
@@ -291,6 +296,7 @@ export function FileContentRenderer({
     setIsMarkdownPreview(false);
     setIsJsonTreeView(false);
     setHasUnsavedChanges(false);
+    setSaveFlash(false);
     // HTML files always default to preview mode
     setIsHtmlPreview(true);
     latestContentRef.current = '';
@@ -311,16 +317,24 @@ export function FileContentRenderer({
     }
   }, [filePath, fileName]);
 
-  // Save handler
+  // Save handler — called by CodeEditor (Cmd+S) and by the header Save button.
+  // When called from the header button we pass latestContentRef.current.
+  // When called from CodeEditor's Cmd+S, CodeEditor passes its own localContent.
   const handleSave = useCallback(async (content: string) => {
+    if (readOnly) return;
     setIsSaving(true);
     try {
       const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
       const file = new File([blob], fileName, { type: 'text/plain' });
       const parentPath = filePath.substring(0, filePath.lastIndexOf('/'));
       await uploadFile(file, parentPath || undefined);
+      // Refetch so fileContent.content (= originalContent for CodeEditor) updates.
+      // CodeEditor's originalContent effect will then sync savedContent.current
+      // to match localContent, clearing its internal hasChanges flag.
       await refetch();
       setHasUnsavedChanges(false);
+      setSaveFlash(true);
+      setTimeout(() => setSaveFlash(false), 2000);
       onSaved?.();
       toast.success('File saved');
     } catch (err) {
@@ -328,16 +342,25 @@ export function FileContentRenderer({
     } finally {
       setIsSaving(false);
     }
-  }, [filePath, fileName, refetch, onSaved]);
+  }, [filePath, fileName, refetch, onSaved, readOnly]);
 
-  // Track editor content changes
+  // Discard handler — force-remounts CodeEditor so it re-initialises from fileContent.content.
+  const handleDiscard = useCallback(() => {
+    if (readOnly) return;
+    latestContentRef.current = fileContent?.content ?? '';
+    setHasUnsavedChanges(false);
+    setDiscardKey((k) => k + 1);
+  }, [readOnly, fileContent?.content]);
+
+  // Track editor content changes (called on every keystroke by CodeEditor)
   const handleEditorChange = useCallback((content: string) => {
+    if (readOnly) return;
     latestContentRef.current = content;
-  }, []);
+  }, [readOnly]);
 
   // Cmd+S handler for when CodeEditor is not mounted (e.g. markdown preview)
   useEffect(() => {
-    if (!isMarkdownPreview) return;
+    if (readOnly || !isMarkdownPreview) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
@@ -348,7 +371,17 @@ export function FileContentRenderer({
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [isMarkdownPreview, hasUnsavedChanges, handleSave]);
+  }, [readOnly, isMarkdownPreview, hasUnsavedChanges, handleSave]);
+
+  // Warn before leaving the page with unsaved changes
+  useEffect(() => {
+    if (readOnly || !hasUnsavedChanges) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [readOnly, hasUnsavedChanges]);
 
   // Image rendering
   const imageDataUrl = useMemo(() => {
@@ -369,6 +402,30 @@ export function FileContentRenderer({
   const contentError = needsBlob ? blobError : (error instanceof Error ? error.message : error ? String(error) : null);
   const showLoadingState = needsBlob ? blobLoading : isLoading;
 
+  // ---------------------------------------------------------------------------
+  // Shared CodeEditor props — keeps edit & read-only paths DRY
+  // ---------------------------------------------------------------------------
+  // IMPORTANT: Always pass fileContent.content as both `content` and
+  // `originalContent`. CodeEditor manages its own localContent internally.
+  // When the user edits, localContent diverges from savedContent.current.
+  // After save + refetch, originalContent updates → CodeEditor's effect
+  // syncs savedContent.current → hasChanges clears automatically.
+  // Passing latestContentRef.current as content was causing a desync where
+  // CodeEditor's savedContent never updated and hasChanges stayed true.
+  const codeEditorProps = {
+    content: fileContent?.content ?? '',
+    originalContent: fileContent?.content ?? '',
+    fileName,
+    onSave: readOnly ? undefined : handleSave,
+    onChange: readOnly ? undefined : handleEditorChange,
+    onUnsavedChange: readOnly ? undefined : setHasUnsavedChanges,
+    readOnly,
+    showHeader: false,
+    fontSize: 'text-sm' as const,
+    diagnostics: fileDiagnostics,
+    targetLine,
+  };
+
   return (
     <div className={cn('flex flex-col h-full', className)}>
       {/* Header */}
@@ -377,8 +434,26 @@ export function FileContentRenderer({
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {getFileIcon(fileName, { className: 'h-4 w-4 shrink-0' })}
             <span className="text-sm truncate">{fileName}</span>
-            {hasUnsavedChanges && (
-              <span className="h-2 w-2 rounded-full bg-yellow-500 shrink-0" title="Unsaved changes" />
+            {/* Edit state indicator */}
+            {!readOnly && hasUnsavedChanges && (
+              <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-500 px-2 py-0.5 bg-amber-50 dark:bg-amber-900/20 rounded-md shrink-0">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+                </span>
+                <span className="font-semibold">Edited</span>
+              </div>
+            )}
+            {!readOnly && saveFlash && !hasUnsavedChanges && (
+              <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-500 px-2 py-0.5 bg-green-50 dark:bg-green-900/20 rounded-md shrink-0">
+                <Check className="h-3 w-3" />
+                <span className="font-semibold">Saved</span>
+              </div>
+            )}
+            {readOnly && (
+              <span className="text-[10px] text-muted-foreground/60 px-1.5 py-0.5 bg-muted/50 rounded shrink-0 uppercase tracking-wider font-medium">
+                View only
+              </span>
             )}
             {/* Inline diagnostic counts */}
             {(fileDiagErrorCount > 0 || fileDiagWarningCount > 0) && (
@@ -400,22 +475,34 @@ export function FileContentRenderer({
           </div>
 
           <div className="flex items-center gap-0.5 shrink-0">
-            {/* Save button */}
-            {hasUnsavedChanges && fileContent?.type === 'text' && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-yellow-500 hover:text-yellow-600"
-                onClick={() => handleSave(latestContentRef.current)}
-                disabled={isSaving}
-                title="Save"
-              >
-                {isSaving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-              </Button>
+            {/* Explicit Save button — only when editing and has changes */}
+            {!readOnly && hasUnsavedChanges && fileContent?.type === 'text' && (
+              <>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="h-7 px-3 text-xs gap-1.5 font-medium"
+                  onClick={() => handleSave(latestContentRef.current)}
+                  disabled={isSaving}
+                  title="Save (⌘S)"
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="h-3.5 w-3.5" />
+                  )}
+                  Save
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  onClick={handleDiscard}
+                  title="Discard changes"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </Button>
+              </>
             )}
 
             {/* HTML preview toggle */}
@@ -482,8 +569,9 @@ export function FileContentRenderer({
         </div>
       )}
 
-      {/* Content area */}
-      <div className="flex-1 overflow-hidden">
+      {/* Content area — readOnly uses overflow-auto so the read-only editor
+          (which renders at auto height) can scroll within the fixed-size parent. */}
+      <div className={cn('flex-1', readOnly ? 'overflow-auto' : 'overflow-hidden')}>
         {/* Loading */}
         {showLoadingState && (
           <div className="flex items-center justify-center h-full">
@@ -614,18 +702,9 @@ export function FileContentRenderer({
         {/* HTML source — shown when preview toggle is off */}
         {isHtmlFile && !isHtmlPreview && !isLoading && !error && fileContent?.type === 'text' && (
           <CodeEditor
-            key={`html-source-${filePath}`}
-            content={hasUnsavedChanges ? latestContentRef.current : fileContent.content}
-            originalContent={fileContent.content}
-            fileName={fileName}
-            onSave={handleSave}
-            onChange={handleEditorChange}
-            onUnsavedChange={setHasUnsavedChanges}
-            showHeader={false}
-            fontSize="text-sm"
+            key={`html-source-${filePath}-${discardKey}`}
+            {...codeEditorProps}
             className="h-full"
-            diagnostics={fileDiagnostics}
-            targetLine={targetLine}
           />
         )}
 
@@ -676,18 +755,9 @@ export function FileContentRenderer({
                 </div>
               ) : (
                 <CodeEditor
-                  key={filePath}
-                  content={hasUnsavedChanges ? latestContentRef.current : fileContent.content}
-                  originalContent={fileContent.content}
-                  fileName={fileName}
-                  onSave={handleSave}
-                  onChange={handleEditorChange}
-                  onUnsavedChange={setHasUnsavedChanges}
-                  showHeader={false}
-                  fontSize="text-sm"
+                  key={`${filePath}-${discardKey}`}
+                  {...codeEditorProps}
                   className="h-full"
-                  diagnostics={fileDiagnostics}
-                  targetLine={targetLine}
                 />
               )}
             </div>

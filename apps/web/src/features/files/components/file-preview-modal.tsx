@@ -221,6 +221,7 @@ export function FilePreviewModal() {
             <FileContentRenderer
               filePath={selectedFilePath}
               showHeader={false}
+              readOnly
             />
           </div>
 

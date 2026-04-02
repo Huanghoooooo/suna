@@ -23,6 +23,7 @@ export function FileViewer() {
     <FileContentRenderer
       filePath={selectedFilePath}
       showHeader
+      readOnly
       headerActions={
         <>
           <Button
