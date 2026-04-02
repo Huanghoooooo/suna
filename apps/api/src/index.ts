@@ -317,6 +317,8 @@ app.route('/v1/tunnel', tunnelApp);
 // Direct server-to-server proxy. Avoids double-CORS from the /v1/p/ path.
 // Auth: Supabase JWT (global middleware). Sandbox auth: INTERNAL_SERVICE_KEY.
 import { kortixProxyHandler } from './routes/kortix-projects';
+app.use('/v1/kortix/*', combinedAuth);
+app.use('/v1/kortix', combinedAuth);
 app.all('/v1/kortix/*', kortixProxyHandler);
 app.all('/v1/kortix', kortixProxyHandler);
 
