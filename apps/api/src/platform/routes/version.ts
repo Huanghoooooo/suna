@@ -20,8 +20,8 @@ import { releaseManifest } from '../../release';
  */
 
 // GitHub raw URLs — single source of truth for latest version
-const RELEASE_GITHUB_URL = 'https://raw.githubusercontent.com/kortix-ai/computer/main/core/release.json';
-const CHANGELOG_GITHUB_URL = 'https://raw.githubusercontent.com/kortix-ai/computer/main/core/CHANGELOG.json';
+const RELEASE_GITHUB_URL = 'https://raw.githubusercontent.com/kortix-ai/suna/main/core/release.json';
+const CHANGELOG_GITHUB_URL = 'https://raw.githubusercontent.com/kortix-ai/suna/main/core/CHANGELOG.json';
 
 // Local CHANGELOG.json lookup paths (checked as fallback)
 const LOCAL_CHANGELOG_PATHS = [

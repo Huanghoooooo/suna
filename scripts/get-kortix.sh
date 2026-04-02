@@ -67,7 +67,40 @@ dots_ok()   { printf "${GREEN}✓${NC}\n"; }
 # ─── Config ──────────────────────────────────────────────────────────────────
 INSTALL_DIR="${KORTIX_HOME:-$HOME/.kortix}"
 DEFAULT_KORTIX_VERSION="0.8.24"
-KORTIX_VERSION="${KORTIX_VERSION:-$DEFAULT_KORTIX_VERSION}"
+
+# Resolve the latest version dynamically. Falls back to the hardcoded default
+# if network is unavailable. The hardcoded default is kept in sync by ship.cjs
+# as a last-resort fallback only.
+resolve_latest_version() {
+  # 1. Try GitHub API (fastest, most reliable)
+  local gh_version
+  gh_version=$(curl -sf --connect-timeout 5 \
+    "https://api.github.com/repos/kortix-ai/suna/releases/latest" 2>/dev/null \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"].lstrip("v"))' 2>/dev/null) || true
+  if [ -n "$gh_version" ]; then
+    printf '%s' "$gh_version"
+    return
+  fi
+
+  # 2. Fallback: raw release.json from GitHub
+  gh_version=$(curl -sf --connect-timeout 5 \
+    "https://raw.githubusercontent.com/kortix-ai/suna/main/core/release.json" 2>/dev/null \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' 2>/dev/null) || true
+  if [ -n "$gh_version" ]; then
+    printf '%s' "$gh_version"
+    return
+  fi
+
+  # 3. Last resort: hardcoded fallback (updated by ship.cjs at release time)
+  printf '%s' "$DEFAULT_KORTIX_VERSION"
+}
+
+# Allow explicit override via env var or --version flag; otherwise resolve dynamically
+if [ -n "${KORTIX_VERSION:-}" ]; then
+  : # User explicitly set KORTIX_VERSION — use it as-is
+else
+  KORTIX_VERSION="$DEFAULT_KORTIX_VERSION"
+fi
 KORTIX_LOCAL_IMAGES="${KORTIX_LOCAL_IMAGES:-0}"
 KORTIX_LOCAL_TAG="${KORTIX_LOCAL_TAG:-latest}"
 KORTIX_BUILD_LOCAL_IMAGES="${KORTIX_BUILD_LOCAL_IMAGES:-0}"
@@ -205,6 +238,15 @@ EOF
 }
 
 parse_args "$@"
+
+# If version wasn't explicitly set via --version or KORTIX_VERSION env var,
+# resolve the latest dynamically from GitHub (with fallback to hardcoded default).
+if [ "$KORTIX_VERSION" = "$DEFAULT_KORTIX_VERSION" ] && [ "$KORTIX_LOCAL_IMAGES" != "1" ]; then
+  RESOLVED_VERSION=$(resolve_latest_version)
+  if [ -n "$RESOLVED_VERSION" ] && [ "$RESOLVED_VERSION" != "$DEFAULT_KORTIX_VERSION" ]; then
+    KORTIX_VERSION="$RESOLVED_VERSION"
+  fi
+fi
 
 IMAGE_TAG="$KORTIX_VERSION"
 SANDBOX_IMAGE_REPO="kortix/computer"
