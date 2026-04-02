@@ -80,12 +80,12 @@ jobs:
             git submodule update --init --recursive --remote
             PREBUILT_IMAGE="${{ needs.build.outputs.image }}" bash scripts/deploy-zero-downtime.sh
 
-      - name: Promote frontend (push main → production branch)
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-      - run: git push origin main:production --force
+      - name: Fast-forward production to main
+        run: |
+          git fetch origin main production
+          git checkout production
+          git merge --ff-only origin/main
+          git push origin production
 
       - name: Summary
         if: always()
