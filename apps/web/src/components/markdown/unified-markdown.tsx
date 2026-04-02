@@ -19,6 +19,7 @@ import { useFilePreviewStore } from '@/stores/file-preview-store';
 import { wrapChildrenWithPaths } from '@/components/common/clickable-path';
 import { looksLikeFilePath as sharedLooksLikeFilePath } from '@/lib/utils/path-detection';
 import { stripKortixSystemTags } from '@/lib/utils/kortix-system-tags';
+import { toast } from '@/lib/toast';
 
 // ---------------------------------------------------------------------------
 // LaTeX / KaTeX support: custom remark + rehype plugin overrides
@@ -496,6 +497,16 @@ function ClickableInlineCode({ children }: { children: React.ReactNode }) {
   const text = String(children).trim();
   const isUrl = looksLikeUrl(text);
   const isFile = looksLikeFilePath(text);
+  const isAbsolute = text.startsWith('/');
+
+  const handleFileClick = useCallback(() => {
+    // Reject relative paths — they resolve to wrong locations and show empty files
+    if (!isAbsolute) {
+      toast.error(`Cannot open relative path: ${text}`);
+      return;
+    }
+    openPreview(text);
+  }, [text, openPreview, isAbsolute]);
 
   if (isUrl) {
     return (
@@ -514,9 +525,14 @@ function ClickableInlineCode({ children }: { children: React.ReactNode }) {
   if (isFile) {
     return (
       <code
-        className="px-1.5 py-0.5 rounded-md text-[13px] font-mono bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200/80 dark:border-zinc-700/50 text-foreground cursor-pointer hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:border-blue-700/50 dark:hover:text-blue-400 transition-colors"
-        onClick={() => openPreview(text)}
-        title={`Click to preview ${text}`}
+        className={cn(
+          "px-1.5 py-0.5 rounded-md text-[13px] font-mono bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200/80 dark:border-zinc-700/50 text-foreground transition-colors",
+          isAbsolute
+            ? "cursor-pointer hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:border-blue-700/50 dark:hover:text-blue-400"
+            : "cursor-not-allowed opacity-70",
+        )}
+        onClick={handleFileClick}
+        title={isAbsolute ? `Click to preview ${text}` : `${text} — Relative path (cannot open)`}
         role="button"
       >
         {children}
