@@ -4401,8 +4401,87 @@ export function SessionChat({
 		useSyncStore.getState().setStatus(sessionId, { type: "idle" });
 		clearTimeout(busyTimerRef.current);
 		setIsBusy(false);
+
+		// Optimistically patch an abort error onto the last assistant message
+		// so the "Interrupted" label appears instantly — no waiting for the SSE
+		// session.error round-trip.
+		const store = useSyncStore.getState();
+		const msgs = store.messages[sessionId];
+		if (msgs) {
+			for (let i = msgs.length - 1; i >= 0; i--) {
+				if (msgs[i].role === "assistant" && !(msgs[i] as any).error) {
+					store.upsertMessage(sessionId, {
+						...msgs[i],
+						error: { name: "AbortError", data: { message: "The operation was aborted." } },
+					} as any);
+					break;
+				}
+			}
+		}
+
 		abortSession.mutate(sessionId);
 	}, [sessionId, abortSession]);
+
+	// ---- Double-ESC / Ctrl+C to stop ----
+	// ESC once → flash hint for 3s. ESC again within that window → stop.
+	// Ctrl+C → immediate force stop (no double-tap needed).
+	// All timing via refs to avoid stale-closure / dep-array issues.
+	const [escHint, setEscHint] = useState(false);
+	const escDeadlineRef = useRef(0); // timestamp when the ESC window expires
+	const escFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	const clearEscHint = useCallback(() => {
+		escDeadlineRef.current = 0;
+		setEscHint(false);
+		if (escFadeTimerRef.current) {
+			clearTimeout(escFadeTimerRef.current);
+			escFadeTimerRef.current = null;
+		}
+	}, []);
+
+	useEffect(() => {
+		const onKeyDown = (e: KeyboardEvent) => {
+			// Ctrl+C / Cmd+C (without selection) → immediate stop
+			if (e.key === 'c' && (e.ctrlKey || e.metaKey) && isBusy) {
+				const sel = window.getSelection();
+				if (!sel || sel.isCollapsed) {
+					e.preventDefault();
+					clearEscHint();
+					handleStop();
+					return;
+				}
+			}
+
+			if (e.key !== 'Escape' || !isBusy) return;
+
+			// Don't intercept inside dialogs/modals
+			const active = document.activeElement;
+			if (active?.closest('[role="dialog"]') || active?.closest('[data-radix-popper-content-wrapper]')) return;
+
+			e.preventDefault();
+
+			if (Date.now() < escDeadlineRef.current) {
+				// Within the window → stop
+				clearEscHint();
+				handleStop();
+			} else {
+				// First ESC → open a 3s window
+				escDeadlineRef.current = Date.now() + 3000;
+				setEscHint(true);
+				if (escFadeTimerRef.current) clearTimeout(escFadeTimerRef.current);
+				escFadeTimerRef.current = setTimeout(() => {
+					escDeadlineRef.current = 0;
+					setEscHint(false);
+				}, 3000);
+			}
+		};
+
+		window.addEventListener('keydown', onKeyDown);
+		return () => window.removeEventListener('keydown', onKeyDown);
+	}, [isBusy, handleStop, clearEscHint]);
+
+	// Reset when session goes idle
+	useEffect(() => { if (!isBusy) clearEscHint(); }, [isBusy, clearEscHint]);
 
 	// Ref-based guard against rapid double-fire of commands (replaces
 	// the old executeCommand.isPending check from the TQ mutation).
@@ -4813,6 +4892,7 @@ export function SessionChat({
 				}}
 				isBusy={isBusy}
 				onStop={handleStop}
+				escHint={escHint}
 				agents={local.agent.list}
 				selectedAgent={local.agent.current?.name ?? null}
 				onAgentChange={(name) => local.agent.set(name ?? undefined)}

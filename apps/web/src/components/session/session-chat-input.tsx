@@ -1297,6 +1297,8 @@ export interface SessionChatInputProps {
   questionCanAct?: boolean;
   /** Called when the send button is clicked during a question and there's no text (i.e. the action is next/submit, not a custom answer). */
   onQuestionAction?: () => void;
+  /** When true, show "ESC again to stop" hint near the stop button (auto-clears) */
+  escHint?: boolean;
 }
 
 export function SessionChatInput({
@@ -1332,6 +1334,7 @@ export function SessionChatInput({
   questionButtonLabel = null,
   questionCanAct = true,
   onQuestionAction,
+  escHint = false,
 }: SessionChatInputProps) {
   const placeholderVariants = useMemo(
     () => [
@@ -2262,18 +2265,28 @@ export function SessionChatInput({
               />
 
               {isBusy && onStop && !lockForQuestion && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="sm"
-                      onClick={onStop}
-                      className="flex-shrink-0 h-8 w-8 rounded-full p-0"
+                <div className="relative flex items-center">
+                  {/* ESC hint — floats above the stop button, fades in/out */}
+                  {escHint && (
+                    <span
+                      className="absolute -top-8 right-0 whitespace-nowrap text-[11px] text-muted-foreground bg-popover border border-border rounded-md px-2 py-0.5 shadow-sm animate-in fade-in zoom-in-95 duration-150 pointer-events-none"
                     >
-                      <div className="w-3 h-3 rounded-[3px] bg-current" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top"><p>Stop</p></TooltipContent>
-                </Tooltip>
+                      ESC again to stop
+                    </span>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        onClick={onStop}
+                        className="flex-shrink-0 h-8 w-8 rounded-full p-0"
+                      >
+                        <div className="w-3 h-3 rounded-[3px] bg-current" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top"><p>Stop</p></TooltipContent>
+                  </Tooltip>
+                </div>
               )}
               {(!isBusy || lockForQuestion) && (
                 <div className="opacity-100">

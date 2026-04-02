@@ -187,7 +187,13 @@ export function sendWebNotification(
 
   // Sound plays independently of browser notification preferences — the sound
   // store has its own pack/event/volume settings to control it.
-  if (force || preferences.playSound !== false) {
+  // Skip ALL non-blocking sounds when the user is actively on the page —
+  // they can see everything happening; sounds are just noise.
+  // Only play sounds when the tab is hidden (user tabbed away / switched apps).
+  const isBlockingType = payload.type === 'question' || payload.type === 'permission';
+  const skipSound = !isBlockingType && !isTabHidden();
+
+  if (!skipSound && (force || preferences.playSound !== false)) {
     playSound(TYPE_TO_SOUND[payload.type]);
   }
 
