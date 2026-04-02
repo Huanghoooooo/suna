@@ -18,6 +18,7 @@
     "check": "node scripts/release/ship.cjs --check",
     "nuke": "bash scripts/nuke-local.sh",
     "nuke:start": "bash scripts/nuke-local.sh --start",
+    "start": "bash scripts/start-local.sh",
     "stripe:listen": "stripe listen --forward-to http://localhost:8008/v1/billing/webhooks/stripe"
   },
   "devDependencies": {
