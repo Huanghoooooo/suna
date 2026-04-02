@@ -184,11 +184,17 @@ function validateAndBuildEntry(item: Record<string, unknown>): string | ShowEntr
 
 export default tool({
   description:
-    "Show outputs and attachments to the human user. This is THE primary way to communicate " +
-    "final deliverables to the user — images, files, documents, URLs, previews, text summaries, " +
-    "code snippets, videos, audio, and errors all render in the user's UI via this tool. " +
-    "ALWAYS call this after generating ANY deliverable so the human can see and interact with it. " +
-    "Without calling this tool, the user cannot see your output.\n\n" +
+    "Show outputs and attachments to the human user. This tool PRESENTS and DISPLAYS existing content — " +
+    "it is NOT a place to author or store artifacts. Show should SHOW, not be where you write.\n\n" +
+    "CRITICAL RULE: Do not use show to write new artifacts from scratch. If you need to create a " +
+    "spec, report, plan, document, config, or any authored content — write it to a file first " +
+    "using the Write tool, then present it with show(type='file', path='...'). " +
+    "The 'content' parameter is for communicating brief information inline (status, summaries, " +
+    "snippets, errors, previews) — not for authoring documents.\n\n" +
+    "Good: Write spec to /workspace/spec.md → show(type='file', path='/workspace/spec.md')\n" +
+    "Good: show(type='text', content='Build succeeded in 3.2s')\n" +
+    "Good: show(type='code', content='const x = 1;', language='typescript')\n" +
+    "Bad: show(type='markdown', content='# Full spec written from scratch here...') — write to file first!\n\n" +
     "Types: file, image, url, text, error, video, audio, code, markdown, pdf, html, csv, xlsx, docx, pptx.\n" +
     "IMPORTANT HTML NOTE: type='html' renders INLINE HTML from the 'content' field only. " +
     "If you have a standalone .html file on disk, it is NOT auto-hosted or auto-opened by a viewer. " +
@@ -253,9 +259,10 @@ export default tool({
       .string()
       .optional()
       .describe(
-        "Inline content. Required when type is 'text', 'error', 'code', 'markdown', or 'html'. " +
-        "For 'code', this is the code string. For 'markdown', full markdown text. " +
-          "For 'html', INLINE HTML text rendered in a sandboxed iframe (not a file path).",
+        "Inline content for display. Required when type is 'text', 'error', 'code', 'markdown', or 'html'. " +
+        "Use this to communicate information briefly — not to author full artifacts from scratch. " +
+        "If the content is a new document you're creating (spec, report, plan, etc.), write it to a file first and use type='file' with path. " +
+        "For 'html', inline HTML rendered in a sandboxed iframe (not a file path).",
       ),
 
     variant: tool.schema
