@@ -81,9 +81,11 @@ jobs:
             PREBUILT_IMAGE="${{ needs.build.outputs.image }}" bash scripts/deploy-zero-downtime.sh
 
       - name: Fast-forward production to main
-        run: |
-          git fetch origin main production
-          git checkout production
+        uses: actions/checkout@v4
+        with:
+          ref: production
+          fetch-depth: 0
+      - run: |
           git merge --ff-only origin/main
           git push origin production
 
