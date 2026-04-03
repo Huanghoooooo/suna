@@ -240,6 +240,17 @@ function DashboardSkeleton() {
 				<p className="max-w-[300px] text-sm leading-relaxed text-muted-foreground/60">
 					Checking sandbox health and restoring your session.
 				</p>
+
+				<p className="max-w-[300px] text-xs leading-relaxed text-muted-foreground/50">
+					Having problems? Email{" "}
+					<a
+						href="mailto:support@kortix.com"
+						className="underline underline-offset-4 hover:text-foreground/80"
+					>
+						support@kortix.com
+					</a>
+					.
+				</p>
 			</div>
 		</div>
 	);
