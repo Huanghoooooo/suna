@@ -283,14 +283,8 @@ RUN set -eo pipefail && echo "[docker] Building sandbox runtime v${SANDBOX_VERSI
     \
     # ── 2. skills shipped in-tree under skills/KORTIX-system/ (recursive discovery) ── \
     echo "[docker] skills: agent-tunnel, agent-browser, presentations in /ephemeral/kortix-master/opencode/skills/KORTIX-system/" && \
-    bash /ephemeral/kortix-master/opencode/patches/apply.sh /ephemeral/kortix-master/opencode && \
     \
-    # ── 4. Binary patches ── \
-    if [ -f /ephemeral/kortix-master/opencode/patches/patch-opencode-streaming.js ]; then \
-      node /ephemeral/kortix-master/opencode/patches/patch-opencode-streaming.js || true; \
-    fi && \
-    \
-    # ── 5. bun-pty musl patches ── \
+    # ── 4. bun-pty musl patches ── \
     ARCH=$(uname -m) && \
     for PTY_DIR in \
         /ephemeral/kortix-master/node_modules/bun-pty/rust-pty/target/release \
@@ -326,7 +320,10 @@ RUN set -eo pipefail && echo "[docker] Building sandbox runtime v${SANDBOX_VERSI
     command -v ocx >/dev/null && \
     echo "[docker] Global binaries: opencode=$(opencode --version 2>/dev/null || echo '?'), agent-browser, ocx" && \
     \
-    # ── 9. Fix agent-browser native binary on Alpine musl ── \
+    # ── 9. Binary patches (MUST run after npm install -g opencode-ai) ── \
+    bash /ephemeral/kortix-master/opencode/patches/apply.sh && \
+    \
+    # ── 10. Fix agent-browser native binary on Alpine musl ── \
     # The Rust native binary requires glibc's __res_init which doesn't exist in musl. \
     # Compile a tiny stub .so and create a wrapper that LD_PRELOADs it. \
     printf 'int __res_init(void){return 0;}\n' > /tmp/res_init_stub.c && \

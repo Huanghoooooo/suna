@@ -42,3 +42,8 @@ Examples:
 - Start a Python REPL: command="python3", title="Python REPL"
 - Run tests in watch mode: command="npm", args=["test", "--", "--watch"]
 - Run build with notification: command="npm", args=["run", "build"], notifyOnExit=true
+
+IMPORTANT — Anti-patterns to avoid:
+- NEVER prepend `sleep N &&` to commands in PTY. PTY sessions are already async — sleep just adds dead time before the command even starts. Run the command directly.
+- NEVER use `sleep` for synchronization. Use notifyOnExit=true and wait for the <pty_exited> notification, or chain commands with && in the synchronous bash tool.
+- NEVER wrap simple one-shot commands in PTY. Use the bash tool for commands that complete quickly (<2 min). PTY is for long-running/interactive processes only.
