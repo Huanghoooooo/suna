@@ -43,11 +43,20 @@ function persistMessages(messages: QueuedMessage[]): void {
 }
 
 /** Lightweight file reference for queued messages (mirrors AttachedFile from session-chat-input) */
-export interface QueuedFile {
-  file: File;
-  localUrl: string;
-  isImage: boolean;
-}
+export type QueuedFile =
+  | {
+      kind: 'local';
+      file: File;
+      localUrl: string;
+      isImage: boolean;
+    }
+  | {
+      kind: 'remote';
+      url: string;
+      filename: string;
+      mime: string;
+      isImage: boolean;
+    };
 
 export interface QueuedMessage {
   id: string;

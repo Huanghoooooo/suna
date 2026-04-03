@@ -55,6 +55,7 @@ import type {
   Agent,
   Command,
   ProviderListResponse,
+  PromptPart,
 } from '@/hooks/opencode/use-opencode-sessions';
 import { useOpenCodeSessions, useOpenCodeSessionTodo } from '@/hooks/opencode/use-opencode-sessions';
 import { searchWorkspaceFiles } from '@/features/files';
@@ -829,11 +830,20 @@ function TokenProgress({ messages, models, selectedModel, onContextClick }: Toke
 // File Attachment Helpers
 // ============================================================================
 
-export interface AttachedFile {
-  file: File;
-  localUrl: string;
-  isImage: boolean;
-}
+export type AttachedFile =
+  | {
+      kind: 'local';
+      file: File;
+      localUrl: string;
+      isImage: boolean;
+    }
+  | {
+      kind: 'remote';
+      url: string;
+      filename: string;
+      mime: string;
+      isImage: boolean;
+    };
 
 type FileType = 'image' | 'code' | 'text' | 'markdown' | 'pdf' | 'audio' | 'video' | 'spreadsheet' | 'csv' | 'archive' | 'database' | 'other';
 
@@ -900,8 +910,9 @@ function AttachmentPreview({
   return (
     <div className="flex flex-wrap gap-2 px-3 pt-2">
       {files.map((af, i) => {
-        const ext = af.file.name.split('.').pop()?.toLowerCase() || '';
-        const type = getFileType(af.file.name);
+        const name = af.kind === 'local' ? af.file.name : af.filename;
+        const ext = name.split('.').pop()?.toLowerCase() || '';
+        const type = getFileType(name);
         const Icon = getFileTypeIcon(type);
 
         return (
@@ -909,7 +920,7 @@ function AttachmentPreview({
             {af.isImage ? (
               <div className="h-[54px] w-[54px] rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-black/5 dark:bg-black/20">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={af.localUrl} alt={af.file.name} className="h-full w-full object-cover" />
+                <img src={af.kind === 'local' ? af.localUrl : af.url} alt={name} className="h-full w-full object-cover" />
               </div>
             ) : (
               <div className="flex items-center rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-sidebar h-[54px] w-fit min-w-[200px] max-w-[300px]">
@@ -917,11 +928,15 @@ function AttachmentPreview({
                   <Icon className="h-5 w-5 text-black/60 dark:text-white/60" />
                 </div>
                 <div className="flex-1 min-w-0 flex flex-col justify-center px-3 py-2 overflow-hidden">
-                  <div className="text-sm font-medium truncate text-foreground">{af.file.name}</div>
+                  <div className="text-sm font-medium truncate text-foreground">{name}</div>
                   <div className="text-xs text-muted-foreground flex items-center gap-1">
                     <span className="truncate">{getFileTypeLabel(type, ext)}</span>
-                    <span className="flex-shrink-0">&middot;</span>
-                    <span className="flex-shrink-0">{formatFileSize(af.file.size)}</span>
+                    {af.kind === 'local' ? (
+                      <>
+                        <span className="flex-shrink-0">&middot;</span>
+                        <span className="flex-shrink-0">{formatFileSize(af.file.size)}</span>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -1301,6 +1316,33 @@ export interface SessionChatInputProps {
   escHint?: boolean;
 }
 
+function forkDraftKey(sessionId: string) {
+  return `opencode_fork_prompt:${sessionId}`;
+}
+
+function parseForkDraft(parts: PromptPart[] | null | undefined) {
+  if (!parts?.length) return { text: '', files: [] as AttachedFile[] };
+  const files: AttachedFile[] = [];
+  let text = '';
+
+  for (const part of parts) {
+    if (part.type === 'text') {
+      text = part.text;
+      continue;
+    }
+    if (part.type !== 'file') continue;
+    files.push({
+      kind: 'remote',
+      url: part.url,
+      filename: part.filename || 'Attachment',
+      mime: part.mime,
+      isImage: part.mime.startsWith('image/'),
+    });
+  }
+
+  return { text, files };
+}
+
 export function SessionChatInput({
   onSend,
   isBusy = false,
@@ -1403,6 +1445,30 @@ export function SessionChatInput({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to lockForQuestion changes
   }, [lockForQuestion]);
+
+  useEffect(() => {
+    if (!sessionId || typeof window === 'undefined') return;
+    const raw = sessionStorage.getItem(forkDraftKey(sessionId));
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as PromptPart[];
+      const next = parseForkDraft(parsed);
+      setText(next.text);
+      setAttachedFiles((prev) => {
+        for (const file of prev) {
+          if (file.kind === 'local') URL.revokeObjectURL(file.localUrl);
+        }
+        return next.files;
+      });
+      setSlashFilter(null);
+      setMentionQuery(null);
+      setMentions([]);
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    } catch {
+      // ignore malformed stored draft
+    }
+    sessionStorage.removeItem(forkDraftKey(sessionId));
+  }, [sessionId]);
 
   // ChatGPT-like behavior: if the user starts typing while the textarea is not
   // focused, redirect the keystroke into this textarea and focus it.
@@ -1514,7 +1580,7 @@ export function SessionChatInput({
     const newFiles: AttachedFile[] = [];
     for (const file of files) {
       const localUrl = URL.createObjectURL(file);
-      newFiles.push({ file, localUrl, isImage: isImageFile(file) });
+      newFiles.push({ kind: 'local', file, localUrl, isImage: isImageFile(file) });
     }
     if (newFiles.length === 0) return;
     setAttachedFiles((prev) => [...prev, ...newFiles]);
@@ -1570,7 +1636,7 @@ export function SessionChatInput({
   const removeAttachedFile = (index: number) => {
     setAttachedFiles((prev) => {
       const removed = prev[index];
-      if (removed) URL.revokeObjectURL(removed.localUrl);
+      if (removed?.kind === 'local') URL.revokeObjectURL(removed.localUrl);
       return prev.filter((_, i) => i !== index);
     });
   };
@@ -1707,6 +1773,12 @@ export function SessionChatInput({
       onCommand?.(stagedCommand, args || undefined);
       setText('');
       setStagedCommand(null);
+      setAttachedFiles((prev) => {
+        for (const file of prev) {
+          if (file.kind === 'local') URL.revokeObjectURL(file.localUrl);
+        }
+        return [];
+      });
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
       return;
     }
@@ -1744,7 +1816,9 @@ export function SessionChatInput({
         setSlashFilter(null);
         setMentionQuery(null);
         setMentions([]);
-        for (const af of attachedFiles) URL.revokeObjectURL(af.localUrl);
+        for (const af of attachedFiles) {
+          if (af.kind === 'local') URL.revokeObjectURL(af.localUrl);
+        }
         setAttachedFiles([]);
         if (textareaRef.current) textareaRef.current.style.height = 'auto';
         return;
@@ -1762,7 +1836,9 @@ export function SessionChatInput({
     setMentions([]);
     // Don't revoke URLs for files going into the queue — they're still needed
     if (!isBusy) {
-      for (const af of attachedFiles) URL.revokeObjectURL(af.localUrl);
+      for (const af of attachedFiles) {
+        if (af.kind === 'local') URL.revokeObjectURL(af.localUrl);
+      }
     }
     setAttachedFiles([]);
     if (textareaRef.current) {
@@ -2154,7 +2230,7 @@ export function SessionChatInput({
                 <div
                   ref={highlightRef}
                   aria-hidden
-                  className="absolute inset-0 pointer-events-none px-0.5 pb-6 pt-4 min-h-[72px] max-h-[200px] overflow-y-auto text-[16px] sm:text-[15px] whitespace-pre-wrap break-words text-foreground"
+                  className="absolute inset-0 pointer-events-none px-0.5 pb-6 pt-4 text-[16px] sm:text-[15px] whitespace-pre-wrap break-words text-foreground"
                   style={{ wordBreak: 'break-word', lineHeight: 'normal' }}
                 >
                   {highlightSegments.map((seg, i) => (
@@ -2290,13 +2366,13 @@ export function SessionChatInput({
               )}
               {(!isBusy || lockForQuestion) && (
                 <div className="opacity-100">
-                  {lockForQuestion && questionButtonLabel && !text.trim() ? (
-                    <Button
-                      size="sm"
-                      disabled={!questionCanAct || disabled}
-                      onClick={handleSubmit}
-                      className="flex-shrink-0 h-8 rounded-full px-3.5 text-xs font-medium"
-                    >
+					{lockForQuestion && questionButtonLabel && !text.trim() ? (
+						<Button
+							size="sm"
+							disabled={!questionCanAct || disabled}
+							onClick={handleSubmit}
+							className="flex-shrink-0 h-8 rounded-full px-3.5 text-xs font-medium"
+						>
                       {questionButtonLabel}
                     </Button>
                   ) : (

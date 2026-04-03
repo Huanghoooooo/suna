@@ -71,7 +71,7 @@ import { uploadFile } from "@/features/files/api/opencode-files";
 import { searchWorkspaceFiles } from "@/features/files";
 import { useOpenCodeConfig } from "@/hooks/opencode/use-opencode-config";
 import { useOpenCodeLocal, parseModelKey, formatModelString } from "@/hooks/opencode/use-opencode-local";
-import type { ProviderListResponse } from "@/hooks/opencode/use-opencode-sessions";
+import type { PromptPart, ProviderListResponse } from "@/hooks/opencode/use-opencode-sessions";
 import {
 	ascendingId,
 	rejectQuestion,
@@ -84,7 +84,6 @@ import {
 	useOpenCodeProviders,
 	useOpenCodeSession,
 	useOpenCodeSessions,
-	useSendOpenCodeMessage,
 
 } from "@/hooks/opencode/use-opencode-sessions";
 import { useSessionSync } from "@/hooks/opencode/use-session-sync";
@@ -169,48 +168,32 @@ export interface ReplyToContext {
 
 // SubSessionBar removed — subsessions now use SessionSiteHeader + chat input indicator
 
-// ============================================================================
-// Fork Context Divider — shown at the top of the message list in forked sessions
-// ============================================================================
+function forkDraftKey(sessionId: string) {
+	return `opencode_fork_prompt:${sessionId}`;
+}
 
-function ForkContextDivider({ parentID }: { parentID: string }) {
-	const { data: parentSession } = useOpenCodeSession(parentID);
-	const parentTitle = parentSession?.title || "Parent session";
+function buildForkPrompt(parts: Part[], text?: string): PromptPart[] {
+	const next: PromptPart[] = [];
+	const value =
+		text ??
+		parts.find((part): part is TextPart => isTextPart(part) && !part.synthetic && !part.ignored)?.text ??
+		"";
+	if (value) next.push({ type: "text", text: value });
+	for (const part of parts) {
+		if (!isFilePart(part) || !part.url) continue;
+		next.push({
+			type: "file",
+			mime: part.mime || "application/octet-stream",
+			url: part.url,
+			filename: part.filename,
+		});
+	}
+	return next;
+}
 
-	return (
-		<div className="flex items-center gap-3 py-2 mb-2">
-			<div className="flex-1 h-px bg-border/50" />
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<button
-						onClick={() =>
-							parentSession &&
-							openTabAndNavigate({
-								id: parentSession.id,
-								title: parentSession.title || "Parent session",
-								type: "session",
-								href: `/sessions/${parentSession.id}`,
-								serverId: useServerStore.getState().activeServerId,
-							})
-						}
-						className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/50 border border-border/40 hover:bg-muted/80 transition-colors cursor-pointer"
-					>
-						<GitFork className="size-3 text-muted-foreground/60" />
-						<span className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">
-							Forked from
-						</span>
-						<span className="text-[10px] font-medium text-muted-foreground max-w-[150px] truncate">
-							{parentTitle}
-						</span>
-					</button>
-				</TooltipTrigger>
-				<TooltipContent side="bottom" className="text-xs">
-					Go to parent session: {parentTitle}
-				</TooltipContent>
-			</Tooltip>
-			<div className="flex-1 h-px bg-border/50" />
-		</div>
-	);
+function stashForkPrompt(sessionId: string, prompt: PromptPart[]) {
+	if (typeof window === "undefined" || prompt.length === 0) return;
+	sessionStorage.setItem(forkDraftKey(sessionId), JSON.stringify(prompt));
 }
 
 // ============================================================================
@@ -1032,9 +1015,9 @@ function EditPartDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
 				<DialogHeader className="flex-shrink-0">
-					<DialogTitle>Edit & resend</DialogTitle>
+					<DialogTitle>Edit fork prompt</DialogTitle>
 					<DialogDescription>
-						This will fork the session at this point and resend with your edited message. Files changed after this point may already be modified.
+						This creates a native fork at this message and opens the new session with your edited prompt restored in the composer.
 					</DialogDescription>
 				</DialogHeader>
 				<div className="flex-1 min-h-0 py-2">
@@ -1066,7 +1049,48 @@ function EditPartDialog({
 						{loading ? (
 							<Loader2 className="size-3.5 animate-spin mr-1.5" />
 						) : null}
-						Fork & resend
+						Fork with edits
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+function ConfirmForkDialog({
+	open,
+	onOpenChange,
+	onConfirm,
+	loading,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	onConfirm: () => void;
+	loading?: boolean;
+}) {
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>Fork session?</DialogTitle>
+					<DialogDescription>
+						This will create a new session from this point in the conversation.
+						 The fork opens separately and won&apos;t change this session.
+					</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<Button
+						variant="outline"
+						onClick={() => onOpenChange(false)}
+						disabled={loading}
+					>
+						Cancel
+					</Button>
+					<Button onClick={onConfirm} disabled={loading}>
+						{loading ? (
+							<Loader2 className="size-3.5 animate-spin mr-1.5" />
+						) : null}
+						Fork session
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -1118,7 +1142,7 @@ function PartActions({
 						</button>
 					</TooltipTrigger>
 					<TooltipContent side="top" className="text-xs">
-						Edit & resend
+						Edit fork prompt
 					</TooltipContent>
 				</Tooltip>
 			</div>
@@ -1933,7 +1957,7 @@ interface SessionTurnProps {
 	isCompaction?: boolean;
 	/** Fork the session at a user message (copies messages before this point) */
 	onFork: (userMessageId: string) => Promise<void>;
-	/** Fork the session at a user message and resend with edited text */
+	/** Fork the session at a user message and prefill with edited text */
 	onEditFork: (userMessageId: string, newText: string) => Promise<void>;
 	/** Providers data for the Connect Provider dialog */
 	providers?: ProviderListResponse;
@@ -2534,11 +2558,11 @@ function SessionTurn({
 						{/* Fork button — on user messages */}
 						{!isBusy && (
 							<Tooltip>
-								<TooltipTrigger asChild>
-									<button
-										onClick={() => onFork(turn.userMessage.info.id)}
-										className="p-1.5 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
-									>
+							<TooltipTrigger asChild>
+								<button
+									onClick={() => onFork(turn.userMessage.info.id)}
+									className="p-1.5 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
+								>
 										<GitFork className="size-3.5" />
 									</button>
 								</TooltipTrigger>
@@ -2958,7 +2982,6 @@ export function SessionChat({
 	const { data: providers } = useOpenCodeProviders();
 	const { data: allSessions } = useOpenCodeSessions();
 	const { data: config } = useOpenCodeConfig();
-	const sendMessage = useSendOpenCodeMessage();
 	const abortSession = useAbortOpenCodeSession();
 	const forkSession = useForkSession();
 
@@ -2976,6 +2999,7 @@ export function SessionChat({
 	const [pendingUserMessageId, setPendingUserMessageId] = useState<
 		string | null
 	>(null);
+	const [confirmForkMessageId, setConfirmForkMessageId] = useState<string | null>(null);
 	const [pendingCommand, setPendingCommand] = useState<{
 		name: string;
 		description?: string;
@@ -4096,61 +4120,49 @@ export function SessionChat({
 
 	const handleFork = useCallback(
 		async (userMessageId: string) => {
-			// Fork at a user message. The server copies all messages BEFORE the
-			// given messageID (exclusive: msg.id >= messageID → break).
-			// Passing the user message ID forks the conversation up to (but not
-			// including) that user turn — matching OpenCode's fork-from-user-message UX.
+			setConfirmForkMessageId(null);
+			const msg = messages?.find((item) => item.info.id === userMessageId)
 			const forkedSession = await forkSession.mutateAsync({
 				sessionId,
 				messageId: userMessageId,
+				directory: session?.directory,
+				workspace: session?.workspaceID,
 			});
+			if (msg) stashForkPrompt(forkedSession.id, buildForkPrompt(msg.parts))
 
-			// Open the forked session in a new tab and navigate
 			const title = forkedSession.title || "Forked session";
 			openTabAndNavigate({
 				id: forkedSession.id,
 				title,
 				type: "session",
 				href: `/sessions/${forkedSession.id}`,
-				parentSessionId: sessionId,
 				serverId: useServerStore.getState().activeServerId,
 			});
-			// Store fork origin in localStorage (survives refresh) so the forked
-			// session can show the "Forked from" indicator.
-			localStorage.setItem(`fork_origin_${forkedSession.id}`, sessionId);
 		},
-		[sessionId, forkSession],
+		[sessionId, forkSession, messages, session?.directory, session?.workspaceID],
 	);
 
 	const handleEditFork = useCallback(
 		async (userMessageId: string, newText: string) => {
-			// Fork at the user message — the server copies all messages BEFORE
-			// the given messageID, so passing the user message ID gives us the
-			// conversation up to (but not including) that user turn.
+			const msg = messages?.find((item) => item.info.id === userMessageId)
 			const forkedSession = await forkSession.mutateAsync({
 				sessionId,
 				messageId: userMessageId,
+				directory: session?.directory,
+				workspace: session?.workspaceID,
 			});
+			if (msg) stashForkPrompt(forkedSession.id, buildForkPrompt(msg.parts, newText))
 
-			// Open the forked session in a new tab and navigate
 			const title = forkedSession.title || "Forked session";
 			openTabAndNavigate({
 				id: forkedSession.id,
 				title,
 				type: "session",
 				href: `/sessions/${forkedSession.id}`,
-				parentSessionId: sessionId,
 				serverId: useServerStore.getState().activeServerId,
 			});
-			localStorage.setItem(`fork_origin_${forkedSession.id}`, sessionId);
-
-			// Auto-send the edited text in the forked session
-			sendMessage.mutate({
-				sessionId: forkedSession.id,
-				parts: [{ type: "text", text: newText }],
-			});
 		},
-		[sessionId, forkSession, sendMessage],
+		[sessionId, forkSession, messages, session?.directory, session?.workspaceID],
 	);
 
 	// ============================================================================
@@ -4182,8 +4194,16 @@ export function SessionChat({
 			// (not duplicate) the optimistic parts. This matches OpenCode's
 			// SolidJS approach where part IDs are sent with the prompt request.
 			const textPartId = ascendingId("prt");
+			const remoteFiles = (files ?? []).filter(
+				(file): file is Extract<AttachedFile, { kind: "remote" }> =>
+					file.kind === "remote",
+			)
+			const localFiles = (files ?? []).filter(
+				(file): file is Extract<AttachedFile, { kind: "local" }> =>
+					file.kind === "local",
+			)
 			const uploadBatchTs = Date.now();
-			const uploadPlans = (files ?? []).map((af, index) => {
+			const uploadPlans = localFiles.map((af, index) => {
 				const safeName = af.file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
 				const uniqueName = `${uploadBatchTs}-${index}-${safeName}`;
 				return {
@@ -4224,6 +4244,15 @@ export function SessionChat({
 					.join("\n");
 				optimisticText = `${optimisticText}\n\n${optimisticFileRefs}`;
 			}
+			if (remoteFiles.length > 0) {
+				const optimisticFileRefs = remoteFiles
+					.map(
+						(file) =>
+							`<file path="${file.filename}" mime="${file.mime}" filename="${file.filename}">\nThis file will be restored from the forked prompt.\n</file>`,
+					)
+					.join("\n");
+				optimisticText = `${optimisticText}\n\n${optimisticFileRefs}`;
+			}
 			if (allOptimisticSessionMentions.length > 0) {
 				const refs = allOptimisticSessionMentions
 					.map((m) => `<session_ref id="${m.value}" title="${m.label}" />`)
@@ -4251,9 +4280,19 @@ export function SessionChat({
 
 			// Build parts: text first, then upload attached files to /workspace/uploads/
 			// and send as XML text references (agent reads from disk on demand, not loaded into context)
-			const parts: Array<{ id: string; type: "text"; text: string }> = [
-				{ id: textPartId, type: "text", text },
-			];
+			const textPrompt = { id: textPartId, type: "text" as const, text }
+			const parts: Array<
+				| typeof textPrompt
+				| { type: "file"; mime: string; url: string; filename: string }
+			> = [textPrompt];
+			parts.push(
+				...remoteFiles.map((file) => ({
+					type: "file" as const,
+					mime: file.mime,
+					url: file.url,
+					filename: file.filename,
+				})),
+			)
 
 			if (uploadPlans.length > 0) {
 				const uploadResults = await Promise.all(
@@ -4278,7 +4317,7 @@ export function SessionChat({
 							`<file path="${f.path}" mime="${f.mime}" filename="${f.filename}">\nThis file has been uploaded and is available at the path above.\n</file>`,
 					)
 					.join("\n");
-				parts[0].text = `${parts[0].text}\n\n${uploadedFileRefs}`;
+				textPrompt.text = `${textPrompt.text}\n\n${uploadedFileRefs}`;
 			}
 
 			// Append session reference hints for @session mentions.
@@ -4291,7 +4330,7 @@ export function SessionChat({
 			const rawSessionIdMentions: TrackedMention[] = [];
 			const rawSessionIdRegex = /@(ses_[A-Za-z0-9]+)/g;
 			let rawMatch: RegExpExecArray | null;
-			while ((rawMatch = rawSessionIdRegex.exec(parts[0].text)) !== null) {
+			while ((rawMatch = rawSessionIdRegex.exec(textPrompt.text)) !== null) {
 				const rawId = rawMatch[1];
 				// Skip if already covered by a tracked mention
 				if (trackedSessionMentions.some((m) => m.value === rawId)) continue;
@@ -4310,7 +4349,7 @@ export function SessionChat({
 				const refs = allSessionMentions
 					.map((m) => `<session_ref id="${m.value}" title="${m.label}" />`)
 					.join("\n");
-				parts[0].text = `${parts[0].text}\n\nReferenced sessions (use the session_context tool to fetch details when needed):\n${refs}`;
+				textPrompt.text = `${textPrompt.text}\n\nReferenced sessions (use the session_context tool to fetch details when needed):\n${refs}`;
 			}
 
 			// Fire-and-forget via session.prompt (matching OpenCode app's approach).
@@ -4377,7 +4416,6 @@ export function SessionChat({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[
 			sessionId,
-			sendMessage,
 			local.agent.current,
 			local.model.currentKey,
 			local.model.variant.current,
@@ -4562,17 +4600,7 @@ export function SessionChat({
 		[],
 	);
 
-	// Detect if this session was forked and resolve its parent.
-	// Only used for the ForkContextDivider at the top of the message list.
-	const forkParentId = useMemo(() => {
-		if (typeof window === "undefined") return null;
-		return localStorage.getItem(`fork_origin_${sessionId}`);
-	}, [sessionId]);
-	const isFork = !!forkParentId;
-	const effectiveParentId = session?.parentID || forkParentId;
-
-	// Thread context for subsessions only (real parentID, NOT forks).
-	// Forks are independent sessions — no indicator in the chat input.
+	// Thread context for subsessions only (real parentID).
 	const { data: parentSessionData } = useOpenCodeSession(
 		session?.parentID || "",
 	);
@@ -4671,11 +4699,6 @@ export function SessionChat({
 							className="mx-auto max-w-4xl min-w-0 w-full px-3 sm:px-6"
 						>
 							<div className="flex flex-col gap-12 min-w-0">
-								{/* Fork context divider — shown at the top of forked sessions */}
-								{isFork && effectiveParentId && (
-									<ForkContextDivider parentID={effectiveParentId} />
-								)}
-
 							{/* Optimistic user message */}
 							{showOptimistic && (
 								<div data-turn-id="optimistic">
@@ -4796,8 +4819,8 @@ export function SessionChat({
 													<div className="flex-1 h-px bg-border" />
 												</div>
 											)}
-											<SessionTurn
-												turn={turn}
+									<SessionTurn
+										turn={turn}
 												allMessages={messages!}
 												sessionId={sessionId}
 												sessionStatus={sessionStatus}
@@ -4807,8 +4830,10 @@ export function SessionChat({
 												isFirstTurn={turnIndex === 0}
 												isBusy={isBusy}
 												isCompaction={hasCompaction}
-											onFork={handleFork}
-											onEditFork={handleEditFork}
+										onFork={async (userMessageId) => {
+											setConfirmForkMessageId(userMessageId);
+										}}
+										onEditFork={handleEditFork}
 												providers={providers}
 												commandMessages={commandMessagesRef.current}
 												commands={commands}
@@ -5076,6 +5101,17 @@ export function SessionChat({
 				}
 			/>
 			)}
+			<ConfirmForkDialog
+				open={!!confirmForkMessageId}
+				onOpenChange={(open) => {
+					if (!open) setConfirmForkMessageId(null);
+				}}
+				onConfirm={() => {
+					if (!confirmForkMessageId) return;
+					void handleFork(confirmForkMessageId);
+				}}
+				loading={forkSession.isPending}
+			/>
 		</div>
 	);
 }

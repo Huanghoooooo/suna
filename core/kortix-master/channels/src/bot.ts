@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { OpenCodeClient, type FileOutput, type StreamEvent } from './opencode.js';
+import { sanitizeChannelResponse } from './channel-output.js';
 import { SessionManager } from './sessions.js';
 import { adapterModules } from './adapters/registry.js';
 import type { AdapterCredentials, TelegramCredentials } from './adapters/types.js';
@@ -81,20 +82,17 @@ export async function createChatInstance(deps: ChatInstanceDeps): Promise<Chat |
     return telegramConfig != null && thread.adapter.name === 'telegram';
   }
 
-  // ── Message queue & debounce ──────────────────────────────────────────
+  // ── Message queue ─────────────────────────────────────────────────────
   // The Chat SDK locks per-thread and DROPS messages that arrive while
   // another is being processed. For rapid-fire typing (common in Telegram),
-  // we need to collect messages and send them as one prompt.
+  // we queue messages so they aren't lost. We flush immediately when idle,
+  // and flush the next batch as soon as the current one finishes.
   //
   // How it works:
   //   1. When a message arrives, add it to the thread's queue.
-  //   2. Start/reset a debounce timer (DEBOUNCE_MS).
-  //   3. When the timer fires (no new messages for DEBOUNCE_MS), flush the
-  //      queue: concatenate all buffered texts and call handleMessage once.
-  //   4. If handleMessage is already running for that thread, wait for it
-  //      to finish before flushing.
-
-  const DEBOUNCE_MS = 2500;
+  //   2. If idle, flush immediately.
+  //   3. If already processing, leave new messages queued.
+  //   4. When the current run finishes, immediately flush the queued batch.
 
   interface QueuedMsg {
     text: string;
@@ -107,7 +105,6 @@ export async function createChatInstance(deps: ChatInstanceDeps): Promise<Chat |
 
   interface ThreadQueue {
     messages: QueuedMsg[];
-    timer: ReturnType<typeof setTimeout> | null;
     processing: boolean;
     thread: Thread;
     /** The latest incoming Telegram message_id — used for reply_to */
@@ -154,7 +151,7 @@ export async function createChatInstance(deps: ChatInstanceDeps): Promise<Chat |
     console.log(`[opencode-channels] enqueueMessage: threadId=${thread.id}, text="${text.slice(0, 60)}"`);
     let q = threadQueues.get(thread.id);
     if (!q) {
-      q = { messages: [], timer: null, processing: false, thread };
+      q = { messages: [], processing: false, thread };
       threadQueues.set(thread.id, q);
     }
     // Always update the thread reference (it may have new context)
@@ -172,9 +169,9 @@ export async function createChatInstance(deps: ChatInstanceDeps): Promise<Chat |
       thread.startTyping().catch(() => {});
     }
 
-    // Reset debounce timer
-    if (q.timer) clearTimeout(q.timer);
-    q.timer = setTimeout(() => void flushQueue(thread.id), DEBOUNCE_MS);
+    if (!q.processing) {
+      void flushQueue(thread.id);
+    }
   }
 
   async function flushQueue(threadId: string): Promise<void> {
@@ -188,7 +185,6 @@ export async function createChatInstance(deps: ChatInstanceDeps): Promise<Chat |
       return;
     }
     q.processing = true;
-    q.timer = null;
 
     // Drain the queue
     const batch = q.messages.splice(0);
@@ -216,9 +212,7 @@ export async function createChatInstance(deps: ChatInstanceDeps): Promise<Chat |
       q.processing = false;
       // Check if more messages arrived while we were processing
       if (q.messages.length > 0) {
-        // Reset debounce for the new batch
-        if (q.timer) clearTimeout(q.timer);
-        q.timer = setTimeout(() => flushQueue(threadId), DEBOUNCE_MS);
+        void flushQueue(threadId);
       }
     }
   }
@@ -428,17 +422,20 @@ export async function createChatInstance(deps: ChatInstanceDeps): Promise<Chat |
       });
 
       let fullText = '';
+      let lastRenderedText = '';
       let lastEditAt = 0;
       let toolsUsed = 0;
-      const EDIT_INTERVAL_MS = 600;
+      const EDIT_INTERVAL_MS = 350;
 
       for await (const event of eventStream) {
         if (event.type === 'text' && event.data) {
           fullText += event.data;
+          const renderedText = sanitizeChannelResponse(fullText);
 
           const now = Date.now();
-          if (now - lastEditAt >= EDIT_INTERVAL_MS) {
-            await postStreamingUpdate(fullText + ' ...');
+          if (renderedText && renderedText !== lastRenderedText && now - lastEditAt >= EDIT_INTERVAL_MS) {
+            lastRenderedText = renderedText;
+            await postStreamingUpdate(renderedText + ' ...');
             await refreshTyping();
             lastEditAt = now;
           }
@@ -455,8 +452,10 @@ export async function createChatInstance(deps: ChatInstanceDeps): Promise<Chat |
               lastEditAt = Date.now();
             }
           } else if (event.tool.status === 'completed' || event.tool.status === 'error') {
-            if (fullText) {
-              await postStreamingUpdate(fullText + ' ...');
+            const renderedText = sanitizeChannelResponse(fullText);
+            if (renderedText && renderedText !== lastRenderedText) {
+              lastRenderedText = renderedText;
+              await postStreamingUpdate(renderedText + ' ...');
               lastEditAt = Date.now();
             }
           }
@@ -492,8 +491,9 @@ export async function createChatInstance(deps: ChatInstanceDeps): Promise<Chat |
       // The final message uses MarkdownV2 for proper formatting.
       // Streaming updates above used plain text to avoid parse issues.
       console.log(`[opencode-channels] handleMessage: stream done, fullText length=${fullText.length}, toolsUsed=${toolsUsed}`);
-      if (fullText) {
-        await postFinalMsg(fullText);
+      const finalText = sanitizeChannelResponse(fullText);
+      if (finalText) {
+        await postFinalMsg(finalText);
       } else {
         await postFinalMsg('No response from the agent.');
       }

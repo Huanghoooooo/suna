@@ -1,4 +1,5 @@
 import { getEnv } from '../../opencode/tools/lib/get-env.js';
+import { isSafeTextDeltaPartType } from './channel-output.js';
 
 export interface OpenCodeClientConfig {
   baseUrl: string;
@@ -238,9 +239,11 @@ export class OpenCodeClient {
           }
 
           if (evt === 'message.part.delta') {
-            // Skip non-text part deltas (reasoning tokens, tool, step, etc.)
-            const partType = (props.part as Record<string, unknown>)?.type as string;
-            if (partType && partType !== 'text') continue;
+            // Only forward assistant text deltas. If the event is missing a
+            // part type, treat it as unsafe and drop it rather than risking
+            // leaking reasoning/tool/status payloads into chat channels.
+            const partType = (props.part as Record<string, unknown>)?.type as string | undefined;
+            if (!isSafeTextDeltaPartType(partType)) continue;
             const delta = props.delta as string;
             if (delta) { gotText = true; sawBusy = true; yield delta; }
           }
@@ -418,8 +421,8 @@ export class OpenCodeClient {
           // IMPORTANT: Skip non-text part types (reasoning tokens, tool, step, etc.)
           // to avoid leaking internal model reasoning into channel messages.
           if (evt === 'message.part.delta') {
-            const partType = (props.part as Record<string, unknown>)?.type as string;
-            if (partType && partType !== 'text') continue;
+            const partType = (props.part as Record<string, unknown>)?.type as string | undefined;
+            if (!isSafeTextDeltaPartType(partType)) continue;
             const delta = props.delta as string;
             if (delta) {
               gotText = true;
