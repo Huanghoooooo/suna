@@ -1,5 +1,17 @@
 [
   {
+    "version": "0.8.25",
+    "date": "2026-04-03",
+    "title": "Fix sandbox env var injection for cloud proxied services",
+    "description": "Seed placeholders in the SecretStore were overwriting Docker env vars (TAVILY_API_URL, REPLICATE_API_URL, SERPER_API_URL) on every boot, breaking web search, image generation, and serper in cloud sandboxes.",
+    "changes": [
+      { "type": "fix", "text": "sync-s6-env: skip empty SecretStore values so seed placeholders don't overwrite Docker env vars injected at container creation" },
+      { "type": "fix", "text": "Remove platform-injected URL vars (TAVILY_API_URL, REPLICATE_API_URL, SERPER_API_URL) from seed-env.json — they are set by the infrastructure, not user-configured" },
+      { "type": "fix", "text": "persistEnv returns success/failure boolean and guards against empty sandbox URL to prevent silent failures" },
+      { "type": "fix", "text": "?onboarding-skip no longer loses skip intent when sandbox URL is not yet available during auth redirect" }
+    ]
+  },
+  {
     "version": "0.8.24",
     "date": "2026-04-01",
     "title": "Suna repo migration, runtime env vars, deploy infrastructure",
