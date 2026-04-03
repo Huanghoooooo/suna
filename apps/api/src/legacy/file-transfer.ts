@@ -17,7 +17,7 @@ interface OldSandboxInfo {
 }
 
 const ARCHIVE_PATH = '/tmp/legacy-uploads.tar.gz';
-const TRANSFER_DIRS = ['/workspace/uploads'];
+const TRANSFER_DIRS = ['/workspace'];
 
 export async function getOldSandboxId(projectId: string): Promise<OldSandboxInfo | null> {
   const sql = postgres(config.DATABASE_URL!, { max: 1 });
@@ -170,7 +170,7 @@ async function uploadAndExtractOnNewSandbox(
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      cmd: `mkdir -p /workspace/legacy && tar xzf ${ARCHIVE_PATH} --strip-components=2 -C /workspace/legacy && rm -f ${ARCHIVE_PATH}`,
+      cmd: `mkdir -p /workspace/legacy && tar xzf ${ARCHIVE_PATH} --strip-components=1 -C /workspace/legacy && rm -f ${ARCHIVE_PATH}`,
     }),
     signal: AbortSignal.timeout(60_000),
   });
