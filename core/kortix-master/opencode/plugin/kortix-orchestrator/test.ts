@@ -253,22 +253,28 @@ async function run() {
 	const toolGate = plugin["tool.execute.before"] as (input: { tool: string; sessionID: string; callID: string }, output: { args: any }) => Promise<void>
 	assert(typeof toolGate === "function", "tool.execute.before hook registered")
 
-	// Ungated tools should always pass (even without project)
+	// Non-write tools should always pass (even without project)
 	const ungatedSession = "ses_no_project_test"
-	await toolGate({ tool: "project_list", sessionID: ungatedSession, callID: "c1" }, { args: {} })
-	assert(true, "project_list allowed without project")
-	await toolGate({ tool: "session_read", sessionID: ungatedSession, callID: "c2" }, { args: {} })
-	assert(true, "session_read allowed without project")
-
-	// Gated tools should throw without a project
-	let gateBlocked = false
-	try {
-		await toolGate({ tool: "mcp_bash", sessionID: ungatedSession, callID: "c3" }, { args: {} })
-	} catch (e: any) {
-		gateBlocked = true
-		assert(e.message.includes("No project selected"), `Tool gate error message correct (got: ${e.message.slice(0, 60)})`)
+	for (const freeTool of [
+		"project_list", "session_read", "mcp_bash", "bash",
+		"read", "mcp_read", "glob", "mcp_glob", "grep", "mcp_grep",
+		"web_search", "show", "skill", "question",
+	]) {
+		await toolGate({ tool: freeTool, sessionID: ungatedSession, callID: `c_${freeTool}` }, { args: {} })
+		assert(true, `${freeTool} allowed without project`)
 	}
-	assert(gateBlocked, "mcp_bash blocked without project")
+
+	// Only file-mutation tools should be gated without a project
+	for (const gatedTool of ["edit", "mcp_edit", "write", "mcp_write", "morph_edit", "mcp_morph_edit"]) {
+		let blocked = false
+		try {
+			await toolGate({ tool: gatedTool, sessionID: ungatedSession, callID: `c_${gatedTool}` }, { args: {} })
+		} catch (e: any) {
+			blocked = true
+			assert(e.message.includes("No project selected"), `${gatedTool} gate error correct`)
+		}
+		assert(blocked, `${gatedTool} blocked without project`)
+	}
 
 	// project_select should link session to project
 	const selectResult = await tools.project_select.execute(
@@ -279,12 +285,14 @@ async function run() {
 	assert(selectResult.includes("selected"), "project_select confirms selection")
 
 	// After select, gated tools should pass
-	let gateAllowed = false
-	try {
-		await toolGate({ tool: "mcp_bash", sessionID: ungatedSession, callID: "c4" }, { args: {} })
-		gateAllowed = true
-	} catch {}
-	assert(gateAllowed, "mcp_bash allowed after project_select")
+	for (const gatedTool of ["edit", "mcp_edit", "write", "mcp_write", "morph_edit", "mcp_morph_edit"]) {
+		let allowed = false
+		try {
+			await toolGate({ tool: gatedTool, sessionID: ungatedSession, callID: `c_post_${gatedTool}` }, { args: {} })
+			allowed = true
+		} catch {}
+		assert(allowed, `${gatedTool} allowed after project_select`)
+	}
 
 	// project_select with invalid project
 	const badSelect = await tools.project_select.execute(

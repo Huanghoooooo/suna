@@ -1312,8 +1312,8 @@ export interface SessionChatInputProps {
   questionCanAct?: boolean;
   /** Called when the send button is clicked during a question and there's no text (i.e. the action is next/submit, not a custom answer). */
   onQuestionAction?: () => void;
-  /** When true, show "ESC again to stop" hint near the stop button (auto-clears) */
-  escHint?: boolean;
+  /** Number of ESC presses so far (0 = none, 1 = first, 2 = second). Triple-ESC to stop. */
+  escCount?: number;
 }
 
 function forkDraftKey(sessionId: string) {
@@ -1376,7 +1376,7 @@ export function SessionChatInput({
   questionButtonLabel = null,
   questionCanAct = true,
   onQuestionAction,
-  escHint = false,
+  escCount = 0,
 }: SessionChatInputProps) {
   const placeholderVariants = useMemo(
     () => [
@@ -2342,13 +2342,22 @@ export function SessionChatInput({
 
               {isBusy && onStop && !lockForQuestion && (
                 <div className="relative flex items-center">
-                  {/* ESC hint — floats above the stop button, fades in/out */}
-                  {escHint && (
-                    <span
-                      className="absolute -top-8 right-0 whitespace-nowrap text-[11px] text-muted-foreground bg-popover border border-border rounded-md px-2 py-0.5 shadow-sm animate-in fade-in zoom-in-95 duration-150 pointer-events-none"
+                  {/* ESC hint — matches Kortix tooltip styling (bg-primary rounded-2xl) */}
+                  {escCount > 0 && (
+                    <div
+                      className="absolute bottom-full right-1/2 translate-x-1/2 mb-2 pointer-events-none animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-150"
                     >
-                      ESC again to stop
-                    </span>
+                      <div className="bg-primary text-primary-foreground rounded-2xl px-3 py-1.5 text-xs whitespace-nowrap flex items-center gap-1.5">
+                        <kbd className="bg-background/20 text-primary-foreground inline-flex h-5 min-w-5 items-center justify-center rounded-sm px-1 font-sans text-[11px] font-medium select-none">
+                          ESC
+                        </kbd>
+                        <span>{escCount === 1 ? '×2 to stop' : '×1 to stop'}</span>
+                      </div>
+                      {/* Arrow matching TooltipContent */}
+                      <div className="flex justify-center -mt-px">
+                        <div className="bg-primary size-2.5 rotate-45 rounded-[2px] -translate-y-[calc(50%_-_2px)]" />
+                      </div>
+                    </div>
                   )}
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -2360,7 +2369,9 @@ export function SessionChatInput({
                         <div className="w-3 h-3 rounded-[3px] bg-current" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top"><p>Stop</p></TooltipContent>
+                    <TooltipContent side="top">
+                      <p>Stop <kbd className="ml-1 bg-background/20 text-primary-foreground inline-flex h-5 min-w-5 items-center justify-center rounded-sm px-1 font-sans text-[10px] font-medium">ESC</kbd> ×3</p>
+                    </TooltipContent>
                   </Tooltip>
                 </div>
               )}

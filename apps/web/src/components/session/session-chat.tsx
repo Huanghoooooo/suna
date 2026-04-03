@@ -3,9 +3,11 @@
 import {
 	ArrowDown,
 	ArrowUp,
+	AlertTriangle,
 	ArrowUpLeft,
 	Brain,
 	Check,
+	CheckCircle,
 	ChevronDown,
 	ChevronRight,
 	ChevronUp,
@@ -92,7 +94,8 @@ import { getClient } from "@/lib/opencode-sdk";
 // billingApi / invalidateAccountState / useQueryClient removed — billing is handled server-side by the router
 import { playSound } from "@/lib/sounds";
 import { cn } from "@/lib/utils";
-import { stripKortixSystemTags } from "@/lib/utils/kortix-system-tags";
+import { stripKortixSystemTags, extractSessionReport, type SessionReport } from "@/lib/utils/kortix-system-tags";
+import { SubSessionModal } from "@/components/session/sub-session-modal";
 import { toast as sonnerToast } from "sonner";
 import { useKortixComputerStore } from "@/stores/kortix-computer-store";
 import { useMessageQueueStore } from "@/stores/message-queue-store";
@@ -2306,7 +2309,21 @@ function SessionTurn({
 	// Whether the user message has any visible content (non-synthetic, non-ignored
 	// text, or attachments). Background task notifications inject synthetic-only
 	// user messages that should not render a user bubble.
+	// Extract session report from user message (if present)
+	const sessionReport = useMemo<SessionReport | null>(() => {
+		for (const p of turn.userMessage.parts) {
+			if (isTextPart(p)) {
+				const report = extractSessionReport((p as TextPart).text || "");
+				if (report) return report;
+			}
+		}
+		return null;
+	}, [turn.userMessage.parts]);
+	const [sessionReportModalOpen, setSessionReportModalOpen] = useState(false);
+
 	const hasVisibleUserContent = useMemo(() => {
+		// Session reports render as their own card — don't show as user bubble
+		if (sessionReport) return false;
 		const parts = turn.userMessage.parts;
 		// Parts not loaded yet (bridging / transient state) — assume visible
 		// to prevent a flash where the bubble disappears momentarily.
@@ -2326,7 +2343,7 @@ function SessionTurn({
 		// Has any agent part?
 		if (parts.some(isAgentPart)) return true;
 		return false;
-	}, [turn.userMessage.parts]);
+	}, [turn.userMessage.parts, sessionReport]);
 
 	// User message text — for copy action
 	const userMessageText = useMemo(() => {
@@ -2509,6 +2526,49 @@ function SessionTurn({
 
 	return (
 		<div className="space-y-3 group/turn">
+			{/* ── Session report card — clickable, opens worker session modal ── */}
+			{sessionReport && (
+				<>
+					<div
+						role="button"
+						tabIndex={0}
+						onClick={() => setSessionReportModalOpen(true)}
+						onKeyDown={(e) => e.key === "Enter" && setSessionReportModalOpen(true)}
+						className={cn(
+							"flex items-center gap-2 px-3 py-2 rounded-lg text-xs",
+							"border select-none cursor-pointer transition-colors group/report",
+							sessionReport.status === "COMPLETE"
+								? "bg-emerald-500/5 border-emerald-500/20 hover:bg-emerald-500/10"
+								: "bg-destructive/5 border-destructive/20 hover:bg-destructive/10",
+						)}
+					>
+						{sessionReport.status === "COMPLETE" ? (
+							<CheckCircle className="size-3.5 text-emerald-500 flex-shrink-0" />
+						) : (
+							<AlertTriangle className="size-3.5 text-destructive flex-shrink-0" />
+						)}
+						<div className="flex items-center gap-1.5 min-w-0 flex-1">
+							<span className={cn("font-medium", sessionReport.status === "COMPLETE" ? "text-emerald-700 dark:text-emerald-400" : "text-destructive")}>
+								Worker {sessionReport.status === "COMPLETE" ? "Complete" : "Failed"}
+							</span>
+							{sessionReport.project && (
+								<span className="text-muted-foreground/60">· {sessionReport.project}</span>
+							)}
+							{sessionReport.prompt && (
+								<span className="text-muted-foreground/40 truncate">{sessionReport.prompt.slice(0, 60)}</span>
+							)}
+						</div>
+						<ExternalLink className="size-3 flex-shrink-0 text-muted-foreground/30 group-hover/report:text-muted-foreground/60 transition-colors" />
+					</div>
+					<SubSessionModal
+						open={sessionReportModalOpen}
+						onOpenChange={setSessionReportModalOpen}
+						sessionId={sessionReport.sessionId}
+						title={`Worker${sessionReport.project ? ` · ${sessionReport.project}` : ""}`}
+					/>
+				</>
+			)}
+
 			{/* ── User message ── */}
 			{/* Hide the user bubble when the user message has no visible content
 			    (e.g. background task notification with only synthetic parts). */}
@@ -4460,17 +4520,16 @@ export function SessionChat({
 		abortSession.mutate(sessionId);
 	}, [sessionId, abortSession]);
 
-	// ---- Double-ESC / Ctrl+C to stop ----
-	// ESC once → flash hint for 3s. ESC again within that window → stop.
-	// Ctrl+C → immediate force stop (no double-tap needed).
-	// All timing via refs to avoid stale-closure / dep-array issues.
-	const [escHint, setEscHint] = useState(false);
-	const escDeadlineRef = useRef(0); // timestamp when the ESC window expires
+	// ---- Triple-ESC to stop ----
+	// ESC 1 → show hint (2 more). ESC 2 → show hint (1 more). ESC 3 → stop.
+	// 4s cooloff window — resets if you wait too long between presses.
+	const [escCount, setEscCount] = useState(0); // 0 = idle, 1 = first press, 2 = second press
+	const escDeadlineRef = useRef(0);
 	const escFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const clearEscHint = useCallback(() => {
 		escDeadlineRef.current = 0;
-		setEscHint(false);
+		setEscCount(0);
 		if (escFadeTimerRef.current) {
 			clearTimeout(escFadeTimerRef.current);
 			escFadeTimerRef.current = null;
@@ -4479,17 +4538,6 @@ export function SessionChat({
 
 	useEffect(() => {
 		const onKeyDown = (e: KeyboardEvent) => {
-			// Ctrl+C / Cmd+C (without selection) → immediate stop
-			if (e.key === 'c' && (e.ctrlKey || e.metaKey) && isBusy) {
-				const sel = window.getSelection();
-				if (!sel || sel.isCollapsed) {
-					e.preventDefault();
-					clearEscHint();
-					handleStop();
-					return;
-				}
-			}
-
 			if (e.key !== 'Escape' || !isBusy) return;
 
 			// Don't intercept inside dialogs/modals
@@ -4498,25 +4546,40 @@ export function SessionChat({
 
 			e.preventDefault();
 
-			if (Date.now() < escDeadlineRef.current) {
-				// Within the window → stop
-				clearEscHint();
-				handleStop();
+			const now = Date.now();
+			const withinWindow = now < escDeadlineRef.current;
+
+			if (withinWindow) {
+				const currentCount = escDeadlineRef.current ? Math.max(1, escCount) : 0;
+				if (currentCount >= 2) {
+					// Third ESC → stop
+					clearEscHint();
+					handleStop();
+				} else {
+					// Second ESC → advance count, refresh cooloff
+					setEscCount(2);
+					escDeadlineRef.current = now + 4000;
+					if (escFadeTimerRef.current) clearTimeout(escFadeTimerRef.current);
+					escFadeTimerRef.current = setTimeout(() => {
+						escDeadlineRef.current = 0;
+						setEscCount(0);
+					}, 4000);
+				}
 			} else {
-				// First ESC → open a 3s window
-				escDeadlineRef.current = Date.now() + 3000;
-				setEscHint(true);
+				// First ESC (or cooloff expired) → start fresh
+				setEscCount(1);
+				escDeadlineRef.current = now + 4000;
 				if (escFadeTimerRef.current) clearTimeout(escFadeTimerRef.current);
 				escFadeTimerRef.current = setTimeout(() => {
 					escDeadlineRef.current = 0;
-					setEscHint(false);
-				}, 3000);
+					setEscCount(0);
+				}, 4000);
 			}
 		};
 
 		window.addEventListener('keydown', onKeyDown);
 		return () => window.removeEventListener('keydown', onKeyDown);
-	}, [isBusy, handleStop, clearEscHint]);
+	}, [isBusy, handleStop, clearEscHint, escCount]);
 
 	// Reset when session goes idle
 	useEffect(() => { if (!isBusy) clearEscHint(); }, [isBusy, clearEscHint]);
@@ -4917,7 +4980,7 @@ export function SessionChat({
 				}}
 				isBusy={isBusy}
 				onStop={handleStop}
-				escHint={escHint}
+				escCount={escCount}
 				agents={local.agent.list}
 				selectedAgent={local.agent.current?.name ?? null}
 				onAgentChange={(name) => local.agent.set(name ?? undefined)}

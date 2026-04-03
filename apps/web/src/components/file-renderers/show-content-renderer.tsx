@@ -597,15 +597,19 @@ export interface ShowCarouselProps {
   items: ShowCarouselItem[];
   /** Optional: component for rendering proxied localhost iframes */
   LocalhostPreview?: React.ComponentType<{ url: string; label?: string }>;
+  /** Called when the active carousel item changes — lets parents track the current item for "Open File" etc. */
+  onIndexChange?: (index: number) => void;
 }
 
-export function ShowCarousel({ items, LocalhostPreview }: ShowCarouselProps) {
+export function ShowCarousel({ items, LocalhostPreview, onIndexChange }: ShowCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const count = items.length;
 
   const goTo = useCallback((idx: number) => {
-    setCurrentIndex(Math.max(0, Math.min(idx, count - 1)));
-  }, [count]);
+    const clamped = Math.max(0, Math.min(idx, count - 1));
+    setCurrentIndex(clamped);
+    onIndexChange?.(clamped);
+  }, [count, onIndexChange]);
 
   const prev = useCallback(() => goTo(currentIndex - 1), [goTo, currentIndex]);
   const next = useCallback(() => goTo(currentIndex + 1), [goTo, currentIndex]);

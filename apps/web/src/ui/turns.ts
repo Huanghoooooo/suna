@@ -431,6 +431,9 @@ export function computeStatusFromPart(part: Part | undefined): string | undefine
     switch (part.tool) {
       case 'task':
       case 'session_spawn':
+      case 'session_start_background':
+      case 'session-spawn':
+      case 'session-start-background':
         return 'Delegating to agent...';
       case 'todowrite':
       case 'todoread':
@@ -562,11 +565,13 @@ export function getChildSessionId(part: ToolPart): string | undefined {
     }
     return undefined;
   }
-  // session_spawn: extract session ID from output text (format: "- **Session:** ses_xxx")
-  if (part.tool === 'session_spawn') {
+  // session_spawn / session_start_background: extract session ID from output text
+  // Output format: "- **Session:** ses_xxx" or "Session: ses_xxx"
+  const toolName = part.tool?.replace(/-/g, '_') || '';
+  if (toolName === 'session_spawn' || toolName === 'session_start_background') {
     const output = (part.state as any)?.output as string | undefined;
     if (output) {
-      const match = output.match(/\*\*Session:\*\*\s*(ses_[a-zA-Z0-9]+)/);
+      const match = output.match(/\*?\*?Session:?\*?\*?\s*(ses_[a-zA-Z0-9]+)/);
       if (match) return match[1];
     }
     return undefined;
@@ -662,10 +667,13 @@ export function getToolInfo(tool: string, input: Record<string, any> = {}): Tool
         subtitle: input.description,
       };
     case 'session_spawn':
+    case 'session_start_background':
+    case 'session-spawn':
+    case 'session-start-background':
       return {
         icon: 'square-kanban',
         title: `Worker (${input.agent || 'KortixWorker'})`,
-        subtitle: input.prompt?.slice(0, 60),
+        subtitle: input.description || input.prompt?.slice(0, 60),
       };
     case 'bash':
       return { icon: 'terminal', title: 'Shell', subtitle: input.description };
@@ -696,6 +704,32 @@ export function getToolInfo(tool: string, input: Record<string, any> = {}): Tool
       return { icon: 'scissors', title: 'DCP Compress', subtitle: input.topic };
     case 'context_info':
       return { icon: 'scissors', title: 'Context Info' };
+    case 'session_read':
+    case 'session-read':
+      return { icon: 'glasses', title: `Session Read (${input.mode || 'summary'})`, subtitle: input.session_id?.slice(-12) };
+    case 'session_search':
+    case 'session-search':
+      return { icon: 'search', title: 'Session Search', subtitle: input.query };
+    case 'session_message':
+    case 'session-message':
+      return { icon: 'message-circle', title: 'Message → Session', subtitle: input.session_id?.slice(-12) };
+    case 'session_lineage':
+    case 'session-lineage':
+      return { icon: 'list-tree', title: 'Session Lineage', subtitle: input.session_id?.slice(-12) };
+    case 'session_list_background':
+    case 'session-list-background':
+    case 'session_list_spawned':
+    case 'session-list-spawned':
+      return { icon: 'layers', title: 'Background Sessions', subtitle: input.project || 'all' };
+    case 'session_list':
+    case 'session-list':
+      return { icon: 'list', title: 'Session List', subtitle: input.search };
+    case 'session_get':
+    case 'session-get':
+      return { icon: 'book-open', title: 'Session Get', subtitle: input.session_id?.slice(-12) };
+    case 'project_delete':
+    case 'project-delete':
+      return { icon: 'trash-2', title: 'Delete Project', subtitle: input.project };
     case 'pty_spawn':
       return { icon: 'terminal', title: 'Spawn', subtitle: input.title || input.command };
     case 'pty_read':

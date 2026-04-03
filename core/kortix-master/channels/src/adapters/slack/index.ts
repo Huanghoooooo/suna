@@ -17,10 +17,25 @@ const slackModule: AdapterModule<SlackCredentials> = {
   },
 
   createAdapter(credentials: SlackCredentials) {
-    return createSlackAdapter({
+    const adapter = createSlackAdapter({
       botToken: credentials.botToken,
       signingSecret: credentials.signingSecret,
     });
+
+    const slackApiUrl = process.env.SLACK_API_URL;
+    if (slackApiUrl) {
+      // Test/dev override so we can point the Slack SDK at a local fake API.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const client = (adapter as any).client as { slackApiUrl?: string; axios?: { defaults?: { baseURL?: string } } } | undefined;
+      if (client) {
+        client.slackApiUrl = slackApiUrl.endsWith('/') ? slackApiUrl : `${slackApiUrl}/`;
+        if (client.axios?.defaults) {
+          client.axios.defaults.baseURL = client.slackApiUrl;
+        }
+      }
+    }
+
+    return adapter;
   },
 
   registerRoutes(app: Hono, getBot: () => Chat | null) {

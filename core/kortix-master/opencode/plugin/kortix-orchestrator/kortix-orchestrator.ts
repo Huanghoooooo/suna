@@ -577,11 +577,11 @@ Other workers may be running in parallel on this project. **Do NOT touch files o
 			const label = del.status === "complete" ? "COMPLETE" : "FAILED"
 			const body = (del.result || "(no output)").slice(0, 3000)
 
-			this.client.session.prompt({
-				path: { id: del.parent_session_id },
-				body: { noReply: false, agent: del.parent_agent, parts: [{ type: "text", text:
-					`<session-report>\n<session-id>${del.session_id}</session-id>\n<status>${label}</status>\n<project>${proj?.name || "?"}</project>\n<prompt>${del.prompt.slice(0, 200)}</prompt>\n<result>\n${body}\n</result>\n</session-report>\n\nSession **${label}** in project **${proj?.name || "?"}**. Use \`session_read("${del.session_id}")\` for full output, or \`session_get\` to inspect.` }] },
-			}).catch(() => {})
+		this.client.session.prompt({
+			path: { id: del.parent_session_id },
+			body: { noReply: false, agent: del.parent_agent, parts: [{ type: "text", text:
+				`<kortix_system type="session-report" source="kortix-orchestrator">\n<session-report>\n<session-id>${del.session_id}</session-id>\n<status>${label}</status>\n<project>${proj?.name || "?"}</project>\n<prompt>${del.prompt.slice(0, 200)}</prompt>\n<result>\n${body}\n</result>\n</session-report>\n\nSession **${label}** in project **${proj?.name || "?"}**. Use \`session_read("${del.session_id}")\` for full output, or \`session_get\` to inspect.\n<!-- KORTIX_INTERNAL -->\n</kortix_system>` }] },
+		}).catch(() => {})
 		} catch {}
 	}
 }
@@ -844,32 +844,23 @@ Also works on ANY session ID (not just spawned ones) — use session_list (built
 			}),
 		},
 
-		// ── Project gate: block work tools until a project is selected for the session ──
-		// CRITICAL: This hook runs before EVERY tool call. If it throws, the tool
-		// fails. If the DB is broken, we must FAIL OPEN (allow) not fail closed
-		// (block everything with "disk I/O error").
+		// ── Project gate: block file-mutation tools until a project is selected ──
+		// Only explicit file-write tools are gated. Everything else (bash, read,
+		// glob, grep, search, etc.) is allowed — the <project_status> injection
+		// still nudges the agent to select a project without hard-blocking exploration.
+		// CRITICAL: If the DB is broken, we FAIL OPEN (allow) not fail closed.
 		"tool.execute.before": async (input: { tool: string; sessionID: string; callID: string }, _output: { args: any }) => {
 			// Normalize tool name to underscores so we only need one canonical form.
 			const toolName = input.tool
 			const n = toolName.replace(/-/g, "_")
 
-			// Tools that are always allowed without a project selected.
-			// Listed in underscore form — the normalizer above handles hyphens.
-			const UNGATED_PREFIXES = [
-				"project_", "session_", "worktree_",     // orchestration
-				"web_search",                            // web search
-				"image_search",                          // image search
-				"scrape_webpage",                        // web scraping
-				"instance_dispose",                      // system reload
-				"context7_",                             // docs
+			// Only these tools are gated — they create or modify files in the project.
+			const GATED_EXACT = [
+				"edit", "mcp_edit",
+				"write", "mcp_write",
+				"morph_edit", "mcp_morph_edit",
 			]
-			if (UNGATED_PREFIXES.some(p => n.startsWith(p))) return
-
-			const UNGATED_EXACT = [
-				"todowrite", "todoread", "show", "question", "skill",
-				"webfetch", "apply_patch",
-			]
-			if (UNGATED_EXACT.includes(n)) return
+			if (!GATED_EXACT.includes(n)) return // not a write tool — allow
 
 			const sessionId = input.sessionID
 			if (!sessionId) return // no session context — can't gate

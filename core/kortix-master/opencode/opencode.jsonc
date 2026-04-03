@@ -3,7 +3,6 @@
   "permission": "allow",
   "autoupdate": false,
   "disabled_providers": ["opencode"],
-  // "model": "kortix/minimax-m27",
   "default_agent": "kortix",
   "agent": {
     "build": { "disable": true },
@@ -50,17 +49,8 @@
     }
   },
   "plugin": [
-    "./plugin/anthropic-auth.ts",
-    "./plugin/pty-tools.ts",
-    "./plugin/kortix-orchestrator/kortix-orchestrator.ts",
-    "./plugin/worktree/worktree.ts",
-    "./plugin/kortix-sessions/kortix-sessions.ts",
-    "./plugin/kortix-todo-enforcing/kortix-todo-enforcing.ts",
-    "./plugin/kortix-autowork/kortix-autowork.ts",
-    "./plugin/connectors/connectors.ts",
-    "./plugin/agent-triggers.ts",
-    "./plugin/btw/btw.ts"
-    // "./plugin/opencode-morph-plugin/opencode-morph-plugin.ts",
+    "./plugin/kortix-system/kortix-system.ts",
+    "./plugin/worktree/worktree.ts"
   ],
   "mcp": {
     "context7": {

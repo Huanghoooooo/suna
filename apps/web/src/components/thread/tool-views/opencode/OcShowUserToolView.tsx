@@ -10,6 +10,7 @@ import {
   FileText,
   Globe,
   Image as ImageIcon,
+  Maximize2,
   MonitorPlay,
   Music,
   RefreshCw,
@@ -34,8 +35,9 @@ import {
 import { openTabAndNavigate } from '@/stores/tab-store';
 import { enrichPreviewMetadata } from '@/lib/utils/session-context';
 import { cn } from '@/lib/utils';
-import { ShowContentRenderer, ShowCarousel } from '@/components/file-renderers/show-content-renderer';
+import { ShowContentRenderer, ShowCarousel, SHOW_HTML_EXT_RE } from '@/components/file-renderers/show-content-renderer';
 import type { ShowCarouselItem } from '@/components/file-renderers/show-content-renderer';
+import { SANDBOX_PORTS } from '@/lib/platform-client';
 
 // ── Theme border styles — theme ONLY affects the card border color ──────────
 const THEME_BORDER: Record<string, string> = {
@@ -296,8 +298,14 @@ export function OcShowUserToolView({
 
   const isCarousel = !!items && items.length > 0;
 
+  // ── Track current carousel item for Open File ──
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const currentCarouselItem = isCarousel ? items![carouselIndex] || items![0] : null;
+
   const borderStyle = THEME_BORDER[theme] || THEME_BORDER.default;
-  const Icon = isCarousel ? typeIcon(items![0].type || '') : typeIcon(type);
+  const Icon = isCarousel
+    ? typeIcon(currentCarouselItem?.type || items![0].type || '')
+    : typeIcon(type);
 
   const isError = type === 'error' || toolResult?.success === false || !!toolResult?.error;
   const hasLocalhostUrl = !!parseLocalhostUrl(url) && !isAppRouteUrl(url);
@@ -392,19 +400,95 @@ export function OcShowUserToolView({
   // CAROUSEL — multiple items in a single show call
   // ═══════════════════════════════════════════════════════════════════════════
   if (isCarousel) {
+    const ciPath = currentCarouselItem?.path || '';
+    const ciUrl = currentCarouselItem?.url || '';
+    const ciType = currentCarouselItem?.type || '';
+    const ciTitle = currentCarouselItem?.title || '';
+    const ciHasLocalhostUrl = !!parseLocalhostUrl(ciUrl) && !isAppRouteUrl(ciUrl);
+    const ciIsHtmlFile = !!ciPath && SHOW_HTML_EXT_RE.test(ciPath) && (ciType === 'file' || ciType === 'html');
+    const ciCanOpen = !!(ciUrl || ciPath);
+    const ciOpenLabel = ciIsHtmlFile ? 'Open Preview' : ciHasLocalhostUrl ? 'Open in Tab' : ciUrl ? 'Open Link' : 'Open File';
+
+    const handleCarouselOpen = () => {
+      if (ciIsHtmlFile && ciPath) {
+        const staticPort = parseInt(SANDBOX_PORTS.STATIC_FILE_SERVER ?? '3211', 10);
+        const staticUrl = `http://localhost:${staticPort}/open?path=${encodeURIComponent(ciPath)}`;
+        const proxy = proxyUrl(staticUrl);
+        if (proxy) {
+          const parsed = parseLocalhostUrl(staticUrl);
+          openTabAndNavigate({
+            id: `preview:${parsed?.port || staticPort}`,
+            title: ciTitle || ciPath.split('/').pop() || ciPath,
+            type: 'preview',
+            href: `/p/${parsed?.port || staticPort}`,
+            metadata: enrichPreviewMetadata({
+              url: proxy,
+              port: parsed?.port || staticPort,
+              originalUrl: staticUrl,
+            }),
+          });
+          return;
+        }
+      }
+      if (ciHasLocalhostUrl && ciUrl) {
+        const proxy = proxyUrl(ciUrl);
+        const parsed = parseLocalhostUrl(ciUrl);
+        if (proxy && parsed) {
+          openTabAndNavigate({
+            id: `preview:${parsed.port}`,
+            title: ciTitle || `localhost:${parsed.port}`,
+            type: 'preview',
+            href: `/p/${parsed.port}`,
+            metadata: enrichPreviewMetadata({
+              url: proxy,
+              port: parsed.port,
+              originalUrl: ciUrl,
+            }),
+          });
+          return;
+        }
+      }
+      if (ciUrl) {
+        window.open(ciUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      if (ciPath) {
+        const fileName = ciPath.split('/').pop() || ciPath;
+        openTabAndNavigate({
+          id: `file:${ciPath}`,
+          title: fileName,
+          type: 'file',
+          href: `/files/${encodeURIComponent(ciPath)}`,
+        });
+      }
+    };
+
     return (
       <Card className={cn("gap-0 flex shadow-none p-0 py-0 rounded-none flex-col h-full overflow-hidden bg-card border-0", borderStyle)}>
         <CardHeader className="h-14 backdrop-blur-sm border-b p-2 px-4 space-y-2 bg-muted/50">
           <div className="flex flex-row items-center justify-between">
             <ToolViewIconTitle icon={Icon} title={displayTitle} subtitle={description || undefined} />
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted/40 text-muted-foreground/60 font-medium flex-shrink-0">
-              {items!.length} items
-            </span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted/40 text-muted-foreground/60 font-medium">
+                {items!.length} items
+              </span>
+              {ciCanOpen && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs gap-1 px-2"
+                  onClick={handleCarouselOpen}
+                >
+                  {(ciIsHtmlFile || ciHasLocalhostUrl) ? <MonitorPlay className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+                  {ciOpenLabel}
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0 h-full flex-1 overflow-hidden">
           <ScrollArea className="h-full w-full">
-            <ShowCarousel items={items!} LocalhostPreview={SidePanelIframePreview} />
+            <ShowCarousel items={items!} LocalhostPreview={SidePanelIframePreview} onIndexChange={setCarouselIndex} />
           </ScrollArea>
         </CardContent>
         <ToolViewFooter assistantTimestamp={assistantTimestamp} toolTimestamp={toolTimestamp} isStreaming={isStreaming}>
