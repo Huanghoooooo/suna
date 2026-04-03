@@ -49,8 +49,7 @@
     }
   },
   "plugin": [
-    "./plugin/kortix-system/kortix-system.ts",
-    "./plugin/worktree/worktree.ts"
+    "./plugin/kortix-system/kortix-system.ts"
   ],
   "mcp": {
     "context7": {

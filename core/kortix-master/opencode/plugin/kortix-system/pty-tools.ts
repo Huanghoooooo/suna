@@ -1,8 +1,8 @@
 import { type Plugin, tool } from '@opencode-ai/plugin'
-import { DEFAULT_READ_LIMIT, MAX_LINE_LENGTH } from '../opencode-pty/src/shared/constants.ts'
-import { formatLine, formatSessionInfo } from '../opencode-pty/src/plugin/pty/formatters.ts'
-import { initPermissions, checkCommandPermission, checkWorkdirPermission } from '../opencode-pty/src/plugin/pty/permissions.ts'
-import { initManager, manager, isBunPtyAvailable, bunPtyLoadError } from '../opencode-pty/src/plugin/pty/manager.ts'
+import { DEFAULT_READ_LIMIT, MAX_LINE_LENGTH } from './pty/src/shared/constants.ts'
+import { formatLine, formatSessionInfo } from './pty/src/plugin/pty/formatters.ts'
+import { initPermissions, checkCommandPermission, checkWorkdirPermission } from './pty/src/plugin/pty/permissions.ts'
+import { initManager, manager, isBunPtyAvailable, bunPtyLoadError } from './pty/src/plugin/pty/manager.ts'
 
 const ETX = String.fromCharCode(3)
 const EOT = String.fromCharCode(4)

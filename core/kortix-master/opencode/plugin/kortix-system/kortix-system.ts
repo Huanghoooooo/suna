@@ -1,8 +1,8 @@
 /**
- * Kortix System Plugin — THE unified plugin for the entire Kortix environment.
+ * Kortix System Plugin — THE single plugin for the entire Kortix environment.
  *
- * Combines: projects, tasks, sessions, connectors, autowork, continuation,
- * triggers, auth, PTY, and /btw into a single plugin entry point.
+ * Everything: projects, tasks, sessions, connectors, autowork, continuation,
+ * triggers, auth, PTY, worktree, and /btw.
  *
  * opencode.jsonc: "./plugin/kortix-system/kortix-system.ts"
  */
@@ -10,13 +10,9 @@
 import * as path from "node:path"
 import type { Plugin } from "@opencode-ai/plugin"
 
-// ── Modules ──────────────────────────────────────────────────────────────────
-
 import { initProjectsDb, ProjectManager, projectTools, projectGateHook, projectStatusTransform } from "./projects"
 import { taskTools } from "./tasks"
 import { resolveKortixWorkspaceRoot, ensureKortixDir } from "./lib/paths"
-
-// ── Plugin ───────────────────────────────────────────────────────────────────
 
 const KortixSystemPlugin: Plugin = async (ctx) => {
 	const { client } = ctx
@@ -28,91 +24,63 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 	const mgr = new ProjectManager(client, workspaceRoot, db)
 	let currentSessionId: string | null = null
 
-	// ── Load sub-plugins (each returns hooks/tools to merge) ──
-	// Sessions (session_list, session_get, session_search, session_lineage)
-	const sessionsModule = (await import("./sessions")).default
-	const sessionsResult = await sessionsModule(ctx)
+	// ── Load all sub-modules ──
+	const sessions = await (await import("./sessions")).default(ctx)
+	const connectors = await (await import("./connectors")).default(ctx)
+	const auth = await (await import("./auth")).default(ctx)
+	const pty = await (await import("./pty-tools")).default(ctx)
+	const autowork = await (await import("./autowork/autowork")).default(ctx)
+	const continuation = await (await import("./continuation/continuation")).default(ctx)
+	const triggers = await (await import("./triggers")).default(ctx)
+	const worktreeModule = await (await import("./worktree/worktree")).default(ctx)
 
-	// Connectors (connector_list, connector_get, connector_setup, connector_remove)
-	const connectorsModule = (await import("./connectors")).default
-	const connectorsResult = await connectorsModule(ctx)
-
-	// Auth (anthropic OAuth)
-	const authModule = (await import("./auth")).default
-	const authResult = await authModule(ctx)
-
-	// PTY tools (pty_spawn, pty_read, pty_write, pty_list, pty_kill)
-	const ptyModule = (await import("./pty-tools")).default
-	const ptyResult = await ptyModule(ctx)
-
-	// Autowork loop (DONE/VERIFIED protocol)
-	const autoworkModule = (await import("./autowork/autowork")).default
-	const autoworkResult = await autoworkModule(ctx)
-
-	// Passive continuation (todo enforcing)
-	const continuationModule = (await import("./continuation/continuation")).default
-	const continuationResult = await continuationModule(ctx)
-
-	// Triggers (cron, webhooks)
-	const triggersModule = (await import("./triggers")).default
-	const triggersResult = await triggersModule(ctx)
-
-	// BTW command
-	const btwModule = (await import("./btw")).default
-	const btwResult = typeof btwModule === "object" && "server" in btwModule
-		? await btwModule.server(ctx)
-		: await btwModule(ctx)
+	const btwRaw = (await import("./btw")).default
+	const btw = typeof btwRaw === "object" && "server" in btwRaw
+		? await btwRaw.server(ctx)
+		: await btwRaw(ctx)
 
 	// ── Merge all tools ──
-	const allTools = {
-		...projectTools(mgr, db),
-		...taskTools(db, mgr),
-		...(sessionsResult?.tool || {}),
-		...(connectorsResult?.tool || {}),
-		...(ptyResult?.tool || {}),
-	}
-
-	// ── Merge all hooks ──
 	return {
-		tool: allTools,
-
-		// Auth (anthropic OAuth)
-		...(authResult?.auth ? { auth: authResult.auth } : {}),
-
-		// Tool execution gate (project required for file writes)
-		"tool.execute.before": projectGateHook(mgr),
-
-		// Project status injection into every message
-		"experimental.chat.messages.transform": projectStatusTransform(mgr, () => currentSessionId),
-
-		// System prompt transform (anthropic auth injects Claude Code prefix)
-		...(authResult?.["experimental.chat.system.transform"]
-			? { "experimental.chat.system.transform": authResult["experimental.chat.system.transform"] }
-			: {}),
-
-		// Autowork hooks
-		...(autoworkResult?.event ? {} : {}), // autowork registers its own event handler internally
-
-		// BTW command hook
-		...(btwResult?.["command.execute.before"]
-			? { "command.execute.before": btwResult["command.execute.before"] }
-			: {}),
-
-		// Events: session tracking + PTY cleanup + autowork + continuation
-		event: async (payload: any) => {
-			const sid = payload?.event?.properties?.sessionID
-			if (sid && payload.event.type === "session.created") {
-				currentSessionId = sid
-			}
-			// Delegate to sub-plugins that need events
-			if (ptyResult?.event) await ptyResult.event(payload).catch(() => {})
-			if (autoworkResult?.event) await autoworkResult.event(payload).catch(() => {})
-			if (continuationResult?.event) await continuationResult.event(payload).catch(() => {})
+		tool: {
+			...projectTools(mgr, db),
+			...taskTools(db, mgr),
+			...(sessions?.tool || {}),
+			...(connectors?.tool || {}),
+			...(pty?.tool || {}),
+			...(worktreeModule?.tool || {}),
 		},
 
-		// Compaction context
+		// Auth
+		...(auth?.auth ? { auth: auth.auth } : {}),
+
+		// Project gate (file writes require project)
+		"tool.execute.before": projectGateHook(mgr),
+
+		// Project status injection
+		"experimental.chat.messages.transform": projectStatusTransform(mgr, () => currentSessionId),
+
+		// System prompt transform (anthropic auth)
+		...(auth?.["experimental.chat.system.transform"]
+			? { "experimental.chat.system.transform": auth["experimental.chat.system.transform"] }
+			: {}),
+
+		// BTW command
+		...(btw?.["command.execute.before"]
+			? { "command.execute.before": btw["command.execute.before"] }
+			: {}),
+
+		// Events — fan out to all sub-modules that need them
+		event: async (payload: any) => {
+			const sid = payload?.event?.properties?.sessionID
+			if (sid && payload.event.type === "session.created") currentSessionId = sid
+			if (pty?.event) await pty.event(payload).catch(() => {})
+			if (autowork?.event) await autowork.event(payload).catch(() => {})
+			if (continuation?.event) await continuation.event(payload).catch(() => {})
+			if (worktreeModule?.event) await worktreeModule.event(payload).catch(() => {})
+		},
+
+		// Compaction: inject active tasks
 		"experimental.session.compacting": async (_input: any, output: { context: string[] }) => {
-			// Add active tasks to compaction context
 			try {
 				if (!currentSessionId) return
 				const project = mgr.getSessionProject(currentSessionId)
@@ -120,13 +88,7 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 				const tasks = db.prepare("SELECT * FROM tasks WHERE project_id=$pid AND status IN ('pending','in_progress') ORDER BY created_at")
 					.all({ $pid: project.id }) as Array<{ id: string; subject: string; status: string }>
 				if (!tasks.length) return
-				const inner = [
-					"<kortix-tasks>",
-					`Project: ${project.name}`,
-					...tasks.map(t => `- [${t.status}] #${t.id.slice(-8)}: ${t.subject}`),
-					"</kortix-tasks>",
-				].join("\n")
-				output.context.push(`<kortix_system type="tasks" source="kortix-system">${inner}</kortix_system>`)
+				output.context.push(`<kortix_system type="tasks" source="kortix-system">\n${tasks.map(t => `- [${t.status}] #${t.id.slice(-8)}: ${t.subject}`).join("\n")}\n</kortix_system>`)
 			} catch {}
 		},
 	}
