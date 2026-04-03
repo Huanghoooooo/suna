@@ -96,10 +96,12 @@ export function useTelegramConnect() {
       botToken,
       publicUrl,
       botUsername,
+      sandboxId: explicitSandboxId,
     }: {
       botToken: string;
       publicUrl: string;
       botUsername?: string;
+      sandboxId?: string;
     }) => {
       const baseUrl = getActiveOpenCodeUrl();
       if (!baseUrl) throw new Error('No active instance found');
@@ -155,15 +157,16 @@ export function useTelegramConnect() {
       }
 
       // 4. Create a channel config DB record so it shows up in the channels list
-      let sandboxId: string | null = null;
-      try {
-        const result = await ensureSandbox();
-        sandboxId = result.sandbox.sandbox_id;
-      } catch {
-        // Try from server store
-        const store = useServerStore.getState();
-        for (const s of store.servers) {
-          if (s.sandboxId) { sandboxId = s.sandboxId; break; }
+      let sandboxId: string | null = explicitSandboxId || null;
+      if (!sandboxId) {
+        try {
+          const result = await ensureSandbox();
+          sandboxId = result.sandbox.sandbox_id;
+        } catch {
+          const store = useServerStore.getState();
+          for (const s of store.servers) {
+            if (s.sandboxId) { sandboxId = s.sandboxId; break; }
+          }
         }
       }
 
