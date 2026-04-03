@@ -180,6 +180,8 @@ export function useTelegramConnect() {
           platform_config: {
             webhook_url: webhookUrl,
             bot_username: botUsername || null,
+            bot_token: botToken,
+            webhook_secret: secretToken,
           },
           agent_name: DEFAULT_CHANNEL_AGENT,
           instructions: buildDefaultChannelInstructions('telegram', channelName),
