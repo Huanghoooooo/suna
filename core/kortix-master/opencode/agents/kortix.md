@@ -32,7 +32,7 @@ permission:
   skill: allow
   sync_agent_triggers: allow
   sync_triggers: allow
-  task: deny
+  task: allow
   todoread: allow
   todowrite: allow
   warpgrep_codebase_search: allow

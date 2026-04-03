@@ -58,13 +58,6 @@ export function initProjectsDb(dbPath: string): Database {
 			env_keys TEXT, notes TEXT, auto_generated INTEGER DEFAULT 0,
 			created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 		);
-		CREATE TABLE IF NOT EXISTS tasks (
-			id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
-			subject TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
-			status TEXT NOT NULL DEFAULT 'pending',
-			active_form TEXT, metadata TEXT,
-			created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-		);
 	`)
 	try { db.exec("ALTER TABLE projects ADD COLUMN opencode_id TEXT") } catch {}
 	return db
@@ -202,7 +195,6 @@ export function projectTools(mgr: ProjectManager, db: Database) {
 				const p = mgr.getProject(args.project)
 				if (!p) return `Project not found: "${args.project}"`
 				db.prepare("DELETE FROM session_projects WHERE project_id=$pid").run({ $pid: p.id })
-				db.prepare("DELETE FROM tasks WHERE project_id=$pid").run({ $pid: p.id })
 				db.prepare("DELETE FROM projects WHERE id=$id").run({ $id: p.id })
 				return `Project **${p.name}** deleted from registry.\nDirectory \`${p.path}\` untouched.`
 			},

@@ -1,8 +1,11 @@
 /**
  * Kortix System Plugin — THE single plugin for the entire Kortix environment.
  *
- * Everything: projects, tasks, sessions, connectors, autowork, todo-enforcer,
+ * Everything: projects, sessions, connectors, autowork, todo-enforcer,
  * triggers, auth, PTY, worktree, and /btw.
+ *
+ * Delegation uses OpenCode's built-in `task` tool (subagent system).
+ * Todo tracking uses OpenCode's built-in `todowrite`/`todoread`.
  *
  * opencode.jsonc: "./plugin/kortix-system/kortix-system.ts"
  */
@@ -11,7 +14,6 @@ import * as path from "node:path"
 import type { Plugin } from "@opencode-ai/plugin"
 
 import { initProjectsDb, ProjectManager, projectTools, projectGateHook, projectStatusTransform } from "./projects"
-import { taskTools } from "./tasks"
 import { resolveKortixWorkspaceRoot, ensureKortixDir } from "./lib/paths"
 
 const KortixSystemPlugin: Plugin = async (ctx) => {
@@ -43,7 +45,6 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 	return {
 		tool: {
 			...projectTools(mgr, db),
-			...taskTools(db, mgr),
 			...(sessions?.tool || {}),
 			...(connectors?.tool || {}),
 			...(pty?.tool || {}),
@@ -77,19 +78,6 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 			if (autowork?.event) await autowork.event(payload).catch(() => {})
 			if (todoEnforcer?.event) await todoEnforcer.event(payload).catch(() => {})
 			if (worktreeModule?.event) await worktreeModule.event(payload).catch(() => {})
-		},
-
-		// Compaction: inject active tasks
-		"experimental.session.compacting": async (_input: any, output: { context: string[] }) => {
-			try {
-				if (!currentSessionId) return
-				const project = mgr.getSessionProject(currentSessionId)
-				if (!project) return
-				const tasks = db.prepare("SELECT * FROM tasks WHERE project_id=$pid AND status IN ('pending','in_progress') ORDER BY created_at")
-					.all({ $pid: project.id }) as Array<{ id: string; subject: string; status: string }>
-				if (!tasks.length) return
-				output.context.push(`<kortix_system type="tasks" source="kortix-system">\n${tasks.map(t => `- [${t.status}] #${t.id.slice(-8)}: ${t.subject}`).join("\n")}\n</kortix_system>`)
-			} catch {}
 		},
 	}
 }
