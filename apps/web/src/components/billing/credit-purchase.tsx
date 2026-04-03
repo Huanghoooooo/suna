@@ -12,8 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
-import { AlertCircle, Loader2, Zap } from 'lucide-react';
-import { billingApi, getAutoTopupSettings, configureAutoTopup, type AutoTopupConfig } from '@/lib/api/billing';
+import { AlertCircle, CheckCircle2, Loader2, Zap } from 'lucide-react';
+import { billingApi, getAutoTopupSettings, configureAutoTopup, getAutoTopupSetupStatus, type AutoTopupConfig } from '@/lib/api/billing';
 import { toast } from '@/lib/toast';
 import { formatCredits } from '@kortix/shared';
 import { useUserCurrency } from '@/hooks/use-user-currency';
@@ -171,10 +171,18 @@ export function AutoTopupModal({ open, onOpenChange }: { open: boolean; onOpenCh
     const queryClient = useQueryClient();
     const [saving, setSaving] = useState(false);
     const [dirty, setDirty] = useState(false);
+    const [saveResult, setSaveResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
     const { data: config, isLoading } = useQuery({
         queryKey: ['auto-topup-settings'],
         queryFn: getAutoTopupSettings,
+        retry: 1,
+        enabled: open,
+    });
+
+    const { data: setupStatus } = useQuery({
+        queryKey: ['auto-topup-setup-status'],
+        queryFn: getAutoTopupSetupStatus,
         retry: 1,
         enabled: open,
     });
@@ -189,24 +197,38 @@ export function AutoTopupModal({ open, onOpenChange }: { open: boolean; onOpenCh
         setThreshold(String(config.threshold));
         setAmount(String(config.amount));
         setDirty(false);
+        setSaveResult(null);
     }, [config]);
 
     const handleSave = async () => {
         const thresholdNum = Math.max(0, parseInt(threshold, 10) || 0);
         const amountNum = Math.max(1, parseInt(amount, 10) || 1);
         setSaving(true);
+        setSaveResult(null);
         try {
             await configureAutoTopup({ enabled, threshold: thresholdNum, amount: amountNum });
             queryClient.invalidateQueries({ queryKey: ['auto-topup-settings'] });
             queryClient.invalidateQueries({ queryKey: ['accountState'] });
+            queryClient.invalidateQueries({ queryKey: ['auto-topup-setup-status'] });
             setDirty(false);
+            setSaveResult({ type: 'success', message: 'Auto top-up settings saved.' });
             toast.success('Auto top-up settings saved');
         } catch (err: any) {
-            toast.error(err?.message || 'Failed to update auto-topup');
+            const message = err?.message || 'Failed to update auto-topup';
+            setSaveResult({ type: 'error', message });
+            toast.error(message);
         } finally {
             setSaving(false);
         }
     };
+
+    const handleEnabledChange = (value: boolean) => {
+        setEnabled(value);
+        setDirty(true);
+        setSaveResult(null);
+    };
+
+    const showMissingCardWarning = enabled && setupStatus && !setupStatus.has_default_payment_method;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -230,8 +252,17 @@ export function AutoTopupModal({ open, onOpenChange }: { open: boolean; onOpenCh
                                 <Zap className="size-4 text-muted-foreground" />
                                 <span className="text-sm font-medium">Enable auto top-up</span>
                             </div>
-                            <Switch checked={enabled} onCheckedChange={(v) => { setEnabled(v); setDirty(true); }} />
+                            <Switch checked={enabled} onCheckedChange={handleEnabledChange} />
                         </div>
+
+                        {showMissingCardWarning && (
+                            <Alert variant="warning">
+                                <AlertCircle className="size-4" />
+                                <AlertDescription>
+                                    No default payment method found. Add a default card in Billing before enabling auto top-up.
+                                </AlertDescription>
+                            </Alert>
+                        )}
 
                         {enabled && (
                             <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-150">
@@ -245,7 +276,7 @@ export function AutoTopupModal({ open, onOpenChange }: { open: boolean; onOpenCh
                                             min={1}
                                             step={1}
                                             value={threshold}
-                                            onChange={(e) => { setThreshold(e.target.value); setDirty(true); }}
+                                            onChange={(e) => { setThreshold(e.target.value); setDirty(true); setSaveResult(null); }}
                                             className="w-full h-10 rounded-lg border border-border bg-background pl-7 pr-3 text-sm tabular-nums text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground transition-colors"
                                             placeholder="5"
                                         />
@@ -262,13 +293,25 @@ export function AutoTopupModal({ open, onOpenChange }: { open: boolean; onOpenCh
                                             min={1}
                                             step={1}
                                             value={amount}
-                                            onChange={(e) => { setAmount(e.target.value); setDirty(true); }}
+                                            onChange={(e) => { setAmount(e.target.value); setDirty(true); setSaveResult(null); }}
                                             className="w-full h-10 rounded-lg border border-border bg-background pl-7 pr-3 text-sm tabular-nums text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground transition-colors"
                                             placeholder="20"
                                         />
                                     </div>
                                 </div>
                             </div>
+                        )}
+
+                        {saveResult && (
+                            <Alert
+                                variant={saveResult.type === 'error' ? 'destructive' : 'default'}
+                                className={saveResult.type === 'success' ? 'border-emerald-500/40 text-emerald-700 dark:text-emerald-400 [&>svg]:text-emerald-600 dark:[&>svg]:text-emerald-400' : undefined}
+                            >
+                                {saveResult.type === 'success' ? <CheckCircle2 className="size-4" /> : <AlertCircle className="size-4" />}
+                                <AlertDescription className={saveResult.type === 'success' ? 'text-emerald-700/90 dark:text-emerald-400/90' : undefined}>
+                                    {saveResult.message}
+                                </AlertDescription>
+                            </Alert>
                         )}
 
                         {/* Save */}
