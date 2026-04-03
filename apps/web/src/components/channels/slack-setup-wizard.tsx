@@ -84,7 +84,7 @@ function StepIndicator({ current }: { current: WizardStep }) {
   );
 }
 
-export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
+export function SlackSetupWizard({ onCreated, onBack, sandboxId: explicitSandboxId }: SlackSetupWizardProps) {
   const [step, setStep] = useState<WizardStep>(1);
   const queryClient = useQueryClient();
 
@@ -197,14 +197,16 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
       }
 
       // 3. Create channel config DB record
-      let sandboxId: string | null = null;
-      try {
-        const result = await ensureSandbox();
-        sandboxId = result.sandbox.sandbox_id;
-      } catch {
-        const store = useServerStore.getState();
-        for (const s of store.servers) {
-          if (s.sandboxId) { sandboxId = s.sandboxId; break; }
+      let sandboxId: string | null = explicitSandboxId || null;
+      if (!sandboxId) {
+        try {
+          const result = await ensureSandbox();
+          sandboxId = result.sandbox.sandbox_id;
+        } catch {
+          const store = useServerStore.getState();
+          for (const s of store.servers) {
+            if (s.sandboxId) { sandboxId = s.sandboxId; break; }
+          }
         }
       }
 
