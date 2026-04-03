@@ -138,6 +138,7 @@ async function uploadAndExtractOnNewSandbox(
   baseUrl: string,
   headers: Record<string, string>,
   archive: Buffer,
+  destPath: string,
 ): Promise<void> {
   const uploadUrl = `${baseUrl}/file/upload`;
   console.log(`[file-transfer] Uploading archive (${archive.length} bytes) to ${uploadUrl}`);
@@ -170,7 +171,7 @@ async function uploadAndExtractOnNewSandbox(
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      cmd: `mkdir -p /workspace/legacy && tar xzf ${ARCHIVE_PATH} --strip-components=1 -C /workspace/legacy && rm -f ${ARCHIVE_PATH}`,
+      cmd: `mkdir -p ${destPath} && tar xzf ${ARCHIVE_PATH} --strip-components=1 -C ${destPath} && rm -f ${ARCHIVE_PATH}`,
     }),
     signal: AbortSignal.timeout(60_000),
   });
@@ -197,6 +198,7 @@ async function uploadAndExtractOnNewSandbox(
 export async function transferFiles(
   projectId: string,
   newSandboxExternalId: string,
+  threadId?: string,
 ): Promise<FileTransferResult> {
   const result: FileTransferResult = {
     transferred: false,
@@ -259,8 +261,9 @@ export async function transferFiles(
   }
 
   try {
-    console.log(`[file-transfer] Starting upload/extract to new sandbox via ${baseUrl}`);
-    await uploadAndExtractOnNewSandbox(baseUrl, headers, archive);
+    const destPath = threadId ? `/workspace/legacy/${threadId}` : '/workspace/legacy';
+    console.log(`[file-transfer] Starting upload/extract to ${destPath} via ${baseUrl}`);
+    await uploadAndExtractOnNewSandbox(baseUrl, headers, archive, destPath);
     result.transferred = true;
     console.log(`[file-transfer] Extracted ${fileCount} files on new sandbox`);
   } catch (err: any) {
