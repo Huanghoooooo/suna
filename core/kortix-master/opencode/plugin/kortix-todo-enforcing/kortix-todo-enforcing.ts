@@ -24,8 +24,8 @@ import {
 	INTERNAL_MARKER,
 	CODE_BLOCK_PATTERN,
 	INLINE_CODE_PATTERN,
-} from "../kortix-continuation/src/config"
-import { evaluate } from "../kortix-continuation/src/continuation-engine"
+} from "./src/config"
+import { evaluate } from "./src/continuation-engine"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

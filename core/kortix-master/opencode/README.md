@@ -16,11 +16,15 @@ skills/                 <- built-in skills (natively discovered)
 plugin/                 <- plugins loaded individually via opencode.jsonc
   kortix-orchestrator/  <- project + session management (SQLite)
   kortix-sessions/      <- session list/get/search tools
-  kortix-continuation/  <- autonomous continuation plugin
+  kortix-autowork/      <- autowork execution loop (DONE/VERIFIED protocol)
+  kortix-todo-enforcing/ <- passive todo continuation (nudges on idle)
   opencode-pty/         <- PTY spawn/read/write tools
   worktree/             <- git worktree plugin
+  connectors/           <- connector CRUD tools
+  btw/                  <- /btw quick question command
   agent-triggers.ts     <- cron/webhook trigger plugin
   anthropic-auth.ts     <- auth token plugin
+  pty-tools.ts          <- PTY tool shim
   static-file-server.ts <- HTML file serving (port 3211)
 patches/                <- post-install patches for opencode binary + deps
 ```

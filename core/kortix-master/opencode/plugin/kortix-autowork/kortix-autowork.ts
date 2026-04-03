@@ -21,7 +21,7 @@ import {
 	CODE_BLOCK_PATTERN,
 	INLINE_CODE_PATTERN,
 	COMMAND_TO_ALGORITHM,
-} from "../kortix-continuation/src/config"
+} from "./src/config"
 import {
 	evaluateLoop,
 	startLoop,
@@ -36,7 +36,7 @@ import {
 	loadAllPersistedLoopStates,
 	persistLoopState,
 	removePersistedLoopState,
-} from "../kortix-continuation/src/loop"
+} from "./src/loop"
 
 // Import the shared session set so todo-enforcing knows to defer
 let autoworkActiveSessions: Set<string>
