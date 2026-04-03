@@ -21,7 +21,7 @@ import {
 	CODE_BLOCK_PATTERN,
 	INLINE_CODE_PATTERN,
 	COMMAND_TO_ALGORITHM,
-} from "./config"
+} from "../lib/autowork-config"
 import {
 	evaluateLoop,
 	startLoop,

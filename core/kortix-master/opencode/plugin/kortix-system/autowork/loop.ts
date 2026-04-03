@@ -2,8 +2,8 @@ import type { Todo } from "@opencode-ai/sdk"
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { ensureKortixDir } from "../lib/paths"
-import { AUTOWORK_LOOP_CONFIG, INTERNAL_MARKER, createInitialLoopState, type AutoworkAlgorithm, type LoopState } from "./config"
-import { evaluateTodos, formatRemainingWork } from "./todo-enforcer"
+import { AUTOWORK_LOOP_CONFIG, INTERNAL_MARKER, createInitialLoopState, type AutoworkAlgorithm, type LoopState } from "../lib/autowork-config"
+import { evaluateTodos, formatRemainingWork } from "../lib/todo-enforcer"
 
 const KORTIX_DIR = ensureKortixDir(import.meta.dir)
 const LOOP_STATE_DIR = `${KORTIX_DIR}/loop-states`

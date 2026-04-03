@@ -24,7 +24,7 @@ import {
 	INTERNAL_MARKER,
 	CODE_BLOCK_PATTERN,
 	INLINE_CODE_PATTERN,
-} from "./config"
+} from "../lib/autowork-config"
 import { evaluate } from "./continuation-engine"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

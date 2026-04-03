@@ -11,10 +11,10 @@
  */
 
 import type { Todo } from "@opencode-ai/sdk"
-import type { ContinuationConfig, ContinuationState } from "./config"
-import { INTERNAL_MARKER } from "./config"
+import type { ContinuationConfig, ContinuationState } from "../lib/autowork-config"
+import { INTERNAL_MARKER } from "../lib/autowork-config"
 import { classifyIntent, type IntentResult } from "./intent-gate"
-import { evaluateTodos, formatRemainingWork, type TodoEnforcerResult } from "./todo-enforcer"
+import { evaluateTodos, formatRemainingWork, type TodoEnforcerResult } from "../lib/todo-enforcer"
 
 // ─── Decision Types ───────────────────────────────────────────────────────────
 

@@ -255,7 +255,7 @@ export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId:
 					? `<project_status selected="${project.name}" path="${project.path}" />`
 					: [
 						`<project_status selected="false">`,
-						`All tools are gated. Select or create a project first.`,
+						`File-write tools (edit, write, morph_edit) are gated. Select or create a project first.`,
 						`1. project_list  2. project_select or project_create`,
 						`</project_status>`,
 					].join("\n")
