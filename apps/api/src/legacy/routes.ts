@@ -79,7 +79,7 @@ legacyApp.post('/threads/:threadId/migrate', async (c: any) => {
 
   if (thread.project_id) {
     try {
-      const fileResult = await transferFiles(thread.project_id, sandboxExternalId);
+      const fileResult = await transferFiles(thread.project_id, sandboxExternalId, threadId);
       filesTransferred = fileResult.transferred;
       fileCount = fileResult.fileCount;
       filesErrors = fileResult.errors;
@@ -152,7 +152,7 @@ legacyApp.post('/migrate-all', async (c: any) => {
         // Transfer files for this thread's project
         if (thread.project_id) {
           try {
-            const fileResult = await transferFiles(thread.project_id, sandboxExternalId);
+            const fileResult = await transferFiles(thread.project_id, sandboxExternalId, thread.thread_id);
             if (fileResult.transferred) {
               console.log(`[legacy] Transferred ${fileResult.fileCount} files for ${thread.thread_id}`);
             }
