@@ -6,7 +6,7 @@ import {
 } from '../repositories/credit-accounts';
 import { insertLedgerEntry } from '../repositories/transactions';
 import { InsufficientCreditsError } from '../../errors';
-import { TOKEN_PRICE_MULTIPLIER, MINIMUM_CREDIT_FOR_RUN, getDailyCreditConfig } from './tiers';
+import { TOKEN_PRICE_MULTIPLIER, MINIMUM_CREDIT_FOR_RUN } from './tiers';
 
 export async function getBalance(accountId: string) {
   const row = await getCreditBalance(accountId);
@@ -234,43 +234,4 @@ export async function resetExpiringCredits(
   }
 }
 
-export async function refreshDailyCredits(accountId: string, tierName: string) {
-  const dailyConfig = getDailyCreditConfig(tierName);
-  if (!dailyConfig) return null;
 
-  const account = await getCreditAccount(accountId);
-  if (!account) return null;
-
-  const lastRefresh = account.lastDailyRefresh ? new Date(account.lastDailyRefresh) : null;
-  const now = new Date();
-
-  if (lastRefresh) {
-    const hoursSinceRefresh = (now.getTime() - lastRefresh.getTime()) / (1000 * 60 * 60);
-    if (hoursSinceRefresh < dailyConfig.refreshIntervalHours) return null;
-  }
-
-  const currentDaily = Number(account.dailyCreditsBalance) || 0;
-  const newDaily = Math.min(currentDaily + dailyConfig.dailyAmount, dailyConfig.maxAccumulation);
-  const granted = newDaily - currentDaily;
-
-  if (granted <= 0) return null;
-
-  const currentBalance = Number(account.balance) || 0;
-
-  await updateCreditAccount(accountId, {
-    dailyCreditsBalance: String(newDaily),
-    balance: String(currentBalance + granted),
-    lastDailyRefresh: now.toISOString(),
-  } as any);
-
-  await insertLedgerEntry({
-    accountId,
-    amount: String(granted),
-    balanceAfter: String(currentBalance + granted),
-    type: 'daily_refresh',
-    description: `Daily credit refresh: +$${granted.toFixed(2)}`,
-    isExpiring: true,
-  });
-
-  return { granted, newDaily, newBalance: currentBalance + granted };
-}

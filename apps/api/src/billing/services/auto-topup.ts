@@ -23,8 +23,8 @@ export const AUTO_TOPUP_MIN_THRESHOLD = 1;    // $1
 export const AUTO_TOPUP_MIN_AMOUNT = 1;       // $1
 export const AUTO_TOPUP_DEFAULT_AMOUNT = 20;  // $20  (default for new accounts)
 
-/** Minimum 10 seconds between auto-topup charges to prevent rapid-fire. */
-const CHARGE_COOLDOWN_MS = 10_000;
+/** Minimum 60 seconds between auto-topup charges to prevent rapid-fire. */
+const CHARGE_COOLDOWN_MS = 60_000;
 
 // ─── Configure ──────────────────────────────────────────────────────────────
 
@@ -129,7 +129,7 @@ async function tryAutoTopup(accountId: string): Promise<void> {
   const threshold = Number(account.autoTopupThreshold) || AUTO_TOPUP_MIN_THRESHOLD;
   const amount = Number(account.autoTopupAmount) || AUTO_TOPUP_DEFAULT_AMOUNT;
 
-  if (balance > threshold) return;
+  if (balance >= threshold) return;
 
   // Cooldown: don't charge more than once per CHARGE_COOLDOWN_MS
   if (account.autoTopupLastCharged) {
