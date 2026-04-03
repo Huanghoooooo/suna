@@ -8,8 +8,6 @@ import { ArrowRight, Check, Copy, Globe, Smartphone, Bot, Sparkles, Terminal, Za
 import { Button } from '@/components/ui/button';
 import { trackCtaSignup } from '@/lib/analytics/gtm';
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
-import { isBillingEnabled } from '@/lib/config';
-import { useNewInstanceModalStore } from '@/stores/pricing-modal-store';
 import { Reveal } from '@/components/home/reveal';
 import { GithubButton } from '@/components/home/github-button';
 import Image from 'next/image';
@@ -29,7 +27,6 @@ export default function Variant2Home() {
   const { user, isLoading } = useAuth();
   const [copied, setCopied] = useState(false);
   const [isMachineOn, setIsMachineOn] = useState(false);
-  const openNewInstanceModal = useNewInstanceModalStore((s) => s.openNewInstanceModal);
 
   const heroRef = useRef<HTMLDivElement>(null);
   const sceneProgressRef = useRef(0);
@@ -63,18 +60,14 @@ export default function Variant2Home() {
     setTimeout(() => setCopied(false), 2000);
   }, []);
 
-  /** Open the machine picker modal — works for both guests and logged-in users. */
   const handleLaunch = useCallback(() => {
     trackCtaSignup();
-
-    if (!isBillingEnabled()) {
-      if (!user) { window.location.href = '/auth?mode=signup'; return; }
-      window.location.href = '/instances';
+    if (!user) {
+      window.location.href = '/auth';
       return;
     }
-
-    openNewInstanceModal();
-  }, [user, openNewInstanceModal]);
+    window.location.href = '/instances';
+  }, [user]);
 
   return (
     <BackgroundAALChecker>

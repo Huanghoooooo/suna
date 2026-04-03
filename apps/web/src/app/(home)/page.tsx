@@ -8,9 +8,6 @@ import { Button } from '@/components/ui/button';
 import { trackCtaSignup } from '@/lib/analytics/gtm';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useAuth } from '@/components/AuthProvider';
-import { isBillingEnabled } from '@/lib/config';
-import { toast } from '@/lib/toast';
-import { useNewInstanceModalStore } from '@/stores/pricing-modal-store';
 import { Reveal } from '@/components/home/reveal';
 
 const INSTALL_CMD = 'curl -fsSL https://kortix.com/install | bash';
@@ -55,7 +52,6 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [showFloatingCta, setShowFloatingCta] = useState(false);
   const { user } = useAuth();
-  const openNewInstanceModal = useNewInstanceModalStore((s) => s.openNewInstanceModal);
 
   const { scrollY } = useScroll();
   const drawerRadius = useTransform(scrollY, [200, 600], [24, 0]);
@@ -74,18 +70,14 @@ export default function Home() {
     setTimeout(() => setCopied(false), 2000);
   }, []);
 
-  /** Open the machine picker modal — works for both guests and logged-in users. */
   const handleLaunch = useCallback(() => {
     trackCtaSignup();
-
-    if (!isBillingEnabled()) {
-      if (!user) { window.location.href = '/auth?mode=signup'; return; }
-      window.location.href = '/instances';
+    if (!user) {
+      window.location.href = '/auth';
       return;
     }
-
-    openNewInstanceModal();
-  }, [user, openNewInstanceModal]);
+    window.location.href = '/instances';
+  }, [user]);
 
   return (
     <BackgroundAALChecker>
