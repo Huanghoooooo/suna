@@ -69,7 +69,7 @@ async function probeCfProxy(input: JustAvpsReadinessProbeInput): Promise<Sandbox
   }
 
   try {
-    const res = await fetch(`https://${input.slug}.${config.JUSTAVPS_PROXY_DOMAIN}/kortix/health`, {
+    const res = await fetch(`https://8000--${input.slug}.${config.JUSTAVPS_PROXY_DOMAIN}/kortix/health`, {
       headers,
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     });
