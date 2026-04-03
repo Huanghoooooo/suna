@@ -1,11 +1,11 @@
 'use client';
 
 import { use, useState, useEffect } from 'react';
-import { ArrowLeft, FolderOpen, MessageSquare } from 'lucide-react';
+import { ArrowLeft, FolderOpen, MessageSquare, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useKortixProject, useKortixProjectSessions } from '@/hooks/kortix/use-kortix-projects';
+import { useKortixProject, useKortixProjectSessions, useDeleteProject } from '@/hooks/kortix/use-kortix-projects';
 import { openTabAndNavigate } from '@/stores/tab-store';
 import { useFilesStore } from '@/features/files/store/files-store';
 import { FileExplorerPage } from '@/features/files/components/file-explorer-page';
@@ -30,6 +30,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
   const { data: project, isLoading } = useKortixProject(pid);
   const { data: sessions } = useKortixProjectSessions(pid);
   const nav = useFilesStore(s => s.navigateToPath);
+  const deleteProject = useDeleteProject();
 
   const sessionList = sessions ?? [];
 
@@ -66,6 +67,19 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
                 {sessionList.length} session{sessionList.length !== 1 ? 's' : ''}
               </Badge>
             )}
+            <button
+              onClick={() => {
+                if (!confirm(`Delete project "${project.name}" from registry? Files on disk will NOT be deleted.`)) return;
+                deleteProject.mutate(project.id, {
+                  onSuccess: () => openTabAndNavigate({ id: 'page:/workspace', title: 'Workspace', type: 'page', href: '/workspace' }),
+                });
+              }}
+              disabled={deleteProject.isPending}
+              className="ml-auto text-muted-foreground/30 hover:text-destructive transition-colors cursor-pointer p-1.5 rounded-md hover:bg-destructive/10"
+              title="Delete project from registry"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
           </div>
           {project.description && <p className="text-sm text-muted-foreground/50 max-w-lg">{project.description}</p>}
         </div>

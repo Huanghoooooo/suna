@@ -620,8 +620,11 @@ export function RunningServicesPanel() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Restart Instance</AlertDialogTitle>
-            <AlertDialogDescription>
-              All managed services will be stopped and restarted. Active sessions will be interrupted.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p><strong>Config Only</strong> — Hot-reload agents, skills, commands, and config. Fast (~2s). Use after editing .md files or opencode.jsonc.</p>
+                <p><strong>Full Restart</strong> — Kill and restart every service (OpenCode, channels, static server, kortix-master). Clears all module caches. Use after editing .ts plugin/route code. Active sessions will be interrupted.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">

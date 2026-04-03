@@ -895,7 +895,7 @@ Models referenced as `provider/model-id`. Provider config:
 
 ### REST API
 
-Base URL: `http://localhost:3111` (or via Kortix Master at `localhost:8000`)
+Base URL: `http://localhost:4096` (or via Kortix Master at `localhost:8000`)
 
 | Method | Endpoint | Description |
 |---|---|---|
@@ -986,8 +986,7 @@ curl -X POST http://localhost:8000/kortix/services/register \
 
 | ID | Port | Adapter | Scope |
 |---|---|---|---|
-| `opencode-serve` | 4096 | spawn | core |
-| `opencode-web` | 3111 | s6 | core |
+| `opencode-serve` | 4096 | s6 | core |
 | `opencode-channels` | 3456 | s6 | core |
 | `chromium-persistent` | 9222 | s6 | core |
 | `agent-browser-session` | — | s6 | core |
@@ -1211,10 +1210,9 @@ Built-in code (ephemeral): `/opt/opencode`
 | Service | Port |
 |---|---|
 | Kortix Master | `8000` |
-| OpenCode Web | `3111` |
+| OpenCode | `4096` |
 | Static file server | `3211` |
 | Channels bridge | `3456` |
-| OpenCode Serve | `4096` |
 | Browser stream | `9223` |
 | Browser viewer | `9224` |
 

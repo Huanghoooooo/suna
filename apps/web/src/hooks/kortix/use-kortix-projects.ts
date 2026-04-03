@@ -124,3 +124,17 @@ export function useUpdateProject() {
     },
   });
 }
+
+export function useDeleteProject() {
+  const qc = useQueryClient();
+  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
+  return useMutation({
+    mutationFn: (id: string) =>
+      kortixFetch<{ deleted: boolean; name: string; path: string }>(serverUrl, `/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: kortixKeys.projects() });
+    },
+  });
+}
