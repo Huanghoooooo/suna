@@ -75,18 +75,6 @@ const DashboardPromoBanner = lazy(() =>
 	})),
 );
 
-const KortixAppBanners = lazy(() =>
-	import("@/components/announcements/kortix-app-banners").then((mod) => ({
-		default: mod.KortixAppBanners,
-	})),
-);
-
-const TutorialsBanner = lazy(() =>
-	import("@/components/announcements/tutorials-banner").then((mod) => ({
-		default: mod.TutorialsBanner,
-	})),
-);
-
 const MobileAppInterstitial = lazy(() =>
 	import("@/components/announcements/mobile-app-interstitial").then((mod) => ({
 		default: mod.MobileAppInterstitial,
@@ -893,14 +881,6 @@ export default function DashboardLayoutContent({
 							/>
 						</Suspense>
 					)}
-				<Suspense fallback={null}>
-					<KortixAppBanners
-						disableMobileAdvertising={featureFlags.disableMobileAdvertising}
-					/>
-				</Suspense>
-				<Suspense fallback={null}>
-					<TutorialsBanner />
-				</Suspense>
 				{!featureFlags.disableMobileAdvertising ? (
 					<Suspense fallback={null}>
 						<MobileAppInterstitial />
