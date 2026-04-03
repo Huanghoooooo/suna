@@ -22,6 +22,7 @@ import {
   useTelegramVerifyToken,
   useTelegramConnect,
 } from '@/hooks/channels/use-telegram-wizard';
+import { getEnv } from '@/lib/env-config';
 import { useNgrokStatus, useNgrokStart } from '@/hooks/channels/use-ngrok';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -80,7 +81,7 @@ function StepIndicator({ current }: { current: WizardStep }) {
   );
 }
 
-export function TelegramSetupWizard({ onCreated, onBack }: TelegramSetupWizardProps) {
+export function TelegramSetupWizard({ onCreated, onBack, sandboxId }: TelegramSetupWizardProps) {
   const [step, setStep] = useState<WizardStep>(1);
 
   // Step 1 state
@@ -93,16 +94,20 @@ export function TelegramSetupWizard({ onCreated, onBack }: TelegramSetupWizardPr
   const TUNNEL_PORT = 8008; // kortix-api — single tunnel for all channels
   const ngrokQuery = useNgrokStatus(TUNNEL_PORT);
   const ngrokStart = useNgrokStart();
+  const backendUrl = (getEnv().BACKEND_URL || '').replace(/\/v1\/?$/, '').replace(/\/+$/, '');
   const [publicUrl, setPublicUrl] = useState('');
   const [showLocalDev, setShowLocalDev] = useState(false);
   const connectMutation = useTelegramConnect();
 
-  // Auto-fill URL from ngrok detection
+  // Auto-fill URL: BACKEND_URL for cloud, ngrok for local dev
   useEffect(() => {
-    if (ngrokQuery.data?.detected && ngrokQuery.data.url && !publicUrl) {
+    if (publicUrl) return;
+    if (backendUrl && !backendUrl.includes('localhost')) {
+      setPublicUrl(backendUrl);
+    } else if (ngrokQuery.data?.detected && ngrokQuery.data.url) {
       setPublicUrl(ngrokQuery.data.url);
     }
-  }, [ngrokQuery.data, publicUrl]);
+  }, [backendUrl, ngrokQuery.data, publicUrl]);
 
   const ngrokInstalled = ngrokQuery.data?.ngrokInstalled ?? false;
 
@@ -142,6 +147,7 @@ export function TelegramSetupWizard({ onCreated, onBack }: TelegramSetupWizardPr
         botToken: botToken.trim(),
         publicUrl: publicUrl.trim(),
         botUsername: botUsername || undefined,
+        sandboxId: sandboxId || undefined,
       });
       toast.success('Telegram bot connected!');
       onCreated();

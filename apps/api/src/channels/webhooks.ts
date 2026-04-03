@@ -28,13 +28,19 @@ type ChannelType = 'telegram' | 'slack' | 'discord';
  * Find the sandbox that has an enabled channel of the given type,
  * then return the base URL for that sandbox.
  */
-async function resolveSandboxUrl(channelType: ChannelType): Promise<string | null> {
+interface ResolvedSandbox {
+  url: string;
+  serviceKey?: string;
+}
+
+async function resolveSandboxUrl(channelType: ChannelType): Promise<ResolvedSandbox | null> {
   try {
     const rows = await db.execute(sql`
       SELECT cc.sandbox_id AS "sandboxId",
              s.provider,
              s.base_url AS "baseUrl",
-             s.metadata
+             s.metadata,
+             s.config
       FROM kortix.channel_configs cc
       JOIN kortix.sandboxes s ON cc.sandbox_id = s.sandbox_id
       WHERE cc.channel_type = ${channelType}
@@ -50,24 +56,28 @@ async function resolveSandboxUrl(channelType: ChannelType): Promise<string | nul
       provider: string;
       baseUrl: string | null;
       metadata: Record<string, unknown> | null;
+      config: Record<string, unknown> | null;
     };
 
-    // Cloud (JustAVPS): use the proxy domain with port 3456
+    const serviceKey = (sandbox.config?.serviceKey as string) || undefined;
+
+    // Cloud (JustAVPS): use the proxy domain with port 8000 (kortix-master proxies /channels/* to 3456)
     if (sandbox.provider === 'justavps' && sandbox.metadata) {
       const slug = sandbox.metadata.justavpsSlug as string | undefined;
       const proxyToken = sandbox.metadata.justavpsProxyToken as string | undefined;
       if (slug && proxyToken && config.JUSTAVPS_PROXY_DOMAIN) {
-        return `https://3456--${slug}.${config.JUSTAVPS_PROXY_DOMAIN}?__proxy_token=${proxyToken}`;
+        return { url: `https://8000--${slug}.${config.JUSTAVPS_PROXY_DOMAIN}?__proxy_token=${proxyToken}`, serviceKey };
       }
     }
 
     // Cloud: use baseUrl if set
     if (sandbox.baseUrl) {
-      return sandbox.baseUrl;
+      return { url: sandbox.baseUrl, serviceKey };
     }
 
     // Local: Docker DNS or localhost
-    return getSandboxBaseUrl(sandbox.sandboxId);
+    const localUrl = getSandboxBaseUrl(sandbox.sandboxId);
+    return localUrl ? { url: localUrl, serviceKey } : null;
   } catch (err) {
     console.error(`[channel-webhooks] Failed to resolve sandbox for ${channelType}:`, err);
     return null;
@@ -81,33 +91,31 @@ async function forwardWebhook(
   channelType: ChannelType,
   c: { req: { raw: Request; header: (name: string) => string | undefined } },
 ): Promise<Response> {
-  const sandboxUrl = await resolveSandboxUrl(channelType);
-  if (!sandboxUrl) {
+  const resolved = await resolveSandboxUrl(channelType);
+  if (!resolved) {
     console.warn(`[channel-webhooks] No enabled ${channelType} channel with linked sandbox`);
     return new Response('No channel configured', { status: 404 });
   }
 
   const rawBody = await c.req.raw.clone().arrayBuffer();
 
-  // Build target URL — for cloud (3456 port proxy), hit the webhook directly.
-  // For local/Docker, go through Kortix Master's /channels/ proxy.
-  let targetUrl: string;
-  if (sandboxUrl.includes('3456--')) {
-    // Cloud: opencode-channels is directly exposed on port 3456
-    targetUrl = `${sandboxUrl.split('?')[0]}/api/webhooks/${channelType}`;
-    const proxyToken = new URL(sandboxUrl).searchParams.get('__proxy_token');
-    if (proxyToken) {
-      targetUrl += `?__proxy_token=${proxyToken}`;
-    }
-  } else {
-    // Local/Docker: go through Kortix Master's /channels/ proxy
-    targetUrl = `${sandboxUrl}/channels/api/webhooks/${channelType}`;
-  }
-
   // Forward relevant headers
   const headers: Record<string, string> = {
     'Content-Type': c.req.header('Content-Type') || 'application/json',
   };
+
+  // Route through Kortix Master's /channels/ proxy (port 8000) for all modes.
+  const baseUrl = resolved.url.split('?')[0];
+  const targetUrl = `${baseUrl}/channels/api/webhooks/${channelType}`;
+  try {
+    const proxyToken = new URL(resolved.url).searchParams.get('__proxy_token');
+    if (proxyToken) {
+      headers['X-Proxy-Token'] = proxyToken;
+    }
+  } catch { /* no query params */ }
+  if (resolved.serviceKey) {
+    headers['Authorization'] = `Bearer ${resolved.serviceKey}`;
+  }
 
   // Telegram secret token header
   const telegramSecret = c.req.header('X-Telegram-Bot-Api-Secret-Token');

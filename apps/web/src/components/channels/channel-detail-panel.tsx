@@ -151,7 +151,7 @@ export function ChannelEditDialog({ channel, open, onOpenChange }: ChannelEditDi
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg gap-0 p-0 overflow-visible">
-        <div className="bg-muted/30 border-b px-6 pt-6 pb-4">
+        <div className="px-6 pt-6 pb-4">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-muted border border-border/50 shrink-0">
@@ -241,7 +241,6 @@ export function ChannelEditDialog({ channel, open, onOpenChange }: ChannelEditDi
               </p>
             </div>
 
-            {/* Danger Zone */}
             <div className="rounded-xl bg-destructive/5 border border-destructive/20 p-4">
               <div className="flex items-start gap-3 mb-3">
                 <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
@@ -268,7 +267,7 @@ export function ChannelEditDialog({ channel, open, onOpenChange }: ChannelEditDi
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-2 px-6 py-4 border-t bg-muted/30">
+        <div className="flex items-center gap-2 px-6 py-4">
           {isDirty && (
             <Button
               size="sm"
@@ -282,10 +281,9 @@ export function ChannelEditDialog({ channel, open, onOpenChange }: ChannelEditDi
           )}
           <div className="flex-1" />
           <Button
-            variant="ghost"
-            size="sm"
+            variant="outline"
             onClick={() => onOpenChange(false)}
-            className="h-9 text-xs rounded-xl"
+            className="rounded-xl"
           >
             Close
           </Button>
