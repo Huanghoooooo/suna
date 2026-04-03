@@ -29,6 +29,9 @@ const TOKEN_MAX_RETRIES = 2;
 const TOKEN_RETRY_BASE_DELAY = 300;
 /** How long to cache a resolved token (ms) */
 const TOKEN_CACHE_TTL = 30_000;
+/** Extra retries while auth cookies/session hydrate on first load */
+const TOKEN_HYDRATION_RETRIES = 3;
+const TOKEN_HYDRATION_BASE_DELAY = 250;
 
 // ── Token cache ──
 let cachedToken: string | null = null;
@@ -37,6 +40,10 @@ let bootstrapToken: string | null = null;
 
 // ── Inflight deduplication ──
 let inflight: Promise<string | null> | null = null;
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * Get the current Supabase access token with caching + deduplication.
@@ -72,12 +79,45 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
 }
 
 /**
+ * Retry token acquisition for initial auth hydration / stale cache recovery.
+ */
+export async function getSupabaseAccessTokenWithRetry(options?: {
+	attempts?: number;
+	baseDelayMs?: number;
+	invalidateBetweenAttempts?: boolean;
+}): Promise<string | null> {
+	const {
+		attempts = TOKEN_HYDRATION_RETRIES,
+		baseDelayMs = TOKEN_HYDRATION_BASE_DELAY,
+		invalidateBetweenAttempts = true,
+	} = options ?? {};
+
+	let token = await getSupabaseAccessToken();
+	for (let attempt = 0; !token && attempt < attempts; attempt++) {
+		await sleep(baseDelayMs * 2 ** attempt);
+		if (invalidateBetweenAttempts) {
+			invalidateTokenCache();
+		}
+		token = await getSupabaseAccessToken();
+	}
+
+	return token;
+}
+
+/**
  * Invalidate the cached token (e.g. after a 401 response).
  * The next getSupabaseAccessToken() call will fetch fresh.
  */
 export function invalidateTokenCache(): void {
-	cachedToken = null;
-	cachedAt = 0;
+	setCachedAuthToken(null);
+}
+
+/**
+ * Sync the resolved auth token cache without affecting bootstrap mode.
+ */
+export function setCachedAuthToken(token: string | null): void {
+	cachedToken = token;
+	cachedAt = token ? Date.now() : 0;
 }
 
 /**
@@ -87,8 +127,7 @@ export function invalidateTokenCache(): void {
 export function setBootstrapAuthToken(token: string | null): void {
 	bootstrapToken = token;
 	if (token) {
-		cachedToken = token;
-		cachedAt = Date.now();
+		setCachedAuthToken(token);
 	}
 }
 
@@ -133,6 +172,14 @@ async function fetchToken(): Promise<string | null> {
  */
 export async function getAuthToken(): Promise<string | null> {
   return getSupabaseAccessToken();
+}
+
+export async function getAuthTokenWithRetry(options?: {
+	attempts?: number;
+	baseDelayMs?: number;
+	invalidateBetweenAttempts?: boolean;
+}): Promise<string | null> {
+	return getSupabaseAccessTokenWithRetry(options);
 }
 
 // ── Shared auth-injecting fetch ──
@@ -207,16 +254,7 @@ export async function authenticatedFetch(
 ): Promise<Response> {
   const { retryOnAuthError = true } = options ?? {};
 
-  let token = await getAuthToken();
-
-  // If no token yet (Supabase session still hydrating), wait briefly and retry
-  // once before giving up. This handles the race where authenticatedFetch is
-  // called immediately on mount before the auth cookie has been parsed.
-  if (!token) {
-    await new Promise((r) => setTimeout(r, 500));
-    invalidateTokenCache();
-    token = await getAuthToken();
-  }
+  const token = await getAuthTokenWithRetry();
 
   // Still no token — return a synthetic 401 response instead of sending a
   // naked request. Safe for all callers including the OpenCode SDK which
@@ -242,7 +280,7 @@ export async function authenticatedFetch(
     // The cached token is stale. Retry once with fresh token.
     if (retryOnAuthError && token) {
       invalidateTokenCache();
-      const newToken = await getAuthToken();
+      const newToken = await getAuthTokenWithRetry({ attempts: 2, baseDelayMs: 200 });
       if (newToken && newToken !== token) {
         const retryHeaders = buildAuthHeaders(input, init, newToken);
         return fetchWithAuth(input, init, retryHeaders);

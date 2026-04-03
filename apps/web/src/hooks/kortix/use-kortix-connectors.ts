@@ -2,7 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { authenticatedFetch } from '@/lib/auth-token';
-import { getEnv } from '@/lib/env-config';
+import { useAuth } from '@/components/AuthProvider';
+import { useServerStore } from '@/stores/server-store';
 
 export interface KortixConnector {
   id: string;
@@ -17,20 +18,19 @@ export interface KortixConnector {
   updated_at: string;
 }
 
-function getBackendUrl(): string {
-  return (getEnv().BACKEND_URL || 'http://localhost:8008/v1').replace(/\/+$/, '');
-}
-
 export function useKortixConnectors() {
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
   return useQuery({
-    queryKey: ['kortix', 'connectors'],
+    queryKey: ['kortix', 'connectors', user?.id ?? 'anonymous', serverUrl],
     queryFn: async (): Promise<KortixConnector[]> => {
-      const url = `${getBackendUrl()}/kortix/connectors`;
+      const url = `${serverUrl.replace(/\/+$/, '')}/kortix/connectors`;
       const res = await authenticatedFetch(url);
       if (!res.ok) throw new Error(`Failed to fetch connectors: ${res.status}`);
       const data = await res.json();
       return data.connectors ?? [];
     },
+    enabled: !isAuthLoading && !!user && !!serverUrl,
     staleTime: 30_000,
   });
 }

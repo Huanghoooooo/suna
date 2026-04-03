@@ -13,7 +13,7 @@ import { createClient } from '@/lib/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { clearUserLocalStorage } from '@/lib/utils/clear-local-storage';
-import { setBootstrapAuthToken } from '@/lib/auth-token';
+import { setBootstrapAuthToken, setCachedAuthToken } from '@/lib/auth-token';
 // Auth tracking moved to AuthEventTracker component (handles OAuth redirects)
 
 type AuthContextType = {
@@ -47,6 +47,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (userError) {
             console.warn('[AuthProvider] Stale session detected, signing out:', userError.message);
             await supabase.auth.signOut();
+            setBootstrapAuthToken(null);
+            setCachedAuthToken(null);
             setSession(null);
             setUser(null);
             return;
@@ -56,6 +58,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         if (currentSession?.access_token) {
+          setCachedAuthToken(currentSession.access_token);
           setBootstrapAuthToken(null);
         }
 
@@ -85,6 +88,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         switch (event) {
           case 'SIGNED_IN': {
             if (newSession?.access_token) {
+              setCachedAuthToken(newSession.access_token);
               setBootstrapAuthToken(null);
             }
             // Clear stale sandbox/server state if a different user signs in
@@ -102,12 +106,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
           case 'SIGNED_OUT':
             setBootstrapAuthToken(null);
+            setCachedAuthToken(null);
             clearUserLocalStorage();
             localStorage.removeItem('kortix-last-user-id');
             break;
           case 'TOKEN_REFRESHED':
+            if (newSession?.access_token) {
+              setCachedAuthToken(newSession.access_token);
+              setBootstrapAuthToken(null);
+            }
             break;
           case 'MFA_CHALLENGE_VERIFIED':
+            if (newSession?.access_token) {
+              setCachedAuthToken(newSession.access_token);
+              setBootstrapAuthToken(null);
+            }
             break;
           default:
         }

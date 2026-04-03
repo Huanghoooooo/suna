@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { authenticatedFetch } from '@/lib/auth-token';
+import { useAuth } from '@/components/AuthProvider';
 import { getActiveOpenCodeUrl, useServerStore } from '@/stores/server-store';
 import { backendApi } from '@/lib/api-client';
 import { ensureSandbox } from '@/lib/platform-client';
@@ -61,8 +62,9 @@ export function useTelegramVerifyToken() {
  * Calls the opencode-channels wizard endpoint via the sandbox proxy.
  */
 export function useTelegramDetectUrl() {
+  const { user, isLoading: isAuthLoading } = useAuth();
   return useQuery({
-    queryKey: ['telegram-wizard', 'detect-url'],
+    queryKey: ['telegram-wizard', 'detect-url', user?.id ?? 'anonymous'],
     queryFn: async (): Promise<DetectUrlResult> => {
       const baseUrl = getActiveOpenCodeUrl();
       if (!baseUrl) {
@@ -79,6 +81,7 @@ export function useTelegramDetectUrl() {
       } catch { /* sandbox unreachable */ }
       return { detected: false, url: '', source: 'none' };
     },
+    enabled: !isAuthLoading && !!user,
     staleTime: 0,
     retry: false,
   });

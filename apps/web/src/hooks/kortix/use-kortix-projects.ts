@@ -1,15 +1,16 @@
 /**
  * Kortix Projects hooks.
  *
- * Fetches from kortix-master's /kortix/projects API, proxied through
- * kortix-api at /v1/kortix/projects. This is the frontend's source
- * of truth for project data — NOT the OpenCode SDK.
+ * Fetches from kortix-master's /kortix/projects API through the currently
+ * active sandbox route (/v1/p/.../8000/kortix/projects). This keeps Kortix
+ * workspace data on the same authenticated transport path as the rest of the
+ * dashboard/OpenCode APIs.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useServerStore } from '@/stores/server-store';
 import { authenticatedFetch } from '@/lib/auth-token';
-import { getEnv } from '@/lib/env-config';
+import { useAuth } from '@/components/AuthProvider';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,12 +40,8 @@ export interface KortixProjectDetail extends KortixProject {
 
 // ── Fetch helper ─────────────────────────────────────────────────────────────
 
-function getBackendUrl(): string {
-  return (getEnv().BACKEND_URL || 'http://localhost:8008/v1').replace(/\/+$/, '');
-}
-
-async function kortixFetch<T>(apiPath: string, init?: RequestInit): Promise<T> {
-  const url = `${getBackendUrl()}/kortix/projects${apiPath}`;
+async function kortixFetch<T>(serverUrl: string, apiPath: string, init?: RequestInit): Promise<T> {
+  const url = `${serverUrl.replace(/\/+$/, '')}/kortix/projects${apiPath}`;
   const res = await authenticatedFetch(url, init);
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -63,10 +60,13 @@ export const kortixKeys = {
 // ── Hooks ────────────────────────────────────────────────────────────────────
 
 export function useKortixProjects() {
+  const { user, isLoading: isAuthLoading } = useAuth();
   const serverVersion = useServerStore((s) => s.serverVersion);
+  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
   return useQuery<KortixProject[]>({
-    queryKey: [...kortixKeys.projects(), serverVersion],
-    queryFn: () => kortixFetch<KortixProject[]>(''),
+    queryKey: [...kortixKeys.projects(), user?.id ?? 'anonymous', serverUrl, serverVersion],
+    queryFn: () => kortixFetch<KortixProject[]>(serverUrl, ''),
+    enabled: !isAuthLoading && !!user && !!serverUrl,
     staleTime: 30_000,
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: true,
@@ -76,11 +76,13 @@ export function useKortixProjects() {
 }
 
 export function useKortixProject(id: string) {
+  const { user, isLoading: isAuthLoading } = useAuth();
   const serverVersion = useServerStore((s) => s.serverVersion);
+  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
   return useQuery<KortixProjectDetail>({
-    queryKey: [...kortixKeys.project(id), serverVersion],
-    queryFn: () => kortixFetch<KortixProjectDetail>(`/${encodeURIComponent(id)}`),
-    enabled: !!id,
+    queryKey: [...kortixKeys.project(id), user?.id ?? 'anonymous', serverUrl, serverVersion],
+    queryFn: () => kortixFetch<KortixProjectDetail>(serverUrl, `/${encodeURIComponent(id)}`),
+    enabled: !isAuthLoading && !!user && !!serverUrl && !!id,
     staleTime: 15_000,
     gcTime: 5 * 60 * 1000,
     retry: 2,
@@ -92,11 +94,13 @@ export function useKortixProject(id: string) {
  * Returns OpenCode session objects enriched with title, time, etc.
  */
 export function useKortixProjectSessions(projectId: string) {
+  const { user, isLoading: isAuthLoading } = useAuth();
   const serverVersion = useServerStore((s) => s.serverVersion);
+  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
   return useQuery<any[]>({
-    queryKey: ['kortix', 'projects', projectId, 'sessions', serverVersion],
-    queryFn: () => kortixFetch<any[]>(`/${encodeURIComponent(projectId)}/sessions`),
-    enabled: !!projectId,
+    queryKey: ['kortix', 'projects', projectId, 'sessions', user?.id ?? 'anonymous', serverUrl, serverVersion],
+    queryFn: () => kortixFetch<any[]>(serverUrl, `/${encodeURIComponent(projectId)}/sessions`),
+    enabled: !isAuthLoading && !!user && !!serverUrl && !!projectId,
     staleTime: 15_000,
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: true,
@@ -106,9 +110,10 @@ export function useKortixProjectSessions(projectId: string) {
 
 export function useUpdateProject() {
   const qc = useQueryClient();
+  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
   return useMutation({
     mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string }) =>
-      kortixFetch<KortixProject>(`/${encodeURIComponent(id)}`, {
+      kortixFetch<KortixProject>(serverUrl, `/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

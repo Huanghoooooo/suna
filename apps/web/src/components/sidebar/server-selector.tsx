@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { authenticatedFetch } from '@/lib/auth-token';
+import { useAuth } from '@/components/AuthProvider';
 import { createSandbox, ensureSandbox, extractMappedPorts, getSandboxUrl, setupSSH, cancelSandbox, reactivateSandbox, listSandboxes, type SandboxCreateProgress, type SandboxProviderName, type SandboxInfo, type ServerTypeOption, type ChangelogEntry, type SSHSetupResult } from '@/lib/platform-client';
 import { toast } from '@/lib/toast';
 import { isBillingEnabled } from '@/lib/config';
@@ -68,21 +69,29 @@ import { SSHResultView } from './ssh-key-dialog';
 type ConnectionStatus = 'unknown' | 'checking' | 'connected' | 'error';
 
 function useConnectionStatus(url: string, enabled: boolean) {
+	const { user, isLoading: isAuthLoading } = useAuth();
   const [status, setStatus] = React.useState<ConnectionStatus>('unknown');
   const [version, setVersion] = React.useState<string | null>(null);
 
   const check = React.useCallback(async () => {
-    if (!url) return;
+		if (!url || isAuthLoading || !user) {
+			setStatus('unknown');
+			setVersion(null);
+			return;
+		}
     setStatus('checking');
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3000);
 
-      await authenticatedFetch(`${url}/session`, {
+			const sessionRes = await authenticatedFetch(`${url}/session`, {
         method: 'GET',
         signal: controller.signal,
       }, { retryOnAuthError: false });
       clearTimeout(timeout);
+			if (!sessionRes.ok) {
+				throw new Error(`Session probe failed: ${sessionRes.status}`);
+			}
       setStatus('connected');
 
       // Try to get version from /kortix/health
@@ -101,12 +110,18 @@ function useConnectionStatus(url: string, enabled: boolean) {
       }
     } catch {
       setStatus('error');
+			setVersion(null);
     }
-  }, [url]);
+	}, [url, isAuthLoading, user]);
 
   React.useEffect(() => {
-    if (enabled) check();
-  }, [enabled, check]);
+		if (enabled && !isAuthLoading && user) {
+			check();
+			return;
+		}
+		setStatus('unknown');
+		setVersion(null);
+	}, [enabled, isAuthLoading, user, check]);
 
   return { status, version, check };
 }
@@ -515,6 +530,7 @@ export function InstanceManagerDialog({
 }) {
   const { servers, activeServerId, addServer, updateServer, setActiveServer } =
     useServerStore();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const accountState = useSubscriptionStore((s) => s.accountState);
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -543,9 +559,9 @@ export function InstanceManagerDialog({
 
   // Fetch full sandbox list to get cancel_at_period_end / stripe fields
   const { data: sandboxList } = useQuery({
-    queryKey: ['platform', 'sandbox', 'list'],
+    queryKey: ['platform', 'sandbox', 'list', user?.id ?? 'anonymous'],
     queryFn: listSandboxes,
-    enabled: open,
+    enabled: open && !isAuthLoading && !!user,
     staleTime: 30_000,
   });
 

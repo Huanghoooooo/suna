@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2, KeyRound, ExternalLink } from 'lucide-react';
-import { useSetSecret, secretsKeys } from '@/hooks/secrets/use-secrets';
+import { useSetSecret } from '@/hooks/secrets/use-secrets';
 import { deploymentKeys } from '@/hooks/deployments/use-deployments';
 import { toast } from 'sonner';
 
@@ -50,7 +50,7 @@ export function FreestyleApiKeyDialog({
 
       // Invalidate caches so subsequent deploy calls use the new key
       queryClient.invalidateQueries({ queryKey: deploymentKeys.all });
-      queryClient.invalidateQueries({ queryKey: secretsKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['secrets'] });
       queryClient.invalidateQueries({ queryKey: ['providers'] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save API key');

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { authenticatedFetch } from '@/lib/auth-token';
+import { useAuth } from '@/components/AuthProvider';
 import { ensureSandbox, getSandboxUrl } from '@/lib/platform-client';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -250,21 +251,23 @@ const fetchExecutions = async (triggerId: string, limit = 50, offset = 0): Promi
 // ─── Hooks ──────────────────────────────────────────────────────────────────
 
 export const useTriggers = (sandboxId?: string) => {
+  const { user, isLoading: isAuthLoading } = useAuth();
   return useQuery({
-    queryKey: ['triggers', sandboxId ?? null],
+    queryKey: ['triggers', sandboxId ?? null, user?.id ?? 'anonymous'],
     queryFn: () => fetchTriggers(),
     // When sandboxId is absent, backend returns all triggers for the account.
-    enabled: true,
+    enabled: !isAuthLoading && !!user,
     staleTime: 1 * 60 * 1000,
     refetchInterval: 30 * 1000,
   });
 };
 
 export const useTrigger = (triggerId: string) => {
+  const { user, isLoading: isAuthLoading } = useAuth();
   return useQuery({
-    queryKey: ['trigger', triggerId],
+    queryKey: ['trigger', triggerId, user?.id ?? 'anonymous'],
     queryFn: () => fetchTrigger(triggerId),
-    enabled: !!triggerId,
+    enabled: !isAuthLoading && !!user && !!triggerId,
     staleTime: 1 * 60 * 1000,
   });
 };
@@ -324,10 +327,11 @@ export const useRunTrigger = () => {
 };
 
 export const useTriggerExecutions = (triggerId: string, limit = 50) => {
+  const { user, isLoading: isAuthLoading } = useAuth();
   return useQuery({
-    queryKey: ['trigger-executions', triggerId, limit],
+    queryKey: ['trigger-executions', triggerId, limit, user?.id ?? 'anonymous'],
     queryFn: () => fetchExecutions(triggerId, limit),
-    enabled: !!triggerId,
+    enabled: !isAuthLoading && !!user && !!triggerId,
     staleTime: 15 * 1000,
     refetchInterval: 30 * 1000,
   });
@@ -393,19 +397,21 @@ const fetchSandboxAgents = async (sandboxId: string): Promise<SandboxAgent[]> =>
 };
 
 export const useSandboxModels = (sandboxId?: string | null) => {
+  const { user, isLoading: isAuthLoading } = useAuth();
   return useQuery({
-    queryKey: ['sandbox-models', sandboxId],
+    queryKey: ['sandbox-models', sandboxId, user?.id ?? 'anonymous'],
     queryFn: () => fetchSandboxModels(sandboxId!),
-    enabled: !!sandboxId,
+    enabled: !isAuthLoading && !!user && !!sandboxId,
     staleTime: 5 * 60 * 1000, // 5 min cache — models don't change often
   });
 };
 
 export const useSandboxAgents = (sandboxId?: string | null) => {
+  const { user, isLoading: isAuthLoading } = useAuth();
   return useQuery({
-    queryKey: ['sandbox-agents', sandboxId],
+    queryKey: ['sandbox-agents', sandboxId, user?.id ?? 'anonymous'],
     queryFn: () => fetchSandboxAgents(sandboxId!),
-    enabled: !!sandboxId,
+    enabled: !isAuthLoading && !!user && !!sandboxId,
     staleTime: 5 * 60 * 1000,
   });
 };

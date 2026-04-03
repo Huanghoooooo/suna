@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authenticatedFetch } from '@/lib/auth-token';
+import { useAuth } from '@/components/AuthProvider';
 import { useServerStore } from '@/stores/server-store';
 
 export type SandboxServiceStatus = 'running' | 'stopped' | 'starting' | 'failed' | 'backoff';
@@ -111,19 +112,20 @@ export const serviceKeys = {
 };
 
 export function useSandboxServices(options?: { enabled?: boolean; includeAll?: boolean }) {
+  const { user, isLoading: isAuthLoading } = useAuth();
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
 
   const includeAll = options?.includeAll ?? false;
 
   return useQuery<SandboxService[]>({
-    queryKey: serviceKeys.list(serverUrl, includeAll),
+    queryKey: [...serviceKeys.list(serverUrl, includeAll), user?.id ?? 'anonymous'],
     queryFn: async () => {
       if (!serverUrl) return [];
       const query = includeAll ? '?all=true' : '';
       const data = await requestJson<{ services?: SandboxService[] }>(`${serverUrl}/kortix/services${query}`);
       return data.services ?? [];
     },
-    enabled: (options?.enabled ?? true) && !!serverUrl,
+    enabled: (options?.enabled ?? true) && !isAuthLoading && !!user && !!serverUrl,
     staleTime: 5_000,
     gcTime: 60_000,
     refetchInterval: 5_000,
@@ -132,32 +134,36 @@ export function useSandboxServices(options?: { enabled?: boolean; includeAll?: b
 }
 
 export function useSandboxServiceTemplates(options?: { enabled?: boolean }) {
+  const { user, isLoading: isAuthLoading } = useAuth();
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
 
   return useQuery<SandboxServiceTemplate[]>({
-    queryKey: serviceKeys.templates(serverUrl),
+    queryKey: [...serviceKeys.templates(serverUrl), user?.id ?? 'anonymous'],
     queryFn: async () => {
       if (!serverUrl) return [];
       const data = await requestJson<{ templates?: SandboxServiceTemplate[] }>(`${serverUrl}/kortix/services/templates`);
       return data.templates ?? [];
     },
-    enabled: (options?.enabled ?? true) && !!serverUrl,
+    enabled: (options?.enabled ?? true) && !isAuthLoading && !!user && !!serverUrl,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
   });
 }
 
 export function useSandboxServiceLogs(serviceId: string | null, options?: { enabled?: boolean }) {
+  const { user, isLoading: isAuthLoading } = useAuth();
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
 
   return useQuery<string[]>({
-    queryKey: serviceId ? serviceKeys.logs(serverUrl, serviceId) : ['sandbox-services', serverUrl, 'logs', 'none'],
+    queryKey: serviceId
+      ? [...serviceKeys.logs(serverUrl, serviceId), user?.id ?? 'anonymous']
+      : ['sandbox-services', serverUrl, 'logs', 'none', user?.id ?? 'anonymous'],
     queryFn: async () => {
       if (!serverUrl || !serviceId) return [];
       const data = await requestJson<{ logs?: string[] }>(`${serverUrl}/kortix/services/${encodeURIComponent(serviceId)}/logs`);
       return data.logs ?? [];
     },
-    enabled: (options?.enabled ?? true) && !!serverUrl && !!serviceId,
+    enabled: (options?.enabled ?? true) && !isAuthLoading && !!user && !!serverUrl && !!serviceId,
     staleTime: 3_000,
     gcTime: 60_000,
     refetchInterval: serviceId ? 3_000 : false,

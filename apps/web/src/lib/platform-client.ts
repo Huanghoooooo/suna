@@ -13,7 +13,7 @@
  * In local:      http://localhost:8008/v1/platform/*  (base URL includes /v1)
  */
 
-import { getSupabaseAccessToken } from '@/lib/auth-token';
+import { authenticatedFetch } from '@/lib/auth-token';
 import { getEnv } from '@/lib/env-config';
 import type { ServerEntry } from '@/stores/server-store';
 
@@ -117,18 +117,12 @@ async function platformFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<PlatformResponse<T>> {
-  const token = await getSupabaseAccessToken();
-  if (!token) {
-    throw new Error('Not authenticated');
-  }
-
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
     ...options.headers as Record<string, string>,
   };
 
-  const res = await fetch(`${getPlatformUrl()}${path}`, {
+  const res = await authenticatedFetch(`${getPlatformUrl()}${path}`, {
     ...options,
     headers,
   });
@@ -267,17 +261,11 @@ export async function createSandbox(opts?: {
   onProgress?: (progress: SandboxCreateProgress) => void;
 }): Promise<{ sandbox: SandboxInfo }> {
   if (opts?.provider === 'local_docker') {
-    const token = await getSupabaseAccessToken();
-    if (!token) {
-      throw new Error('Not authenticated');
-    }
-
     const headers = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
     };
 
-    const initRes = await fetch(`${getPlatformUrl()}/platform/init/local`, {
+    const initRes = await authenticatedFetch(`${getPlatformUrl()}/platform/init/local`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -312,9 +300,8 @@ export async function createSandbox(opts?: {
       for (let attempt = 0; attempt < 360; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
-        const statusRes = await fetch(`${getPlatformUrl()}/platform/init/local/status`, {
+        const statusRes = await authenticatedFetch(`${getPlatformUrl()}/platform/init/local/status`, {
           method: 'GET',
-          headers: { 'Authorization': `Bearer ${token}` },
         });
         const statusData = await statusRes.json();
 
@@ -614,16 +601,12 @@ export interface SandboxUpdateStatus {
 export async function getSandboxUpdateStatus(
   sandbox?: SandboxInfo,
 ): Promise<SandboxUpdateStatus> {
-  const token = await getSupabaseAccessToken();
-  if (!token) throw new Error('Not authenticated');
-
   const url = sandbox?.sandbox_id
     ? `${getPlatformUrl()}/platform/sandbox/${sandbox.sandbox_id}/update/status`
     : `${getPlatformUrl()}/platform/sandbox/update/status`;
-  const res = await fetch(url, {
+  const res = await authenticatedFetch(url, {
     headers: {
       'Accept': 'application/json',
-      'Authorization': `Bearer ${token}`,
     },
   });
   if (!res.ok) throw new Error(`Status check failed: ${res.status}`);
@@ -666,15 +649,11 @@ export async function triggerSandboxUpdate(
   sandbox: SandboxInfo,
   version: string,
 ): Promise<SandboxUpdateResult> {
-  const token = await getSupabaseAccessToken();
-  if (!token) throw new Error('Not authenticated');
-
-  const res = await fetch(`${getPlatformUrl()}/platform/sandbox/${sandbox.sandbox_id}/update`, {
+  const res = await authenticatedFetch(`${getPlatformUrl()}/platform/sandbox/${sandbox.sandbox_id}/update`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'Authorization': `Bearer ${token}`,
     },
     body: JSON.stringify({ version }),
   });
@@ -689,17 +668,13 @@ export async function triggerSandboxUpdate(
  * Reset the update status on kortix-api (e.g. after a failed update to allow retry).
  */
 export async function resetSandboxUpdateStatus(sandbox?: SandboxInfo): Promise<void> {
-  const token = await getSupabaseAccessToken();
-  if (!token) throw new Error('Not authenticated');
-
   const url = sandbox?.sandbox_id
     ? `${getPlatformUrl()}/platform/sandbox/${sandbox.sandbox_id}/update/reset`
     : `${getPlatformUrl()}/platform/sandbox/update/reset`;
-  const res = await fetch(url, {
+  const res = await authenticatedFetch(url, {
     method: 'POST',
     headers: {
       'Accept': 'application/json',
-      'Authorization': `Bearer ${token}`,
     },
   });
   if (!res.ok) throw new Error(`Reset failed: ${res.status}`);
