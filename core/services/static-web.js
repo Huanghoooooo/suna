@@ -79,15 +79,23 @@ function injectBase(html, absFilePath, baseUrl) {
 
   const baseTag = `<base href="${baseHref}">`;
 
+  // Fix for <base> breaking hash/anchor links (#section).
+  // With <base>, clicking <a href="#work"> navigates to baseHref#work (a full
+  // page load) instead of scrolling in-place. This script intercepts hash-only
+  // link clicks and performs in-page scroll navigation instead.
+  const hashFixScript = `<script>(function(){document.addEventListener("click",function(e){var a=e.target.closest("a[href^='#']");if(!a)return;e.preventDefault();var h=a.getAttribute("href");var id=h.slice(1);if(id){var el=document.getElementById(id)||document.querySelector("[name='"+id+"']");if(el){el.scrollIntoView({behavior:"smooth",block:"start"});history.replaceState(null,"",h);return;}}window.location.hash=h;});})();</script>`;
+
+  const injection = `${baseTag}\n  ${hashFixScript}`;
+
   // Insert right after <head> if present, else right after <html>, else prepend
   if (/<head(\s[^>]*)?>/i.test(html)) {
-    return html.replace(/(<head(\s[^>]*)?>)/i, `$1\n  ${baseTag}`);
+    return html.replace(/(<head(\s[^>]*)?>)/i, `$1\n  ${injection}`);
   }
   if (/<html(\s[^>]*)?>/i.test(html)) {
-    return html.replace(/(<html(\s[^>]*)?>)/i, `$1\n${baseTag}`);
+    return html.replace(/(<html(\s[^>]*)?>)/i, `$1\n${injection}`);
   }
   // No head/html tag at all (fragment) — prepend the base tag
-  return `${baseTag}\n${html}`;
+  return `${injection}\n${html}`;
 }
 
 function serveFile(absPath, baseUrl, injectBaseTag = false) {
@@ -107,10 +115,13 @@ function serveFile(absPath, baseUrl, injectBaseTag = false) {
     const stat = fs.statSync(absPath);
     if (stat.isDirectory()) {
       // Auto-index: try index.html / index.htm
+      // Always inject <base> for auto-indexed HTML — the visitor navigated to a
+      // directory URL (e.g. from a hash link or direct access) and relative
+      // asset paths (CSS, JS, images) need to resolve through /abs/.
       const indexHtml = path.join(absPath, "index.html");
       const indexHtm = path.join(absPath, "index.htm");
-      if (fs.existsSync(indexHtml)) return serveFile(indexHtml, baseUrl, injectBaseTag);
-      if (fs.existsSync(indexHtm)) return serveFile(indexHtm, baseUrl, injectBaseTag);
+      if (fs.existsSync(indexHtml)) return serveFile(indexHtml, baseUrl, /* injectBase= */ true);
+      if (fs.existsSync(indexHtm)) return serveFile(indexHtm, baseUrl, /* injectBase= */ true);
       return new Response(`Directory listing not supported. No index.html found in ${absPath}`, {
         status: 404,
         headers: { "Content-Type": "text/plain; charset=utf-8", ...corsHeaders },

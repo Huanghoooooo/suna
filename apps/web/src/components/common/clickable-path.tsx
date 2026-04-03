@@ -302,6 +302,14 @@ export function wrapChildrenWithPaths(
       ) {
         return child;
       }
+      // For custom (non-native) components (e.g. Streamdown's code/a/pre
+      // overrides), don't recurse if children is a string that looks like a
+      // URL — those components handle their own URL/path rendering.
+      if (typeof el.type !== 'string' && typeof el.props.children === 'string') {
+        if (/^[a-z][a-z0-9+.-]*:\/\//i.test(el.props.children.trim())) {
+          return child;
+        }
+      }
       // Recurse
       if (el.props.children) {
         return React.cloneElement(el, {
