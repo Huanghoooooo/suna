@@ -31,12 +31,14 @@ type ChannelType = 'telegram' | 'slack' | 'discord';
 interface ResolvedSandbox {
   url: string;
   serviceKey?: string;
+  platformConfig?: Record<string, unknown>;
 }
 
 async function resolveSandboxUrl(channelType: ChannelType): Promise<ResolvedSandbox | null> {
   try {
     const rows = await db.execute(sql`
       SELECT cc.sandbox_id AS "sandboxId",
+             cc.platform_config AS "platformConfig",
              s.provider,
              s.base_url AS "baseUrl",
              s.metadata,
@@ -53,6 +55,7 @@ async function resolveSandboxUrl(channelType: ChannelType): Promise<ResolvedSand
 
     const sandbox = rows[0] as {
       sandboxId: string;
+      platformConfig: Record<string, unknown> | null;
       provider: string;
       baseUrl: string | null;
       metadata: Record<string, unknown> | null;
@@ -60,24 +63,25 @@ async function resolveSandboxUrl(channelType: ChannelType): Promise<ResolvedSand
     };
 
     const serviceKey = (sandbox.config?.serviceKey as string) || undefined;
+    const platformConfig = sandbox.platformConfig || undefined;
 
     // Cloud (JustAVPS): use the proxy domain with port 8000 (kortix-master proxies /channels/* to 3456)
     if (sandbox.provider === 'justavps' && sandbox.metadata) {
       const slug = sandbox.metadata.justavpsSlug as string | undefined;
       const proxyToken = sandbox.metadata.justavpsProxyToken as string | undefined;
       if (slug && proxyToken && config.JUSTAVPS_PROXY_DOMAIN) {
-        return { url: `https://8000--${slug}.${config.JUSTAVPS_PROXY_DOMAIN}?__proxy_token=${proxyToken}`, serviceKey };
+        return { url: `https://8000--${slug}.${config.JUSTAVPS_PROXY_DOMAIN}?__proxy_token=${proxyToken}`, serviceKey, platformConfig };
       }
     }
 
     // Cloud: use baseUrl if set
     if (sandbox.baseUrl) {
-      return { url: sandbox.baseUrl, serviceKey };
+      return { url: sandbox.baseUrl, serviceKey, platformConfig };
     }
 
     // Local: Docker DNS or localhost
     const localUrl = getSandboxBaseUrl(sandbox.sandboxId);
-    return localUrl ? { url: localUrl, serviceKey } : null;
+    return localUrl ? { url: localUrl, serviceKey, platformConfig } : null;
   } catch (err) {
     console.error(`[channel-webhooks] Failed to resolve sandbox for ${channelType}:`, err);
     return null;
@@ -117,13 +121,12 @@ async function forwardWebhook(
     headers['Authorization'] = `Bearer ${resolved.serviceKey}`;
   }
 
-  // Telegram secret token header
-  const telegramSecret = c.req.header('X-Telegram-Bot-Api-Secret-Token');
+  const dbSecret = resolved.platformConfig?.webhook_secret as string | undefined;
+  const telegramSecret = dbSecret || c.req.header('X-Telegram-Bot-Api-Secret-Token');
   if (telegramSecret) {
     headers['X-Telegram-Bot-Api-Secret-Token'] = telegramSecret;
   }
 
-  // Slack signing headers
   const slackSig = c.req.header('X-Slack-Signature');
   const slackTs = c.req.header('X-Slack-Request-Timestamp');
   if (slackSig) headers['X-Slack-Signature'] = slackSig;
