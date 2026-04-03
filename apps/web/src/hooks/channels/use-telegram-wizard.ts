@@ -139,8 +139,46 @@ export function useTelegramConnect() {
         throw new Error(`Failed to reload channels: ${err}`);
       }
 
-      // 3. Set Telegram webhook via Telegram API (from browser)
-      const webhookUrl = `${publicUrl}/webhooks/telegram`;
+      // 3. Create channel config DB record first (need the ID for the webhook URL)
+      let sandboxId: string | null = explicitSandboxId || null;
+      if (!sandboxId) {
+        try {
+          const result = await ensureSandbox();
+          sandboxId = result.sandbox.sandbox_id;
+        } catch {
+          const store = useServerStore.getState();
+          for (const s of store.servers) {
+            if (s.sandboxId) { sandboxId = s.sandboxId; break; }
+          }
+        }
+      }
+
+      const channelName = botUsername ? `@${botUsername}` : 'Telegram Bot';
+      const webhookBaseUrl = `${publicUrl}/webhooks/telegram`;
+      let channelId: string | undefined;
+      try {
+        const res = await backendApi.post('/channels', {
+          sandbox_id: sandboxId,
+          channel_type: 'telegram',
+          name: channelName,
+          enabled: true,
+          platform_config: {
+            webhook_url: webhookBaseUrl,
+            bot_username: botUsername || null,
+            bot_token: botToken,
+            webhook_secret: secretToken,
+          },
+          agent_name: DEFAULT_CHANNEL_AGENT,
+          instructions: buildDefaultChannelInstructions('telegram', channelName),
+          metadata: {},
+        });
+        channelId = (res as any)?.data?.data?.channelConfigId;
+      } catch (err) {
+        console.warn('[telegram-wizard] Failed to create channel config (may already exist):', err);
+      }
+
+      // 4. Set Telegram webhook with per-channel URL
+      const webhookUrl = channelId ? `${webhookBaseUrl}/${channelId}` : webhookBaseUrl;
       const whRes = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -156,40 +194,18 @@ export function useTelegramConnect() {
         throw new Error(`Failed to set webhook: ${whData.description || 'unknown'}`);
       }
 
-      // 4. Create a channel config DB record so it shows up in the channels list
-      let sandboxId: string | null = explicitSandboxId || null;
-      if (!sandboxId) {
+      // Update the channel record with the final webhook URL
+      if (channelId) {
         try {
-          const result = await ensureSandbox();
-          sandboxId = result.sandbox.sandbox_id;
-        } catch {
-          const store = useServerStore.getState();
-          for (const s of store.servers) {
-            if (s.sandboxId) { sandboxId = s.sandboxId; break; }
-          }
-        }
-      }
-
-      const channelName = botUsername ? `@${botUsername}` : 'Telegram Bot';
-      try {
-        await backendApi.post('/channels', {
-          sandbox_id: sandboxId,
-          channel_type: 'telegram',
-          name: channelName,
-          enabled: true,
-          platform_config: {
-            webhook_url: webhookUrl,
-            bot_username: botUsername || null,
-            bot_token: botToken,
-            webhook_secret: secretToken,
-          },
-          agent_name: DEFAULT_CHANNEL_AGENT,
-          instructions: buildDefaultChannelInstructions('telegram', channelName),
-          metadata: {},
-        });
-      } catch (err) {
-        // Channel may already exist for this sandbox — not fatal
-        console.warn('[telegram-wizard] Failed to create channel config (may already exist):', err);
+          await backendApi.patch(`/channels/${channelId}`, {
+            platform_config: {
+              webhook_url: webhookUrl,
+              bot_username: botUsername || null,
+              bot_token: botToken,
+              webhook_secret: secretToken,
+            },
+          });
+        } catch { /* non-critical */ }
       }
 
       return { webhookUrl, secretToken };

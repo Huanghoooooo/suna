@@ -72,6 +72,9 @@ export {
   // Pool
   poolResources,
   poolSandboxes,
+  // Channels
+  channelTypeEnum,
+  channelConfigs,
 } from './schema/kortix';
 
 export type {

@@ -56,21 +56,26 @@ export function ChannelConfigDialog({ open, onOpenChange, onCreated }: ChannelCo
   const [name, setName] = useState('');
 
   const { sandbox } = useSandbox();
+  const activeServer = useServerStore((s) => s.servers.find((srv) => srv.id === s.activeServerId));
   const createMutation = useCreateChannel();
 
   const resolveSandboxId = async (): Promise<string | null> => {
+    // 1. Active server's instanceId (set when navigating to /instances/{id})
+    if (activeServer?.instanceId) return activeServer.instanceId;
+    // 2. Sandbox from context hook
+    if (sandbox?.sandbox_id) return sandbox.sandbox_id;
+    // 3. Any server with a sandboxId
+    const store = useServerStore.getState();
+    for (const s of store.servers) {
+      if (s.instanceId) return s.instanceId;
+    }
+    // 4. Last resort: ensureSandbox
     try {
       const result = await ensureSandbox();
       return result.sandbox.sandbox_id;
     } catch {
-      // fall through
+      return null;
     }
-    if (sandbox?.sandbox_id) return sandbox.sandbox_id;
-    const store = useServerStore.getState();
-    for (const s of store.servers) {
-      if (s.sandboxId) return s.sandboxId;
-    }
-    return null;
   };
 
   const handleClose = () => {
@@ -147,6 +152,7 @@ export function ChannelConfigDialog({ open, onOpenChange, onCreated }: ChannelCo
             </DialogHeader>
           </div>
           <SlackSetupWizard
+            sandboxId={activeServer?.instanceId || sandbox?.sandbox_id}
             onBack={() => { setStep('type'); setChannelType(null); }}
             onCreated={() => {
               handleClose();
@@ -178,6 +184,7 @@ export function ChannelConfigDialog({ open, onOpenChange, onCreated }: ChannelCo
             </DialogHeader>
           </div>
           <TelegramSetupWizard
+            sandboxId={activeServer?.instanceId || sandbox?.sandbox_id}
             onBack={() => { setStep('type'); setChannelType(null); }}
             onCreated={() => {
               handleClose();
