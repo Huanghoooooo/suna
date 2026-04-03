@@ -227,7 +227,7 @@ ENV KORTIX_WORKSPACE=/workspace
 
 # ── Services (s6-rc.d longrun) ──────────────────────────────────────────────
 COPY core/s6-services/ /etc/s6-overlay/s6-rc.d/
-RUN for svc in svc-kortix-master svc-opencode-serve svc-opencode-web svc-opencode-channels \
+RUN for svc in svc-kortix-master svc-opencode-serve svc-opencode-channels \
         svc-chromium-persistent svc-agent-browser-session svc-agent-browser-viewer \
         svc-static-web svc-lss-sync svc-sshd svc-docker; do \
         touch "/etc/s6-overlay/s6-rc.d/user/contents.d/${svc}"; \
@@ -404,6 +404,6 @@ ENV SELKIES_H264_PAINTOVER_CRF="12"
 ENV SELKIES_USE_BROWSER_CURSORS=true
 
 
-EXPOSE 22 3456 6080 6081 3111 3210 8000 9222 9223 9224
+EXPOSE 22 3456 6080 6081 3210 8000 9222 9223 9224
 
 ENTRYPOINT ["/ephemeral/startup.sh"]

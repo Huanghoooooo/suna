@@ -26,7 +26,6 @@ import type { ServerEntry } from '@/stores/server-store';
 export const SANDBOX_PORTS = {
   DESKTOP: '6080',
   DESKTOP_HTTPS: '6081',
-  OPENCODE_UI: '3111',
   PRESENTATION_VIEWER: '3210',
   STATIC_FILE_SERVER: '3211',
   KORTIX_MASTER: '8000',

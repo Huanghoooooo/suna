@@ -113,9 +113,6 @@ cat > "${WS}/.kortix/container.json" << CFGEOF
 }
 CFGEOF
 
-# ── Disable conflicting host services ─────────────────────────────────────
-systemctl disable --now opencode-web 2>/dev/null || true
-
 # ── Pull image ────────────────────────────────────────────────────────────
 stage_callback "docker_pulling" "Pulling Docker image..."
 echo "[kortix] Pulling $DOCKER_IMAGE..."

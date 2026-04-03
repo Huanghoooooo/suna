@@ -16,7 +16,6 @@ import { log } from '@/lib/logger';
 export const SANDBOX_PORTS = {
   DESKTOP: '6080',
   DESKTOP_HTTPS: '6081',
-  OPENCODE_UI: '3111',
   KORTIX_MASTER: '8000',
   BROWSER_STREAM: '9223',
   SSH: '22',

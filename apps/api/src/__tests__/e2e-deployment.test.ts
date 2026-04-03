@@ -411,7 +411,6 @@ describe('Deployment — Sandbox Dockerfile Validation', () => {
 describe('Deployment — Sandbox Configuration Integrity', () => {
   const s6Dir = join(SANDBOX_DIR, 's6-services');
   const expectedServices = [
-    'svc-opencode-web',
     'svc-opencode-serve',
     'svc-kortix-master',
     'svc-lss-sync',

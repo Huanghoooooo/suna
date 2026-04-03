@@ -280,12 +280,6 @@ describe("Kortix Sandbox Proxy E2E", () => {
 
   // ------ Known sandbox services ------
   describe("Known sandbox services", () => {
-    test("proxy to OpenCode Web UI (port 3111)", async () => {
-      const { status } = await proxyFetch("/proxy/3111/");
-      // 200 if running, 502 if not — both are valid proxy behavior
-      expect([200, 502]).toContain(status);
-    });
-
     test("proxy to noVNC Desktop (port 6080)", async () => {
       const { status } = await proxyFetch("/proxy/6080/");
       // 200 = running, 502 = not running, 0 = network/decompression error (still means proxy responded)

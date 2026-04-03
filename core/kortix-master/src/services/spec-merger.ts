@@ -229,7 +229,7 @@ export async function buildMergedSpec(
         '5. Response streams back to client\n\n' +
         'The sandbox never sees user tokens — only the internal service key.\n\n' +
         '### Security note\n\n' +
-        'The sandbox container exposes multiple ports (8000, 3111, 6080, etc.) which are **unprotected by default**. ' +
+        'The sandbox container exposes multiple ports (8000, 6080, etc.) which are **unprotected by default**. ' +
         'In production, these ports must be firewalled so only the platform proxy can reach them. ' +
         'The `INTERNAL_SERVICE_KEY` env var adds a second layer: when set, the sandbox gateway rejects requests without a matching Bearer token. ' +
         'In local development, both the firewall and service key are typically absent — all sandbox ports are open on localhost.',

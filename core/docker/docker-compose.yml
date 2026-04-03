@@ -87,7 +87,6 @@ services:
       - sandbox_data:/config
     ports:
       - "127.0.0.1:14000:8000"  # Kortix Master (proxy entry point)
-      - "127.0.0.1:14001:3111"  # OpenCode Web UI
       - "127.0.0.1:14002:6080"  # Desktop (noVNC)
       - "127.0.0.1:14003:6081"  # Desktop (HTTPS)
       - "127.0.0.1:14004:3210"  # Presentation Viewer
