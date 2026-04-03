@@ -184,8 +184,9 @@ async function authFetch(...args: Parameters<typeof fetch>) {
 	return authenticatedFetch(...args);
 }
 
-async function persistEnv(key: string, value: string) {
+async function persistEnv(key: string, value: string): Promise<boolean> {
 	const u = getInstanceUrl();
+	if (!u) return false;
 	// Retry a few times — on fresh login the auth session may still be hydrating
 	// and authFetch returns a synthetic 401 if the token isn't available yet.
 	for (let attempt = 0; attempt < 5; attempt++) {
@@ -195,20 +196,21 @@ async function persistEnv(key: string, value: string) {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ value }),
 			});
-			if (res.ok) return;
+			if (res.ok) return true;
 			if (res.status === 401 && attempt < 4) {
 				await new Promise(r => setTimeout(r, 1000));
 				continue;
 			}
-			return;
+			return false;
 		} catch {
 			if (attempt < 4) {
 				await new Promise(r => setTimeout(r, 1000));
 				continue;
 			}
-			return;
+			return false;
 		}
 	}
+	return false;
 }
 
 async function readEnv(key: string): Promise<string | null> {
@@ -527,9 +529,17 @@ export default function DashboardLayoutContent({
 
 		if (!shouldSkip && !shouldRedo) { setParamHandled(true); return; }
 
+		// Don't attempt to persist until we have a valid sandbox URL.
+		// In cloud mode, getInstanceUrl() returns '' while the sandbox is still
+		// being registered. Bailing here keeps sessionStorage intact so the
+		// effect retries when activeServerId changes to a real server.
+		const instanceUrl = getInstanceUrl();
+		if (!instanceUrl) return;
+
 		(async () => {
 			if (shouldSkip) {
-				await persistEnv("ONBOARDING_COMPLETE", "true");
+				const ok = await persistEnv("ONBOARDING_COMPLETE", "true");
+				if (!ok) return; // sandbox unreachable — keep intent, retry on next activeServerId change
 				sessionStorage.removeItem("kortix-onboarding-skip");
 				// Clean URL and let the normal check pass through
 				const clean = new URL(window.location.href);
@@ -538,7 +548,8 @@ export default function DashboardLayoutContent({
 				ob.done(); // exit onboarding mode if active
 				setParamHandled(true);
 			} else if (shouldRedo) {
-				await persistEnv("ONBOARDING_COMPLETE", "false");
+				const ok = await persistEnv("ONBOARDING_COMPLETE", "false");
+				if (!ok) return; // sandbox unreachable — keep intent, retry on next activeServerId change
 				await persistEnv("ONBOARDING_SESSION_ID", "");
 				await persistEnv("ONBOARDING_COMMAND_FIRED", "");
 				sessionStorage.removeItem("kortix-onboarding-redo");

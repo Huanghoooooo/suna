@@ -22,6 +22,10 @@ async function main() {
 
   let count = 0
   for (const [key, value] of Object.entries(envVars)) {
+    // Skip empty values — these are seed placeholders (from seed-env.json).
+    // Writing them to S6 env dir would overwrite real Docker env vars injected
+    // at container creation (e.g. TAVILY_API_URL set by Daytona/JustAVPS).
+    if (!value) continue
     await Bun.write(`${S6_ENV_DIR}/${key}`, value)
     count++
   }
