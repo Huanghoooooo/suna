@@ -17,7 +17,6 @@ import {
 	type AutoworkAlgorithm,
 	type LoopState,
 	createInitialLoopState,
-	AUTOWORK_KEYWORDS,
 	INTERNAL_MARKER,
 	CODE_BLOCK_PATTERN,
 	INLINE_CODE_PATTERN,
@@ -301,22 +300,14 @@ const KortixAutoworkPlugin: Plugin = async ({ client }) => {
 					return
 				}
 
-				// ── Keyword auto-activation ──
-				if (AUTOWORK_KEYWORDS.test(cleanText)) {
-					if (!loopState.active) {
-						const task = cleanText.replace(AUTOWORK_KEYWORDS, "").trim() || messageText.trim()
-						let msgCount = 0
-						try {
-							const r = await client.session.messages({ path: { id: sessionId } }).catch(() => ({ data: [] as any[] }))
-							msgCount = (r.data ?? []).length
-						} catch {}
-						loopState = startLoop(task, sessionId, msgCount)
-						loopStates.set(sessionId, loopState)
-						autoworkActiveSessions.add(sessionId)
-						log("info", `[autowork][${sid(sessionId)}] Keyword-activated: "${task.slice(0, 80)}"`)
-					}
-					return
-				}
+				// ── Keyword auto-activation REMOVED ──
+				// Previously matched /\bautowork\b/i in any user message, which caused
+				// false activations (e.g. "can u run autowork on..." would activate
+				// autowork on the lead session even though user meant a background worker).
+				// Autowork now ONLY activates via:
+				//   1. /autowork or /autowork-team command (pendingCommand)
+				//   2. KORTIX_AUTOWORK marker in message text (system-injected)
+				//   3. /autowork prefix in worker session assignment
 
 				// ── Active loop absorbs user message ──
 				if (loopState.active) {

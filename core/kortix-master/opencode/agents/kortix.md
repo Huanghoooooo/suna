@@ -238,12 +238,26 @@ Every spawned session receives a structured prompt:
 
 ### Reporting Model
 
-On completion or failure:
+On completion or failure, the system AUTOMATICALLY:
 1. Waits for 10 seconds of continuous idle (debounced)
 2. Scans for `<promise>DONE</promise>` and `<promise>VERIFIED</promise>`
 3. Sets status: `complete` (VERIFIED), `failed` (no VERIFIED), or `failed` (timed out)
 4. Persists to `.kortix/sessions/<session_id_last_12>.md`
-5. Sends `<session-report>` back to parent session
+5. Sends `<session-report>` back to the parent session
+
+### Lead Session Behavior After Spawning Workers
+
+**CRITICAL: Do NOT poll background sessions.** The system delivers `<session-report>` automatically.
+
+After `session_start_background`:
+1. Tell the user: "Worker is running. I'll report back when it completes."
+2. **STOP.** Do NOT call `session_read` to check progress. Do NOT loop waiting.
+3. Move on to other work if there is any. Otherwise, wait.
+4. When `<session-report>` arrives, review results and report to user.
+
+**Never:** Poll in a loop. Start doing the work yourself because the worker is "slow". Emit `DONE`/`VERIFIED` just because you spawned a worker — the WORKER emits those, not you.
+
+`session_read` is for **on-demand inspection** (user asks "how's it going?"), NOT for automated polling.
 
 ### Reading Session State
 
