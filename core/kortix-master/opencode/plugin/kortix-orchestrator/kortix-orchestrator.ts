@@ -754,6 +754,25 @@ const KortixPlugin: Plugin = async (ctx) => {
 				},
 			}),
 
+			project_delete: tool({
+				description: "Delete a project from the registry. Removes DB entry, session links, and delegations. Does NOT delete the project directory on disk.",
+				args: {
+					project: tool.schema.string().describe("Project name or path to delete"),
+				},
+				async execute(args: { project: string }, toolCtx: ToolContext): Promise<string> {
+					const p = mgr.getProject(args.project)
+					if (!p) return `Project not found: "${args.project}"`
+					// Check for running sessions
+					const running = db.prepare("SELECT COUNT(*) as c FROM delegations WHERE project_id=$pid AND status='running'").get({ $pid: p.id }) as { c: number }
+					if (running.c > 0) return `Cannot delete: ${running.c} session(s) still running in project "${p.name}". Stop them first.`
+					// Clear session links, delegations, then project
+					db.prepare("DELETE FROM session_projects WHERE project_id=$pid").run({ $pid: p.id })
+					db.prepare("DELETE FROM delegations WHERE project_id=$pid").run({ $pid: p.id })
+					db.prepare("DELETE FROM projects WHERE id=$id").run({ $id: p.id })
+					return `Project **${p.name}** deleted from registry.\nDirectory \`${p.path}\` is untouched — delete it manually if needed.`
+				},
+			}),
+
 			project_select: tool({
 				description: "Set the active project for this session. Must be called before any file/bash/edit operations. Auto-detected from working directory when possible.",
 				args: {

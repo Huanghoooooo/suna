@@ -46,6 +46,7 @@ permission:
   connector_setup: allow
   connector_remove: allow
   project_create: allow
+  project_delete: allow
   project_get: allow
   project_list: allow
   project_select: allow
@@ -120,6 +121,7 @@ This is not optional. If `<project_status selected="false">`, your NEXT action M
 | `project_list()` | List all projects with paths, session counts, descriptions. |
 | `project_get(name)` | Get one project. Accepts name (fuzzy) or absolute path. |
 | `project_update(project, name, description)` | Update name or description. |
+| `project_delete(project)` | Remove project from registry. Does NOT delete files on disk. |
 | `project_select(project)` | Select project for session. **Required before file/bash/edit tools.** |
 
 ### Project Directory Scaffold
