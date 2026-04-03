@@ -173,6 +173,15 @@ export function AutoTopupModal({ open, onOpenChange }: { open: boolean; onOpenCh
     const [dirty, setDirty] = useState(false);
     const [saveResult, setSaveResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+    const getErrorMessage = (err: any) => (
+        err?.message
+        || err?.error
+        || err?.data?.error
+        || err?.details?.error
+        || err?.detail?.message
+        || 'Failed to update auto-topup'
+    );
+
     const { data: config, isLoading } = useQuery({
         queryKey: ['auto-topup-settings'],
         queryFn: getAutoTopupSettings,
@@ -203,6 +212,13 @@ export function AutoTopupModal({ open, onOpenChange }: { open: boolean; onOpenCh
     const handleSave = async () => {
         const thresholdNum = Math.max(0, parseInt(threshold, 10) || 0);
         const amountNum = Math.max(1, parseInt(amount, 10) || 1);
+        if (enabled && setupStatus && !setupStatus.has_default_payment_method) {
+            const message = 'No default payment method found. Please set up a default card in Billing before enabling auto-topup.';
+            setSaveResult({ type: 'error', message });
+            toast.error(message);
+            return;
+        }
+
         setSaving(true);
         setSaveResult(null);
         try {
@@ -214,7 +230,7 @@ export function AutoTopupModal({ open, onOpenChange }: { open: boolean; onOpenCh
             setSaveResult({ type: 'success', message: 'Auto top-up settings saved.' });
             toast.success('Auto top-up settings saved');
         } catch (err: any) {
-            const message = err?.message || 'Failed to update auto-topup';
+            const message = getErrorMessage(err);
             setSaveResult({ type: 'error', message });
             toast.error(message);
         } finally {
