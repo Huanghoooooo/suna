@@ -35,6 +35,7 @@ function buildEnvPayload(serviceKey: string): Record<string, string> {
     TAVILY_API_URL: `${routerBase}/tavily`,
     REPLICATE_API_URL: `${routerBase}/replicate`,
     SERPER_API_URL: `${routerBase}/serper`,
+    FIRECRAWL_API_URL: `${routerBase}/firecrawl`,
     TUNNEL_API_URL: sandboxApiBase,
     TUNNEL_TOKEN: serviceKey,
   };

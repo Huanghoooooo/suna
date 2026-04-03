@@ -68,6 +68,7 @@ export class DaytonaProvider implements SandboxProvider {
           TAVILY_API_URL: `${routerBase}/tavily`,
           REPLICATE_API_URL: `${routerBase}/replicate`,
           SERPER_API_URL: `${routerBase}/serper`,
+          FIRECRAWL_API_URL: `${routerBase}/firecrawl`,
           ...opts.envVars,
         },
         autoStopInterval: 15,

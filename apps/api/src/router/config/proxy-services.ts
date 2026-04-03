@@ -86,6 +86,11 @@ export function getProxyServices(): Record<string, ProxyServiceConfig> {
         { path: '/v1/crawl', methods: ['POST', 'GET'], prefixMatch: true },
         { path: '/v1/map', methods: ['POST'] },
         { path: '/v1/search', methods: ['POST'] },
+        // Firecrawl JS SDK v2+ uses /v2 endpoints
+        { path: '/v2/scrape', methods: ['POST'] },
+        { path: '/v2/crawl', methods: ['POST', 'GET'], prefixMatch: true },
+        { path: '/v2/map', methods: ['POST'] },
+        { path: '/v2/search', methods: ['POST'] },
       ],
       billingToolName: 'proxy_firecrawl',
     },
