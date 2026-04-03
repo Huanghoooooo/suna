@@ -25,7 +25,7 @@ import {
 	CODE_BLOCK_PATTERN,
 	INLINE_CODE_PATTERN,
 } from "../lib/autowork-config"
-import { evaluate } from "./continuation-engine"
+import { evaluate } from "./engine"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

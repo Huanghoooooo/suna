@@ -1,7 +1,7 @@
 /**
  * Kortix System Plugin — THE single plugin for the entire Kortix environment.
  *
- * Everything: projects, tasks, sessions, connectors, autowork, continuation,
+ * Everything: projects, tasks, sessions, connectors, autowork, todo-enforcer,
  * triggers, auth, PTY, worktree, and /btw.
  *
  * opencode.jsonc: "./plugin/kortix-system/kortix-system.ts"
@@ -30,7 +30,7 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 	const auth = await (await import("./auth")).default(ctx)
 	const pty = await (await import("./pty-tools")).default(ctx)
 	const autowork = await (await import("./autowork/autowork")).default(ctx)
-	const continuation = await (await import("./continuation/continuation")).default(ctx)
+	const todoEnforcer = await (await import("./todo-enforcer/todo-enforcer")).default(ctx)
 	const triggers = await (await import("./triggers")).default(ctx)
 	const worktreeModule = await (await import("./worktree/worktree")).default(ctx)
 
@@ -75,7 +75,7 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 			if (sid && payload.event.type === "session.created") currentSessionId = sid
 			if (pty?.event) await pty.event(payload).catch(() => {})
 			if (autowork?.event) await autowork.event(payload).catch(() => {})
-			if (continuation?.event) await continuation.event(payload).catch(() => {})
+			if (todoEnforcer?.event) await todoEnforcer.event(payload).catch(() => {})
 			if (worktreeModule?.event) await worktreeModule.event(payload).catch(() => {})
 		},
 
