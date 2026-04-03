@@ -14,15 +14,16 @@ export PATH="/opt/bun/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 [ -z "$OPENAI_BASE_URL" ] && unset OPENAI_BASE_URL
 
 # Pick up vars written by kortix-api after container start.
-# On first boot, kortix-api writes the token ~25s after the container starts.
-# Wait up to 60s for KORTIX_TOKEN and KORTIX_API_URL to appear so OpenCode
-# doesn't start without auth or with the wrong API URL (localhost fallback).
+# In cloud mode, tokens are either already in S6 env dir (Docker env from
+# Daytona/JustAVPS/pool) or injected within seconds via the /env API.
+# Wait up to 10s — combined with DB lock wait (~10s), total must stay under
+# ServiceManager's START_WAIT_MS (30s) so OpenCode can bind port 4096.
 TOKEN_FILE="/run/s6/container_environment/KORTIX_TOKEN"
 API_URL_FILE="/run/s6/container_environment/KORTIX_API_URL"
 
 if [ ! -s "$TOKEN_FILE" ] || [ ! -s "$API_URL_FILE" ]; then
   echo "[opencode-serve] Waiting for KORTIX_TOKEN and KORTIX_API_URL to be provisioned..."
-  for i in $(seq 1 30); do
+  for i in $(seq 1 5); do
     [ -s "$TOKEN_FILE" ] && [ -s "$API_URL_FILE" ] && break
     sleep 2
   done

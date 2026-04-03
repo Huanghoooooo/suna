@@ -168,7 +168,7 @@ const LOG_DIR = join(SERVICE_STATE_DIR, 'logs')
 
 const INSTALL_TIMEOUT_MS = 120_000
 const BUILD_TIMEOUT_MS = 120_000
-const START_WAIT_MS = 15_000
+const START_WAIT_MS = 30_000  // Must cover run-opencode-serve.sh waits (~20s worst case) + startup
 const PORT_MIN = 10_000
 const PORT_MAX = 60_000
 const PERSISTED_SOURCE_ROOT = WORKSPACE_ROOT

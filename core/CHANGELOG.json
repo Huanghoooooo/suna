@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.8.26",
+    "date": "2026-04-03",
+    "title": "Fix OpenCode startup timeout on image build machines",
+    "description": "OpenCode was stuck in an infinite restart loop on JustAVPS image build machines because the token wait (60s) plus DB lock wait (10s) exceeded the ServiceManager's port binding timeout (15s), causing SIGTERM before OpenCode could start.",
+    "changes": [
+      { "type": "fix", "text": "Reduce OpenCode token wait from 60s to 10s — tokens arrive instantly via Docker env or within seconds via /env API" },
+      { "type": "fix", "text": "Increase ServiceManager START_WAIT_MS from 15s to 30s to cover token wait + DB lock wait + startup time" }
+    ]
+  },
+  {
     "version": "0.8.25",
     "date": "2026-04-03",
     "title": "Fix sandbox env var injection for cloud proxied services",
