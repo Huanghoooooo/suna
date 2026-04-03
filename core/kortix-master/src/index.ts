@@ -31,6 +31,8 @@ import reloadRouter from './routes/reload'
 import triggersRouter from './routes/triggers'
 import marketplaceRouter from './routes/marketplace'
 import projectsRouter from './routes/projects'
+import { tasksRouter } from './routes/tasks'
+import { agentsRouter } from './routes/agents'
 import { serviceManager } from './services/service-manager'
 import { config } from './config'
 import { loadBootstrapEnv, saveBootstrapEnv } from './services/bootstrap-env'
@@ -359,6 +361,10 @@ app.route('/kortix/marketplace', marketplaceRouter)
 // Mount at both paths — Hono sub-routers don't match trailing slash from parent
 app.route('/kortix/projects', projectsRouter)
 app.route('/kortix/projects/', projectsRouter)
+app.route('/kortix/tasks', tasksRouter)
+app.route('/kortix/tasks/', tasksRouter)
+app.route('/kortix/agents', agentsRouter)
+app.route('/kortix/agents/', agentsRouter)
 
 // Connectors — SQLite-backed CRUD
 app.route('/kortix/connectors', connectorsRouter)

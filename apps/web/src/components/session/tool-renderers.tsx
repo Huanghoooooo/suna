@@ -43,9 +43,12 @@ import {
 	RefreshCw,
 	Scissors,
 	Search,
+	ListTodo,
+	Plus,
 	SquareKanban,
 	Tags,
 	Terminal,
+	Trash2,
 	Type,
 	Video,
 	X,
@@ -5556,6 +5559,288 @@ ToolRegistry.register("project_delete", ProjectDeleteTool);
 ToolRegistry.register("project-delete", ProjectDeleteTool);
 ToolRegistry.register("oc-project_delete", ProjectDeleteTool);
 ToolRegistry.register("oc-project-delete", ProjectDeleteTool);
+
+// ============================================================================
+// AgentSpawnTool — Kortix agent delegation (replaces native task tool)
+// Same UX as TaskTool: compact card, live shimmer, SubSessionModal
+// ============================================================================
+
+function AgentSpawnTool({ part, forceOpen }: ToolProps) {
+	const input = partInput(part);
+	const output = partOutput(part);
+	const status = partStatus(part);
+	const agentType = (input.agent_type as string) || "worker";
+	const description = (input.description as string) || "";
+	const isBackground = input.background === true;
+	const isRunning = status === "running" || status === "pending";
+	const isCompleted = status === "completed";
+
+	// Extract child session ID from output
+	const childSessionId = useMemo(() => {
+		const m = output.match(/\*\*Session:\*\*\s*(ses_[a-zA-Z0-9]+)/);
+		return m?.[1] || undefined;
+	}, [output]);
+
+	const { data: childMessages } = useOpenCodeMessages(childSessionId ?? "");
+	const childToolParts = useMemo(() => {
+		if (!childMessages) return [];
+		return getChildSessionToolParts(childMessages as any);
+	}, [childMessages]);
+
+	const [modalOpen, setModalOpen] = useState(false);
+
+	const lastActivity = useMemo(() => {
+		if (childToolParts.length === 0) return null;
+		const last = childToolParts[childToolParts.length - 1];
+		const info = getToolInfo(last.tool, (last.state.input ?? {}) as Record<string, any>);
+		return info.title + (info.subtitle ? ` · ${info.subtitle}` : "");
+	}, [childToolParts]);
+
+	const running = useContext(ToolRunningContext);
+	const label = description || "";
+
+	return (
+		<>
+			<div
+				role="button"
+				tabIndex={0}
+				onClick={() => childSessionId && setModalOpen(true)}
+				onKeyDown={(e) => e.key === "Enter" && childSessionId && setModalOpen(true)}
+				className={cn(
+					"flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg",
+					"bg-muted/20 border border-border/40",
+					"text-xs transition-colors select-none",
+					childSessionId ? "cursor-pointer hover:bg-muted/40" : "cursor-default",
+					"max-w-full group",
+				)}
+			>
+				<Cpu className="size-3.5 flex-shrink-0 text-muted-foreground" />
+				<div className="flex items-center gap-1.5 min-w-0 flex-1">
+					<span className="font-medium text-xs text-foreground whitespace-nowrap">
+						{agentType}{isBackground ? " (bg)" : ""}
+					</span>
+					{isRunning && lastActivity ? (
+						<TextShimmer duration={1} spread={2} className="text-xs truncate font-mono">{lastActivity}</TextShimmer>
+					) : label ? (
+						<span className="text-muted-foreground text-xs truncate font-mono">{label}</span>
+					) : null}
+					{isCompleted && childToolParts.length > 0 && (
+						<span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/70 font-mono whitespace-nowrap flex-shrink-0">
+							{childToolParts.length} steps
+						</span>
+					)}
+				</div>
+				{running && <Loader2 className="size-3 animate-spin text-muted-foreground/40 flex-shrink-0" />}
+				{childSessionId && !running && (
+					<ExternalLink className="size-3 flex-shrink-0 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
+				)}
+			</div>
+			{childSessionId && (
+				<SubSessionModal
+					open={modalOpen}
+					onOpenChange={setModalOpen}
+					sessionId={childSessionId}
+					title={`${agentType}: ${label}`}
+				/>
+			)}
+		</>
+	);
+}
+ToolRegistry.register("agent_spawn", AgentSpawnTool);
+ToolRegistry.register("agent-spawn", AgentSpawnTool);
+
+// ============================================================================
+// AgentMessageTool
+// ============================================================================
+
+function AgentMessageTool({ part }: ToolProps) {
+	const input = partInput(part);
+	const status = partStatus(part);
+	const agentId = (input.agent_id as string) || "";
+	const message = (input.message as string) || "";
+
+	return (
+		<BasicTool
+			icon={<MessageCircle className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: "Agent Message", subtitle: agentId, args: status === "completed" ? ["sent"] : status === "error" ? ["failed"] : [] }}
+			defaultOpen={false}
+		>
+			{message && (
+				<div className="px-3 py-2">
+					<div className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-1">Message</div>
+					<div className="text-[11px] text-foreground/70 whitespace-pre-wrap bg-muted/20 rounded p-2 border border-border/20">{message.slice(0, 500)}</div>
+				</div>
+			)}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("agent_message", AgentMessageTool);
+ToolRegistry.register("agent-message", AgentMessageTool);
+
+// ============================================================================
+// AgentStopTool
+// ============================================================================
+
+function AgentStopTool({ part }: ToolProps) {
+	const input = partInput(part);
+	const output = partOutput(part);
+	const agentId = (input.agent_id as string) || "";
+
+	return (
+		<BasicTool
+			icon={<Ban className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: "Agent Stop", subtitle: agentId, args: output.includes("stopped") ? ["stopped"] : [] }}
+			defaultOpen={false}
+		>
+			{output && <div className="px-3 py-2 text-xs text-muted-foreground">{output}</div>}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("agent_stop", AgentStopTool);
+ToolRegistry.register("agent-stop", AgentStopTool);
+
+// ============================================================================
+// AgentStatusTool
+// ============================================================================
+
+function AgentStatusTool({ part }: ToolProps) {
+	const output = partOutput(part);
+
+	return (
+		<BasicTool
+			icon={<Layers className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: "Agent Status", subtitle: "", args: [] }}
+			defaultOpen={false}
+		>
+			{output && (
+				<div data-scrollable className="max-h-48 overflow-auto px-3 py-2">
+					<div className="text-[11px] font-mono text-muted-foreground whitespace-pre-wrap">
+						<UnifiedMarkdown content={output} isStreaming={false} />
+					</div>
+				</div>
+			)}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("agent_status", AgentStatusTool);
+ToolRegistry.register("agent-status", AgentStatusTool);
+
+// ============================================================================
+// TaskCreateTool — Kortix task tracking
+// ============================================================================
+
+function TaskCreateTool({ part }: ToolProps) {
+	const input = partInput(part);
+	const output = partOutput(part);
+	const title = (input.title as string) || "";
+	const priority = (input.priority as string) || "medium";
+
+	return (
+		<BasicTool
+			icon={<Plus className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: "Create Task", subtitle: title, args: priority !== "medium" ? [priority] : [] }}
+			defaultOpen={false}
+		>
+			{output && <div className="px-3 py-2 text-xs text-muted-foreground">{output}</div>}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("task_create", TaskCreateTool);
+ToolRegistry.register("task-create", TaskCreateTool);
+
+// ============================================================================
+// TaskListTool
+// ============================================================================
+
+function TaskListTool({ part }: ToolProps) {
+	const input = partInput(part);
+	const output = partOutput(part);
+	const statusFilter = (input.status as string) || "";
+
+	return (
+		<BasicTool
+			icon={<ListTodo className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: "Tasks", subtitle: statusFilter || "all", args: [] }}
+			defaultOpen={false}
+		>
+			{output && (
+				<div data-scrollable className="max-h-56 overflow-auto px-3 py-2">
+					<div className="text-[11px] font-mono text-muted-foreground whitespace-pre-wrap">
+						<UnifiedMarkdown content={output} isStreaming={false} />
+					</div>
+				</div>
+			)}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("task_list", TaskListTool);
+ToolRegistry.register("task-list", TaskListTool);
+
+// ============================================================================
+// TaskUpdateTool
+// ============================================================================
+
+function TaskUpdateTool({ part }: ToolProps) {
+	const input = partInput(part);
+	const output = partOutput(part);
+	const taskId = (input.id as string) || "";
+
+	return (
+		<BasicTool
+			icon={<RefreshCw className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: "Update Task", subtitle: taskId, args: input.status ? [input.status as string] : [] }}
+			defaultOpen={false}
+		>
+			{output && <div className="px-3 py-2 text-xs text-muted-foreground">{output}</div>}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("task_update", TaskUpdateTool);
+ToolRegistry.register("task-update", TaskUpdateTool);
+
+// ============================================================================
+// TaskDoneTool
+// ============================================================================
+
+function TaskDoneTool({ part }: ToolProps) {
+	const input = partInput(part);
+	const output = partOutput(part);
+	const taskId = (input.id as string) || "";
+
+	return (
+		<BasicTool
+			icon={<CheckCircle className="size-3.5 flex-shrink-0 text-emerald-500" />}
+			trigger={{ title: "Task Done", subtitle: taskId, args: [] }}
+			defaultOpen={false}
+		>
+			{output && <div className="px-3 py-2 text-xs text-muted-foreground">{output}</div>}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("task_done", TaskDoneTool);
+ToolRegistry.register("task-done", TaskDoneTool);
+
+// ============================================================================
+// TaskDeleteTool
+// ============================================================================
+
+function TaskDeleteTool({ part }: ToolProps) {
+	const input = partInput(part);
+	const output = partOutput(part);
+	const taskId = (input.id as string) || "";
+
+	return (
+		<BasicTool
+			icon={<Trash2 className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: "Delete Task", subtitle: taskId, args: output.includes("deleted") ? ["deleted"] : [] }}
+			defaultOpen={false}
+		>
+			{output && <div className="px-3 py-2 text-xs text-muted-foreground">{output}</div>}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("task_delete", TaskDeleteTool);
+ToolRegistry.register("task-delete", TaskDeleteTool);
 
 // ============================================================================
 // SkillTool — Skill loading

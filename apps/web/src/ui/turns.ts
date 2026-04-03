@@ -435,6 +435,23 @@ export function computeStatusFromPart(part: Part | undefined): string | undefine
       case 'session-spawn':
       case 'session-start-background':
         return 'Delegating to agent...';
+      case 'agent_spawn':
+      case 'agent-spawn':
+        return 'Delegating to agent...';
+      case 'agent_message':
+      case 'agent-message':
+        return 'Messaging agent...';
+      case 'task_create':
+      case 'task-create':
+        return 'Creating task...';
+      case 'task_list':
+      case 'task-list':
+        return 'Listing tasks...';
+      case 'task_update':
+      case 'task-update':
+      case 'task_done':
+      case 'task-done':
+        return 'Updating task...';
       case 'todowrite':
       case 'todoread':
         return 'Planning...';
@@ -730,6 +747,33 @@ export function getToolInfo(tool: string, input: Record<string, any> = {}): Tool
     case 'project_delete':
     case 'project-delete':
       return { icon: 'trash-2', title: 'Delete Project', subtitle: input.project };
+    case 'agent_spawn':
+    case 'agent-spawn':
+      return { icon: 'cpu', title: `Agent (${input.agent_type || 'worker'})`, subtitle: input.description };
+    case 'agent_message':
+    case 'agent-message':
+      return { icon: 'message-circle', title: 'Agent Message', subtitle: input.agent_id };
+    case 'agent_stop':
+    case 'agent-stop':
+      return { icon: 'ban', title: 'Agent Stop', subtitle: input.agent_id };
+    case 'agent_status':
+    case 'agent-status':
+      return { icon: 'layers', title: 'Agent Status' };
+    case 'task_create':
+    case 'task-create':
+      return { icon: 'plus', title: 'Create Task', subtitle: input.title };
+    case 'task_list':
+    case 'task-list':
+      return { icon: 'list', title: 'Tasks', subtitle: input.status || 'all' };
+    case 'task_update':
+    case 'task-update':
+      return { icon: 'refresh-cw', title: 'Update Task', subtitle: input.id };
+    case 'task_done':
+    case 'task-done':
+      return { icon: 'check-circle', title: 'Task Done', subtitle: input.id };
+    case 'task_delete':
+    case 'task-delete':
+      return { icon: 'trash-2', title: 'Delete Task', subtitle: input.id };
     case 'pty_spawn':
       return { icon: 'terminal', title: 'Spawn', subtitle: input.title || input.command };
     case 'pty_read':

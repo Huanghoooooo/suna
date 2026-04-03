@@ -32,9 +32,18 @@ permission:
   skill: allow
   sync_agent_triggers: allow
   sync_triggers: allow
-  task: allow
-  todoread: allow
-  todowrite: allow
+  task: deny
+  todoread: deny
+  todowrite: deny
+  agent_spawn: allow
+  agent_message: allow
+  agent_stop: allow
+  agent_status: allow
+  task_create: allow
+  task_list: allow
+  task_update: allow
+  task_done: allow
+  task_delete: allow
   warpgrep_codebase_search: allow
   web_search: allow
   webfetch: allow

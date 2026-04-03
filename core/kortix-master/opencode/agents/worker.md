@@ -15,8 +15,8 @@ permission:
   scrape_webpage: allow
   webfetch: allow
   skill: allow
-  todowrite: allow
-  todoread: allow
+  todowrite: deny
+  todoread: deny
   question: deny
   task: deny
   pty_spawn: allow
