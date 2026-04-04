@@ -495,6 +495,17 @@ function DefaultModelPane({ onNext, onBack }: { onNext: () => void; onBack: () =
       modelStore.setGlobalDefault(key);
       // Also push to recent as a secondary signal
       modelStore.pushRecent(key);
+
+      // Fire-and-forget: persist the default model on the server so it
+      // survives across devices / reinstalls and is written to opencode.jsonc.
+      const base = getActiveOpenCodeUrl();
+      if (base) {
+        authenticatedFetch(`${base}/kortix/preferences/model`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: `${model.providerID}/${model.modelID}` }),
+        }).catch(() => {});
+      }
     },
     [modelStore],
   );

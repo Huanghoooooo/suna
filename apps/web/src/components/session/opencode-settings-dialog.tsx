@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Settings,
   Shield,
@@ -38,13 +38,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,6 +56,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { opencodeKeys } from '@/hooks/opencode/use-opencode-sessions';
 import { ProviderList } from '@/components/providers/provider-list';
 import { useProviderModalStore } from '@/stores/provider-modal-store';
+import { ModelSelector } from '@/components/session/model-selector';
+import { flattenModels } from '@/components/session/session-chat-input';
 import {
   useOpenCodeMcpStatus,
   useAddMcpServer,
@@ -73,23 +68,11 @@ import {
 } from '@/hooks/opencode/use-opencode-mcp';
 import type { McpStatus } from '@/hooks/opencode/use-opencode-mcp';
 import { toast } from '@/lib/toast';
+import { setGlobalDefaultModel } from '@/hooks/opencode/use-model-store';
 
 // ============================================================================
 // Constants
 // ============================================================================
-
-const PROVIDER_LABELS: Record<string, string> = {
-  anthropic: 'Anthropic',
-  openai: 'OpenAI',
-  google: 'Google',
-  xai: 'xAI',
-  opencode: 'OpenCode',
-  kortix: 'Kortix',
-  bedrock: 'AWS Bedrock',
-  openrouter: 'OpenRouter',
-  'github-copilot': 'GitHub Copilot',
-  vercel: 'Vercel',
-};
 
 const PERMISSION_TYPES = [
   { key: 'read', label: 'Read', description: 'Read files in the project' },
@@ -132,19 +115,23 @@ function GeneralSection({
   onDraft: (key: string, value: unknown) => void;
 }) {
   const { data: providers } = useOpenCodeProviders();
+  const allModels = useMemo(() => flattenModels(providers), [providers]);
 
-  const allModels = useMemo(() => {
-    if (!providers?.all) return [];
-    return providers.all.flatMap((p) =>
-      Object.values(p.models).map((m) => ({
-        label: `${p.id}/${m.id}`,
-        name: m.name,
-        providerName: PROVIDER_LABELS[p.id] || p.name || p.id,
-      })),
-    );
-  }, [providers]);
+  const modelStr = (draft.model as string) ?? config.model ?? '';
+  const selectedModel = useMemo(() => {
+    if (!modelStr) return null;
+    const idx = modelStr.indexOf('/');
+    if (idx <= 0) return null;
+    return { providerID: modelStr.slice(0, idx), modelID: modelStr.slice(idx + 1) };
+  }, [modelStr]);
 
-  const model = (draft.model as string) ?? config.model ?? '';
+  const handleModelSelect = useCallback(
+    (model: { providerID: string; modelID: string } | null) => {
+      onDraft('model', model ? `${model.providerID}/${model.modelID}` : undefined);
+    },
+    [onDraft],
+  );
+
   const instructions = (draft.instructions as string[]) ?? config.instructions ?? [];
   const instructionsText = instructions.join('\n');
   const snapshot = (draft.snapshot as boolean | undefined) ?? config.snapshot ?? false;
@@ -178,22 +165,25 @@ function GeneralSection({
         <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
           Default Model
         </label>
-        <Select
-          value={model || '__auto__'}
-          onValueChange={(v) => onDraft('model', v === '__auto__' ? undefined : v)}
-        >
-          <SelectTrigger className="w-full font-mono text-sm rounded-xl cursor-pointer hover:bg-muted/40 transition-colors">
-            <SelectValue placeholder="Auto-detect" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__auto__" className="cursor-pointer data-[highlighted]:bg-muted/70">Auto-detect</SelectItem>
-            {allModels.map((m) => (
-              <SelectItem key={m.label} value={m.label} className="cursor-pointer data-[highlighted]:bg-muted/70">
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <ModelSelector
+            models={allModels}
+            selectedModel={selectedModel}
+            onSelect={handleModelSelect}
+          />
+          {selectedModel && (
+            <button
+              type="button"
+              onClick={() => onDraft('model', undefined)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              Reset to auto
+            </button>
+          )}
+          {!selectedModel && (
+            <span className="text-xs text-muted-foreground/60">Auto-detect</span>
+          )}
+        </div>
       </div>
 
       {/* Snapshots */}
@@ -1035,8 +1025,6 @@ export function OpenCodeSettingsDialog({
   const updateMutation = useUpdateOpenCodeConfig();
   const [draft, setDraft] = useState<Record<string, unknown>>({});
   const [activeTab, setActiveTab] = useState<OpenCodeSettingsTab>(initialTab);
-  const contentInnerRef = useRef<HTMLDivElement | null>(null);
-  const [contentHeight, setContentHeight] = useState<number>(0);
 
   const onDraft = useCallback((key: string, value: unknown) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -1048,6 +1036,22 @@ export function OpenCodeSettingsDialog({
     if (!hasDraftChanges) return;
     updateMutation.mutate(draft as Partial<Config>, {
       onSuccess: () => {
+        // Sync model change to client-side model store so the resolution
+        // chain in use-opencode-local.ts picks it up immediately.
+        if ('model' in draft) {
+          if (typeof draft.model === 'string' && draft.model) {
+            const idx = draft.model.indexOf('/');
+            if (idx > 0 && idx < draft.model.length - 1) {
+              setGlobalDefaultModel({
+                providerID: draft.model.slice(0, idx),
+                modelID: draft.model.slice(idx + 1),
+              });
+            }
+          } else {
+            // User selected "Auto-detect" — clear globalDefault
+            setGlobalDefaultModel(undefined);
+          }
+        }
         setDraft({});
       },
     });
@@ -1055,17 +1059,7 @@ export function OpenCodeSettingsDialog({
 
   const handleDiscard = useCallback(() => setDraft({}), []);
 
-  const measureContentHeight = useCallback(() => {
-    const el = contentInnerRef.current;
-    if (!el) return;
-    setContentHeight(Math.ceil(el.getBoundingClientRect().height));
-  }, []);
-
   const handleTabChange = useCallback((value: string) => {
-    const el = contentInnerRef.current;
-    if (el) {
-      setContentHeight(Math.ceil(el.getBoundingClientRect().height));
-    }
     setActiveTab(value as OpenCodeSettingsTab);
   }, []);
 
@@ -1075,7 +1069,6 @@ export function OpenCodeSettingsDialog({
       if (!nextOpen) {
         setDraft({});
         setActiveTab(initialTab);
-        setContentHeight(0);
       }
       onOpenChange(nextOpen);
     },
@@ -1087,30 +1080,10 @@ export function OpenCodeSettingsDialog({
     setActiveTab(initialTab);
   }, [initialTab, open]);
 
-  useEffect(() => {
-    if (!open || isLoading || !config) return;
-    const raf = requestAnimationFrame(() => {
-      measureContentHeight();
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [open, isLoading, config, activeTab, measureContentHeight]);
-
-  useEffect(() => {
-    const el = contentInnerRef.current;
-    if (!el || isLoading || !config) return;
-
-    const observer = new ResizeObserver(() => {
-      measureContentHeight();
-    });
-    observer.observe(el);
-
-    return () => observer.disconnect();
-  }, [activeTab, isLoading, config, measureContentHeight]);
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0"
+       <DialogContent
+        className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden"
         aria-describedby="opencode-settings-desc"
       >
         <DialogHeader className="px-6 pt-5 pb-0 flex-shrink-0">
@@ -1129,7 +1102,7 @@ export function OpenCodeSettingsDialog({
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="px-6 pt-3 flex-shrink-0">
               <TabsList className="w-full">
                 <TabsTrigger value="general" className="flex-1 gap-1.5">
@@ -1151,43 +1124,30 @@ export function OpenCodeSettingsDialog({
               </TabsList>
             </div>
 
-            <div
-              className="overflow-hidden transition-[height] duration-300 ease-out"
-              style={contentHeight ? { height: contentHeight } : undefined}
-            >
-              <div ref={contentInnerRef} className="px-6 py-4">
-                {activeTab === 'general' && (
-                  <div className="max-h-[56vh] overflow-y-auto pr-1">
-                    <GeneralSection
-                      draft={draft}
-                      config={config}
-                      onDraft={onDraft}
-                    />
-                  </div>
-                )}
+            <div className="px-6 py-4 flex-1 min-h-0 overflow-y-auto">
+              {activeTab === 'general' && (
+                <GeneralSection
+                  draft={draft}
+                  config={config}
+                  onDraft={onDraft}
+                />
+              )}
 
-                {activeTab === 'providers' && (
-                  <div className="max-h-[56vh] overflow-y-auto pr-1">
-                    <ProvidersSection onDirty={() => {}} />
-                  </div>
-                )}
+              {activeTab === 'providers' && (
+                <ProvidersSection onDirty={() => {}} />
+              )}
 
-                {activeTab === 'permissions' && (
-                  <div className="max-h-[56vh] overflow-y-auto pr-1">
-                    <PermissionsSection
-                      draft={draft}
-                      config={config}
-                      onDraft={onDraft}
-                    />
-                  </div>
-                )}
+              {activeTab === 'permissions' && (
+                <PermissionsSection
+                  draft={draft}
+                  config={config}
+                  onDraft={onDraft}
+                />
+              )}
 
-                {activeTab === 'mcp' && (
-                  <div className="min-h-0 pr-1" style={{ maxHeight: '62vh', overflowY: 'auto' }}>
-                    <McpServersSection />
-                  </div>
-                )}
-              </div>
+              {activeTab === 'mcp' && (
+                <McpServersSection />
+              )}
             </div>
 
             {/* Save / Discard footer */}
