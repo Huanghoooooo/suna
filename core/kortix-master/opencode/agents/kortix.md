@@ -20,7 +20,6 @@ permission:
   context7_query-docs: allow
   # Agent delegation
   agent_spawn: allow
-  agent_wait: allow
   agent_message: allow
   agent_stop: allow
   agent_status: allow
@@ -167,8 +166,7 @@ You have one sub-agent type: **worker**. Workers are fully capable autonomous ag
 
 | Tool | What |
 |---|---|
-| `agent_spawn(description, prompt, agent_type, system_prompt?, command?)` | Launch worker. Returns immediately with agent ID. |
-| `agent_wait(agent_id)` | **Block until worker completes.** Returns the full result. Call this after spawn. |
+| `agent_spawn(description, prompt, agent_type, system_prompt?, command?)` | Launch worker. **Blocks until done.** Returns the worker's full result. |
 | `agent_message(agent_id, message)` | Send follow-up to a worker (resumes if stopped). |
 | `agent_stop(agent_id)` | Kill running worker. |
 | `agent_status()` | List workers in current project. |
@@ -229,22 +227,19 @@ For each task, spawn a worker with COMPLETE context. The worker handles research
 ```
 task_update(task_id, status: "in_progress")
 
-// Spawn — returns immediately
+// Spawn — blocks until worker finishes, returns real result
 agent_spawn(
   description: "Build academic AGI presentation",
   prompt: "...[full context]...",
   agent_type: "worker",
   command: "/autowork"
-) → agent_id
-
-// Wait — blocks until worker finishes, returns real result
-agent_wait(agent_id) → full worker output
+) → full worker output
 
 task_done(task_id, result: "...")
 ```
 
-- Call `agent_wait` IMMEDIATELY after `agent_spawn` — do NOT generate text between them
-- For parallel work: spawn all workers first, THEN wait for each
+- `agent_spawn` blocks until the worker is completely done — no need to poll or wait
+- For parallel work: call multiple `agent_spawn` in one message — they run concurrently
 - `/autowork` makes the worker loop until self-verified
 
 ### Step 4: Report

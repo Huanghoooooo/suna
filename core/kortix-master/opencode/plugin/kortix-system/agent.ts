@@ -191,66 +191,6 @@ export function agentTools(client: any, db: Database, mgr: ProjectManager) {
 			},
 		}),
 
-		agent_wait: tool({
-			description: "Wait for a spawned worker to complete and return its result. Blocks until done. Call this IMMEDIATELY after agent_spawn — do NOT generate any text between spawning and waiting.",
-			args: {
-				agent_id: tool.schema.string().describe("Agent ID from agent_spawn"),
-			},
-			async execute(args: { agent_id: string }, ctx: ToolContext): Promise<string> {
-				const pid = getProjectId(ctx)
-				if (!pid) return "Error: no project selected."
-				const agent = db.prepare("SELECT * FROM agents WHERE (id=$id OR id LIKE $like) AND project_id=$pid")
-					.get({ $id: args.agent_id, $like: `%${args.agent_id}%`, $pid: pid }) as AgentRow | null
-				if (!agent) return `Agent not found: ${args.agent_id}`
-
-				// If already completed, return immediately
-				if (agent.status === "completed" || agent.status === "failed") {
-					return [
-						`## Worker Result (${agent.status})`,
-						`**Agent:** ${agent.id}`,
-						`**Task:** ${agent.description}`,
-						``,
-						agent.result || "(no output)",
-					].join("\n")
-				}
-
-				// Poll until the worker session is no longer busy
-				const maxWait = 600_000 // 10 min max
-				const start = Date.now()
-				while (Date.now() - start < maxWait) {
-					await new Promise(r => setTimeout(r, 2000))
-					try {
-						const statusRes = await client.session.status()
-						const busy = statusRes.data?.[agent.session_id]
-						if (!busy) break
-					} catch { break }
-				}
-
-				// Get the result
-				try {
-					const msgs = await client.session.messages({ path: { id: agent.session_id } })
-					const lastText = (msgs.data ?? [])
-						.filter((m: any) => m.info?.role === "assistant")
-						.flatMap((m: any) => m.parts ?? [])
-						.filter((p: any) => p.type === "text")
-						.pop()?.text || "(no output)"
-
-					db.prepare("UPDATE agents SET status='completed', result=$r, updated_at=$now WHERE id=$id")
-						.run({ $r: lastText.slice(0, 8000), $now: new Date().toISOString(), $id: agent.id })
-
-					return [
-						`## Worker Result`,
-						`**Agent:** ${agent.id}`,
-						`**Task:** ${agent.description}`,
-						``,
-						lastText,
-					].join("\n")
-				} catch (err) {
-					return `Error reading agent result: ${err instanceof Error ? err.message : String(err)}`
-				}
-			},
-		}),
-
 		agent_message: tool({
 			description: "Send a follow-up message to a running or completed agent. Resumes the agent's session.",
 			args: {

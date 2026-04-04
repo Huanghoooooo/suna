@@ -275,9 +275,8 @@ export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId:
 							`<system-reminder>`,
 							`Follow your orchestrator workflow:`,
 							`1. task_create for each piece of work — tell the user your plan`,
-							`2. agent_spawn(agent_type:"worker") then agent_wait(agent_id) for each task`,
+							`2. agent_spawn(agent_type:"worker") for each task — blocks until worker is done, returns real result`,
 							`3. Review worker results, task_done for each, report to user`,
-							`Always call agent_wait immediately after agent_spawn to get real results.`,
 							`</system-reminder>`,
 						].join("\n")
 					} else {

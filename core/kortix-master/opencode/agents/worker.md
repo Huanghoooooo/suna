@@ -29,7 +29,6 @@ permission:
   agent_message: deny
   agent_stop: deny
   agent_status: deny
-  agent_wait: deny
   task_create: deny
   task_list: deny
   task_update: deny

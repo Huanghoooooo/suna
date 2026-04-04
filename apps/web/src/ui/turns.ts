@@ -767,9 +767,6 @@ export function getToolInfo(tool: string, input: Record<string, any> = {}): Tool
     case 'agent_spawn':
     case 'agent-spawn':
       return { icon: 'cpu', title: `Agent (${input.agent_type || 'worker'})`, subtitle: input.description };
-    case 'agent_wait':
-    case 'agent-wait':
-      return { icon: 'loader-2', title: 'Waiting for worker', subtitle: input.agent_id };
     case 'agent_message':
     case 'agent-message':
       return { icon: 'message-circle', title: 'Agent Message', subtitle: input.agent_id };

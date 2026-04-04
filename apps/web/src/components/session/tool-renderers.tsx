@@ -5600,7 +5600,6 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 	const isCompleted = status === "completed";
 	const isError = status === "error";
 
-	// Use getChildSessionId — reads from ctx.metadata (available IMMEDIATELY, even while pending)
 	const childSessionId: string | undefined = useMemo(
 		() => getChildSessionId(part),
 		[part],
@@ -5621,49 +5620,72 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 		return info.title + (info.subtitle ? ` · ${info.subtitle}` : "");
 	}, [childToolParts]);
 
+	const hasSession = !!childSessionId;
+
 	return (
 		<>
 			<div
 				role="button"
 				tabIndex={0}
-				onClick={() => childSessionId && setModalOpen(true)}
-				onKeyDown={(e) => e.key === "Enter" && childSessionId && setModalOpen(true)}
+				onClick={() => hasSession && setModalOpen(true)}
+				onKeyDown={(e) => e.key === "Enter" && hasSession && setModalOpen(true)}
 				className={cn(
 					"rounded-lg border border-border bg-card p-3 transition-colors select-none w-full group",
-					childSessionId ? "cursor-pointer hover:bg-accent/50" : "",
+					hasSession ? "cursor-pointer hover:bg-accent/50" : "",
 				)}
 			>
+				{/* Row 1: icon + description + status */}
 				<div className="flex items-center gap-2.5">
-					{/* Status — single indicator, no double spinner */}
-					{isRunning ? (
-						<span className="size-2 rounded-full bg-foreground/30 animate-pulse flex-shrink-0" />
-					) : isCompleted ? (
-						<Check className="size-3.5 text-muted-foreground flex-shrink-0" />
-					) : isError ? (
-						<CircleAlert className="size-3.5 text-destructive/60 flex-shrink-0" />
-					) : (
-						<span className="size-2 rounded-full bg-muted-foreground/20 flex-shrink-0" />
+					<Cpu className="size-4 text-muted-foreground flex-shrink-0" />
+
+					<span className="text-[13px] font-medium text-foreground truncate flex-1">{description}</span>
+
+					{isRunning && (
+						<span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium flex-shrink-0">Running</span>
+					)}
+					{isCompleted && childToolParts.length > 0 && (
+						<span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono flex-shrink-0">{childToolParts.length} steps</span>
+					)}
+					{isError && (
+						<span className="text-[10px] text-destructive bg-destructive/10 px-1.5 py-0.5 rounded font-medium flex-shrink-0">Failed</span>
 					)}
 
-					{/* Content */}
-					<div className="min-w-0 flex-1">
-						<span className="text-[13px] font-medium text-foreground block truncate">{description}</span>
-						<span className="text-[11px] text-muted-foreground mt-0.5 block truncate">
-							{isRunning && lastActivity ? lastActivity
-								: isRunning ? "Running…"
-								: isCompleted && childToolParts.length > 0 ? `Done · ${childToolParts.length} steps`
-								: isError ? "Failed"
-								: "Queued"}
-						</span>
-					</div>
-
-					{childSessionId && (
-						<ChevronRight className="size-3.5 text-muted-foreground/20 group-hover:text-muted-foreground/40 transition-colors flex-shrink-0" />
+					{hasSession && (
+						<ChevronRight className="size-3.5 text-muted-foreground/20 group-hover:text-muted-foreground/50 transition-colors flex-shrink-0" />
 					)}
 				</div>
+
+				{/* Row 2: live activity or completed steps */}
+				{isRunning && (
+					<div className="mt-2 pl-[26px]">
+						{lastActivity ? (
+							<TextShimmer duration={1.5} spread={2} className="text-[11px] truncate font-mono text-muted-foreground">
+								{lastActivity}
+							</TextShimmer>
+						) : (
+							<span className="text-[11px] text-muted-foreground">Starting…</span>
+						)}
+					</div>
+				)}
+
+				{isCompleted && childToolParts.length > 0 && (
+					<div className="mt-2 pl-[26px] space-y-px">
+						{childToolParts.slice(-3).map((tp, i) => {
+							const info = getToolInfo(tp.tool, (tp.state.input ?? {}) as Record<string, any>);
+							return (
+								<div key={i} className="text-[11px] text-muted-foreground truncate">
+									{info.title}{info.subtitle ? ` · ${info.subtitle}` : ""}
+								</div>
+							);
+						})}
+						{childToolParts.length > 3 && (
+							<div className="text-[11px] text-muted-foreground/50">+{childToolParts.length - 3} more</div>
+						)}
+					</div>
+				)}
 			</div>
 
-			{childSessionId && (
+			{hasSession && (
 				<SubSessionModal
 					open={modalOpen}
 					onOpenChange={setModalOpen}
@@ -5680,27 +5702,6 @@ ToolRegistry.register("agent-spawn", AgentSpawnTool);
 // ============================================================================
 // Agent utility tools — minimal inline chips
 // ============================================================================
-
-function AgentWaitTool({ part }: ToolProps) {
-	const status = partStatus(part);
-	const output = partOutput(part);
-	const isRunning = status === "running" || status === "pending";
-	return (
-		<BasicTool
-			icon={isRunning ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-			trigger={{ title: isRunning ? "Waiting for worker" : "Worker result", subtitle: "", args: [] }}
-			defaultOpen={false}
-		>
-			{output && (
-				<div data-scrollable className="max-h-56 overflow-auto px-3 py-2 text-[11px] text-muted-foreground whitespace-pre-wrap">
-					<UnifiedMarkdown content={output} isStreaming={false} />
-				</div>
-			)}
-		</BasicTool>
-	);
-}
-ToolRegistry.register("agent_wait", AgentWaitTool);
-ToolRegistry.register("agent-wait", AgentWaitTool);
 
 function AgentMessageTool({ part }: ToolProps) {
 	const input = partInput(part);

@@ -41,7 +41,9 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 	const auth = await load("auth", () => import("./auth").then(m => m.default(ctx)))
 	const pty = await load("pty", () => import("./pty-tools").then(m => m.default(ctx)))
 	const autowork = await load("autowork", () => import("./autowork/autowork").then(m => m.default(ctx)))
-	const todoEnforcer = await load("todo-enforcer", () => import("./todo-enforcer/todo-enforcer").then(m => m.default(ctx)))
+	// todo-enforcer DISABLED — it depends on native todowrite/todoread which are disabled.
+	// Will be reimplemented to use our task system instead.
+	const todoEnforcer: any = null
 	const triggers = await load("triggers", () => import("./triggers").then(m => m.default(ctx)))
 	const worktreeModule = await load("worktree", () => import("./worktree/worktree").then(m => m.default(ctx)))
 	const btw = await load("btw", async () => {
