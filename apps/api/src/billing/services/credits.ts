@@ -230,7 +230,36 @@ export async function resetExpiringCredits(
   });
 
   if (error) {
-    console.error('[Credits] Reset expiring credits error:', error);
+    console.error('[Credits] Reset expiring credits error, using drizzle fallback:', error);
+
+    const account = await getCreditAccount(accountId);
+    if (account) {
+      const nonExpiring = Number(account.nonExpiringCredits) || 0;
+      const daily = Number(account.dailyCreditsBalance) || 0;
+      const newBalance = newCredits + nonExpiring + daily;
+
+      await updateCreditAccount(accountId, {
+        expiringCredits: String(newCredits),
+        balance: String(newBalance),
+      } as any);
+    }
+
+    try {
+      await insertLedgerEntry({
+        accountId,
+        amount: String(newCredits),
+        balanceAfter: String(newCredits + (Number(account?.nonExpiringCredits) || 0)),
+        type: 'credit_reset',
+        description,
+        isExpiring: true,
+        stripeEventId: stripeEventId ?? null,
+      });
+    } catch (ledgerErr) {
+      const msg = ledgerErr instanceof Error ? ledgerErr.message : String(ledgerErr);
+      if (!msg.includes('duplicate key')) {
+        console.error('[Credits] Reset ledger entry failed:', ledgerErr);
+      }
+    }
   }
 }
 
