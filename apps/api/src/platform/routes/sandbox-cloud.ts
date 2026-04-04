@@ -1020,7 +1020,7 @@ export function createCloudSandboxRouter(
           baseUrl: '',
           config: {},
           metadata: { claim_source: 'legacy_migration', tier_key: tier },
-          isIncluded: false,
+          isIncluded: true,
         })
         .returning();
 

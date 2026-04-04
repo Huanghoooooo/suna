@@ -243,7 +243,7 @@ export function isPaidTier(tierName: string): boolean {
 }
 
 /** Legacy paid tiers eligible for the "claim computer" flow. */
-export const LEGACY_PAID_TIERS = ['tier_2_20', 'tier_6_50', 'tier_25_200', 'tier_50_400', 'tier_200_1000'] as const;
+export const LEGACY_PAID_TIERS = ['tier_2_20', 'tier_6_50', 'tier_12_100', 'tier_25_200', 'tier_50_400', 'tier_125_800', 'tier_200_1000', 'tier_150_1200'] as const;
 
 export function isLegacyPaidTier(tierName: string): boolean {
   return (LEGACY_PAID_TIERS as readonly string[]).includes(tierName);
