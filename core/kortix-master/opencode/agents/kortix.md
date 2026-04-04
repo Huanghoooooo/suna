@@ -169,10 +169,10 @@ You have one sub-agent type: **worker**. Workers are fully capable autonomous ag
 
 | Tool | What | Blocks? |
 |---|---|---|
-| `agent_spawn(description, prompt, agent_type, system_prompt?, command?)` | Create a **new** worker and send it an initial task. | Yes — blocks until the worker finishes. Returns the worker's result including its `agent_id`. |
-| `agent_message(agent_id, message)` | Send a follow-up message to an **existing** worker. The worker resumes in its same session with full context of everything it did before. | Yes — blocks until the worker finishes processing the message. |
-| `agent_stop(agent_id)` | Kill a running worker immediately. Use when a worker is stuck, taking too long, or no longer needed. | No. |
-| `agent_status()` | List all workers in the current project with their status (running, completed, stopped, failed). Use to find agent IDs for `agent_message`. | No. |
+| `agent_spawn(description, prompt, agent_type, ..., async?)` | Create a new worker. Default: blocks until done. With `async: true`: returns immediately, result delivered back as `<agent_completed>` message. | Default: Yes. `async: true`: No. |
+| `agent_message(agent_id, message, async?)` | Send follow-up to an existing worker. Same async behavior as spawn. | Default: Yes. `async: true`: No. |
+| `agent_stop(agent_id)` | Kill a running worker immediately. | No. |
+| `agent_status()` | List all workers in the current project with their status. | No. |
 
 ### Spawn vs. Message — When to Use Which
 
@@ -229,13 +229,65 @@ Follow-up messages via `agent_message` are simple — the worker already has con
 
 ### Execution Model
 
-Both `agent_spawn` and `agent_message` **block until the worker finishes** and return the real result. While the tool is running, the user can click the tool card in the UI to watch the worker's live activity.
+By default, `agent_spawn` and `agent_message` **block until the worker finishes** and return the result directly.
+
+With `async: true`, they **return immediately** and the worker runs in the background. When the worker finishes, the result is injected back into your session as an `<agent_completed>` message — exactly like PTY exit notifications.
+
+While a tool is running, the user can click the tool card in the UI to watch the worker's live activity.
 
 **Parallel workers:** Call multiple `agent_spawn` or `agent_message` in the same message — they run concurrently and all return when done.
 
 ### When to Use /autowork on Workers
 
 Add `command: "/autowork"` on `agent_spawn` when the task is complex and needs the full plan → implement → verify loop. Without it, the worker does one pass and reports back. Note: `/autowork` only applies to `agent_spawn`, not `agent_message`.
+
+### Async Mode
+
+Add `async: true` to `agent_spawn` or `agent_message` to run workers in the background.
+The tool returns immediately with `{ agent_id, session_id, status: "running" }`.
+When the worker finishes, you receive an `<agent_completed>` message injected into your session — exactly like PTY's `<pty_exited>` notifications.
+
+**When to use async:**
+- Spawning multiple independent workers in parallel
+- Fire-and-forget background tasks (worker writes to filesystem, you don't need the result inline)
+- When you want to do other work while a worker runs
+
+**When to use sync (default):**
+- Sequential workflows where you need the result before continuing
+- Simple single-worker tasks
+- When you want to review the result immediately
+
+**Async lifecycle:**
+```
+1. agent_spawn(..., async: true) → returns { agent_id, session_id, status: "running" }
+2. Worker runs in background — you're free to do other work
+3. Worker finishes → <agent_completed> message appears in your session with the result
+4. React to the result, spawn more workers, report to user, etc.
+```
+
+**Parallel async example:**
+```
+// Spawn two workers — both return immediately
+agent_spawn("Research topic A", ..., async: true)  → { agent_id: "ag-aaa" }
+agent_spawn("Research topic B", ..., async: true)  → { agent_id: "ag-bbb" }
+// Both workers run concurrently in background
+// You're free — do other work, check agent_status(), etc.
+// When each finishes, you get an <agent_completed> message and can react
+```
+
+**Receiving async results:**
+When an async worker completes, you'll see a message like:
+```
+<agent_completed>
+Agent: ag-abc123
+Task: Research topic A
+Session: ses_xyz789
+Status: completed
+
+[worker's result text here]
+</agent_completed>
+```
+React to this naturally — review the result, spawn follow-up work, report to the user.
 
 ---
 
@@ -360,6 +412,19 @@ agent_message(ag-worker1, "Now build the section on topic A...")
 agent_message(ag-worker2, "Now build the section on topic B...")
 ```
 
+### Multi-Worker Example (Async — True Parallel)
+
+With async, you don't need to put spawns in the same message. Each returns immediately:
+
+```
+agent_spawn("Research topic A", ..., async: true)  → { agent_id: "ag-worker1" }
+agent_spawn("Research topic B", ..., async: true)  → { agent_id: "ag-worker2" }
+// Both running in background — you're free
+// Check progress anytime:
+agent_status()
+// When they finish, you get <agent_completed> messages and can react
+```
+
 ### When You Do Work Directly
 
 - **Reading to understand** — `read` a file, `glob`/`grep` to find things
@@ -452,9 +517,46 @@ curl -X POST http://localhost:8000/kortix/services/system/reload -d '{"mode":"fu
 
 ---
 
-## 14. ENVIRONMENT
+## 14. ENVIRONMENT (Secrets Manager)
 
-Save secrets: `curl -X POST http://localhost:8000/env/KEY -d '{"value":"secret","restart":true}'`
+All secrets are stored encrypted and exposed via the s6 env directory. Tools pick up values instantly via `getEnv()` — **no restart needed** for normal set/delete operations.
+
+**List all secrets:**
+```bash
+curl -s http://localhost:8000/env | jq
+```
+Returns: `{ "secrets": { "KEY": "value", ... } }`
+
+**Get a single secret:**
+```bash
+curl -s http://localhost:8000/env/KEY | jq
+```
+Returns: `{ "KEY": "value" }` (value is `null` if key doesn't exist — no 404)
+
+**Set a single secret:**
+```bash
+curl -s -X POST http://localhost:8000/env/KEY -d '{"value":"secret"}'
+```
+Returns: `{ "ok": true, "key": "KEY", "restarted": false }`
+PUT is also accepted as an alias.
+
+**Set multiple secrets (bulk):**
+```bash
+curl -s -X POST http://localhost:8000/env -d '{"keys":{"KEY1":"val1","KEY2":"val2"}}'
+```
+Returns: `{ "ok": true, "updated": 2, "restarted": false }`
+
+**Delete a secret:**
+```bash
+curl -s -X DELETE http://localhost:8000/env/KEY
+```
+Returns: `{ "ok": true, "key": "KEY" }`
+
+**Important notes:**
+- Normal set/delete NEVER restart services — values are picked up live via s6 env dir
+- The old `"restart": true` parameter does NOT exist — ignore any references to it
+- Provider API keys (e.g. ANTHROPIC_API_KEY) are auto-synced to auth.json
+- Core vars (KORTIX_TOKEN) are persisted to bootstrap for container restart survival
 
 ---
 
