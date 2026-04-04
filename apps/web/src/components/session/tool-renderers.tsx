@@ -5600,19 +5600,10 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 	const isCompleted = status === "completed";
 	const isError = status === "error";
 
-	// Extract session ID — recompute when part state updates (metadata arrives after a few seconds)
-	const metaSid = (part as any).state?.metadata?.sessionId as string | undefined;
-	const titleSid = useMemo(() => {
-		const t = (part as any).state?.title as string | undefined;
-		if (t) { const m = t.match(/\bses_[a-zA-Z0-9]+/); if (m) return m[0]; }
-		return undefined;
-	}, [(part as any).state?.title]);
-	const outputSid = useMemo(() => {
-		const o = (part as any).state?.output as string | undefined;
-		if (o) { const m = o.match(/\bses_[a-zA-Z0-9]+/); if (m) return m[0]; }
-		return undefined;
-	}, [(part as any).state?.output]);
-	const childSessionId = metaSid || titleSid || outputSid;
+	const childSessionId: string | undefined = useMemo(
+		() => getChildSessionId(part),
+		[part],
+	);
 
 	const { data: childMessages } = useOpenCodeMessages(childSessionId ?? "");
 	const childToolParts = useMemo(() => {
@@ -5629,16 +5620,18 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 		return info.title + (info.subtitle ? ` · ${info.subtitle}` : "");
 	}, [childToolParts]);
 
+	const hasSession = !!childSessionId;
+
 	return (
 		<>
 			<div
 				role="button"
 				tabIndex={0}
-				onClick={() => childSessionId ? setModalOpen(true) : undefined}
-				onKeyDown={(e) => e.key === "Enter" && childSessionId && setModalOpen(true)}
+				onClick={() => hasSession && setModalOpen(true)}
+				onKeyDown={(e) => e.key === "Enter" && hasSession && setModalOpen(true)}
 				className={cn(
 					"rounded-lg border border-border bg-card p-3 transition-colors select-none w-full group",
-					childSessionId ? "cursor-pointer hover:bg-accent/50" : "",
+					hasSession ? "cursor-pointer hover:bg-accent/50" : "",
 				)}
 			>
 				{/* Row 1: icon + description + status */}
