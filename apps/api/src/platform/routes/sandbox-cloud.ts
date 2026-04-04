@@ -971,9 +971,21 @@ export function createCloudSandboxRouter(
         return c.json({ success: false, error: 'You already have an active computer', sandbox_id: existing[0].sandboxId }, 409);
       }
 
+      // Lazy-migrate: create kortix.credit_accounts row if it doesn't exist
+      // (legacy users only have public.credit_accounts, credit ops need a kortix row)
       try {
+        const { upsertCreditAccount } = await import('../../billing/repositories/credit-accounts');
         const { resetExpiringCredits } = await import('../../billing/services/credits');
         const { grantMachineBonusOnce, getLegacyClaimMachineBonusKey } = await import('../../billing/services/machine-bonus');
+
+        if (!account) {
+          await upsertCreditAccount(accountId, {
+            tier,
+            stripeSubscriptionStatus: 'active',
+            paymentStatus: 'active',
+          });
+        }
+
         const tierConfig = getTier(tier);
         if (tierConfig.monthlyCredits > 0) {
           await resetExpiringCredits(accountId, tierConfig.monthlyCredits, `Welcome: ${tierConfig.displayName} — $${tierConfig.monthlyCredits} credits`);
