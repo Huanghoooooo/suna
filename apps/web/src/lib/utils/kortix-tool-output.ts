@@ -17,15 +17,28 @@ export interface ProjectEntry {
 export function parseProjectListOutput(output: string): ProjectEntry[] {
 	if (!output || typeof output !== 'string') return [];
 	const projects: ProjectEntry[] = [];
-	// Parse markdown table rows: | **name** | `/path` | sessions | description |
-	const lineRe = /^\|\s*\*\*([^*]+)\*\*\s*\|\s*`([^`]+)`\s*\|\s*(\d+)\s*\|\s*([^|]*?)\s*\|$/gm;
+
+	// Try 4-column format first: | **name** | `/path` | sessions | description |
+	const fourColRe = /^\|\s*\*\*([^*]+)\*\*\s*\|\s*`([^`]+)`\s*\|\s*(\d+)\s*\|\s*([^|]*?)\s*\|$/gm;
 	let m;
-	while ((m = lineRe.exec(output)) !== null) {
+	while ((m = fourColRe.exec(output)) !== null) {
 		projects.push({
 			name: m[1].trim(),
 			path: m[2].trim(),
 			sessions: parseInt(m[3], 10) || 0,
 			description: m[4].trim() || '—',
+		});
+	}
+	if (projects.length > 0) return projects;
+
+	// Fallback: 3-column format: | **name** | `/path` | description |
+	const threeColRe = /^\|\s*\*\*([^*]+)\*\*\s*\|\s*`([^`]+)`\s*\|\s*([^|]*?)\s*\|$/gm;
+	while ((m = threeColRe.exec(output)) !== null) {
+		projects.push({
+			name: m[1].trim(),
+			path: m[2].trim(),
+			sessions: 0,
+			description: m[3].trim() || '—',
 		});
 	}
 	return projects;

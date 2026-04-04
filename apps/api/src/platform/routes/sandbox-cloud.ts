@@ -944,11 +944,19 @@ export function createCloudSandboxRouter(
     const userId = c.get('userId');
     try {
       const accountId = await resolveAccountId(userId);
-      const { getCreditAccount } = await import('../../billing/repositories/credit-accounts');
+      // 1. Verify legacy paid tier (check kortix schema, then fallback to public schema in cloud)
+      const { getCreditAccount, getPublicSchemaTier } = await import('../../billing/repositories/credit-accounts');
       const { isLegacyPaidTier, getTier } = await import('../../billing/services/tiers');
 
       const account = await getCreditAccount(accountId);
-      const tier = account?.tier ?? 'free';
+      let tier = account?.tier ?? 'free';
+
+      if (!isLegacyPaidTier(tier) && config.isCloud()) {
+        const publicTier = await getPublicSchemaTier(accountId);
+        if (publicTier && isLegacyPaidTier(publicTier)) {
+          tier = publicTier;
+        }
+      }
       if (!isLegacyPaidTier(tier)) {
         return c.json({ success: false, error: 'Only legacy paid plan users can claim a computer' }, 403);
       }
@@ -963,15 +971,30 @@ export function createCloudSandboxRouter(
         return c.json({ success: false, error: 'You already have an active computer', sandbox_id: existing[0].sandboxId }, 409);
       }
 
+      // Lazy-migrate: create kortix.credit_accounts row with full credits.
+      // Supabase RPCs can't access kortix schema, so set everything via drizzle directly.
       try {
-        const { resetExpiringCredits } = await import('../../billing/services/credits');
+        const { upsertCreditAccount } = await import('../../billing/repositories/credit-accounts');
+        const { MACHINE_CREDIT_BONUS } = await import('../../billing/services/tiers');
         const { grantMachineBonusOnce, getLegacyClaimMachineBonusKey } = await import('../../billing/services/machine-bonus');
+
         const tierConfig = getTier(tier);
-        if (tierConfig.monthlyCredits > 0) {
-          await resetExpiringCredits(accountId, tierConfig.monthlyCredits, `Welcome: ${tierConfig.displayName} — $${tierConfig.monthlyCredits} credits`);
+        const monthlyCredits = tierConfig.monthlyCredits;
+
+        if (!account) {
+          await upsertCreditAccount(accountId, {
+            tier,
+            stripeSubscriptionStatus: 'active',
+            paymentStatus: 'active',
+            balance: String(monthlyCredits + MACHINE_CREDIT_BONUS),
+            expiringCredits: String(monthlyCredits),
+            nonExpiringCredits: String(MACHINE_CREDIT_BONUS),
+          });
         }
+
+        // Best-effort: ledger entries for audit trail (bonus uses drizzle fallback, works fine)
         await grantMachineBonusOnce({ accountId, idempotencyKey: getLegacyClaimMachineBonusKey(accountId) });
-        console.log(`[claim-computer] Granted $${tierConfig.monthlyCredits} credits + bonus for ${accountId}`);
+        console.log(`[claim-computer] Migrated ${accountId}: tier=${tier}, credits=$${monthlyCredits}+$${MACHINE_CREDIT_BONUS} bonus`);
       } catch (err) {
         console.error(`[claim-computer] Credit grant failed for ${accountId}:`, err);
       }

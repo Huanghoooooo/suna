@@ -59,6 +59,7 @@ export function initProjectsDb(dbPath: string): Database {
 			created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 		);
 	`)
+	// Migrations: add columns that may be missing from older schemas.
 	try { db.exec("ALTER TABLE projects ADD COLUMN opencode_id TEXT") } catch {}
 	return db
 }

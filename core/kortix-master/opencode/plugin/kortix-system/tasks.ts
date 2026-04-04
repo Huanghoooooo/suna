@@ -48,7 +48,10 @@ export function ensureTasksTable(db: Database): void {
 			updated_at TEXT NOT NULL
 		)
 	`)
-	// Migration: add result column if missing (older schema doesn't have it)
+	// Migrations: add columns that may be missing from older schemas.
+	// Each wrapped in try/catch — silently ignored if column already exists.
+	try { db.exec("ALTER TABLE tasks ADD COLUMN title TEXT NOT NULL DEFAULT ''") } catch {}
+	try { db.exec("ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'") } catch {}
 	try { db.exec("ALTER TABLE tasks ADD COLUMN result TEXT") } catch {}
 }
 

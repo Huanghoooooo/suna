@@ -33,7 +33,10 @@ export function ensureAgentsTable(db: Database): void {
 			updated_at TEXT NOT NULL
 		)
 	`)
+	// Migrations: add columns that may be missing from older schemas.
 	try { db.exec("ALTER TABLE agents ADD COLUMN system_prompt TEXT") } catch {}
+	try { db.exec("ALTER TABLE agents ADD COLUMN result TEXT") } catch {}
+	try { db.exec("ALTER TABLE agents ADD COLUMN parent_session_id TEXT NOT NULL DEFAULT ''") } catch {}
 }
 
 // Map session_id → system_prompt for the system transform hook
@@ -51,6 +54,43 @@ interface AgentRow {
 	id: string; project_id: string; session_id: string; parent_session_id: string
 	agent_type: string; description: string; status: string; result: string | null
 	created_at: string; updated_at: string
+}
+
+// ── TUI Notifications ────────────────────────────────────────────────────────
+
+/** Fire-and-forget toast + publish to TUI so user can jump to child sessions */
+function notifyAgentEvent(
+	client: any,
+	event: "spawned" | "completed" | "failed" | "stopped",
+	agentId: string,
+	description: string,
+	childSessionId: string,
+) {
+	const shortSid = childSessionId.length > 16 ? `…${childSessionId.slice(-8)}` : childSessionId
+	const variants: Record<string, "info" | "success" | "warning" | "error"> = {
+		spawned: "info",
+		completed: "success",
+		failed: "error",
+		stopped: "warning",
+	}
+	const messages: Record<string, string> = {
+		spawned: `⚡ Worker spawned: ${description}\nSession: ${shortSid} — use Ctrl+X ↓ to jump in`,
+		completed: `✓ Worker done: ${description}`,
+		failed: `✗ Worker failed: ${description}`,
+		stopped: `⊘ Worker stopped: ${description}`,
+	}
+
+	// Show toast notification in TUI (non-blocking, best-effort)
+	try {
+		client.tui?.showToast({
+			body: {
+				title: `Agent ${event}`,
+				message: messages[event] || description,
+				variant: variants[event] || "info",
+				duration: event === "spawned" ? 8000 : 5000,
+			},
+		}).catch(() => {})
+	} catch {}
 }
 
 // ── Tools ────────────────────────────────────────────────────────────────────
@@ -142,6 +182,9 @@ export function agentTools(client: any, db: Database, mgr: ProjectManager) {
 						agentSystemPrompts.set(childSessionId, args.system_prompt)
 					}
 
+					// Notify TUI — user can jump to the child session
+					notifyAgentEvent(client, "spawned", id, args.description, childSessionId)
+
 					// Blocking execution — blocks until worker is done or cancelled.
 					// If parent is interrupted, this promise rejects but the worker keeps running.
 					let lastText = "(no output)"
@@ -176,6 +219,9 @@ export function agentTools(client: any, db: Database, mgr: ProjectManager) {
 					db.prepare("UPDATE agents SET status=$s, result=$r, updated_at=$now WHERE id=$id")
 						.run({ $s: finalStatus, $r: lastText.slice(0, 8000), $now: new Date().toISOString(), $id: id })
 
+					// Notify TUI of completion
+					notifyAgentEvent(client, finalStatus as "completed" | "stopped", id, args.description, childSessionId)
+
 					return [
 						`## Worker Result`,
 						`**Agent:** ${id} (session: ${childSessionId})`,
@@ -186,6 +232,8 @@ export function agentTools(client: any, db: Database, mgr: ProjectManager) {
 				} catch (err) {
 					db.prepare("UPDATE agents SET status='failed', result=$r, updated_at=$now WHERE id=$id")
 						.run({ $r: String(err), $now: new Date().toISOString(), $id: id })
+					// Notify TUI of failure
+					notifyAgentEvent(client, "failed", id, args.description, "unknown")
 					return `Error: ${err instanceof Error ? err.message : String(err)}`
 				}
 			},
@@ -246,6 +294,7 @@ export function agentTools(client: any, db: Database, mgr: ProjectManager) {
 					if (poll) { clearInterval(poll); pollers.delete(agent.id) }
 					db.prepare("UPDATE agents SET status='stopped', updated_at=$now WHERE id=$id")
 						.run({ $now: new Date().toISOString(), $id: agent.id })
+					notifyAgentEvent(client, "stopped", agent.id, agent.description, agent.session_id)
 					return `Agent ${agent.id} stopped.`
 				} catch (err) {
 					return `Error: ${err instanceof Error ? err.message : String(err)}`

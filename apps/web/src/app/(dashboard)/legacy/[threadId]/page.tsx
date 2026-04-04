@@ -412,6 +412,7 @@ export default function LegacyThreadPage({
 					</div>
 					<div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-[24px]">
 						<p className="text-sm text-muted-foreground">This is a legacy chat. Convert it to continue.</p>
+						<p className="text-xs text-muted-foreground/70 mt-1">Files will be imported to the Legacy folder on the Files page.</p>
 						<button
 							onClick={handleMigrate}
 							disabled={forking || migrating || turns.length === 0}

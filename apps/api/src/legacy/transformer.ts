@@ -234,6 +234,35 @@ function transformReasoningPart(
   };
 }
 
+export function createMigrationNotice(
+  session: TransformedSession,
+  threadId: string,
+  lastAssistantMsgId: string | null,
+): { message: TransformedMessage; part: TransformedPart } {
+  const msgId = messageId();
+  const now = Date.now();
+
+  const message: TransformedMessage = {
+    id: msgId,
+    sessionID: session.id,
+    role: 'user',
+    createdAt: now,
+  };
+
+  const part: TransformedPart = {
+    id: partId(),
+    sessionID: session.id,
+    messageID: msgId,
+    type: 'text',
+    data: {
+      text: `This chat has been migrated from a legacy session. All files from the previous session are accessible under /workspace/legacy/${threadId}/. They are also visible in the "Legacy" folder on the Files page.`,
+      time: { start: now, end: now },
+    },
+  };
+
+  return { message, part };
+}
+
 function extractUserText(legacy: LegacyMessage): string {
   const content = legacy.content;
 

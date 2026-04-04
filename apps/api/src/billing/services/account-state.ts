@@ -102,7 +102,21 @@ export async function buildMinimalAccountState(accountId: string): Promise<Accou
 
   // Legacy paid users with no active machine can claim a free default computer
   const hasActiveMachine = instances.some((i: any) => i.status === 'active' || i.status === 'provisioning');
-  const canClaimComputer = isLegacyPaidTier(tierName) && !hasActiveMachine;
+  let canClaimComputer = isLegacyPaidTier(tierName) && !hasActiveMachine;
+
+  // Cloud-only: also check old public.credit_accounts for legacy tier
+  if (!canClaimComputer && !hasActiveMachine) {
+    try {
+      const { config } = await import('../../config');
+      if (config.isCloud()) {
+        const { getPublicSchemaTier } = await import('../repositories/credit-accounts');
+        const publicTier = await getPublicSchemaTier(accountId);
+        if (publicTier && isLegacyPaidTier(publicTier)) {
+          canClaimComputer = true;
+        }
+      }
+    } catch { /* local mode — no DB */ }
+  }
 
   const state = {
     credits: {
