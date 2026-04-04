@@ -940,184 +940,60 @@ export function createCloudSandboxRouter(
     }
   });
 
-  // ─── POST /claim-computer ────────────────────────────────────────────
-  // Legacy paid users (tier_2_20, tier_6_50, tier_25_200) who don't have
-  // a cloud machine yet can claim a default one. No server picker — auto
-  // provisions with default server type + location.
-
   router.post('/claim-computer', async (c) => {
     const userId = c.get('userId');
-    const userEmail = c.get('userEmail') as string | undefined;
-
     try {
       const accountId = await resolveAccountId(userId);
-
-      // 1. Verify legacy paid tier
       const { getCreditAccount } = await import('../../billing/repositories/credit-accounts');
-      const { isLegacyPaidTier } = await import('../../billing/services/tiers');
+      const { isLegacyPaidTier, getTier } = await import('../../billing/services/tiers');
 
       const account = await getCreditAccount(accountId);
       const tier = account?.tier ?? 'free';
-
       if (!isLegacyPaidTier(tier)) {
         return c.json({ success: false, error: 'Only legacy paid plan users can claim a computer' }, 403);
       }
 
-      // 2. Check they don't already have an active sandbox
       const existing = await db
-        .select()
+        .select({ sandboxId: sandboxes.sandboxId })
         .from(sandboxes)
-        .where(
-          and(
-            eq(sandboxes.accountId, accountId),
-            inArray(sandboxes.status, ['active', 'provisioning']),
-          ),
-        )
+        .where(and(eq(sandboxes.accountId, accountId), inArray(sandboxes.status, ['active', 'provisioning'])))
         .limit(1);
 
       if (existing.length > 0) {
-        return c.json({
-          success: false,
-          error: 'You already have an active computer',
-          sandbox_id: existing[0].sandboxId,
-        }, 409);
+        return c.json({ success: false, error: 'You already have an active computer', sandbox_id: existing[0].sandboxId }, 409);
       }
 
-      // 3. One-time credit migration: set expiring credits to new tier amount + $5 machine bonus
       try {
         const { resetExpiringCredits } = await import('../../billing/services/credits');
-        const { getTier } = await import('../../billing/services/tiers');
-        const {
-          grantMachineBonusOnce,
-          getLegacyClaimMachineBonusKey,
-        } = await import('../../billing/services/machine-bonus');
+        const { grantMachineBonusOnce, getLegacyClaimMachineBonusKey } = await import('../../billing/services/machine-bonus');
         const tierConfig = getTier(tier);
         if (tierConfig.monthlyCredits > 0) {
           await resetExpiringCredits(accountId, tierConfig.monthlyCredits, `Welcome: ${tierConfig.displayName} — $${tierConfig.monthlyCredits} credits`);
         }
-        await grantMachineBonusOnce({
-          accountId,
-          idempotencyKey: getLegacyClaimMachineBonusKey(accountId),
-        });
-        console.log(`[claim-computer] Granted $${tierConfig.monthlyCredits} tier credits + machine bonus for ${accountId}`);
-      } catch (creditErr) {
-        console.error(`[claim-computer] Credit grant failed for ${accountId}:`, creditErr);
+        await grantMachineBonusOnce({ accountId, idempotencyKey: getLegacyClaimMachineBonusKey(accountId) });
+        console.log(`[claim-computer] Granted $${tierConfig.monthlyCredits} credits + bonus for ${accountId}`);
+      } catch (err) {
+        console.error(`[claim-computer] Credit grant failed for ${accountId}:`, err);
       }
 
-      // 4. Provision default machine (background)
-      const defaults = getProviderDefaults();
-      const sandboxName = await generateSandboxName(accountId);
+      const { createSandbox } = await import('../services/ensure-sandbox');
+      const result = await createSandbox({ accountId, userId, provider: 'justavps', isIncluded: true });
 
-      // Create sandbox row first
-      const [sandbox] = await db
-        .insert(sandboxes)
-        .values({
-          accountId,
-          name: sandboxName,
-          provider: 'justavps',
-          externalId: '',
-          status: 'provisioning',
-          baseUrl: '',
-          config: {},
-          metadata: { claim_source: 'legacy_migration', tier_key: tier },
-          isIncluded: true,
-        })
-        .returning();
-
-      const { createApiKey: createKey } = await import('../../repositories/api-keys');
-      const sandboxKey = await createKey({
-        sandboxId: sandbox.sandboxId,
-        accountId,
-        title: 'Sandbox Token',
-        type: 'sandbox',
-      });
-
-      // Try pool first
-      if (config.isPoolEnabled()) {
-        try {
-          const claimed = await pool.grab({
-            serverType: defaults.serverType,
-            location: defaults.location,
-          });
-          if (claimed) {
-            await db
-              .update(sandboxes)
-              .set({
-                externalId: claimed.externalId,
-                status: 'active',
-                baseUrl: claimed.baseUrl,
-                metadata: {
-                  claim_source: 'legacy_migration',
-                  tier_key: tier,
-                  ...claimed.metadata,
-                },
-                config: { serviceKey: sandboxKey.secretKey },
-                updatedAt: new Date(),
-              })
-              .where(eq(sandboxes.sandboxId, sandbox.sandboxId));
-
-            await pool.injectEnv(claimed, sandboxKey.secretKey);
-
-            console.log(`[claim-computer] Pool claim success for ${accountId}: ${sandbox.sandboxId}`);
-            return c.json({ success: true, data: serializeSandbox({ ...sandbox, externalId: claimed.externalId, status: 'active', baseUrl: claimed.baseUrl }), provisioning: false }, 201);
-          }
-        } catch (poolErr) {
-          console.warn('[claim-computer] Pool claim failed, falling back:', poolErr);
-        }
+      if (!result.row) {
+        return c.json({ success: false, error: 'Failed to create sandbox' }, 500);
       }
 
-      // Background provision
-      const provider = getProvider('justavps');
-      void (async () => {
-        try {
-          const result = await provider.create({
-            accountId,
-            userId,
-            name: sandboxName,
-            serverType: defaults.serverType,
-            location: defaults.location,
-            envVars: { KORTIX_TOKEN: sandboxKey.secretKey },
-          });
-
-          await db
-            .update(sandboxes)
-            .set({
-              externalId: result.externalId,
-              status: 'active',
-              baseUrl: result.baseUrl,
-              metadata: { claim_source: 'legacy_migration', tier_key: tier, ...result.metadata },
-              config: { serviceKey: sandboxKey.secretKey },
-              updatedAt: new Date(),
-            })
-            .where(eq(sandboxes.sandboxId, sandbox.sandboxId));
-
-          console.log(`[claim-computer] Provisioned for ${accountId}: ${sandbox.sandboxId}`);
-        } catch (err) {
-          console.error(`[claim-computer] Provisioning failed for ${accountId}:`, err);
-          await db
-            .update(sandboxes)
-            .set({
-              status: 'error',
-              metadata: {
-                claim_source: 'legacy_migration',
-                tier_key: tier,
-                errorMessage: 'Failed to provision your computer. Please try again.',
-              },
-              updatedAt: new Date(),
-            })
-            .where(eq(sandboxes.sandboxId, sandbox.sandboxId));
-        }
-      })();
-
-      console.log(`[claim-computer] Started background provisioning for ${accountId}: ${sandbox.sandboxId}`);
-      return c.json({ success: true, data: serializeSandbox(sandbox), provisioning: true }, 202);
+      console.log(`[claim-computer] ${result.row.sandboxId} for ${accountId} (tier=${tier})`);
+      return c.json({
+        success: true,
+        data: serializeSandbox(result.row),
+        provisioning: result.row.status === 'provisioning',
+      }, result.row.status === 'active' ? 201 : 202);
     } catch (err) {
       console.error('[claim-computer] error:', err);
       return c.json({ success: false, error: 'Failed to claim computer' }, 500);
     }
   });
-
-  // ── Mark sandbox as error (called by frontend when health-check times out after status=active) ──
 
   router.post('/mark-error', async (c) => {
     const userId = c.get('userId');
