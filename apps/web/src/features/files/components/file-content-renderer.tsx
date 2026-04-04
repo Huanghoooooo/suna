@@ -63,6 +63,12 @@ const SqliteRenderer = lazy(() =>
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Ensure a sandbox file path starts with /workspace/ for the static file server. */
+function ensureWorkspacePath(filePath: string): string {
+  if (filePath.startsWith('/workspace/')) return filePath;
+  return '/workspace/' + filePath.replace(/^\/+/, '');
+}
+
 /** Categories that need a blob fetched via readFileAsBlob */
 const BLOB_CATEGORIES = ['pdf', 'docx', 'video', 'audio', 'pptx'] as const;
 type BlobCategory = (typeof BLOB_CATEGORIES)[number];
@@ -211,7 +217,8 @@ export function FileContentRenderer({
 
   const htmlPreviewUrl = useMemo(() => {
     if (!isHtmlFile) return '';
-    const encodedPath = filePath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    const normalizedPath = ensureWorkspacePath(filePath);
+    const encodedPath = normalizedPath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
     return rewritePortPath(staticPort, `/open?path=/${encodedPath}`);
   }, [isHtmlFile, filePath, rewritePortPath, staticPort]);
 

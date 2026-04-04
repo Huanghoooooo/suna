@@ -111,7 +111,7 @@ function playNotificationPing() {
 /**
  * Navigate to a session by opening/activating its tab and navigating to it.
  */
-function navigateToSession(sessionId: string, sessionTitle?: string) {
+function navigateToSession(sessionId: string, sessionTitle?: string, opts?: { forceNavigation?: boolean }) {
   try {
     const href = `/sessions/${sessionId}`;
     // Open/activate the tab in the tab store + pushState
@@ -122,10 +122,9 @@ function navigateToSession(sessionId: string, sessionTitle?: string) {
       href,
       serverId: useServerStore.getState().activeServerId,
     });
-    // Also use location.assign for a reliable navigation that always works,
-    // even when triggered from a native notification click while the
-    // browser is in the background.
-    if (window.location.pathname !== href) {
+    // Only use location.assign for native notification clicks where the
+    // browser may be in the background and client-side routing won't work.
+    if (opts?.forceNavigation && window.location.pathname !== href) {
       window.location.assign(href);
     }
   } catch {
@@ -240,7 +239,7 @@ export function sendWebNotification(
         window.focus();
         notification?.close();
         if (payload.sessionId) {
-          navigateToSession(payload.sessionId, payload.body);
+          navigateToSession(payload.sessionId, payload.body, { forceNavigation: true });
         }
         payload.onClick?.();
       };

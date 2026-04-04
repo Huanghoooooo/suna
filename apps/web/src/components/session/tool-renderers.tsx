@@ -185,6 +185,12 @@ function isLocalSandboxFilePath(value: string): boolean {
 	return value.startsWith('/');
 }
 
+/** Ensure a sandbox file path starts with /workspace/ for the static file server. */
+function ensureWorkspacePath(filePath: string): string {
+	if (filePath.startsWith('/workspace/')) return filePath;
+	return '/workspace/' + filePath.replace(/^\/+/, '');
+}
+
 function InlineServicePreview({
 	url,
 	label,
@@ -4033,7 +4039,7 @@ function useShowOpenInTab(props: { type: string; url: string; path: string; titl
 	const isHtmlFilePath = !!path && SHOW_HTML_EXT_RE.test(path) && (type === 'file' || type === 'html');
 	const staticFilePort = parseInt(SANDBOX_PORTS.STATIC_FILE_SERVER ?? '3211', 10);
 	const htmlStaticUrl = isHtmlFilePath
-		? `http://localhost:${staticFilePort}/open?path=${encodeURIComponent(path)}`
+		? `http://localhost:${staticFilePort}/open?path=${encodeURIComponent(ensureWorkspacePath(path))}`
 		: '';
 	const htmlStaticProxy = useProxyUrl(htmlStaticUrl);
 
@@ -5474,6 +5480,32 @@ ToolRegistry.register("session_lineage", SessionLineageTool);
 ToolRegistry.register("session-lineage", SessionLineageTool);
 
 // ============================================================================
+// SessionStatsTool
+// ============================================================================
+
+function SessionStatsTool({ part }: ToolProps) {
+	const output = partOutput(part);
+
+	return (
+		<BasicTool
+			icon={<Layers className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: "Session Stats", subtitle: "", args: [] }}
+			defaultOpen={true}
+		>
+			{output && (
+				<div data-scrollable className="max-h-72 overflow-auto px-3 py-2">
+					<div className="text-[11px] font-mono text-foreground whitespace-pre-wrap">
+						<UnifiedMarkdown content={output} isStreaming={false} />
+					</div>
+				</div>
+			)}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("session_stats", SessionStatsTool);
+ToolRegistry.register("session-stats", SessionStatsTool);
+
+// ============================================================================
 // SessionListBackgroundTool — structured worker list
 // ============================================================================
 
@@ -5574,12 +5606,20 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 	const isBackground = input.background === true;
 	const isRunning = status === "running" || status === "pending";
 	const isCompleted = status === "completed";
+	const isError = status === "error";
 
-	// Extract child session ID from output
+	// Extract child session ID from output or state
 	const childSessionId = useMemo(() => {
-		const m = output.match(/\*\*Session:\*\*\s*(ses_[a-zA-Z0-9]+)/);
-		return m?.[1] || undefined;
-	}, [output]);
+		// Try output text first
+		const m = output.match(/\bses_[a-zA-Z0-9]+/);
+		if (m) return m[0];
+		// Try state output
+		const ocState = (input as any)._oc_state;
+		const stateOutput = ocState?.output || "";
+		const m2 = stateOutput.match(/\bses_[a-zA-Z0-9]+/);
+		if (m2) return m2[0];
+		return undefined;
+	}, [output, input]);
 
 	const { data: childMessages } = useOpenCodeMessages(childSessionId ?? "");
 	const childToolParts = useMemo(() => {
@@ -5596,51 +5636,123 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 		return info.title + (info.subtitle ? ` · ${info.subtitle}` : "");
 	}, [childToolParts]);
 
-	const running = useContext(ToolRunningContext);
-	const label = description || "";
+	const canClick = !!childSessionId || isRunning;
 
 	return (
 		<>
 			<div
 				role="button"
 				tabIndex={0}
-				onClick={() => childSessionId && setModalOpen(true)}
-				onKeyDown={(e) => e.key === "Enter" && childSessionId && setModalOpen(true)}
+				onClick={() => canClick && setModalOpen(true)}
+				onKeyDown={(e) => e.key === "Enter" && canClick && setModalOpen(true)}
 				className={cn(
-					"flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg",
-					"bg-muted/20 border border-border/40",
-					"text-xs transition-colors select-none",
-					childSessionId ? "cursor-pointer hover:bg-muted/40" : "cursor-default",
-					"max-w-full group",
+					"rounded-xl border bg-card p-4 transition-all select-none w-full",
+					isRunning && "border-primary/30 shadow-[0_0_0_1px] shadow-primary/10",
+					isCompleted && "border-border",
+					isError && "border-destructive/30",
+					!isRunning && !isCompleted && !isError && "border-border",
+					canClick ? "cursor-pointer hover:border-primary/40 hover:shadow-sm active:scale-[0.995]" : "cursor-default",
+					"group",
 				)}
 			>
-				<Cpu className="size-3.5 flex-shrink-0 text-muted-foreground" />
-				<div className="flex items-center gap-1.5 min-w-0 flex-1">
-					<span className="font-medium text-xs text-foreground whitespace-nowrap">
-						{agentType}{isBackground ? " (bg)" : ""}
-					</span>
-					{isRunning && lastActivity ? (
-						<TextShimmer duration={1} spread={2} className="text-xs truncate font-mono">{lastActivity}</TextShimmer>
-					) : label ? (
-						<span className="text-muted-foreground text-xs truncate font-mono">{label}</span>
-					) : null}
-					{isCompleted && childToolParts.length > 0 && (
-						<span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/70 font-mono whitespace-nowrap flex-shrink-0">
-							{childToolParts.length} steps
-						</span>
+				{/* Header */}
+				<div className="flex items-center gap-3">
+					{isRunning ? (
+						<div className="relative flex-shrink-0">
+							<div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center">
+								<Cpu className="size-4 text-primary" />
+							</div>
+							<span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-primary animate-pulse ring-2 ring-card" />
+						</div>
+					) : isCompleted ? (
+						<div className="size-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+							<Check className="size-4 text-foreground/50" />
+						</div>
+					) : isError ? (
+						<div className="size-8 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
+							<CircleAlert className="size-4 text-destructive" />
+						</div>
+					) : (
+						<div className="size-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+							<Cpu className="size-4 text-muted-foreground" />
+						</div>
 					)}
+
+					<div className="min-w-0 flex-1">
+						<div className="flex items-center gap-2">
+							<span className="text-sm font-medium text-foreground truncate">{description}</span>
+						</div>
+						<div className="flex items-center gap-1.5 mt-0.5">
+							<span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+								{agentType}
+							</span>
+							{isRunning && (
+								<span className="text-[10px] text-primary font-medium">· Running</span>
+							)}
+							{isCompleted && childToolParts.length > 0 && (
+								<span className="text-[10px] text-muted-foreground">· {childToolParts.length} steps</span>
+							)}
+							{isError && (
+								<span className="text-[10px] text-destructive">· Failed</span>
+							)}
+						</div>
+					</div>
+
+					<ChevronRight className="size-4 flex-shrink-0 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
 				</div>
-				{running && <Loader2 className="size-3 animate-spin text-muted-foreground/40 flex-shrink-0" />}
-				{childSessionId && !running && (
-					<ExternalLink className="size-3 flex-shrink-0 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
+
+				{/* Live activity */}
+				{isRunning && (
+					<div className="mt-3 flex items-center gap-2 pl-11">
+						<Loader2 className="size-3 animate-spin text-primary/50 flex-shrink-0" />
+						{lastActivity ? (
+							<TextShimmer duration={1.5} spread={2} className="text-[11px] truncate font-mono text-muted-foreground">
+								{lastActivity}
+							</TextShimmer>
+						) : (
+							<span className="text-[11px] text-muted-foreground">Starting...</span>
+						)}
+					</div>
+				)}
+
+				{/* Completed: last steps */}
+				{isCompleted && childToolParts.length > 0 && (
+					<div className="mt-2.5 pl-11 space-y-0.5">
+						{childToolParts.slice(-3).map((tp, i) => {
+							const info = getToolInfo(tp.tool, (tp.state.input ?? {}) as Record<string, any>);
+							return (
+								<div key={i} className="text-[11px] text-muted-foreground truncate">
+									{info.title}{info.subtitle ? ` · ${info.subtitle}` : ""}
+								</div>
+							);
+						})}
+						{childToolParts.length > 3 && (
+							<div className="text-[11px] text-muted-foreground/60 pl-0">+{childToolParts.length - 3} more</div>
+						)}
+					</div>
+				)}
+
+				{/* Open session button */}
+				{childSessionId && (
+					<div className="mt-3 pt-3 border-t border-border/30 pl-11">
+						<button
+							type="button"
+							onClick={(e) => { e.stopPropagation(); setModalOpen(true); }}
+							className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary/70 hover:text-primary transition-colors"
+						>
+							<ExternalLink className="size-3" />
+							Open agent session
+						</button>
+					</div>
 				)}
 			</div>
+
 			{childSessionId && (
 				<SubSessionModal
 					open={modalOpen}
 					onOpenChange={setModalOpen}
 					sessionId={childSessionId}
-					title={`${agentType}: ${label}`}
+					title={`${agentType.charAt(0).toUpperCase() + agentType.slice(1)}: ${description}`}
 				/>
 			)}
 		</>

@@ -39,6 +39,12 @@ import { ShowContentRenderer, ShowCarousel, SHOW_HTML_EXT_RE } from '@/component
 import type { ShowCarouselItem } from '@/components/file-renderers/show-content-renderer';
 import { SANDBOX_PORTS } from '@/lib/platform-client';
 
+/** Ensure a sandbox file path starts with /workspace/ for the static file server. */
+function ensureWorkspacePath(filePath: string): string {
+  if (filePath.startsWith('/workspace/')) return filePath;
+  return '/workspace/' + filePath.replace(/^\/+/, '');
+}
+
 // ── Theme border styles — theme ONLY affects the card border color ──────────
 const THEME_BORDER: Record<string, string> = {
   default: 'border-border',
@@ -412,7 +418,8 @@ export function OcShowUserToolView({
     const handleCarouselOpen = () => {
       if (ciIsHtmlFile && ciPath) {
         const staticPort = parseInt(SANDBOX_PORTS.STATIC_FILE_SERVER ?? '3211', 10);
-        const staticUrl = `http://localhost:${staticPort}/open?path=${encodeURIComponent(ciPath)}`;
+        const normalizedCiPath = ensureWorkspacePath(ciPath);
+        const staticUrl = `http://localhost:${staticPort}/open?path=${encodeURIComponent(normalizedCiPath)}`;
         const proxy = proxyUrl(staticUrl);
         if (proxy) {
           const parsed = parseLocalhostUrl(staticUrl);

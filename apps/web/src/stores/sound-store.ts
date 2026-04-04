@@ -56,7 +56,7 @@ interface SoundState {
 }
 
 const DEFAULT_PREFERENCES: SoundPreferences = {
-  pack: 'opencode',
+  pack: 'off',
   volume: 0.5,
   events: {},
 };

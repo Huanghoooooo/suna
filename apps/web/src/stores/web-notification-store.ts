@@ -60,7 +60,7 @@ const DEFAULT_PREFERENCES: WebNotificationPreferences = {
   onQuestion: true,
   onPermission: true,
   onlyWhenHidden: true,
-  playSound: true,
+  playSound: false,
 };
 
 export const useWebNotificationStore = create<WebNotificationState>()(

@@ -321,10 +321,6 @@ export default tool({
   async execute(args, _context) {
     const action = args.action;
 
-    if (action !== "show") {
-      return `Error: Invalid action '${action}'. Use 'show'.`;
-    }
-
     // ── Multi-item mode (items array) ──
     if (args.items) {
       let parsed: unknown;

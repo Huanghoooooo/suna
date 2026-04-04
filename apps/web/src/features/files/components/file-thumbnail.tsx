@@ -9,6 +9,12 @@ import { getFileIcon } from './file-icon';
 import { useSandboxProxy } from '@/hooks/use-sandbox-proxy';
 import { SANDBOX_PORTS } from '@/lib/platform-client';
 
+/** Ensure a sandbox file path starts with /workspace/ for the static file server. */
+function ensureWorkspacePath(filePath: string): string {
+  if (filePath.startsWith('/workspace/')) return filePath;
+  return '/workspace/' + filePath.replace(/^\/+/, '');
+}
+
 // ---------------------------------------------------------------------------
 // Image Thumbnail — loads base64 from API
 // ---------------------------------------------------------------------------
@@ -171,7 +177,8 @@ function HtmlThumbnail({ filePath }: { filePath: string }) {
 
   // Proxy URL for the file itself
   const previewUrl = useMemo(() => {
-    const encodedPath = filePath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    const normalizedPath = ensureWorkspacePath(filePath);
+    const encodedPath = normalizedPath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
     return rewritePortPath(staticPort, `/open?path=/${encodedPath}`);
   }, [filePath, rewritePortPath, staticPort]);
 

@@ -105,6 +105,12 @@ function isLocalSandboxFilePath(value: string): boolean {
   return value.startsWith('/');
 }
 
+/** Ensure a sandbox file path starts with /workspace/ for the static file server. */
+function ensureWorkspacePath(filePath: string): string {
+  if (filePath.startsWith('/workspace/')) return filePath;
+  return '/workspace/' + filePath.replace(/^\/+/, '');
+}
+
 /** Auto-detect file category from extension — used when type='file' */
 function getShowFileCategory(filePath: string): string {
   if (SHOW_IMAGE_EXT_RE.test(filePath)) return 'image';
@@ -272,7 +278,8 @@ export function ShowContentRenderer({
   // ═════════════════════════════════════════════════════════════════════════
   if ((isHtmlFile || (isHtml && !content)) && sandboxPath && LocalhostPreview) {
     const staticPort = parseInt(SANDBOX_PORTS.STATIC_FILE_SERVER ?? '3211', 10);
-    const encodedPath = sandboxPath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    const normalizedPath = ensureWorkspacePath(sandboxPath);
+    const encodedPath = normalizedPath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
     const staticUrl = `http://localhost:${staticPort}/open?path=/${encodedPath}`;
     return <LocalhostPreview url={staticUrl} label={title || fileName || undefined} />;
   }
