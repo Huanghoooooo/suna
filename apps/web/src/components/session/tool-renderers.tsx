@@ -6252,16 +6252,13 @@ function ConnectorListTool({ part, defaultOpen, forceOpen }: ToolProps) {
 							<Plug className="size-3.5 mt-0.5 flex-shrink-0 text-muted-foreground" />
 							<div className="min-w-0 flex-1">
 								<div className="font-medium text-foreground truncate">{conn.name}</div>
-								<div className="text-muted-foreground/60 flex gap-2">
-									<span className="capitalize">{conn.type}</span>
-									<span>{conn.status}</span>
-								</div>
+								{conn.description && (
+									<div className="text-muted-foreground/60">{conn.description}</div>
+								)}
 							</div>
-							{conn.secrets !== 'none' && (
-								<Badge variant="outline" className="h-5 py-0 text-[10px] flex-shrink-0 font-mono">
-									{conn.secrets}
-								</Badge>
-							)}
+							<Badge variant="outline" className="h-5 py-0 text-[10px] flex-shrink-0 capitalize">
+								{conn.source}
+							</Badge>
 						</div>
 					))}
 				</div>
@@ -6289,7 +6286,7 @@ function ConnectorGetTool({ part, defaultOpen, forceOpen }: ToolProps) {
 			icon={<Plug className="size-3.5 text-muted-foreground" />}
 			trigger={{
 				title: data?.name || 'Connector Details',
-				subtitle: name && name !== data?.name ? name : (data?.type || 'Fetching...'),
+				subtitle: name && name !== data?.name ? name : (data?.description || 'Fetching...'),
 			}}
 			defaultOpen={defaultOpen}
 			forceOpen={forceOpen}
@@ -6299,14 +6296,22 @@ function ConnectorGetTool({ part, defaultOpen, forceOpen }: ToolProps) {
 					<div className="space-y-2">
 						{data ? (
 							<>
+								{data.description && (
+									<div className="text-xs text-muted-foreground mb-1">{data.description}</div>
+								)}
 								<div className="flex gap-2 text-xs">
-									<Badge variant="outline" className="h-5 py-0 capitalize">{data.type}</Badge>
-									<Badge variant="outline" className="h-5 py-0">{data.status}</Badge>
+									<Badge variant="outline" className="h-5 py-0 capitalize">{data.source}</Badge>
 								</div>
-								{data.secrets !== 'none' && (
+								{data.pipedream_slug && (
 									<div className="text-xs">
-										<span className="text-muted-foreground/60">Secrets: </span>
-										<code className="bg-muted px-1 rounded text-[10px]">{data.secrets}</code>
+										<span className="text-muted-foreground/60">Pipedream: </span>
+										<code className="bg-muted px-1 rounded text-[10px]">{data.pipedream_slug}</code>
+									</div>
+								)}
+								{data.env && (
+									<div className="text-xs">
+										<span className="text-muted-foreground/60">Env: </span>
+										<code className="bg-muted px-1 rounded text-[10px]">{data.env}</code>
 									</div>
 								)}
 								{data.notes && (
@@ -6343,8 +6348,8 @@ function ConnectorSetupTool({ part, defaultOpen, forceOpen }: ToolProps) {
 			icon={<Plug className="size-3.5 text-muted-foreground" />}
 			trigger={{
 				title: 'Connector Setup',
-				subtitle: data ? `${data.count} connector${data.count !== 1 ? 's' : ''} scaffolded` : 'Setting up...',
-				args: data?.success ? ['scaffolded'] : undefined,
+				subtitle: data ? `${data.count} connector${data.count !== 1 ? 's' : ''} configured` : 'Setting up...',
+				args: data?.success ? ['configured'] : undefined,
 			}}
 			defaultOpen={defaultOpen}
 			forceOpen={forceOpen}
@@ -6355,9 +6360,7 @@ function ConnectorSetupTool({ part, defaultOpen, forceOpen }: ToolProps) {
 						{data?.connectors.map((conn, i) => (
 							<div key={i} className="flex items-center gap-2 text-xs py-1">
 								<Plug className="size-3.5 flex-shrink-0 text-muted-foreground" />
-								<span className="font-medium">{conn.name}</span>
-								<Badge variant="outline" className="h-4 py-0 text-[9px] capitalize">{conn.type}</Badge>
-								<span className="text-muted-foreground/60">{conn.status}</span>
+								<span className="font-medium">{conn}</span>
 							</div>
 						))}
 						{!data && (
