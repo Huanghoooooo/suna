@@ -11,8 +11,8 @@ import {
   Check,
   CornerDownLeft,
   GitFork,
-  Info,
-  Infinity,
+  // Info,       // AutoContinue — commented out
+  // Infinity,   // AutoContinue — commented out
   Loader2,
   Paperclip,
   X,
@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+/* AutoContinue — commented out
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+*/
 import {
   Tooltip,
   TooltipContent,
@@ -383,11 +385,11 @@ function VariantSelector({
   );
 }
 
+/* AutoContinue — commented out
 // ============================================================================
 // AutoContinue Mode Selector
 // ============================================================================
 
-/** Known autocontinue algorithm IDs — maps to slash command names */
 export type AutoContinueMode = 'autowork' | 'autowork1' | 'autowork2' | 'autowork3' | 'orchestrate';
 
 interface AutoContinueAlgorithm {
@@ -497,7 +499,6 @@ const AUTOCONTINUE_ALGORITHMS: AutoContinueAlgorithm[] = [
   },
 ];
 
-/** Infinity icon with a diagonal slash — visual "off" state */
 function InfinityOff({ className, strokeWidth = 2 }: { className?: string; strokeWidth?: number }) {
   return (
     <svg
@@ -510,15 +511,12 @@ function InfinityOff({ className, strokeWidth = 2 }: { className?: string; strok
       strokeLinejoin="round"
       className={className}
     >
-      {/* Infinity path (same as lucide Infinity) */}
       <path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z" />
-      {/* Diagonal slash */}
       <line x1="4" y1="4" x2="20" y2="20" />
     </svg>
   );
 }
 
-/** Default mode when user clicks "On" — Kraemer is the reliable all-rounder */
 const DEFAULT_AUTOCONTINUE_MODE: AutoContinueMode = 'autowork';
 
 function AutoContinueSelector({
@@ -557,7 +555,6 @@ function AutoContinueSelector({
     }
   }, [open]);
 
-  // When menu opens, show expanded list if already active (user is picking modes)
   useEffect(() => {
     if (open && selected !== null) {
       setExpanded(true);
@@ -612,7 +609,6 @@ function AutoContinueSelector({
                 AutoContinue
               </div>
 
-              {/* Off */}
               <button
                 onClick={() => { onSelect(null); setExplicitPick(false); setExpanded(false); setOpen(false); }}
                 className={cn(
@@ -625,7 +621,6 @@ function AutoContinueSelector({
                 {!isActive && <Check className="size-3 text-foreground shrink-0" />}
               </button>
 
-              {/* On — clicking selects Kraemer default and expands the mode list */}
               <button
                 onClick={() => {
                   if (!isActive) onSelect(DEFAULT_AUTOCONTINUE_MODE);
@@ -644,7 +639,6 @@ function AutoContinueSelector({
                 {!expanded && <ChevronDown className="size-3 text-muted-foreground shrink-0" />}
               </button>
 
-              {/* Expanded algorithm list — animated reveal after clicking On */}
               <div
                 className="overflow-hidden transition-all duration-200 ease-out"
                 style={{
@@ -687,7 +681,6 @@ function AutoContinueSelector({
         )}
       </div>
 
-      {/* Algorithm detail dialog */}
       <Dialog open={detailAlg !== null} onOpenChange={(v) => { if (!v) setDetailAlg(null); }}>
         <DialogContent className="max-w-lg" aria-describedby="alg-detail-desc">
           {detailAlg && (
@@ -750,6 +743,7 @@ function AutoContinueSelector({
     </>
   );
 }
+*/
 
 // ============================================================================
 // Token Progress Circle
@@ -1405,7 +1399,7 @@ export function SessionChatInput({
   const [slashIndex, setSlashIndex] = useState(0);
   const [stagedCommand, setStagedCommand] = useState<Command | null>(null);
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-  const [autocontinueMode, setAutocontinueMode] = useState<AutoContinueMode | null>(null);
+  // const [autocontinueMode, setAutocontinueMode] = useState<AutoContinueMode | null>(null); // AutoContinue — commented out
   const [isDragOver, setIsDragOver] = useState(false);
   const pathname = normalizeAppPathname(usePathname());
   const isOnboarding = pathname?.startsWith('/onboarding');
@@ -1804,6 +1798,7 @@ export function SessionChatInput({
     const trimmed = text.trim();
     if ((!trimmed && attachedFiles.length === 0) || disabled) return;
 
+    /* AutoContinue — commented out
     // AutoContinue intercept: when a mode is armed, route through the
     // corresponding slash command instead of a plain send. The user's
     // text becomes the command's args (= the task description).
@@ -1824,6 +1819,7 @@ export function SessionChatInput({
         return;
       }
     }
+    */
 
     // Snapshot files and mentions before clearing
     const filesToSend = attachedFiles.length > 0 ? [...attachedFiles] : undefined;
@@ -1857,7 +1853,7 @@ export function SessionChatInput({
       // Restore the text so the user can retry
       setText(trimmed);
     }
-  }, [text, isBusy, disabled, onSend, onCommand, stagedCommand, attachedFiles, mentions, sessionId, enqueue, lockForQuestion, onCustomAnswer, onQuestionAction, autocontinueMode, commands]);
+  }, [text, isBusy, disabled, onSend, onCommand, stagedCommand, attachedFiles, mentions, sessionId, enqueue, lockForQuestion, onCustomAnswer, onQuestionAction]);
 
   const handleSelectCommand = (cmd: Command) => {
     // Stage the command — show an args input instead of executing immediately
@@ -2319,6 +2315,7 @@ export function SessionChatInput({
                 />
               )}
 
+              {/* AutoContinue — commented out
               {commands.length > 0 && onCommand && !isOnboarding && (
                 <>
                   <div className="w-px h-4 bg-border mx-1" />
@@ -2329,6 +2326,7 @@ export function SessionChatInput({
                   />
                 </>
               )}
+              */}
             </div>
 
             {/* RIGHT: TokenProgress + Voice + Submit/Stop */}
