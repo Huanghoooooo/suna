@@ -199,8 +199,6 @@ const BUILTIN_SERVICES: RegisteredServiceSpec[] = [
     healthCheck: { type: 'none' }, createdAt: '', updatedAt: '',
   },
   // All other system services: s6 supervised, controlled via s6-svc
-  s6svc('opencode-channels', 'Channels Service', 'core', 'svc-opencode-channels',
-    { port: 3456, deps: ['opencode-serve'], processPatterns: ['channels/src/index.ts'] }),
   s6svc('chromium-persistent', 'Chromium', 'core', 'svc-chromium-persistent',
     { port: 9222, processPatterns: ['chromium-browser'] }),
   s6svc('agent-browser-session', 'Agent Browser Session', 'core', 'svc-agent-browser-session',

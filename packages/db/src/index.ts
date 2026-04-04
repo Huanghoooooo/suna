@@ -72,14 +72,9 @@ export {
   // Pool
   poolResources,
   poolSandboxes,
-  // Channels
-  channelTypeEnum,
-  channelConfigs,
 } from './schema/kortix';
 
 export type {
-  ChannelPlatformConfig,
-  ChannelPlatformUser,
   TunnelMachineInfo,
   TunnelFilesystemScope,
   TunnelShellScope,

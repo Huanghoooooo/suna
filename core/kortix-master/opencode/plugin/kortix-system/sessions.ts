@@ -203,6 +203,78 @@ export const KortixSessionsPlugin: Plugin = async ({ client, directory }) => {
 					return buildSessionLineage(result.data as Session[], args.session_id)
 				},
 			}),
+
+			session_stats: tool({
+				description: `Get stats for a session: token usage, cost, message counts, model, provider. Defaults to the current session if no ID given.`,
+				args: {
+					session_id: tool.schema.string().optional().describe("Session ID. Omit for current session."),
+				},
+				async execute(args) {
+					const sid = args.session_id || currentSessionId
+					if (!sid) return "Error: no session ID available."
+					try {
+						const [sessionRes, messagesRes] = await Promise.all([
+							client.session.get({ path: { id: sid } }),
+							client.session.messages({ path: { id: sid } }),
+						])
+						if (!sessionRes.data) return `Session ${sid} not found.`
+						const session = sessionRes.data as Session
+						const messages = messagesRes.data ?? []
+
+						let totalCost = 0, totalInput = 0, totalOutput = 0, totalReasoning = 0
+						let cacheRead = 0, cacheWrite = 0
+						let userCount = 0, assistantCount = 0, toolCallCount = 0
+						let modelID = "", providerID = ""
+
+						for (const m of messages) {
+							const info = (m as any).info || {}
+							if (info.role === "user") userCount++
+							else if (info.role === "assistant") assistantCount++
+							if (info.modelID && !modelID) { modelID = info.modelID; providerID = info.providerID || "" }
+							totalCost += info.cost || 0
+							const tokens = info.tokens || {}
+							totalInput += tokens.input || 0
+							totalOutput += tokens.output || 0
+							totalReasoning += tokens.reasoning || 0
+							const cache = tokens.cache || {}
+							cacheRead += cache.read || 0
+							cacheWrite += cache.write || 0
+							for (const p of (m as any).parts || []) {
+								if (p.type === "tool") toolCallCount++
+							}
+						}
+
+						const totalTokens = totalInput + totalOutput + totalReasoning
+						const contextLimit = 200000
+						const usage = contextLimit > 0 ? Math.round((totalTokens / contextLimit) * 100) : 0
+
+						return [
+							`## Session Stats`,
+							``,
+							`| Metric | Value |`,
+							`|---|---|`,
+							`| **Session** | ${session.title || "(untitled)"} |`,
+							`| **ID** | \`${sid}\` |`,
+							`| **Provider** | ${providerID || "unknown"} |`,
+							`| **Model** | ${modelID || "unknown"} |`,
+							`| **Context Limit** | ${contextLimit.toLocaleString()} |`,
+							`| **Total Tokens** | ${totalTokens.toLocaleString()} |`,
+							`| **Usage** | ${usage}% |`,
+							`| **Input Tokens** | ${totalInput.toLocaleString()} |`,
+							`| **Output Tokens** | ${totalOutput.toLocaleString()} |`,
+							`| **Reasoning Tokens** | ${totalReasoning.toLocaleString()} |`,
+							`| **Cache** | ${cacheRead.toLocaleString()} read / ${cacheWrite.toLocaleString()} write |`,
+							`| **Messages** | ${messages.length} (${userCount} user, ${assistantCount} assistant) |`,
+							`| **Tool Calls** | ${toolCallCount} |`,
+							`| **Total Cost** | $${totalCost.toFixed(4)} |`,
+							`| **Created** | ${new Date(session.time.created).toISOString()} |`,
+							`| **Last Activity** | ${new Date(session.time.updated).toISOString()} |`,
+						].join("\n")
+					} catch (e) {
+						return `Error: ${e instanceof Error ? e.message : String(e)}`
+					}
+				},
+			}),
 		},
 	}
 }

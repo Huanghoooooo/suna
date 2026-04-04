@@ -15,7 +15,7 @@ import type { Plugin } from "@opencode-ai/plugin"
 
 import { initProjectsDb, ProjectManager, projectTools, projectGateHook, projectStatusTransform } from "./projects"
 import { taskTools, ensureTasksTable } from "./tasks"
-import { agentTools, ensureAgentsTable } from "./agent"
+import { agentTools, ensureAgentsTable, getAgentSystemPrompt } from "./agent"
 import { resolveKortixWorkspaceRoot, ensureKortixDir } from "./lib/paths"
 
 const KortixSystemPlugin: Plugin = async (ctx) => {
@@ -31,19 +31,25 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 	let currentSessionId: string | null = null
 
 	// ── Load sub-modules ──
-	const sessions = await (await import("./sessions")).default(ctx)
-	const connectors = await (await import("./connectors")).default(ctx)
-	const auth = await (await import("./auth")).default(ctx)
-	const pty = await (await import("./pty-tools")).default(ctx)
-	const autowork = await (await import("./autowork/autowork")).default(ctx)
-	const todoEnforcer = await (await import("./todo-enforcer/todo-enforcer")).default(ctx)
-	const triggers = await (await import("./triggers")).default(ctx)
-	const worktreeModule = await (await import("./worktree/worktree")).default(ctx)
+	// Load sub-modules — each wrapped in try/catch so one failure doesn't kill the whole plugin
+	const load = async (name: string, fn: () => Promise<any>) => {
+		try { return await fn() } catch (e) { console.warn(`[kortix-system] ${name} init failed:`, (e as Error).message); return null }
+	}
 
-	const btwRaw = (await import("./btw")).default
-	const btw = typeof btwRaw === "object" && "server" in btwRaw
-		? await btwRaw.server(ctx)
-		: await btwRaw(ctx)
+	const sessions = await load("sessions", () => import("./sessions").then(m => m.default(ctx)))
+	const connectors = await load("connectors", () => import("./connectors").then(m => m.default(ctx)))
+	const auth = await load("auth", () => import("./auth").then(m => m.default(ctx)))
+	const pty = await load("pty", () => import("./pty-tools").then(m => m.default(ctx)))
+	const autowork = await load("autowork", () => import("./autowork/autowork").then(m => m.default(ctx)))
+	const todoEnforcer = await load("todo-enforcer", () => import("./todo-enforcer/todo-enforcer").then(m => m.default(ctx)))
+	const triggers = await load("triggers", () => import("./triggers").then(m => m.default(ctx)))
+	const worktreeModule = await load("worktree", () => import("./worktree/worktree").then(m => m.default(ctx)))
+	const btw = await load("btw", async () => {
+		const btwRaw = (await import("./btw")).default
+		return typeof btwRaw === "object" && "server" in btwRaw ? await btwRaw.server(ctx) : await btwRaw(ctx)
+	})
+	
+	console.log("[kortix-system] Plugin initialized. Tools:", Object.keys(projectTools(mgr, db)).length, "project +", Object.keys(taskTools(db, mgr)).length, "task +", Object.keys(agentTools(client, db, mgr)).length, "agent")
 
 	// ── Merge all tools ──
 	return {
@@ -66,10 +72,20 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 		// Project status + active tasks injection
 		"experimental.chat.messages.transform": projectStatusTransform(mgr, () => currentSessionId),
 
-		// System prompt transform (anthropic auth)
-		...(auth?.["experimental.chat.system.transform"]
-			? { "experimental.chat.system.transform": auth["experimental.chat.system.transform"] }
-			: {}),
+		// System prompt transform — chains auth + agent mission prompt
+		"experimental.chat.system.transform": async (input: any, output: { system: string[] }) => {
+			// Run auth transform first (anthropic prefix)
+			if (auth?.["experimental.chat.system.transform"]) {
+				await auth["experimental.chat.system.transform"](input, output)
+			}
+			// Inject agent mission-specific system prompt if this is a worker session
+			if (currentSessionId) {
+				const missionPrompt = getAgentSystemPrompt(currentSessionId)
+				if (missionPrompt) {
+					output.system.push(`\n## Mission\n${missionPrompt}`)
+				}
+			}
+		},
 
 		// BTW command
 		...(btw?.["command.execute.before"]

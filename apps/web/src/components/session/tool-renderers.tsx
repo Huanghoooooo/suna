@@ -11,6 +11,7 @@ import {
 
 	Check,
 	CheckCircle,
+	Circle,
 	CheckSquare,
 	Clock,
 	ChevronDown,
@@ -5573,18 +5574,12 @@ ToolRegistry.register("session-list-spawned", SessionListBackgroundTool);
 
 function ProjectDeleteTool({ part }: ToolProps) {
 	const input = partInput(part);
-	const output = partOutput(part);
-	const status = partStatus(part);
 	const project = (input.project as string) || "";
-
 	return (
-		<BasicTool
-			icon={<Ban className="size-3.5 flex-shrink-0" />}
-			trigger={{ title: "Delete Project", subtitle: project, args: output.includes("deleted") ? ["deleted"] : status === "error" ? ["failed"] : [] }}
-			defaultOpen={false}
-		>
-			{output && <div className="px-3 py-2 text-xs text-muted-foreground">{output}</div>}
-		</BasicTool>
+		<div className="flex items-center gap-2 px-2.5 py-1 text-xs text-muted-foreground/40">
+			<Trash2 className="size-3 flex-shrink-0" />
+			<span>Deleted {project}</span>
+		</div>
 	);
 }
 ToolRegistry.register("project_delete", ProjectDeleteTool);
@@ -5599,27 +5594,17 @@ ToolRegistry.register("oc-project-delete", ProjectDeleteTool);
 
 function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 	const input = partInput(part);
-	const output = partOutput(part);
 	const status = partStatus(part);
-	const agentType = (input.agent_type as string) || "worker";
 	const description = (input.description as string) || "";
-	const isBackground = input.background === true;
 	const isRunning = status === "running" || status === "pending";
 	const isCompleted = status === "completed";
 	const isError = status === "error";
 
-	// Extract child session ID from output or state
-	const childSessionId = useMemo(() => {
-		// Try output text first
-		const m = output.match(/\bses_[a-zA-Z0-9]+/);
-		if (m) return m[0];
-		// Try state output
-		const ocState = (input as any)._oc_state;
-		const stateOutput = ocState?.output || "";
-		const m2 = stateOutput.match(/\bses_[a-zA-Z0-9]+/);
-		if (m2) return m2[0];
-		return undefined;
-	}, [output, input]);
+	// Use getChildSessionId — reads from ctx.metadata (available IMMEDIATELY, even while pending)
+	const childSessionId: string | undefined = useMemo(
+		() => getChildSessionId(part),
+		[part],
+	);
 
 	const { data: childMessages } = useOpenCodeMessages(childSessionId ?? "");
 	const childToolParts = useMemo(() => {
@@ -5636,115 +5621,46 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 		return info.title + (info.subtitle ? ` · ${info.subtitle}` : "");
 	}, [childToolParts]);
 
-	const canClick = !!childSessionId || isRunning;
-
 	return (
 		<>
 			<div
 				role="button"
 				tabIndex={0}
-				onClick={() => canClick && setModalOpen(true)}
-				onKeyDown={(e) => e.key === "Enter" && canClick && setModalOpen(true)}
+				onClick={() => childSessionId && setModalOpen(true)}
+				onKeyDown={(e) => e.key === "Enter" && childSessionId && setModalOpen(true)}
 				className={cn(
-					"rounded-xl border bg-card p-4 transition-all select-none w-full",
-					isRunning && "border-primary/30 shadow-[0_0_0_1px] shadow-primary/10",
-					isCompleted && "border-border",
-					isError && "border-destructive/30",
-					!isRunning && !isCompleted && !isError && "border-border",
-					canClick ? "cursor-pointer hover:border-primary/40 hover:shadow-sm active:scale-[0.995]" : "cursor-default",
-					"group",
+					"rounded-lg border border-border bg-card p-3 transition-colors select-none w-full group",
+					childSessionId ? "cursor-pointer hover:bg-accent/50" : "",
 				)}
 			>
-				{/* Header */}
-				<div className="flex items-center gap-3">
+				<div className="flex items-center gap-2.5">
+					{/* Status — single indicator, no double spinner */}
 					{isRunning ? (
-						<div className="relative flex-shrink-0">
-							<div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center">
-								<Cpu className="size-4 text-primary" />
-							</div>
-							<span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-primary animate-pulse ring-2 ring-card" />
-						</div>
+						<span className="size-2 rounded-full bg-foreground/30 animate-pulse flex-shrink-0" />
 					) : isCompleted ? (
-						<div className="size-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-							<Check className="size-4 text-foreground/50" />
-						</div>
+						<Check className="size-3.5 text-muted-foreground flex-shrink-0" />
 					) : isError ? (
-						<div className="size-8 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
-							<CircleAlert className="size-4 text-destructive" />
-						</div>
+						<CircleAlert className="size-3.5 text-destructive/60 flex-shrink-0" />
 					) : (
-						<div className="size-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-							<Cpu className="size-4 text-muted-foreground" />
-						</div>
+						<span className="size-2 rounded-full bg-muted-foreground/20 flex-shrink-0" />
 					)}
 
+					{/* Content */}
 					<div className="min-w-0 flex-1">
-						<div className="flex items-center gap-2">
-							<span className="text-sm font-medium text-foreground truncate">{description}</span>
-						</div>
-						<div className="flex items-center gap-1.5 mt-0.5">
-							<span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-								{agentType}
-							</span>
-							{isRunning && (
-								<span className="text-[10px] text-primary font-medium">· Running</span>
-							)}
-							{isCompleted && childToolParts.length > 0 && (
-								<span className="text-[10px] text-muted-foreground">· {childToolParts.length} steps</span>
-							)}
-							{isError && (
-								<span className="text-[10px] text-destructive">· Failed</span>
-							)}
-						</div>
+						<span className="text-[13px] font-medium text-foreground block truncate">{description}</span>
+						<span className="text-[11px] text-muted-foreground mt-0.5 block truncate">
+							{isRunning && lastActivity ? lastActivity
+								: isRunning ? "Running…"
+								: isCompleted && childToolParts.length > 0 ? `Done · ${childToolParts.length} steps`
+								: isError ? "Failed"
+								: "Queued"}
+						</span>
 					</div>
 
-					<ChevronRight className="size-4 flex-shrink-0 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
+					{childSessionId && (
+						<ChevronRight className="size-3.5 text-muted-foreground/20 group-hover:text-muted-foreground/40 transition-colors flex-shrink-0" />
+					)}
 				</div>
-
-				{/* Live activity */}
-				{isRunning && (
-					<div className="mt-3 flex items-center gap-2 pl-11">
-						<Loader2 className="size-3 animate-spin text-primary/50 flex-shrink-0" />
-						{lastActivity ? (
-							<TextShimmer duration={1.5} spread={2} className="text-[11px] truncate font-mono text-muted-foreground">
-								{lastActivity}
-							</TextShimmer>
-						) : (
-							<span className="text-[11px] text-muted-foreground">Starting...</span>
-						)}
-					</div>
-				)}
-
-				{/* Completed: last steps */}
-				{isCompleted && childToolParts.length > 0 && (
-					<div className="mt-2.5 pl-11 space-y-0.5">
-						{childToolParts.slice(-3).map((tp, i) => {
-							const info = getToolInfo(tp.tool, (tp.state.input ?? {}) as Record<string, any>);
-							return (
-								<div key={i} className="text-[11px] text-muted-foreground truncate">
-									{info.title}{info.subtitle ? ` · ${info.subtitle}` : ""}
-								</div>
-							);
-						})}
-						{childToolParts.length > 3 && (
-							<div className="text-[11px] text-muted-foreground/60 pl-0">+{childToolParts.length - 3} more</div>
-						)}
-					</div>
-				)}
-
-				{/* Open session button */}
-				{childSessionId && (
-					<div className="mt-3 pt-3 border-t border-border/30 pl-11">
-						<button
-							type="button"
-							onClick={(e) => { e.stopPropagation(); setModalOpen(true); }}
-							className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary/70 hover:text-primary transition-colors"
-						>
-							<ExternalLink className="size-3" />
-							Open agent session
-						</button>
-					</div>
-				)}
 			</div>
 
 			{childSessionId && (
@@ -5752,7 +5668,7 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 					open={modalOpen}
 					onOpenChange={setModalOpen}
 					sessionId={childSessionId}
-					title={`${agentType.charAt(0).toUpperCase() + agentType.slice(1)}: ${description}`}
+					title={description}
 				/>
 			)}
 		</>
@@ -5762,73 +5678,65 @@ ToolRegistry.register("agent_spawn", AgentSpawnTool);
 ToolRegistry.register("agent-spawn", AgentSpawnTool);
 
 // ============================================================================
-// AgentMessageTool
+// Agent utility tools — minimal inline chips
 // ============================================================================
 
-function AgentMessageTool({ part }: ToolProps) {
-	const input = partInput(part);
+function AgentWaitTool({ part }: ToolProps) {
 	const status = partStatus(part);
-	const agentId = (input.agent_id as string) || "";
-	const message = (input.message as string) || "";
-
+	const output = partOutput(part);
+	const isRunning = status === "running" || status === "pending";
 	return (
 		<BasicTool
-			icon={<MessageCircle className="size-3.5 flex-shrink-0" />}
-			trigger={{ title: "Agent Message", subtitle: agentId, args: status === "completed" ? ["sent"] : status === "error" ? ["failed"] : [] }}
+			icon={isRunning ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+			trigger={{ title: isRunning ? "Waiting for worker" : "Worker result", subtitle: "", args: [] }}
 			defaultOpen={false}
 		>
-			{message && (
-				<div className="px-3 py-2">
-					<div className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-1">Message</div>
-					<div className="text-[11px] text-foreground/70 whitespace-pre-wrap bg-muted/20 rounded p-2 border border-border/20">{message.slice(0, 500)}</div>
+			{output && (
+				<div data-scrollable className="max-h-56 overflow-auto px-3 py-2 text-[11px] text-muted-foreground whitespace-pre-wrap">
+					<UnifiedMarkdown content={output} isStreaming={false} />
 				</div>
 			)}
 		</BasicTool>
 	);
 }
+ToolRegistry.register("agent_wait", AgentWaitTool);
+ToolRegistry.register("agent-wait", AgentWaitTool);
+
+function AgentMessageTool({ part }: ToolProps) {
+	const input = partInput(part);
+	const message = (input.message as string) || "";
+	return (
+		<div className="flex items-center gap-2 px-2.5 py-1.5 text-xs text-muted-foreground/60 rounded-lg bg-muted/20">
+			<MessageCircle className="size-3 flex-shrink-0" />
+			<span className="truncate">{message.slice(0, 80) || "Message sent"}</span>
+		</div>
+	);
+}
 ToolRegistry.register("agent_message", AgentMessageTool);
 ToolRegistry.register("agent-message", AgentMessageTool);
 
-// ============================================================================
-// AgentStopTool
-// ============================================================================
-
 function AgentStopTool({ part }: ToolProps) {
-	const input = partInput(part);
-	const output = partOutput(part);
-	const agentId = (input.agent_id as string) || "";
-
 	return (
-		<BasicTool
-			icon={<Ban className="size-3.5 flex-shrink-0" />}
-			trigger={{ title: "Agent Stop", subtitle: agentId, args: output.includes("stopped") ? ["stopped"] : [] }}
-			defaultOpen={false}
-		>
-			{output && <div className="px-3 py-2 text-xs text-muted-foreground">{output}</div>}
-		</BasicTool>
+		<div className="flex items-center gap-2 px-2.5 py-1 text-xs text-muted-foreground/40">
+			<Ban className="size-3 flex-shrink-0" />
+			<span>Agent stopped</span>
+		</div>
 	);
 }
 ToolRegistry.register("agent_stop", AgentStopTool);
 ToolRegistry.register("agent-stop", AgentStopTool);
 
-// ============================================================================
-// AgentStatusTool
-// ============================================================================
-
 function AgentStatusTool({ part }: ToolProps) {
 	const output = partOutput(part);
-
 	return (
 		<BasicTool
-			icon={<Layers className="size-3.5 flex-shrink-0" />}
-			trigger={{ title: "Agent Status", subtitle: "", args: [] }}
+			icon={<Layers className="size-3.5" />}
+			trigger={{ title: "Agents", subtitle: "", args: [] }}
 			defaultOpen={false}
 		>
 			{output && (
-				<div data-scrollable className="max-h-48 overflow-auto px-3 py-2">
-					<div className="text-[11px] font-mono text-muted-foreground whitespace-pre-wrap">
-						<UnifiedMarkdown content={output} isStreaming={false} />
-					</div>
+				<div data-scrollable className="max-h-48 overflow-auto px-3 py-2 text-[11px] text-muted-foreground whitespace-pre-wrap">
+					<UnifiedMarkdown content={output} isStreaming={false} />
 				</div>
 			)}
 		</BasicTool>
@@ -5838,46 +5746,35 @@ ToolRegistry.register("agent_status", AgentStatusTool);
 ToolRegistry.register("agent-status", AgentStatusTool);
 
 // ============================================================================
-// TaskCreateTool — Kortix task tracking
+// Task Tools — inline compact chips, visible at a glance
 // ============================================================================
 
 function TaskCreateTool({ part }: ToolProps) {
 	const input = partInput(part);
-	const output = partOutput(part);
 	const title = (input.title as string) || "";
 	const priority = (input.priority as string) || "medium";
-
 	return (
-		<BasicTool
-			icon={<Plus className="size-3.5 flex-shrink-0" />}
-			trigger={{ title: "Create Task", subtitle: title, args: priority !== "medium" ? [priority] : [] }}
-			defaultOpen={false}
-		>
-			{output && <div className="px-3 py-2 text-xs text-muted-foreground">{output}</div>}
-		</BasicTool>
+		<div className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg bg-muted/30 border border-border/30">
+			<Circle className="size-3 text-muted-foreground/40 flex-shrink-0" />
+			<span className="text-foreground/80 truncate flex-1">{title}</span>
+			{priority === "high" && <span className="text-[9px] font-medium text-foreground/40 bg-foreground/5 px-1.5 py-px rounded">high</span>}
+		</div>
 	);
 }
 ToolRegistry.register("task_create", TaskCreateTool);
 ToolRegistry.register("task-create", TaskCreateTool);
 
-// ============================================================================
-// TaskListTool
-// ============================================================================
-
 function TaskListTool({ part }: ToolProps) {
-	const input = partInput(part);
 	const output = partOutput(part);
-	const statusFilter = (input.status as string) || "";
-
 	return (
 		<BasicTool
 			icon={<ListTodo className="size-3.5 flex-shrink-0" />}
-			trigger={{ title: "Tasks", subtitle: statusFilter || "all", args: [] }}
+			trigger={{ title: "Tasks", subtitle: "", args: [] }}
 			defaultOpen={false}
 		>
 			{output && (
-				<div data-scrollable className="max-h-56 overflow-auto px-3 py-2">
-					<div className="text-[11px] font-mono text-muted-foreground whitespace-pre-wrap">
+				<div data-scrollable className="max-h-48 overflow-auto px-3 py-2">
+					<div className="text-[11px] text-muted-foreground whitespace-pre-wrap">
 						<UnifiedMarkdown content={output} isStreaming={false} />
 					</div>
 				</div>
@@ -5888,67 +5785,38 @@ function TaskListTool({ part }: ToolProps) {
 ToolRegistry.register("task_list", TaskListTool);
 ToolRegistry.register("task-list", TaskListTool);
 
-// ============================================================================
-// TaskUpdateTool
-// ============================================================================
-
 function TaskUpdateTool({ part }: ToolProps) {
 	const input = partInput(part);
-	const output = partOutput(part);
-	const taskId = (input.id as string) || "";
-
+	const newStatus = (input.status as string) || "";
+	// task_update is a minor status change — render as minimal inline text
 	return (
-		<BasicTool
-			icon={<RefreshCw className="size-3.5 flex-shrink-0" />}
-			trigger={{ title: "Update Task", subtitle: taskId, args: input.status ? [input.status as string] : [] }}
-			defaultOpen={false}
-		>
-			{output && <div className="px-3 py-2 text-xs text-muted-foreground">{output}</div>}
-		</BasicTool>
+		<div className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] text-muted-foreground/40">
+			<span>→ {newStatus === "in_progress" ? "in progress" : newStatus}</span>
+		</div>
 	);
 }
 ToolRegistry.register("task_update", TaskUpdateTool);
 ToolRegistry.register("task-update", TaskUpdateTool);
 
-// ============================================================================
-// TaskDoneTool
-// ============================================================================
-
 function TaskDoneTool({ part }: ToolProps) {
 	const input = partInput(part);
-	const output = partOutput(part);
-	const taskId = (input.id as string) || "";
-
+	const result = (input.result as string) || "";
 	return (
-		<BasicTool
-			icon={<CheckCircle className="size-3.5 flex-shrink-0 text-emerald-500" />}
-			trigger={{ title: "Task Done", subtitle: taskId, args: [] }}
-			defaultOpen={false}
-		>
-			{output && <div className="px-3 py-2 text-xs text-muted-foreground">{output}</div>}
-		</BasicTool>
+		<div className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg bg-muted/30 border border-border/30">
+			<Check className="size-3 text-foreground/40 flex-shrink-0" />
+			<span className="text-foreground/60 truncate flex-1 line-through decoration-muted-foreground/20">{result || "Completed"}</span>
+		</div>
 	);
 }
 ToolRegistry.register("task_done", TaskDoneTool);
 ToolRegistry.register("task-done", TaskDoneTool);
 
-// ============================================================================
-// TaskDeleteTool
-// ============================================================================
-
 function TaskDeleteTool({ part }: ToolProps) {
-	const input = partInput(part);
-	const output = partOutput(part);
-	const taskId = (input.id as string) || "";
-
 	return (
-		<BasicTool
-			icon={<Trash2 className="size-3.5 flex-shrink-0" />}
-			trigger={{ title: "Delete Task", subtitle: taskId, args: output.includes("deleted") ? ["deleted"] : [] }}
-			defaultOpen={false}
-		>
-			{output && <div className="px-3 py-2 text-xs text-muted-foreground">{output}</div>}
-		</BasicTool>
+		<div className="flex items-center gap-2 px-2.5 py-1 text-xs text-muted-foreground/40">
+			<Trash2 className="size-3 flex-shrink-0" />
+			<span>Task removed</span>
+		</div>
 	);
 }
 ToolRegistry.register("task_delete", TaskDeleteTool);
@@ -6224,33 +6092,30 @@ ToolRegistry.register("project-update", ProjectGetTool);
 ToolRegistry.register("oc-project_update", ProjectGetTool);
 ToolRegistry.register("oc-project-update", ProjectGetTool);
 
-function ProjectSelectTool({ part, defaultOpen, forceOpen }: ToolProps) {
+function ProjectSelectTool({ part }: ToolProps) {
 	const input = partInput(part);
 	const output = partOutput(part);
 	const project = (input.project as string) || '';
 	const data = useMemo(() => parseProjectSelectOutput(output || ''), [output]);
+	const name = data?.name || project;
+	const path = data?.path || '';
+	const projectId = useMemo(() => {
+		const m = (output || '').match(/\(proj-[a-z0-9-]+\)/);
+		return m ? m[0].slice(1, -1) : name;
+	}, [output, name]);
 
 	return (
-		<BasicTool
-			icon={<Folder className="size-3.5 text-muted-foreground" />}
-			trigger={{
-				title: 'Project Select',
-				subtitle: project || (data?.name ? `${data.name} selected` : 'Selecting...'),
-				args: data?.success ? ['selected'] : undefined,
-			}}
-			defaultOpen={defaultOpen}
-			forceOpen={forceOpen}
+		<div
+			role="button"
+			tabIndex={0}
+			onClick={() => openTabAndNavigate({ id: `project:${projectId}`, title: name, type: 'page' as any, href: `/projects/${encodeURIComponent(projectId)}` })}
+			className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border border-border/40 bg-card cursor-pointer hover:bg-accent/50 transition-colors group"
 		>
-			<div className="p-2">
-				{output ? (
-					<div className="text-xs text-muted-foreground whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">
-						{output}
-					</div>
-				) : (
-					<div className="p-3 text-xs text-muted-foreground">Loading...</div>
-				)}
-			</div>
-		</BasicTool>
+			<Folder className="size-3.5 text-muted-foreground/50 flex-shrink-0" />
+			<span className="text-[13px] font-medium text-foreground truncate flex-1">{name}</span>
+			{path && <span className="text-[10px] text-muted-foreground/40 font-mono truncate hidden group-hover:inline">{path}</span>}
+			<ChevronRight className="size-3 text-muted-foreground/20 group-hover:text-muted-foreground/40 flex-shrink-0" />
+		</div>
 	);
 }
 ToolRegistry.register("project_select", ProjectSelectTool);
@@ -6258,33 +6123,30 @@ ToolRegistry.register("project-select", ProjectSelectTool);
 ToolRegistry.register("oc-project_select", ProjectSelectTool);
 ToolRegistry.register("oc-project-select", ProjectSelectTool);
 
-function ProjectCreateTool({ part, defaultOpen, forceOpen }: ToolProps) {
+function ProjectCreateTool({ part }: ToolProps) {
 	const input = partInput(part);
 	const output = partOutput(part);
 	const name = (input.name as string) || '';
 	const data = useMemo(() => parseProjectCreateOutput(output || ''), [output]);
+	const displayName = data?.name || name;
+	const path = data?.path || (input.path as string) || '';
+	const projectId = useMemo(() => {
+		const m = (output || '').match(/proj-[a-z0-9-]+/);
+		return m ? m[0] : displayName;
+	}, [output, displayName]);
 
 	return (
-		<BasicTool
-			icon={<Folder className="size-3.5 text-muted-foreground" />}
-			trigger={{
-				title: 'Project Create',
-				subtitle: name || (data?.name || 'Creating...'),
-				args: data?.success ? ['created'] : undefined,
-			}}
-			defaultOpen={defaultOpen}
-			forceOpen={forceOpen}
+		<div
+			role="button"
+			tabIndex={0}
+			onClick={() => openTabAndNavigate({ id: `project:${projectId}`, title: displayName, type: 'page' as any, href: `/projects/${encodeURIComponent(projectId)}` })}
+			className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border border-border/40 bg-card cursor-pointer hover:bg-accent/50 transition-colors group"
 		>
-			<div className="p-2">
-				{output ? (
-					<div className="text-xs text-muted-foreground whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">
-						{output}
-					</div>
-				) : (
-					<div className="p-3 text-xs text-muted-foreground">Creating project...</div>
-				)}
-			</div>
-		</BasicTool>
+			<Plus className="size-3.5 text-muted-foreground/50 flex-shrink-0" />
+			<span className="text-[13px] font-medium text-foreground truncate flex-1">{displayName}</span>
+			{path && <span className="text-[10px] text-muted-foreground/40 font-mono truncate hidden group-hover:inline">{path}</span>}
+			<ChevronRight className="size-3 text-muted-foreground/20 group-hover:text-muted-foreground/40 flex-shrink-0" />
+		</div>
 	);
 }
 ToolRegistry.register("project_create", ProjectCreateTool);

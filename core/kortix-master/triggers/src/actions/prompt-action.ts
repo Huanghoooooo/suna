@@ -81,9 +81,16 @@ export async function executePromptAction(
   const agentName = trigger.agent_name ?? actionConfig.agent
   const modelId = trigger.model_id ?? actionConfig.model
   const sessionMode = trigger.session_mode ?? actionConfig.session_mode ?? "new"
-  const reuseKey = `trigger:${trigger.name}`
+  // Dynamic reuse key: render session_key template with extracted values
+  // so each unique key (e.g. per chat_id) gets its own persistent session.
+  const hasDynamicKey = !!contextConfig.session_key
+  const reuseKey = hasDynamicKey
+    ? renderPrompt(contextConfig.session_key!, { ...flatData, ...extracted })
+    : `trigger:${trigger.name}`
+  // With a dynamic key, only check the reusedSessions map (not trigger.session_id,
+  // which is a single-value fallback for the "one session per trigger" pattern).
   let sessionId = sessionMode === "reuse"
-    ? (options.reusedSessions.get(reuseKey) ?? trigger.session_id ?? undefined)
+    ? (options.reusedSessions.get(reuseKey) ?? (hasDynamicKey ? undefined : trigger.session_id) ?? undefined)
     : undefined
 
   if (!sessionId) {

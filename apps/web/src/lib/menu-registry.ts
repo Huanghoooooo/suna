@@ -264,6 +264,27 @@ export const menuRegistry: MenuItemDef[] = [
     requiresSession: true,
   },
 
+  {
+    id: 'restart-config',
+    label: 'Restart: Config Only',
+    icon: RefreshCw,
+    group: 'actions',
+    showIn: ['commandPalette'],
+    kind: 'action',
+    actionId: 'restartConfig',
+    keywords: 'reload restart config agents skills commands',
+  },
+  {
+    id: 'restart-full',
+    label: 'Restart: Full',
+    icon: RefreshCw,
+    group: 'actions',
+    showIn: ['commandPalette'],
+    kind: 'action',
+    actionId: 'restartFull',
+    keywords: 'reload restart full services kill nuclear',
+  },
+
   // ──────────────────────────────────────────────────────────────────────────
   // QUICK ACTIONS (right sidebar top section)
   // ──────────────────────────────────────────────────────────────────────────

@@ -575,10 +575,24 @@ export function formatDuration(ms: number): string {
  * Extract child session ID from a task tool part's metadata.
  */
 export function getChildSessionId(part: ToolPart): string | undefined {
-  if (part.tool === 'task') {
-    const status = part.state.status;
-    if (status === 'completed' || status === 'running') {
-      return (part.state.metadata as any)?.sessionId;
+  // Native task tool or agent_spawn
+  if (part.tool === 'task' || part.tool === 'agent_spawn' || part.tool === 'agent-spawn') {
+    // 1. Try metadata (ctx.metadata — available immediately for built-in tools)
+    const metaSessionId = (part.state.metadata as any)?.sessionId;
+    if (metaSessionId) return metaSessionId;
+
+    // 2. Try title (plugin tools embed session ID in title via ctx.metadata)
+    const title = (part.state as any)?.title as string | undefined;
+    if (title) {
+      const tm = title.match(/\bses_[a-zA-Z0-9]+/);
+      if (tm) return tm[0];
+    }
+
+    // 3. Try output text (available after tool completes)
+    const output = (part.state as any)?.output as string | undefined;
+    if (output) {
+      const m = output.match(/\bses_[a-zA-Z0-9]+/);
+      if (m) return m[0];
     }
     return undefined;
   }
@@ -738,6 +752,9 @@ export function getToolInfo(tool: string, input: Record<string, any> = {}): Tool
     case 'session_list_spawned':
     case 'session-list-spawned':
       return { icon: 'layers', title: 'Background Sessions', subtitle: input.project || 'all' };
+    case 'session_stats':
+    case 'session-stats':
+      return { icon: 'layers', title: 'Session Stats', subtitle: input.session_id?.slice(-12) || 'current' };
     case 'session_list':
     case 'session-list':
       return { icon: 'list', title: 'Session List', subtitle: input.search };
@@ -750,6 +767,9 @@ export function getToolInfo(tool: string, input: Record<string, any> = {}): Tool
     case 'agent_spawn':
     case 'agent-spawn':
       return { icon: 'cpu', title: `Agent (${input.agent_type || 'worker'})`, subtitle: input.description };
+    case 'agent_wait':
+    case 'agent-wait':
+      return { icon: 'loader-2', title: 'Waiting for worker', subtitle: input.agent_id };
     case 'agent_message':
     case 'agent-message':
       return { icon: 'message-circle', title: 'Agent Message', subtitle: input.agent_id };

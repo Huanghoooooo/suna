@@ -105,6 +105,12 @@ function SessionItem({
 }: SessionItemProps) {
   const [isHovering, setIsHovering] = useState(false);
 
+  const displayTitle = session.title?.includes('@worker')
+    ? session.title.replace(/\s*\(@worker\)\s*$/, '')
+    : (session.title || 'Untitled');
+
+  const isChild = depth > 0;
+
   return (
     <Link
       href={`/sessions/${session.id}`}
@@ -113,26 +119,25 @@ function SessionItem({
     >
       <div
         className={cn(
-          'flex items-center gap-2 py-1.5 rounded-lg text-[13px] cursor-pointer',
-          'transition-colors duration-150',
+          'flex items-center gap-2 rounded-lg cursor-pointer transition-colors duration-150 pr-2.5',
+          isChild ? 'py-1' : 'py-1.5',
           isActive
             ? 'bg-sidebar-accent text-sidebar-accent-foreground'
             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground',
-          'pr-2.5',
         )}
-        style={{ paddingLeft: `${14 + depth * 12}px` }}
+        style={{ paddingLeft: `${14 + depth * 14}px` }}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
       >
-        {/* Expand/collapse chevron for parents, or a subtle connector for children */}
-        {hasChildren ? (
+        {/* Parent with children: subtle toggle */}
+        {hasChildren && !isChild ? (
           <button
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               onToggleExpand();
             }}
-            className="flex-shrink-0 p-0.5 rounded text-muted-foreground hover:text-sidebar-foreground transition-colors duration-150 cursor-pointer"
+            className="flex-shrink-0 p-0.5 rounded text-muted-foreground/40 hover:text-sidebar-foreground transition-colors duration-150 cursor-pointer"
           >
             <ChevronRight
               className={cn(
@@ -141,41 +146,41 @@ function SessionItem({
               )}
             />
           </button>
-        ) : depth > 0 ? (
-          <span className="flex-shrink-0 w-4 flex items-center justify-center">
-            <span className="h-1 w-1 rounded-full bg-muted-foreground" />
-          </span>
         ) : null}
 
-        {/* Status indicator */}
-        {(isBusy || pendingCount > 0) && (
+        {/* Status dot — busy or pending */}
+        {(isBusy || pendingCount > 0) ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="flex-shrink-0">
                 {pendingCount > 0 ? (
-                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse block" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse block" />
                 ) : (
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse block" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse block" />
                 )}
               </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="text-xs">
               {pendingCount > 0
-                ? `${pendingCount} ${pendingCount === 1 ? 'question' : 'questions'} waiting for your input`
-                : 'Working on it\u2026'}
+                ? `${pendingCount} ${pendingCount === 1 ? 'question' : 'questions'} waiting`
+                : 'Working…'}
             </TooltipContent>
           </Tooltip>
-        )}
+        ) : isChild ? (
+          /* Idle child: tiny muted dot instead of lines/arrows */
+          <span className="h-1 w-1 rounded-full bg-muted-foreground/20 flex-shrink-0" />
+        ) : null}
 
         {/* Title */}
         <span
           className={cn(
             'flex-1 truncate',
             isActive ? 'text-sidebar-accent-foreground font-medium' : '',
-            depth > 0 && !isActive && 'text-muted-foreground text-xs',
+            isChild && !isActive && 'text-muted-foreground/60',
+            isChild ? 'text-[12px]' : 'text-[13px]',
           )}
         >
-          {session.title || 'Untitled'}
+          {displayTitle}
         </span>
 
         {/* Pending badge */}
@@ -332,14 +337,7 @@ function SessionTreeNode({
         onCompact={onCompact}
       />
       {hasChildren && isExpanded && (
-        <div className="relative">
-          {/* Vertical tree line */}
-          {depth < 2 && (
-            <div
-              className="absolute top-0 bottom-0 border-l border-border/40"
-              style={{ left: `${20 + depth * 16}px` }}
-            />
-          )}
+        <div>
           {childSessions.map((child) => (
             <SessionTreeNode
               key={child.id}

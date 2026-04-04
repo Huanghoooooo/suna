@@ -1,0 +1,592 @@
+/**
+ * Channel Webhook Pre-processors — Telegram + Slack
+ *
+ * Parses platform-specific webhook payloads into normalized events with
+ * computed session keys, ready for the trigger dispatch system.
+ *
+ * No HTTP server logic here — these are pure functions called by the
+ * webhook server handlers.
+ */
+import { createHmac, timingSafeEqual } from "node:crypto"
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export interface NormalizedChannelEvent {
+  platform: "telegram" | "slack"
+  event_type: string
+  user_id: string
+  user_name: string
+  username: string          // platform handle (e.g. @markokraemer)
+  chat_id: string
+  text: string
+  message_id: string
+  thread_ts?: string        // Slack thread timestamp
+  is_dm: boolean
+  session_key: string       // Computed session reuse key
+  prompt: string            // Full prompt text for the agent
+  raw: unknown              // Original payload
+}
+
+export interface SlackParseResult {
+  is_challenge: boolean
+  challenge?: string
+  dispatch_event?: NormalizedChannelEvent
+}
+
+// ─── CLI path helper ─────────────────────────────────────────────────────────
+
+function cliPath(platform: string): string {
+  // Channels CLIs live at a known path relative to the trigger system
+  return `channels/${platform}.ts`
+}
+
+// ─── Telegram ────────────────────────────────────────────────────────────────
+
+export function parseTelegramUpdate(update: any, configId: string): NormalizedChannelEvent | null {
+  if (!update || typeof update !== "object") return null
+
+  // ── Standard message ──
+  if (update.message) {
+    const msg = update.message
+    const from = msg.from ?? {}
+    const chat = msg.chat ?? {}
+    const isDm = chat.type === "private"
+    const userId = String(from.id ?? "")
+    const chatId = String(chat.id ?? "")
+
+    // Build text: regular text, photo caption, or document indicator
+    let text = msg.text ?? ""
+    if (msg.photo && msg.caption) text = `[photo] ${msg.caption}`
+    else if (msg.photo) text = "[photo received]"
+    if (msg.document) text = text ? `[document: ${msg.document.file_name ?? "file"}] ${text}` : `[document: ${msg.document.file_name ?? "file"}]`
+    if (msg.voice) text = text || "[voice message]"
+    if (msg.sticker) text = text || `[sticker: ${msg.sticker.emoji ?? ""}]`
+
+    const sessionKey = isDm
+      ? `telegram:${configId}:user:${userId}`
+      : `telegram:${configId}:chat:${chatId}`
+
+    const prompt = buildTelegramPrompt("message", from, chat, chatId, text, String(msg.message_id), isDm)
+
+    return {
+      platform: "telegram",
+      event_type: "message",
+      user_id: userId,
+      user_name: from.first_name ?? "",
+      username: from.username ?? "",
+      chat_id: chatId,
+      text,
+      message_id: String(msg.message_id),
+      is_dm: isDm,
+      session_key: sessionKey,
+      prompt,
+      raw: update,
+    }
+  }
+
+  // ── Edited message ──
+  if (update.edited_message) {
+    const msg = update.edited_message
+    const from = msg.from ?? {}
+    const chat = msg.chat ?? {}
+    const isDm = chat.type === "private"
+    const userId = String(from.id ?? "")
+    const chatId = String(chat.id ?? "")
+    const text = msg.text ?? ""
+
+    const sessionKey = isDm
+      ? `telegram:${configId}:user:${userId}`
+      : `telegram:${configId}:chat:${chatId}`
+
+    const prompt = buildTelegramPrompt("edited_message", from, chat, chatId, text, String(msg.message_id), isDm)
+
+    return {
+      platform: "telegram",
+      event_type: "edited_message",
+      user_id: userId,
+      user_name: from.first_name ?? "",
+      username: from.username ?? "",
+      chat_id: chatId,
+      text,
+      message_id: String(msg.message_id),
+      is_dm: isDm,
+      session_key: sessionKey,
+      prompt,
+      raw: update,
+    }
+  }
+
+  // ── Message reaction ──
+  if (update.message_reaction) {
+    const r = update.message_reaction
+    const user = r.user ?? {}
+    const chat = r.chat ?? {}
+    const isDm = chat.type === "private"
+    const userId = String(user.id ?? "")
+    const chatId = String(chat.id ?? "")
+    const newReactions = (r.new_reaction ?? []).map((x: any) => x.emoji ?? x.type).join(", ")
+    const text = `[reaction: ${newReactions}]`
+
+    const sessionKey = isDm
+      ? `telegram:${configId}:user:${userId}`
+      : `telegram:${configId}:chat:${chatId}`
+
+    const prompt = buildTelegramPrompt("message_reaction", user, chat, chatId, text, String(r.message_id), isDm)
+
+    return {
+      platform: "telegram",
+      event_type: "message_reaction",
+      user_id: userId,
+      user_name: user.first_name ?? "",
+      username: user.username ?? "",
+      chat_id: chatId,
+      text,
+      message_id: String(r.message_id),
+      is_dm: isDm,
+      session_key: sessionKey,
+      prompt,
+      raw: update,
+    }
+  }
+
+  // ── Callback query (inline button) ──
+  if (update.callback_query) {
+    const cb = update.callback_query
+    const from = cb.from ?? {}
+    const chat = cb.message?.chat ?? {}
+    const isDm = chat.type === "private"
+    const userId = String(from.id ?? "")
+    const chatId = String(chat.id ?? "")
+    const text = `[callback: ${cb.data ?? ""}]`
+
+    const sessionKey = isDm
+      ? `telegram:${configId}:user:${userId}`
+      : `telegram:${configId}:chat:${chatId}`
+
+    const prompt = buildTelegramPrompt("callback_query", from, chat, chatId, text, String(cb.message?.message_id ?? ""), isDm)
+
+    return {
+      platform: "telegram",
+      event_type: "callback_query",
+      user_id: userId,
+      user_name: from.first_name ?? "",
+      username: from.username ?? "",
+      chat_id: chatId,
+      text,
+      message_id: String(cb.message?.message_id ?? ""),
+      is_dm: isDm,
+      session_key: sessionKey,
+      prompt,
+      raw: update,
+    }
+  }
+
+  // ── Bot added/removed from chat ──
+  if (update.my_chat_member) {
+    const m = update.my_chat_member
+    const from = m.from ?? {}
+    const chat = m.chat ?? {}
+    const isDm = chat.type === "private"
+    const userId = String(from.id ?? "")
+    const chatId = String(chat.id ?? "")
+    const newStatus = m.new_chat_member?.status ?? "unknown"
+    const text = `[bot status changed to: ${newStatus}]`
+
+    const sessionKey = isDm
+      ? `telegram:${configId}:user:${userId}`
+      : `telegram:${configId}:chat:${chatId}`
+
+    const prompt = buildTelegramPrompt("my_chat_member", from, chat, chatId, text, "", isDm)
+
+    return {
+      platform: "telegram",
+      event_type: "my_chat_member",
+      user_id: userId,
+      user_name: from.first_name ?? "",
+      username: from.username ?? "",
+      chat_id: chatId,
+      text,
+      message_id: "",
+      is_dm: isDm,
+      session_key: sessionKey,
+      prompt,
+      raw: update,
+    }
+  }
+
+  // Unrecognized update type
+  return null
+}
+
+function buildTelegramPrompt(
+  eventType: string, from: any, chat: any, chatId: string,
+  text: string, messageId: string, isDm: boolean,
+): string {
+  const userName = from.first_name ?? "Unknown"
+  const handle = from.username ? ` (@${from.username})` : ""
+  const chatLabel = isDm ? "DM" : (chat.title ?? `chat ${chatId}`)
+  const cli = cliPath("telegram")
+
+  const lines = [
+    `[Telegram · ${chatLabel} · ${eventType} from ${userName}${handle}]`,
+    text,
+    "",
+    `Chat ID: ${chatId}${messageId ? ` | Message ID: ${messageId}` : ""}`,
+    `Reply: bun run ${cli} send --chat ${chatId} --text "your reply"`,
+  ]
+
+  if (!isDm) {
+    lines.push(`Typing: bun run ${cli} typing --chat ${chatId}`)
+  }
+
+  return lines.join("\n")
+}
+
+// ─── Slack ───────────────────────────────────────────────────────────────────
+
+export function parseSlackEvent(payload: any, configId: string, botUserId: string): SlackParseResult {
+  if (!payload || typeof payload !== "object") {
+    return { is_challenge: false }
+  }
+
+  // Challenge verification (one-time setup)
+  if (payload.type === "url_verification") {
+    return { is_challenge: true, challenge: payload.challenge }
+  }
+
+  if (payload.type !== "event_callback" || !payload.event) {
+    return { is_challenge: false }
+  }
+
+  const event = payload.event
+  const eventType = event.type
+  const eventId = payload.event_id
+  const cli = cliPath("slack")
+
+  // ── Bot's own messages → skip ──
+  if (event.bot_id || event.bot_profile) {
+    return { is_challenge: false }
+  }
+
+  // ── app_mention ──
+  if (eventType === "app_mention") {
+    const userId = event.user ?? ""
+    const channel = event.channel ?? ""
+    const rawText = event.text ?? ""
+    // Strip bot mention: "<@U0LAN0Z89> hey" → "hey"
+    const text = rawText.replace(new RegExp(`<@${botUserId}>\\s*`, "g"), "").trim()
+    const threadTs = event.thread_ts || event.event_ts || event.ts
+    const eventTs = event.event_ts || event.ts
+
+    const sessionKey = `slack:${configId}:thread:${channel}:${threadTs}`
+
+    const prompt = [
+      `[Slack · #channel · @mention from ${userId}]`,
+      `Message: ${text}`,
+      "",
+      `Channel: ${channel} | Thread: ${threadTs}`,
+      `Reply: bun run ${cli} send --channel ${channel} --thread ${threadTs} --text "your reply"`,
+      `Thread history: bun run ${cli} thread --channel ${channel} --ts ${threadTs}`,
+    ].join("\n")
+
+    return {
+      is_challenge: false,
+      dispatch_event: {
+        platform: "slack",
+        event_type: "app_mention",
+        user_id: userId,
+        user_name: userId,
+        username: userId,
+        chat_id: channel,
+        text,
+        message_id: eventTs,
+        thread_ts: threadTs,
+        is_dm: false,
+        session_key: sessionKey,
+        prompt,
+        raw: payload,
+      },
+    }
+  }
+
+  // ── message (DM or channel) ──
+  if (eventType === "message") {
+    const subtype = event.subtype
+
+    // ── message_changed ──
+    if (subtype === "message_changed") {
+      const channel = event.channel ?? ""
+      const newText = event.message?.text ?? ""
+      const oldText = event.previous_message?.text ?? ""
+      const userId = event.message?.user ?? ""
+      const ts = event.message?.ts ?? event.ts
+
+      const sessionKey = `slack:${configId}:thread:${channel}:${ts}`
+      const prompt = [
+        `[Slack · message edited by ${userId}]`,
+        `Old: ${oldText}`,
+        `New: ${newText}`,
+        `Channel: ${channel} | TS: ${ts}`,
+      ].join("\n")
+
+      return {
+        is_challenge: false,
+        dispatch_event: {
+          platform: "slack",
+          event_type: "message_changed",
+          user_id: userId,
+          user_name: userId,
+          username: userId,
+          chat_id: channel,
+          text: newText,
+          message_id: ts,
+          is_dm: false,
+          session_key: sessionKey,
+          prompt,
+          raw: payload,
+        },
+      }
+    }
+
+    // ── message_deleted ──
+    if (subtype === "message_deleted") {
+      const channel = event.channel ?? ""
+      const deletedTs = event.deleted_ts ?? ""
+      const prevText = event.previous_message?.text ?? ""
+      const userId = event.previous_message?.user ?? ""
+
+      const sessionKey = `slack:${configId}:thread:${channel}:${deletedTs}`
+      const prompt = [
+        `[Slack · message deleted]`,
+        `Deleted: "${prevText}"`,
+        `Channel: ${channel} | Deleted TS: ${deletedTs}`,
+      ].join("\n")
+
+      return {
+        is_challenge: false,
+        dispatch_event: {
+          platform: "slack",
+          event_type: "message_deleted",
+          user_id: userId,
+          user_name: userId,
+          username: userId,
+          chat_id: channel,
+          text: prevText,
+          message_id: deletedTs,
+          is_dm: false,
+          session_key: sessionKey,
+          prompt,
+          raw: payload,
+        },
+      }
+    }
+
+    // ── Skip other subtypes (channel_join, channel_leave, etc.) ──
+    if (subtype && subtype !== "file_share") {
+      return { is_challenge: false }
+    }
+
+    // ── Regular message (DM or channel) ──
+    const userId = event.user ?? ""
+    const channel = event.channel ?? ""
+    const text = event.text ?? ""
+    const isDm = event.channel_type === "im"
+    const threadTs = event.thread_ts || event.event_ts || event.ts
+
+    const sessionKey = isDm
+      ? `slack:${configId}:dm:${userId}`
+      : `slack:${configId}:thread:${channel}:${threadTs}`
+
+    const prompt = isDm
+      ? [
+          `[Slack · DM from ${userId}]`,
+          `Message: ${text}`,
+          "",
+          `Channel: ${channel}`,
+          `Reply: bun run ${cli} send --channel ${channel} --text "your reply"`,
+        ].join("\n")
+      : [
+          `[Slack · channel message from ${userId}]`,
+          `Message: ${text}`,
+          "",
+          `Channel: ${channel} | Thread: ${threadTs}`,
+          `Reply: bun run ${cli} send --channel ${channel} --thread ${threadTs} --text "your reply"`,
+        ].join("\n")
+
+    return {
+      is_challenge: false,
+      dispatch_event: {
+        platform: "slack",
+        event_type: "message",
+        user_id: userId,
+        user_name: userId,
+        username: userId,
+        chat_id: channel,
+        text,
+        message_id: event.event_ts || event.ts,
+        thread_ts: threadTs,
+        is_dm: isDm,
+        session_key: sessionKey,
+        prompt,
+        raw: payload,
+      },
+    }
+  }
+
+  // ── reaction_added ──
+  if (eventType === "reaction_added") {
+    const userId = event.user ?? ""
+    const reaction = event.reaction ?? ""
+    const channel = event.item?.channel ?? ""
+    const ts = event.item?.ts ?? ""
+
+    const sessionKey = `slack:${configId}:thread:${channel}:${ts}`
+    const prompt = [
+      `[Slack · reaction from ${userId}]`,
+      `Reaction: :${reaction}: added to message`,
+      `Channel: ${channel} | Message TS: ${ts}`,
+    ].join("\n")
+
+    return {
+      is_challenge: false,
+      dispatch_event: {
+        platform: "slack",
+        event_type: "reaction_added",
+        user_id: userId,
+        user_name: userId,
+        username: userId,
+        chat_id: channel,
+        text: `[reaction: :${reaction}:]`,
+        message_id: ts,
+        is_dm: false,
+        session_key: sessionKey,
+        prompt,
+        raw: payload,
+      },
+    }
+  }
+
+  // ── reaction_removed ──
+  if (eventType === "reaction_removed") {
+    const userId = event.user ?? ""
+    const reaction = event.reaction ?? ""
+    const channel = event.item?.channel ?? ""
+    const ts = event.item?.ts ?? ""
+
+    const sessionKey = `slack:${configId}:thread:${channel}:${ts}`
+    const prompt = [
+      `[Slack · reaction removed by ${userId}]`,
+      `Reaction: :${reaction}: removed`,
+      `Channel: ${channel} | Message TS: ${ts}`,
+    ].join("\n")
+
+    return {
+      is_challenge: false,
+      dispatch_event: {
+        platform: "slack",
+        event_type: "reaction_removed",
+        user_id: userId,
+        user_name: userId,
+        username: userId,
+        chat_id: channel,
+        text: `[reaction removed: :${reaction}:]`,
+        message_id: ts,
+        is_dm: false,
+        session_key: sessionKey,
+        prompt,
+        raw: payload,
+      },
+    }
+  }
+
+  // ── member_joined_channel ──
+  if (eventType === "member_joined_channel") {
+    const userId = event.user ?? ""
+    const channel = event.channel ?? ""
+
+    const sessionKey = `slack:${configId}:thread:${channel}:joined_${userId}`
+    const prompt = [
+      `[Slack · ${userId} joined channel]`,
+      `Channel: ${channel}`,
+    ].join("\n")
+
+    return {
+      is_challenge: false,
+      dispatch_event: {
+        platform: "slack",
+        event_type: "member_joined_channel",
+        user_id: userId,
+        user_name: userId,
+        username: userId,
+        chat_id: channel,
+        text: `[member joined]`,
+        message_id: event.event_ts ?? "",
+        is_dm: false,
+        session_key: sessionKey,
+        prompt,
+        raw: payload,
+      },
+    }
+  }
+
+  // ── file_shared ──
+  if (eventType === "file_shared") {
+    const userId = event.user_id ?? ""
+    const channel = event.channel_id ?? ""
+    const file = event.file ?? {}
+    const fileName = file.name ?? event.file_id ?? "unknown"
+
+    const sessionKey = `slack:${configId}:thread:${channel}:file_${event.file_id}`
+    const prompt = [
+      `[Slack · file shared by ${userId}]`,
+      `File: ${fileName} (${file.filetype ?? "unknown"}, ${file.size ?? "?"} bytes)`,
+      `Channel: ${channel}`,
+      file.url_private ? `URL: ${file.url_private}` : "",
+    ].filter(Boolean).join("\n")
+
+    return {
+      is_challenge: false,
+      dispatch_event: {
+        platform: "slack",
+        event_type: "file_shared",
+        user_id: userId,
+        user_name: userId,
+        username: userId,
+        chat_id: channel,
+        text: `[file: ${fileName}]`,
+        message_id: event.event_ts ?? "",
+        is_dm: false,
+        session_key: sessionKey,
+        prompt,
+        raw: payload,
+      },
+    }
+  }
+
+  // Unrecognized event type
+  return { is_challenge: false }
+}
+
+// ─── Slack Signature Verification ────────────────────────────────────────────
+
+export function verifySlackSignature(
+  body: string,
+  timestamp: string,
+  signature: string,
+  signingSecret: string,
+): boolean {
+  // Reject if timestamp is >5 minutes old (replay protection)
+  const now = Math.floor(Date.now() / 1000)
+  const ts = parseInt(timestamp, 10)
+  if (isNaN(ts) || Math.abs(now - ts) > 300) return false
+
+  const sigBasestring = `v0:${timestamp}:${body}`
+  const computed = "v0=" + createHmac("sha256", signingSecret).update(sigBasestring).digest("hex")
+
+  // Timing-safe comparison
+  try {
+    return timingSafeEqual(Buffer.from(computed), Buffer.from(signature))
+  } catch {
+    return false
+  }
+}

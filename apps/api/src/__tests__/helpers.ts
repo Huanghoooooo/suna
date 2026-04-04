@@ -166,8 +166,6 @@ export interface TestAppOptions {
   mountPlatform?: boolean;
   /** Whether to mount deployment routes (requires DATABASE_URL). Default: false */
   mountDeployments?: boolean;
-  /** Whether to mount channel routes (requires DATABASE_URL). Default: false */
-  mountChannels?: boolean;
 }
 
 /**
@@ -293,15 +291,7 @@ export function createTestApp(opts: TestAppOptions = {}) {
     }
   }
 
-  // ─── Channel routes (module-level db — requires DATABASE_URL) ─────────
-  if (opts.mountChannels && hasDb) {
-    try {
-      const { channelsApp } = require('../channels/index');
-      app.route('/v1/channels', channelsApp);
-    } catch (e) {
-      console.warn('[test] Failed to mount channel routes:', e);
-    }
-  }
+  // [channels v2] Old channel routes removed — managed via sandbox CLI
 
   // ─── Error handler (matches production) ────────────────────────────────
   app.onError((err, c) => {
@@ -344,8 +334,6 @@ export function createTestApp(opts: TestAppOptions = {}) {
  */
 export async function cleanupTestData(): Promise<void> {
   const db = getTestDb();
-  // channel_configs FK → sandboxes, so delete channels first
-  await db.execute(sql`DELETE FROM kortix.channel_configs`);
   await db.delete(kortixApiKeys).execute();
   await db.delete(deployments).execute();
   await db.delete(sandboxes).execute();

@@ -10,8 +10,8 @@
     "test:integration": "bun test tests/integration/",
     "test:e2e": "bun test tests/e2e/",
     "test:coverage": "bun test --coverage",
-    "channels:start": "bun run channels/src/index.ts",
-    "channels:dev": "bun run --watch channels/src/index.ts"
+    "channels:telegram": "bun run channels/telegram.ts",
+    "channels:slack": "bun run channels/slack.ts"
   },
   "dependencies": {
     "@hono/standard-validator": "^0.2.2",

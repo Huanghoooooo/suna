@@ -9,7 +9,7 @@ set -euo pipefail
 #
 # The s6 env dir is tmpfs — wiped on every container start. This script
 # rebuilds it from the persistent encrypted secrets store so all services
-# (opencode, kortix-master, channels, triggers) have their env vars.
+# (opencode, kortix-master, triggers) have their env vars.
 #
 # Recovery chain (in priority order):
 #   1. Docker env vars (injected at container create) → always present on first boot

@@ -39,7 +39,7 @@ export function ensureTasksTable(db: Database): void {
 		CREATE TABLE IF NOT EXISTS tasks (
 			id TEXT PRIMARY KEY,
 			project_id TEXT NOT NULL,
-			title TEXT NOT NULL,
+			title TEXT NOT NULL DEFAULT '',
 			description TEXT NOT NULL DEFAULT '',
 			status TEXT NOT NULL DEFAULT 'pending',
 			result TEXT,
@@ -48,6 +48,8 @@ export function ensureTasksTable(db: Database): void {
 			updated_at TEXT NOT NULL
 		)
 	`)
+	// Migration: add result column if missing (older schema doesn't have it)
+	try { db.exec("ALTER TABLE tasks ADD COLUMN result TEXT") } catch {}
 }
 
 export function taskTools(db: Database, mgr: ProjectManager) {

@@ -111,6 +111,10 @@ export interface HttpActionConfig {
 export interface ContextConfig {
   extract?: Record<string, string>
   include_raw?: boolean
+  /** Template for session reuse key, rendered with extracted values.
+   *  E.g. "telegram:user:{{ user_id }}" → per-user sessions.
+   *  Falls back to "trigger:{name}" when unset. */
+  session_key?: string
 }
 
 // ─── Pipedream Config (from YAML) ───────────────────────────────────────────

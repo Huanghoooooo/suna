@@ -181,6 +181,16 @@ export class TriggerManager {
       try { return JSON.parse(payload.body) } catch { return payload.body }
     })()
 
+    // ── Channel webhook pre-processing ──────────────────────────────────
+    // If the path matches /hooks/telegram/* or /hooks/slack/*, use the
+    // channel-webhooks parsers to normalize the payload and inject
+    // _channel_prompt and _session_key into the event data.
+    const channelData = this.processChannelWebhook(payload.path, parsedBody)
+    if (channelData?.skip) {
+      // Slack challenge or bot message — don't dispatch
+      return { sessionId: channelData.challengeResponse ?? "skipped" }
+    }
+
     const result = await this.dispatcher.dispatch(trigger.id, {
       type: "webhook.request",
       manual: false,
@@ -190,10 +200,91 @@ export class TriggerManager {
         path: payload.path,
         headers: payload.headers,
         body: parsedBody,
+        // Channel-specific fields injected for prompt-action template rendering
+        ...(channelData?.eventData ?? {}),
       },
     })
 
     return { sessionId: result.sessionId ?? "unknown" }
+  }
+
+  /** Slack event dedup cache */
+  private slackSeenEvents = new Map<string, number>()
+  private static SLACK_DEDUP_MAX = 200
+  private static SLACK_DEDUP_TTL = 5 * 60 * 1000 // 5 min
+
+  private processChannelWebhook(path: string, body: any): { skip?: boolean; challengeResponse?: string; eventData?: Record<string, unknown> } | null {
+    // ── Telegram: /hooks/telegram/<configId> ──
+    const tgMatch = path.match(/^\/hooks\/telegram\/(.+)$/)
+    if (tgMatch) {
+      const { parseTelegramUpdate } = require("./channel-webhooks") as typeof import("./channel-webhooks")
+      const configId = tgMatch[1]!
+      const normalized = parseTelegramUpdate(body, configId)
+      if (!normalized) return { skip: true }
+      return {
+        eventData: {
+          _channel_prompt: normalized.prompt,
+          _session_key: normalized.session_key,
+          _channel_platform: "telegram",
+          _channel_event_type: normalized.event_type,
+          _channel_user_id: normalized.user_id,
+          _channel_chat_id: normalized.chat_id,
+        },
+      }
+    }
+
+    // ── Slack: /hooks/slack/<configId> ──
+    const slackMatch = path.match(/^\/hooks\/slack\/(.+)$/)
+    if (slackMatch) {
+      const { parseSlackEvent } = require("./channel-webhooks") as typeof import("./channel-webhooks")
+      const configId = slackMatch[1]!
+      // Bot user ID from env (needed for mention stripping)
+      const botUserId = process.env.SLACK_BOT_USER_ID || "UNKNOWN_BOT"
+
+      const parsed = parseSlackEvent(body, configId, botUserId)
+
+      // Challenge verification
+      if (parsed.is_challenge) {
+        return { skip: true, challengeResponse: `challenge:${parsed.challenge}` }
+      }
+
+      // No dispatch event (bot message, unrecognized, etc.)
+      if (!parsed.dispatch_event) {
+        return { skip: true }
+      }
+
+      // Dedup by event_id
+      const eventId = body?.event_id
+      if (eventId) {
+        const now = Date.now()
+        if (this.slackSeenEvents.has(eventId)) {
+          return { skip: true }
+        }
+        this.slackSeenEvents.set(eventId, now)
+        // Prune old entries
+        if (this.slackSeenEvents.size > TriggerManager.SLACK_DEDUP_MAX) {
+          for (const [id, ts] of this.slackSeenEvents) {
+            if (now - ts > TriggerManager.SLACK_DEDUP_TTL) this.slackSeenEvents.delete(id)
+          }
+        }
+      }
+
+      const ev = parsed.dispatch_event
+      return {
+        eventData: {
+          _channel_prompt: ev.prompt,
+          _session_key: ev.session_key,
+          _channel_platform: "slack",
+          _channel_event_type: ev.event_type,
+          _channel_user_id: ev.user_id,
+          _channel_chat_id: ev.chat_id,
+          _channel_thread_ts: ev.thread_ts,
+        },
+      }
+    }
+
+    // Not a channel webhook — pass through
+    return null
   }
 
   // ─── Pipedream event dispatch ─────────────────────────────────────────────

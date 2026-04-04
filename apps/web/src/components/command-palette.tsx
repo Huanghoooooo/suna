@@ -48,6 +48,7 @@ import {
   useOpenCodeProviders,
 } from '@/hooks/opencode/use-opencode-sessions';
 import { toast } from '@/lib/toast';
+import { useServerStore } from '@/stores/server-store';
 
 import { useCreateOpenCodeSession } from '@/hooks/opencode/use-opencode-sessions';
 import { openTabAndNavigate } from '@/stores/tab-store';
@@ -777,6 +778,24 @@ export function CommandPalette() {
     });
   }, [close]);
 
+  const handleRestartConfig = useCallback(() => {
+    close();
+    const serverUrl = useServerStore.getState().getActiveServerUrl();
+    fetch(`${serverUrl}/kortix/services/system/reload`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'dispose-only' }),
+    }).then(() => toast.success('Config reloaded')).catch(() => toast.error('Restart failed'));
+  }, [close]);
+
+  const handleRestartFull = useCallback(() => {
+    close();
+    const serverUrl = useServerStore.getState().getActiveServerUrl();
+    fetch(`${serverUrl}/kortix/services/system/reload`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'full' }),
+    }).then(() => toast.success('Full restart initiated')).catch(() => toast.error('Restart failed'));
+  }, [close]);
+
   const actionHandlers: Record<string, () => void> = useMemo(() => ({
     newSession: handleNewSession,
     openTerminal: handleOpenTerminal,
@@ -787,7 +806,9 @@ export function CommandPalette() {
     openPlan: handleOpenPlan,
     openProviderModal: handleOpenProviderModal,
     generateSSHKey: handleGenerateSSHKey,
-  }), [handleNewSession, handleOpenTerminal, handleCompactSession, handleViewChanges, handleToggleSidebar, handleLogout, handleOpenPlan, handleOpenProviderModal, handleGenerateSSHKey]);
+    restartConfig: handleRestartConfig,
+    restartFull: handleRestartFull,
+  }), [handleNewSession, handleOpenTerminal, handleCompactSession, handleViewChanges, handleToggleSidebar, handleLogout, handleOpenPlan, handleOpenProviderModal, handleGenerateSSHKey, handleRestartConfig, handleRestartFull]);
 
   const handleRegistryItem = useCallback((item: MenuItemDef) => {
     switch (item.kind) {

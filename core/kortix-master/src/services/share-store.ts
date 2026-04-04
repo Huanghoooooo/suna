@@ -31,7 +31,8 @@ export interface ShareEntry {
 
 export const DEFAULT_TTL_MS = 60 * 60 * 1000           // 1 hour
 export const MIN_TTL_MS = 5 * 60 * 1000                 // 5 minutes
-export const MAX_TTL_MS = 7 * 24 * 60 * 60 * 1000       // 7 days
+export const MAX_TTL_MS = 365 * 24 * 60 * 60 * 1000     // 365 days (effectively permanent for webhooks)
+export const PERMANENT_TTL_MS = MAX_TTL_MS               // alias for channel webhooks
 
 const PERSIST_PATH = process.env.SHARE_STORE_PATH || '/workspace/.kortix/shares.json'
 const PRUNE_INTERVAL_MS = 5 * 60 * 1000  // prune every 5 min

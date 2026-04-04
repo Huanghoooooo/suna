@@ -67,18 +67,6 @@ export const integrationStatusEnum = kortixSchema.enum('integration_status', [
   'error',
 ]);
 
-export interface ChannelPlatformConfig {
-  groups?: { enabled?: boolean; allowList?: string[]; [key: string]: unknown };
-  dm?: { enabled?: boolean; [key: string]: unknown };
-  [key: string]: unknown;
-}
-
-export interface ChannelPlatformUser {
-  id: string;
-  name: string;
-  avatar?: string;
-}
-
 // ─── Accounts & Members ─────────────────────────────────────────────────────
 // Replaces basejump.account_user. Fully kortix-native.
 
@@ -617,42 +605,6 @@ export const creditPurchases = kortixSchema.table('credit_purchases', {
   revenuecatTransactionId: varchar('revenuecat_transaction_id', { length: 255 }),
   revenuecatProductId: varchar('revenuecat_product_id', { length: 255 }),
 });
-
-// ─── Channels ──────────────────────────────────────────────────────────────
-
-export const channelTypeEnum = kortixSchema.enum('channel_type', [
-  'telegram',
-  'slack',
-  'discord',
-  'whatsapp',
-  'teams',
-  'voice',
-  'email',
-  'sms',
-]);
-
-export const channelConfigs = kortixSchema.table(
-  'channel_configs',
-  {
-    channelConfigId: uuid('channel_config_id').defaultRandom().primaryKey(),
-    accountId: uuid('account_id').notNull(),
-    sandboxId: uuid('sandbox_id').references(() => sandboxes.sandboxId, { onDelete: 'set null' }),
-    channelType: channelTypeEnum('channel_type').notNull(),
-    name: varchar('name', { length: 255 }).notNull(),
-    enabled: boolean('enabled').default(true).notNull(),
-    platformConfig: jsonb('platform_config').default({}).notNull().$type<ChannelPlatformConfig>(),
-    instructions: text('instructions'),
-    agentName: varchar('agent_name', { length: 255 }),
-    metadata: jsonb('metadata').default({}).notNull().$type<Record<string, unknown>>(),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-  },
-  (table) => [
-    index('idx_channel_configs_account').on(table.accountId),
-    index('idx_channel_configs_sandbox').on(table.sandboxId),
-    index('idx_channel_configs_type').on(table.channelType),
-  ],
-);
 
 // ─── Tunnel (Reverse-Tunnel to Local Machine) ──────────────────────────────
 

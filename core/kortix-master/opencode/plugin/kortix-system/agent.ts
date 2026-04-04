@@ -26,12 +26,21 @@ export function ensureAgentsTable(db: Database): void {
 			parent_session_id TEXT NOT NULL,
 			agent_type TEXT NOT NULL,
 			description TEXT NOT NULL,
+			system_prompt TEXT,
 			status TEXT NOT NULL DEFAULT 'running',
 			result TEXT,
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL
 		)
 	`)
+	try { db.exec("ALTER TABLE agents ADD COLUMN system_prompt TEXT") } catch {}
+}
+
+// Map session_id → system_prompt for the system transform hook
+const agentSystemPrompts = new Map<string, string>()
+
+export function getAgentSystemPrompt(sessionId: string): string | undefined {
+	return agentSystemPrompts.get(sessionId)
 }
 
 function genId(): string {
@@ -58,41 +67,47 @@ export function agentTools(client: any, db: Database, mgr: ProjectManager) {
 	return {
 		agent_spawn: tool({
 			description: [
-				"Launch a sub-agent to handle a task. Available agent types:",
-				"- worker: General-purpose agent with full tools (coding, debugging, research, implementation)",
-				"- explorer: Fast read-only agent for codebase search and analysis (no file modifications)",
-				"- planner: Architecture and planning agent (read-only, returns step-by-step plans)",
-				"- verifier: Adversarial verification agent (read-only, produces VERDICT: PASS/FAIL/PARTIAL)",
+				"Spawn an autonomous worker agent to execute a task. The worker has full tools (bash, read, write, edit, skill, web search, PTY) and can handle any work: research, coding, building, testing, verification.",
 				"",
-				"Usage:",
-				"- Launch multiple agents concurrently by calling agent_spawn multiple times in one message",
-				"- Each agent starts a fresh session. Include all context needed in your prompt.",
-				"- Tell the agent whether to write code or just research. Tell it how to verify its work.",
-				"- The agent's result is NOT visible to the user — you must relay key findings.",
+				"Include ALL context in the prompt — the worker knows nothing about your conversation.",
+				"Tell it what skill to load, what to build, how to verify.",
+				"Add command: '/autowork' for complex tasks that need the plan/implement/verify loop.",
+				"Launch multiple workers in one message for parallel independent tasks.",
+				"The worker's output is NOT visible to the user — you must summarize and relay results.",
 			].join("\n"),
 			args: {
 				description: tool.schema.string().describe("Short (3-5 word) task description"),
-				prompt: tool.schema.string().describe("Detailed task instructions for the agent"),
-				agent_type: tool.schema.string().describe("Agent type: worker, explorer, planner, verifier"),
-				background: tool.schema.boolean().optional().describe("Run in background (default: false = sync, blocks until done)"),
+				prompt: tool.schema.string().describe("Detailed task instructions for the worker. Include ALL context — the worker knows nothing about your conversation."),
+				agent_type: tool.schema.string().describe('Agent type — use "worker"'),
+				system_prompt: tool.schema.string().optional().describe("Mission-specific system prompt. Defines WHO this worker is. Frames all decisions. E.g. 'You are building an academic AGI presentation. Rigorous academic tone, real citations.'"),
+				command: tool.schema.string().optional().describe('Slash command to prepend (e.g. "/autowork" for complex tasks)'),
 			},
 			async execute(args: {
-				description: string; prompt: string; agent_type: string; background?: boolean
+				description: string; prompt: string; agent_type: string; system_prompt?: string; command?: string
 			}, ctx: ToolContext): Promise<string> {
 				const pid = getProjectId(ctx)
 				if (!pid) return "Error: no project selected."
 				const id = genId()
 				const now = new Date().toISOString()
-				const isBackground = args.background === true
 
 				try {
 					// Create child session
 					const sessionResult = await client.session.create({
-						parentID: ctx.sessionID,
-						title: `${args.description} (@${args.agent_type})`,
+						body: {
+							parentID: ctx.sessionID,
+							title: `${args.description} (@${args.agent_type})`,
+						},
 					})
 					const childSessionId = sessionResult.data?.id
 					if (!childSessionId) throw new Error("Failed to create child session")
+
+					// Send session ID to UI — both via metadata and title
+					try {
+						ctx.metadata({
+							title: `${args.description} [${childSessionId}]`,
+							metadata: { sessionId: childSessionId, agentId: id, agentType: args.agent_type },
+						})
+					} catch {}
 
 					// Resolve model from parent
 					let model: { modelID: string; providerID: string } | undefined
@@ -102,106 +117,136 @@ export function agentTools(client: any, db: Database, mgr: ProjectManager) {
 						if (last?.info?.modelID) model = { modelID: last.info.modelID, providerID: last.info.providerID || "anthropic" }
 					} catch {}
 
+					// Auto-link parent's project to child session
+					const parentProject = mgr.getSessionProject(ctx.sessionID)
+					if (parentProject) {
+						mgr.setSessionProject(childSessionId, parentProject.id)
+					}
+
+					// Build prompt with project context + optional command prefix
+					let fullPrompt = args.prompt
+					if (parentProject) {
+						fullPrompt = `Working directory: ${parentProject.path}\nProject: ${parentProject.name}\n\n${fullPrompt}`
+					}
+					if (args.command) {
+						fullPrompt = `${args.command}\n\n${fullPrompt}`
+					}
+
 					// Persist agent record
-					db.prepare(`INSERT INTO agents (id, project_id, session_id, parent_session_id, agent_type, description, status, created_at, updated_at)
-						VALUES ($id, $pid, $sid, $psid, $type, $desc, 'running', $now, $now)`)
-						.run({ $id: id, $pid: pid, $sid: childSessionId, $psid: ctx.sessionID, $type: args.agent_type, $desc: args.description, $now: now })
+					db.prepare(`INSERT INTO agents (id, project_id, session_id, parent_session_id, agent_type, description, system_prompt, status, created_at, updated_at)
+						VALUES ($id, $pid, $sid, $psid, $type, $desc, $sp, 'running', $now, $now)`)
+						.run({ $id: id, $pid: pid, $sid: childSessionId, $psid: ctx.sessionID, $type: args.agent_type, $desc: args.description, $sp: args.system_prompt || null, $now: now })
 
-					if (isBackground) {
-						// Fire-and-forget
-						client.session.prompt_async({
-							path: { id: childSessionId },
-							body: {
-								agent: args.agent_type,
-								...(model && { model }),
-								parts: [{ type: "text", text: args.prompt }],
-							},
-						}).catch((err: Error) => {
-							db.prepare("UPDATE agents SET status='failed', result=$r, updated_at=$now WHERE id=$id")
-								.run({ $r: err.message, $now: new Date().toISOString(), $id: id })
-						})
+					// Store system prompt for the system transform hook
+					if (args.system_prompt) {
+						agentSystemPrompts.set(childSessionId, args.system_prompt)
+					}
 
-						// Poll for completion
-						const poll = setInterval(async () => {
-							try {
-								const status = await client.session.status()
-								const busy = status.data?.[childSessionId]
-								if (!busy) {
-									clearInterval(poll)
-									pollers.delete(id)
-									// Get result
-									const msgs = await client.session.messages({ path: { id: childSessionId } })
-									const lastText = (msgs.data ?? [])
-										.filter((m: any) => m.info?.role === "assistant")
-										.flatMap((m: any) => m.parts ?? [])
-										.filter((p: any) => p.type === "text")
-										.pop()?.text || "(no output)"
-
-									db.prepare("UPDATE agents SET status='completed', result=$r, updated_at=$now WHERE id=$id")
-										.run({ $r: lastText.slice(0, 8000), $now: new Date().toISOString(), $id: id })
-
-									// Inject report into parent
-									const report = [
-										`<kortix_system type="agent-report" source="kortix-system">`,
-										`<agent-report>`,
-										`<agent-id>${id}</agent-id>`,
-										`<session-id>${childSessionId}</session-id>`,
-										`<status>COMPLETE</status>`,
-										`<agent-type>${args.agent_type}</agent-type>`,
-										`<description>${args.description}</description>`,
-										`<result>`, lastText.slice(0, 4000), `</result>`,
-										`</agent-report>`,
-										`<!-- KORTIX_INTERNAL -->`,
-										`</kortix_system>`,
-									].join("\n")
-									client.session.prompt_async({
-										path: { id: ctx.sessionID },
-										body: { parts: [{ type: "text", text: report }] },
-									}).catch(() => {})
-								}
-							} catch { clearInterval(poll); pollers.delete(id) }
-						}, 3000)
-						pollers.set(id, poll)
-
-						return [
-							`Agent launched in background.`,
-							`- **ID:** ${id}`,
-							`- **Session:** ${childSessionId}`,
-							`- **Type:** ${args.agent_type}`,
-							`- **Task:** ${args.description}`,
-							``,
-							`An <agent-report> will arrive on completion. Continue with other work.`,
-						].join("\n")
-					} else {
-						// Sync: prompt and wait
+					// Blocking execution — blocks until worker is done or cancelled.
+					// If parent is interrupted, this promise rejects but the worker keeps running.
+					let lastText = "(no output)"
+					try {
 						const result = await client.session.prompt({
 							path: { id: childSessionId },
 							body: {
 								agent: args.agent_type,
 								...(model && { model }),
-								parts: [{ type: "text", text: args.prompt }],
+								parts: [{ type: "text", text: fullPrompt }],
 							},
 						})
-
-						const lastText = (result.data?.parts ?? [])
+						lastText = (result.data?.parts ?? [])
 							.filter((p: any) => p.type === "text")
 							.pop()?.text || "(no output)"
-
-						db.prepare("UPDATE agents SET status='completed', result=$r, updated_at=$now WHERE id=$id")
-							.run({ $r: lastText.slice(0, 8000), $now: new Date().toISOString(), $id: id })
-
-						return [
-							`agent_id: ${id} (session: ${childSessionId})`,
-							``,
-							`<agent_result>`,
-							lastText,
-							`</agent_result>`,
-						].join("\n")
+					} catch (promptErr) {
+						// Session was aborted or errored — get whatever output exists
+						try {
+							const msgs = await client.session.messages({ path: { id: childSessionId } })
+							lastText = (msgs.data ?? [])
+								.filter((m: any) => m.info?.role === "assistant")
+								.flatMap((m: any) => m.parts ?? [])
+								.filter((p: any) => p.type === "text")
+								.pop()?.text || `Worker stopped: ${promptErr instanceof Error ? promptErr.message : "cancelled"}`
+						} catch {
+							lastText = `Worker stopped: ${promptErr instanceof Error ? promptErr.message : "cancelled"}`
+						}
 					}
+
+					// Determine final status
+					const finalStatus = lastText.includes("stopped") || lastText.includes("cancelled") ? "stopped" : "completed"
+					db.prepare("UPDATE agents SET status=$s, result=$r, updated_at=$now WHERE id=$id")
+						.run({ $s: finalStatus, $r: lastText.slice(0, 8000), $now: new Date().toISOString(), $id: id })
+
+					return [
+						`## Worker Result`,
+						`**Agent:** ${id} (session: ${childSessionId})`,
+						`**Task:** ${args.description}`,
+						``,
+						lastText,
+					].join("\n")
 				} catch (err) {
 					db.prepare("UPDATE agents SET status='failed', result=$r, updated_at=$now WHERE id=$id")
 						.run({ $r: String(err), $now: new Date().toISOString(), $id: id })
 					return `Error: ${err instanceof Error ? err.message : String(err)}`
+				}
+			},
+		}),
+
+		agent_wait: tool({
+			description: "Wait for a spawned worker to complete and return its result. Blocks until done. Call this IMMEDIATELY after agent_spawn — do NOT generate any text between spawning and waiting.",
+			args: {
+				agent_id: tool.schema.string().describe("Agent ID from agent_spawn"),
+			},
+			async execute(args: { agent_id: string }, ctx: ToolContext): Promise<string> {
+				const pid = getProjectId(ctx)
+				if (!pid) return "Error: no project selected."
+				const agent = db.prepare("SELECT * FROM agents WHERE (id=$id OR id LIKE $like) AND project_id=$pid")
+					.get({ $id: args.agent_id, $like: `%${args.agent_id}%`, $pid: pid }) as AgentRow | null
+				if (!agent) return `Agent not found: ${args.agent_id}`
+
+				// If already completed, return immediately
+				if (agent.status === "completed" || agent.status === "failed") {
+					return [
+						`## Worker Result (${agent.status})`,
+						`**Agent:** ${agent.id}`,
+						`**Task:** ${agent.description}`,
+						``,
+						agent.result || "(no output)",
+					].join("\n")
+				}
+
+				// Poll until the worker session is no longer busy
+				const maxWait = 600_000 // 10 min max
+				const start = Date.now()
+				while (Date.now() - start < maxWait) {
+					await new Promise(r => setTimeout(r, 2000))
+					try {
+						const statusRes = await client.session.status()
+						const busy = statusRes.data?.[agent.session_id]
+						if (!busy) break
+					} catch { break }
+				}
+
+				// Get the result
+				try {
+					const msgs = await client.session.messages({ path: { id: agent.session_id } })
+					const lastText = (msgs.data ?? [])
+						.filter((m: any) => m.info?.role === "assistant")
+						.flatMap((m: any) => m.parts ?? [])
+						.filter((p: any) => p.type === "text")
+						.pop()?.text || "(no output)"
+
+					db.prepare("UPDATE agents SET status='completed', result=$r, updated_at=$now WHERE id=$id")
+						.run({ $r: lastText.slice(0, 8000), $now: new Date().toISOString(), $id: agent.id })
+
+					return [
+						`## Worker Result`,
+						`**Agent:** ${agent.id}`,
+						`**Task:** ${agent.description}`,
+						``,
+						lastText,
+					].join("\n")
+				} catch (err) {
+					return `Error reading agent result: ${err instanceof Error ? err.message : String(err)}`
 				}
 			},
 		}),

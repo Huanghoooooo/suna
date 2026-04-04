@@ -101,6 +101,7 @@ export class TriggerYaml {
       context: entry.context ? {
         extract: (entry.context as any).extract,
         include_raw: (entry.context as any).include_raw,
+        session_key: typeof (entry.context as any).session_key === "string" ? (entry.context as any).session_key : undefined,
       } : undefined,
       pipedream: entry.pipedream ? {
         app: String((entry.pipedream as any).app ?? ""),

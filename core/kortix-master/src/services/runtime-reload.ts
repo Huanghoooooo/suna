@@ -11,7 +11,6 @@
  *
  * s6 services (from Dockerfile / core/s6-services/):
  *   svc-opencode-serve     — OpenCode runtime (port 4096, plugins, agents, tools, web UI)
- *   svc-opencode-channels  — Slack/Telegram/Discord bridge (port 3456)
  *   svc-static-web         — Static file server (port 3211)
  *   svc-lss-sync           — Local semantic search indexer
  *   svc-kortix-master      — This process (port 8000)
@@ -86,7 +85,6 @@ export async function initiateRuntimeReload(mode: ReloadMode): Promise<ReloadRes
   result.steps.push('Full restart: restarting all code-holding services via s6')
 
   restartS6('svc-opencode-serve', result)     // port 4096 — plugins, agents, tools
-  restartS6('svc-opencode-channels', result)  // port 3456 — channel adapters
   restartS6('svc-static-web', result)         // port 3211 — static file server
   restartS6('svc-lss-sync', result)           // semantic search indexer
 

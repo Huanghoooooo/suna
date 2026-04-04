@@ -103,9 +103,9 @@ describe('GET /kortix/share/:port (token-based)', () => {
     expect(body.error).toContain('short')
   })
 
-  it('rejects TTL above maximum (7d)', async () => {
+  it('rejects TTL above maximum (365d)', async () => {
     const app = buildApp()
-    const res = await app.request('/kortix/share/3000?ttl=30d')
+    const res = await app.request('/kortix/share/3000?ttl=400d')
 
     expect(res.status).toBe(400)
     const body = await res.json() as any

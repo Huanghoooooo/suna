@@ -355,6 +355,10 @@ app.route('/kortix/triggers', triggersRouter)
 // Legacy compat: /kortix/cron/* → forwards to /kortix/triggers/*
 app.route('/kortix/cron', triggersRouter)
 
+// Channels — SQLite-backed channel management (Telegram, Slack)
+import { channelsRouter } from './routes/channels'
+app.route('/kortix/channels', channelsRouter)
+
 // Core supervisor management
 app.route('/kortix/core', coreRouter)
 

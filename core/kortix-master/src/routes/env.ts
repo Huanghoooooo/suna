@@ -80,7 +80,6 @@ async function restartServices(services?: string[]): Promise<void> {
   // We read NSpid from /proc/{pid}/status to get the inner namespace PID.
   const restartAll = !services || services.length === 0
   const restartOpencode = restartAll || services?.includes('opencode')
-  const restartChannels = restartAll || services?.includes('opencode-channels')
 
   try {
     const killed: number[] = []
@@ -109,13 +108,6 @@ async function restartServices(services?: string[]): Promise<void> {
               killed.push(innerPid)
             }
             continue
-          }
-          if (restartChannels && cmdline.includes('channels/src/index.ts')) {
-            const innerPid = getInnerNsPid(pid)
-            if (innerPid) {
-              process.kill(innerPid, 9)
-              killed.push(innerPid)
-            }
           }
         }
       } catch {}
@@ -259,7 +251,7 @@ envRouter.post('/rotate-token',
       updateBootstrapKey('KORTIX_TOKEN', newToken)
 
       // Restart OpenCode to pick up the new token
-      await restartServices(['opencode', 'opencode-channels'])
+      await restartServices(['opencode'])
 
       console.log(`[ENV API] KORTIX_TOKEN rotated. ${result.rotated} secret(s) unaffected (encryption decoupled).`)
       return c.json({ ok: true, ...result })

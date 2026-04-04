@@ -217,10 +217,19 @@ export function projectTools(mgr: ProjectManager, db: Database) {
 // ── Gating Hook ──────────────────────────────────────────────────────────────
 
 export function projectGateHook(mgr: ProjectManager) {
+	// Tools that are ALWAYS allowed without a project
+	// ONLY project tools and question are allowed without a project.
+	// Everything else — including web search, read, skill — is blocked.
+	const UNGATED = new Set([
+		"project_create", "project_list", "project_get", "project_update",
+		"project_delete", "project_select",
+		"question",
+		"show",
+	])
+
 	return async (input: { tool: string; sessionID: string; callID: string }, _output: { args: any }) => {
 		const n = input.tool.replace(/-/g, "_")
-		const GATED = ["edit", "mcp_edit", "write", "mcp_write", "morph_edit", "mcp_morph_edit"]
-		if (!GATED.includes(n)) return
+		if (UNGATED.has(n)) return
 		if (!input.sessionID) return
 		try {
 			if (mgr.getSessionProject(input.sessionID)) return
@@ -237,20 +246,74 @@ export function projectGateHook(mgr: ProjectManager) {
 
 export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId: () => string | null) {
 	return async (_input: any, output: { messages: any[] }) => {
+		// Only inject orchestrator reminder for the primary agent (kortix), not sub-agents
+		const isOrchestrator = (() => {
+			for (const m of output.messages) {
+				const agent = m?.info?.agent
+				if (agent && agent !== "kortix") return false
+			}
+			return true
+		})()
 		try {
-			const sid = getCurrentSessionId()
-			if (!sid) return
+			// Get session ID from messages (more reliable than event-based tracking)
+			let sid = getCurrentSessionId()
+			if (!sid) {
+				for (const m of output.messages) {
+					const msgSid = m?.info?.sessionID || m?.sessionID
+					if (msgSid) { sid = msgSid; break }
+				}
+			}
+			console.log(`[project-gate] Transform called. sid=${sid}, messages=${output.messages?.length || 0}`)
+			if (!sid) { console.log("[project-gate] No session ID found, skipping"); return }
 			let statusXml: string
 			try {
 				const project = mgr.getSessionProject(sid)
-				statusXml = project
-					? `<project_status selected="${project.name}" path="${project.path}" />`
-					: [
-						`<project_status selected="false">`,
-						`File-write tools (edit, write, morph_edit) are gated. Select or create a project first.`,
-						`1. project_list  2. project_select or project_create`,
-						`</project_status>`,
+				if (project) {
+					if (isOrchestrator) {
+						statusXml = [
+							`<project_status selected="${project.name}" path="${project.path}" />`,
+							`<system-reminder>`,
+							`Follow your orchestrator workflow:`,
+							`1. task_create for each piece of work — tell the user your plan`,
+							`2. agent_spawn(agent_type:"worker") then agent_wait(agent_id) for each task`,
+							`3. Review worker results, task_done for each, report to user`,
+							`Always call agent_wait immediately after agent_spawn to get real results.`,
+							`</system-reminder>`,
+						].join("\n")
+					} else {
+						// Sub-agents just get project context, no orchestrator instructions
+						statusXml = `<project_status selected="${project.name}" path="${project.path}" />`
+					}
+				} else {
+					// Count user messages to detect first message
+					const userMsgCount = output.messages.filter((m: any) => m?.info?.role === "user").length
+					const isFirst = userMsgCount <= 1
+
+					// Get project list for context
+					let projectList = ""
+					try {
+						const projects = mgr.listProjects()
+						if (projects.length > 0) {
+							projectList = `\nExisting projects: ${projects.map(p => `"${p.name}" (${p.path})`).join(", ")}`
+						}
+					} catch {}
+
+					const gate = [
+						`<system-reminder>`,
+						`STOP. DO NOT CALL ANY TOOL EXCEPT project_list, project_create, project_select, OR question.`,
+						``,
+						`No project is selected for this session. You MUST select one before doing ANY work.`,
+						`Your very next tool call must be one of: project_list, project_create, project_select, or question.`,
+						`If you call bash, read, write, edit, skill, web_search, or any other tool, you are violating your instructions.`,
+						`${projectList}`,
+						``,
+						`Step 1: Call project_list to see existing projects.`,
+						`Step 2: Either project_select an existing one, or project_create + project_select a new one.`,
+						`Step 3: ONLY THEN address the user's request.`,
+						`</system-reminder>`,
 					].join("\n")
+					statusXml = gate
+				}
 			} catch { return }
 			const messages = output.messages
 			for (let i = messages.length - 1; i >= 0; i--) {
