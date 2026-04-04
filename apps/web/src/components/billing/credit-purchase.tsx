@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -11,15 +11,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Switch } from '@/components/ui/switch';
-import { AlertCircle, CheckCircle2, Loader2, Zap } from 'lucide-react';
-import { billingApi, getAutoTopupSettings, configureAutoTopup, getAutoTopupSetupStatus, type AutoTopupConfig } from '@/lib/api/billing';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { billingApi } from '@/lib/api/billing';
+import { AutoTopupCard } from '@/components/billing/auto-topup-card';
 import { toast } from '@/lib/toast';
 import { formatCredits } from '@kortix/shared';
 import { useUserCurrency } from '@/hooks/use-user-currency';
 import { formatPrice } from '@/lib/utils/currency';
 import { cn } from '@/lib/utils';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // ─── Credit packages ────────────────────────────────────────────────────────
 
@@ -168,84 +167,7 @@ export function CreditPurchaseModal({
 // ─── Auto Top-up Modal ──────────────────────────────────────────────────────
 
 export function AutoTopupModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-    const queryClient = useQueryClient();
-    const [saving, setSaving] = useState(false);
-    const [dirty, setDirty] = useState(false);
-    const [saveResult, setSaveResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-    const getErrorMessage = (err: any) => (
-        err?.message
-        || err?.error
-        || err?.data?.error
-        || err?.details?.error
-        || err?.detail?.message
-        || 'Failed to update auto-topup'
-    );
-
-    const { data: config, isLoading } = useQuery({
-        queryKey: ['auto-topup-settings'],
-        queryFn: getAutoTopupSettings,
-        retry: 1,
-        enabled: open,
-    });
-
-    const { data: setupStatus } = useQuery({
-        queryKey: ['auto-topup-setup-status'],
-        queryFn: getAutoTopupSetupStatus,
-        retry: 1,
-        enabled: open,
-    });
-
-    const [enabled, setEnabled] = useState(false);
-    const [threshold, setThreshold] = useState('1000');
-    const [amount, setAmount] = useState('2500');
-
-    useEffect(() => {
-        if (!config) return;
-        setEnabled(config.enabled);
-        setThreshold(String(config.threshold));
-        setAmount(String(config.amount));
-        setDirty(false);
-        setSaveResult(null);
-    }, [config]);
-
-    const handleSave = async () => {
-        const thresholdNum = Math.max(0, parseInt(threshold, 10) || 0);
-        const amountNum = Math.max(1, parseInt(amount, 10) || 1);
-        if (enabled && setupStatus && !setupStatus.has_default_payment_method) {
-            const message = 'No default payment method found. Please set up a default card in Billing before enabling auto-topup.';
-            setSaveResult({ type: 'error', message });
-            toast.error(message);
-            return;
-        }
-
-        setSaving(true);
-        setSaveResult(null);
-        try {
-            await configureAutoTopup({ enabled, threshold: thresholdNum, amount: amountNum });
-            queryClient.invalidateQueries({ queryKey: ['auto-topup-settings'] });
-            queryClient.invalidateQueries({ queryKey: ['accountState'] });
-            queryClient.invalidateQueries({ queryKey: ['auto-topup-setup-status'] });
-            setDirty(false);
-            setSaveResult({ type: 'success', message: 'Auto top-up settings saved.' });
-            toast.success('Auto top-up settings saved');
-        } catch (err: any) {
-            const message = getErrorMessage(err);
-            setSaveResult({ type: 'error', message });
-            toast.error(message);
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const handleEnabledChange = (value: boolean) => {
-        setEnabled(value);
-        setDirty(true);
-        setSaveResult(null);
-    };
-
-    const showMissingCardWarning = enabled && setupStatus && !setupStatus.has_default_payment_method;
-
+    if (!open) return null;
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
@@ -255,91 +177,7 @@ export function AutoTopupModal({ open, onOpenChange }: { open: boolean; onOpenCh
                         Automatically purchase credits when your balance gets low.
                     </DialogDescription>
                 </DialogHeader>
-
-                {isLoading ? (
-                    <div className="flex items-center justify-center py-6">
-                        <Loader2 className="size-5 animate-spin text-muted-foreground" />
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        {/* Toggle */}
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Zap className="size-4 text-muted-foreground" />
-                                <span className="text-sm font-medium">Enable auto top-up</span>
-                            </div>
-                            <Switch checked={enabled} onCheckedChange={handleEnabledChange} />
-                        </div>
-
-                        {showMissingCardWarning && (
-                            <Alert variant="warning">
-                                <AlertCircle className="size-4" />
-                                <AlertDescription>
-                                    No default payment method found. Add a default card in Billing before enabling auto top-up.
-                                </AlertDescription>
-                            </Alert>
-                        )}
-
-                        {enabled && (
-                            <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-150">
-                                {/* Threshold */}
-                                <div>
-                                    <label className="text-sm text-muted-foreground block mb-1.5">When balance drops below</label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                                        <input
-                                            type="number"
-                                            min={1}
-                                            step={1}
-                                            value={threshold}
-                                            onChange={(e) => { setThreshold(e.target.value); setDirty(true); setSaveResult(null); }}
-                                            className="w-full h-10 rounded-lg border border-border bg-background pl-7 pr-3 text-sm tabular-nums text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground transition-colors"
-                                            placeholder="5"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Amount */}
-                                <div>
-                                    <label className="text-sm text-muted-foreground block mb-1.5">Automatically purchase</label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                                        <input
-                                            type="number"
-                                            min={1}
-                                            step={1}
-                                            value={amount}
-                                            onChange={(e) => { setAmount(e.target.value); setDirty(true); setSaveResult(null); }}
-                                            className="w-full h-10 rounded-lg border border-border bg-background pl-7 pr-3 text-sm tabular-nums text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground transition-colors"
-                                            placeholder="20"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {saveResult && (
-                            <Alert
-                                variant={saveResult.type === 'error' ? 'destructive' : 'default'}
-                                className={saveResult.type === 'success' ? 'border-emerald-500/40 text-emerald-700 dark:text-emerald-400 [&>svg]:text-emerald-600 dark:[&>svg]:text-emerald-400' : undefined}
-                            >
-                                {saveResult.type === 'success' ? <CheckCircle2 className="size-4" /> : <AlertCircle className="size-4" />}
-                                <AlertDescription className={saveResult.type === 'success' ? 'text-emerald-700/90 dark:text-emerald-400/90' : undefined}>
-                                    {saveResult.message}
-                                </AlertDescription>
-                            </Alert>
-                        )}
-
-                        {/* Save */}
-                        <Button
-                            className="w-full"
-                            disabled={saving || !dirty}
-                            onClick={handleSave}
-                        >
-                            {saving ? <><Loader2 className="size-4 animate-spin mr-2" /> Saving...</> : 'Save'}
-                        </Button>
-                    </div>
-                )}
+                <AutoTopupCard fetchSettings showSaveButton />
             </DialogContent>
         </Dialog>
     );

@@ -1,16 +1,18 @@
 'use client';
 
 /**
- * SetupWizard — 5-step onboarding shown between boot overlay and the dashboard.
+ * SetupWizard — dynamic onboarding shown between boot overlay and the dashboard.
  *
- * Step 1: LLM Providers
- * Step 2: Default Model — pick which model to use by default
- * Step 3: Tool API Keys (opt-in configure modal, cloud pre-configured)
- * Step 4: Pipedream Integrations (opt-in configure modal, cloud pre-configured)
- * Step 5: Get Started — launches the onboarding chat session
+ * Steps are computed at runtime based on billing status:
+ * - Auto Top-up (cloud-only, hidden when billing is disabled)
+ * - LLM Providers
+ * - Default Model — pick which model to use by default
+ * - Tool API Keys (opt-in configure modal, cloud pre-configured)
+ * - Pipedream Integrations (opt-in configure modal, cloud pre-configured)
+ * - Get Started — launches the onboarding chat session
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings2,
@@ -32,9 +34,8 @@ import {
   X,
   Bot,
   CreditCard,
-  ShieldCheck,
+  Key,
 } from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { KortixLoader } from '@/components/ui/kortix-loader';
@@ -50,25 +51,19 @@ import { authenticatedFetch } from '@/lib/auth-token';
 import { isBillingEnabled } from '@/lib/config';
 import { cn } from '@/lib/utils';
 import { backendApi } from '@/lib/api-client';
+import { AutoTopupCard } from '@/components/billing/auto-topup-card';
 
 // ─── Step definitions ───────────────────────────────────────────────────────
 
-const STEPS = [
-  { label: 'Auto Top-up', icon: CreditCard },
-  { label: 'Providers', icon: Sparkles },
-  { label: 'Default Model', icon: Bot },
-  { label: 'Tools', icon: Wrench },
-  { label: 'Integrations', icon: Link },
-  { label: 'Get Started', icon: MessageSquare },
-];
+type StepDef = { label: string; icon: React.ComponentType<{ className?: string }> };
 
 // ─── Step indicator (dots + label) ──────────────────────────────────────────
 
-function StepIndicator({ current }: { current: number }) {
+function StepIndicator({ current, steps }: { current: number; steps: StepDef[] }) {
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="flex items-center justify-center gap-1.5">
-        {STEPS.map((_, i) => (
+        {steps.map((_, i) => (
           <motion.div
             key={i}
             layout
@@ -84,7 +79,7 @@ function StepIndicator({ current }: { current: number }) {
         ))}
       </div>
       <p className="text-[11px] font-medium text-muted-foreground/40 uppercase tracking-wider">
-        {STEPS[current].label}
+        {steps[current]?.label}
       </p>
     </div>
   );
@@ -148,21 +143,153 @@ function CloudBadge({ text }: { text?: string }) {
   return (
     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-medium mx-auto w-fit">
       <Zap className="h-3 w-3" />
-      {text || 'Already configured on Kortix Cloud'}
+      {text || 'Included with your Kortix credits'}
     </div>
   );
 }
 
-/// ─── Step 0: Auto Top-up ────────────────────────────────────────────────────
+// ─── Step 0: Welcome ─────────────────────────────────────────────────────────
 
-function AutoTopupPane({ onNext }: { onNext: () => void }) {
-  const [enabled, setEnabled] = useState(false);
+function WelcomePane({ onNext }: { onNext: () => void }) {
+  return (
+    <div className="flex flex-col items-center text-center gap-10">
+      {/* Kortix logo — large, centered */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <KortixLogo variant="logomark" size={38} />
+      </motion.div>
+
+      {/* Welcome text */}
+      <div className="space-y-3">
+        <motion.h1
+          className="text-2xl font-medium text-foreground/90 tracking-tight"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+        >
+          Welcome to your Kortix
+        </motion.h1>
+        <motion.p
+          className="text-sm text-muted-foreground/50 leading-relaxed max-w-xs mx-auto"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        >
+          Let&apos;s get you set up. This takes about a minute — you can change everything later in Settings.
+        </motion.p>
+      </div>
+
+      {/* CTA */}
+      <motion.div
+        className="w-full"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <Button
+          onClick={onNext}
+          className="w-full h-11 text-sm rounded-xl shadow-none gap-2"
+        >
+          Get started <ChevronRight className="h-4 w-4" />
+        </Button>
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Step: How It Works ──────────────────────────────────────────────────────
+
+function HowItWorksPane({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  return (
+    <div className="w-full max-w-sm space-y-6 mx-auto">
+      <div className="text-center space-y-3">
+        <div className="flex items-center justify-center">
+          <div className="h-12 w-12 rounded-full flex items-center justify-center bg-muted/60">
+            <Key className="h-5 w-5 text-muted-foreground/50" />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <h2 className="text-lg font-medium text-foreground/90">Connect Your AI</h2>
+          <p className="text-sm text-muted-foreground/50 leading-relaxed max-w-xs mx-auto">
+            Kortix is designed to work with your own AI subscriptions. Here&apos;s how most people connect.
+          </p>
+        </div>
+      </div>
+
+      {/* Options */}
+      <div className="space-y-2">
+        <div className="flex items-start gap-3 px-3 py-3 rounded-xl border border-foreground/[0.06] bg-foreground/[0.02]">
+          <div className="h-7 w-7 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
+            <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+          </div>
+          <div className="text-left">
+            <p className="text-[13px] font-medium text-foreground/80">Coding subscriptions</p>
+            <p className="text-[11px] text-foreground/40 leading-relaxed">
+              ChatGPT Max, Claude Pro / Code, or similar. Best value at scale — we strongly recommend this.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3 px-3 py-3 rounded-xl border border-foreground/[0.06] bg-foreground/[0.02]">
+          <div className="h-7 w-7 rounded-lg bg-foreground/[0.05] flex items-center justify-center shrink-0 mt-0.5">
+            <Key className="h-3.5 w-3.5 text-foreground/40" />
+          </div>
+          <div className="text-left">
+            <p className="text-[13px] font-medium text-foreground/80">Your own API keys</p>
+            <p className="text-[11px] text-foreground/40 leading-relaxed">
+              OpenAI, Anthropic, Google, OpenRouter — bring any key you already have.
+            </p>
+          </div>
+        </div>
+
+        {isBillingEnabled() && (
+          <div className="flex items-start gap-3 px-3 py-3 rounded-xl border border-foreground/[0.06] bg-foreground/[0.02]">
+            <div className="h-7 w-7 rounded-lg bg-foreground/[0.05] flex items-center justify-center shrink-0 mt-0.5">
+              <CreditCard className="h-3.5 w-3.5 text-foreground/40" />
+            </div>
+            <div className="text-left">
+              <p className="text-[13px] font-medium text-foreground/80">Kortix credits</p>
+              <p className="text-[11px] text-foreground/40 leading-relaxed">
+                Don&apos;t have a key yet? We include a few free credits to get you started.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Button
+          onClick={onNext}
+          className="w-full h-11 text-sm rounded-xl shadow-none gap-2"
+        >
+          Connect a provider <ChevronRight className="h-4 w-4" />
+        </Button>
+
+        <div className="flex justify-center pt-1">
+          <button onClick={onBack} className="flex items-center gap-1 text-[12px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors cursor-pointer">
+            <ArrowLeft className="h-3 w-3" /> Back
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/// ─── Step 1: Auto Top-up ────────────────────────────────────────────────────
+
+function AutoTopupPane({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const [saving, setSaving] = useState(false);
+  const configRef = useRef<{ enabled: boolean; threshold: number; amount: number } | null>(null);
 
   const handleContinue = async () => {
+    const config = configRef.current;
+    if (!config) { onNext(); return; }
     setSaving(true);
     try {
-      await backendApi.post('/billing/auto-topup/configure', { enabled, threshold: 5, amount: 20 });
+      await backendApi.post('/billing/auto-topup/configure', config);
     } catch {
       // Non-fatal — preference saved on next Settings visit
     }
@@ -182,48 +309,43 @@ function AutoTopupPane({ onNext }: { onNext: () => void }) {
       </div>
 
       <div className="space-y-1.5">
-        <h2 className="text-lg font-medium text-foreground/90">Auto Top-up</h2>
+        <h2 className="text-lg font-medium text-foreground/90">Kortix Credits</h2>
         <p className="text-sm text-muted-foreground/50 leading-relaxed max-w-xs mx-auto">
-          Automatically add credits when your balance runs low so your workspace never pauses.
+          You start with a few free credits to try things out. Your agent can use these when no provider API key is available.
         </p>
       </div>
 
-      <div className="w-full rounded-xl border bg-card/50 p-4">
-        <div className="flex items-center justify-between">
-          <div className="text-left">
-            <p className="text-sm font-medium">Enable Auto Top-up</p>
-            <p className="text-xs text-muted-foreground">Add $20 when balance drops below $5</p>
-          </div>
-          <Switch checked={enabled} onCheckedChange={setEnabled} />
-        </div>
-
-        {enabled && (
-          <div className="mt-3 pt-3 border-t flex items-start gap-2">
-            <ShieldCheck className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-            <p className="text-xs text-muted-foreground text-left">
-              Your card will only be charged when credits run low. Change or disable anytime in Settings.
-            </p>
-          </div>
-        )}
+      <div className="rounded-xl border border-foreground/[0.06] bg-foreground/[0.02] p-3.5 text-[12.5px] text-muted-foreground/60 leading-relaxed">
+        Credits are used when your agent runs on Kortix-managed models instead of your own API keys.
+        Most users connect their own provider and rarely use credits.
       </div>
 
-      <Button onClick={handleContinue} disabled={saving} className="w-full gap-2">
+      {/* Shared auto top-up card */}
+      <div className="w-full rounded-xl border bg-card/50 p-4">
+        <AutoTopupCard
+          defaultEnabled={true}
+          defaultThreshold={0}
+          defaultAmount={5}
+          configRef={configRef}
+        />
+      </div>
+
+      <Button onClick={handleContinue} disabled={saving} className="w-full h-11 text-sm rounded-xl shadow-none gap-2">
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
         Continue
         <ChevronRight className="h-4 w-4" />
       </Button>
 
-      <button
-        onClick={onNext}
-        className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-      >
-        Skip for now
-      </button>
+      <div className="flex justify-center pt-1">
+        <button onClick={onBack} className="flex items-center gap-1 text-[12px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors cursor-pointer">
+          <ArrowLeft className="h-3 w-3" /> Back
+        </button>
+      </div>
     </div>
   );
 }
 
-function ProvidersPane({ onNext }: { onNext: () => void }) {
+function ProvidersPane({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const { data: providersData, isLoading } = useOpenCodeProviders();
   const openProviderModal = useProviderModalStore((s) => s.openProviderModal);
 
@@ -265,12 +387,12 @@ function ProvidersPane({ onNext }: { onNext: () => void }) {
         </div>
         <div className="space-y-1.5">
           <h2 className="text-lg font-medium text-foreground/90">
-            {hasLLM ? 'Providers Connected' : 'LLM Providers'}
+            {hasLLM ? 'Providers Connected' : 'Connect a Provider'}
           </h2>
           <p className="text-sm text-muted-foreground/50 leading-relaxed max-w-xs mx-auto">
             {hasLLM
               ? 'Your agent is ready to use these models.'
-              : 'Configure which AI models to use with your Kortix agent. Connect OpenAI, Anthropic, Google, or any supported provider.'}
+              : 'Log in with your coding subscription, paste an API key, or skip to use Kortix credits.'}
           </p>
         </div>
       </div>
@@ -300,7 +422,7 @@ function ProvidersPane({ onNext }: { onNext: () => void }) {
           className="w-full h-11 text-sm rounded-xl shadow-none gap-2"
         >
           <Settings2 className="h-4 w-4" />
-          {hasLLM ? 'Add or manage providers' : 'Connect Provider'}
+          {hasLLM ? 'Manage providers' : 'Connect a provider'}
         </Button>
 
         <Button
@@ -312,13 +434,17 @@ function ProvidersPane({ onNext }: { onNext: () => void }) {
           )}
         >
           {hasLLM ? (
-            <>
-              Continue <ChevronRight className="h-4 w-4" />
-            </>
+            <>Continue <ChevronRight className="h-4 w-4" /></>
           ) : (
             'Skip for now'
           )}
         </Button>
+
+        <div className="flex justify-center pt-1">
+          <button onClick={onBack} className="flex items-center gap-1 text-[12px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors cursor-pointer">
+            <ArrowLeft className="h-3 w-3" /> Back
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -524,7 +650,7 @@ function ToolKeysPane({ onNext, onBack }: { onNext: () => void; onBack: () => vo
               Your agent uses tools like web search, scraping, and image generation to complete tasks.
             </p>
           </div>
-          {isCloud && <CloudBadge text="Included with your Kortix Cloud plan" />}
+          {isCloud && <CloudBadge text="Included with your Kortix credits" />}
         </div>
 
         {/* Info box */}
@@ -701,7 +827,7 @@ function PipedreamPane({ onNext, onBack }: { onNext: () => void; onBack: () => v
               </a>.
             </p>
           </div>
-          {isCloud && <CloudBadge text="Included with your Kortix Cloud plan" />}
+          {isCloud && <CloudBadge text="Included with your Kortix credits" />}
         </div>
 
         {/* Info box */}
@@ -836,27 +962,67 @@ function GetStartedPane({ onNext, onBack }: { onNext: () => void; onBack: () => 
 
 // ─── Main wizard ────────────────────────────────────────────────────────────
 
-const TOTAL_STEPS = 6;
-
 export function SetupWizard({ onComplete }: { onComplete: () => void }) {
+  const showBilling = isBillingEnabled();
+
+  const steps = useMemo<StepDef[]>(() => [
+    { label: 'How It Works', icon: Key },
+    { label: 'Providers', icon: Sparkles },
+    ...(showBilling ? [{ label: 'Kortix Credits', icon: CreditCard }] : []),
+    { label: 'Default Model', icon: Bot },
+    { label: 'Tools', icon: Wrench },
+    { label: 'Integrations', icon: Link },
+    { label: 'Get Started', icon: MessageSquare },
+  ], [showBilling]);
+
+  const totalSteps = steps.length + 1; // +1 for Welcome
+
   const [step, setStep] = useState(0);
 
   const next = useCallback(() => {
-    if (step < TOTAL_STEPS - 1) setStep((s) => s + 1);
+    if (step < totalSteps - 1) setStep((s) => s + 1);
     else onComplete();
-  }, [step, onComplete]);
+  }, [step, totalSteps, onComplete]);
 
   const back = useCallback(() => {
     if (step > 0) setStep((s) => s - 1);
   }, [step]);
 
+  // Map current step index to the correct pane, accounting for Welcome + billing toggle
+  const renderPane = useCallback(() => {
+    // Step 0 is always the Welcome screen
+    if (step === 0) return <WelcomePane onNext={next} />;
+
+    // Offset by 1 for the Welcome step
+    const configStep = step - 1;
+    let idx = 0;
+    if (configStep === idx) return <HowItWorksPane onNext={next} onBack={back} />;
+    idx++;
+    if (configStep === idx) return <ProvidersPane onNext={next} onBack={back} />;
+    idx++;
+    if (showBilling) {
+      if (configStep === idx) return <AutoTopupPane onNext={next} onBack={back} />;
+      idx++;
+    }
+    if (configStep === idx) return <DefaultModelPane onNext={next} onBack={back} />;
+    idx++;
+    if (configStep === idx) return <ToolKeysPane onNext={next} onBack={back} />;
+    idx++;
+    if (configStep === idx) return <PipedreamPane onNext={next} onBack={back} />;
+    idx++;
+    if (configStep === idx) return <GetStartedPane onNext={next} onBack={back} />;
+    return null;
+  }, [showBilling, step, next, back]);
+
   return (
     <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-background">
-      {/* Header: Logo + stepper */}
-      <div className="absolute top-0 inset-x-0 flex flex-col items-center pt-8 gap-6">
-        <KortixLogo size={20} />
-        <StepIndicator current={step} />
-      </div>
+      {/* Header: Logo + stepper — hidden on welcome step */}
+      {step > 0 && (
+        <div className="absolute top-0 inset-x-0 flex flex-col items-center pt-8 gap-6">
+          <KortixLogo size={20} />
+          <StepIndicator current={step - 1} steps={steps} />
+        </div>
+      )}
 
       {/* Step content */}
       <div className="w-full max-w-md px-6">
@@ -868,20 +1034,17 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
           >
-            {step === 0 && <AutoTopupPane onNext={next} />}
-            {step === 1 && <ProvidersPane onNext={next} />}
-            {step === 2 && <DefaultModelPane onNext={next} onBack={back} />}
-            {step === 3 && <ToolKeysPane onNext={next} onBack={back} />}
-            {step === 4 && <PipedreamPane onNext={next} onBack={back} />}
-            {step === 5 && <GetStartedPane onNext={next} onBack={back} />}
+            {renderPane()}
           </motion.div>
         </AnimatePresence>
       </div>
 
-      {/* Footer */}
-      <p className="absolute bottom-6 text-[11px] text-foreground/20">
-        You can change all of this later in Settings.
-      </p>
+      {/* Footer — hidden on welcome step */}
+      {step > 0 && (
+        <p className="absolute bottom-6 text-[11px] text-foreground/20">
+          You can change all of this later in Settings.
+        </p>
+      )}
     </div>
   );
 }

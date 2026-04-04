@@ -30,6 +30,18 @@ import { AnnouncementDialog } from "../announcements/announcement-dialog";
 import { NovuInboxProvider } from "../notifications/novu-inbox-provider";
 import { FilePreviewDialog } from "../common/file-preview-dialog";
 import { UpdateDialogProvider } from "@/components/update-dialog-provider";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { ChevronRight } from "lucide-react";
 
 /** Monitors session status transitions and fires browser notifications. Renders nothing. */
 function WebNotificationProvider() {
@@ -441,6 +453,39 @@ function SessionTabsContainer({ children }: { children: React.ReactNode }) {
 	);
 }
 
+/* ─── Floating skip button shown during the onboarding chat session ───── */
+function OnboardingSkipButton({ onConfirm }: { onConfirm: () => void }) {
+	return (
+		<AlertDialog>
+			<AlertDialogTrigger asChild>
+				<button
+					className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-foreground/[0.06] bg-background text-[13px] font-medium text-muted-foreground/60 hover:text-foreground/80 hover:border-foreground/[0.12] hover:bg-foreground/[0.03] transition-all duration-200 cursor-pointer"
+				>
+					Skip onboarding
+					<ChevronRight className="h-3.5 w-3.5" />
+				</button>
+			</AlertDialogTrigger>
+			<AlertDialogContent className="max-w-sm rounded-2xl">
+				<AlertDialogHeader>
+					<AlertDialogTitle className="text-base font-medium text-foreground/90">Skip onboarding?</AlertDialogTitle>
+					<AlertDialogDescription className="text-[13px] text-muted-foreground/60 leading-relaxed">
+						You can set up your profile anytime. Your agent will work fine — it just won&apos;t know your preferences yet.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<AlertDialogFooter className="gap-2 sm:gap-2">
+					<AlertDialogCancel className="rounded-xl text-[13px]">Continue</AlertDialogCancel>
+					<AlertDialogAction
+						onClick={onConfirm}
+						className="rounded-xl text-[13px] bg-foreground text-background hover:bg-foreground/90"
+					>
+						Skip onboarding
+					</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+	);
+}
+
 interface DashboardLayoutContentProps {
 	children: React.ReactNode;
 }
@@ -697,6 +742,13 @@ export default function DashboardLayoutContent({
 	// ── Setup wizard callback ──
 	const handleSetupDone = useCallback(() => ob.hideSetup(), [ob]);
 
+	// ── Skip onboarding callback (from floating button during chat) ──
+	const handleSkipOnboarding = useCallback(async () => {
+		await persistEnv("ONBOARDING_COMPLETE", "true");
+		ob.morph();
+		setTimeout(() => ob.done(), 900);
+	}, [ob]);
+
 	// Keep the active server in sync with the current instance.
 	// Source of truth: URL path (/instances/:id/...) OR active-instance cookie
 	// (set by middleware on rewrite). The store MUST point at that instance.
@@ -865,6 +917,11 @@ export default function DashboardLayoutContent({
 
 					<div className="flex-1 min-h-0 flex flex-col md:border md:border-b-0 md:border-border/50 overflow-hidden md:rounded-t-xl relative">
 						<SessionTabsContainer>{children}</SessionTabsContainer>
+
+						{/* Floating skip button during onboarding chat session */}
+						{ob.active && !ob.showBoot && !ob.showSetup && ob.sessionId && (
+							<OnboardingSkipButton onConfirm={handleSkipOnboarding} />
+						)}
 
 						{/* Loading state while creating onboarding session */}
 						{ob.active && !ob.sessionId && !ob.showBoot && !ob.showSetup && (
