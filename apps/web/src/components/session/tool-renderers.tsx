@@ -5724,24 +5724,17 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 				{/* Worker result — collapsible output section */}
 				{isCompleted && cleanedOutput && (
 					<div className="border-t border-border/30">
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<button
-									type="button"
-									onClick={(e) => { e.stopPropagation(); setOutputExpanded(!outputExpanded); }}
-									className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-muted/30 transition-colors"
-								>
-									<ChevronRight className={cn("size-3 text-muted-foreground/40 transition-transform flex-shrink-0", outputExpanded && "rotate-90")} />
-									<span className="text-[11px] text-muted-foreground font-medium flex-shrink-0">Result</span>
-									{!outputExpanded && workerPreview && (
-										<span className="text-[11px] text-muted-foreground/40 truncate">{workerPreview}</span>
-									)}
-								</button>
-							</TooltipTrigger>
-							<TooltipContent side="top" className="max-w-xs">
-								<p className="text-xs">{outputExpanded ? "Collapse result" : "Expand to see full worker output"}</p>
-							</TooltipContent>
-						</Tooltip>
+						<button
+							type="button"
+							onClick={(e) => { e.stopPropagation(); setOutputExpanded(!outputExpanded); }}
+							className="flex items-center gap-2 w-full px-3 py-2 text-left cursor-pointer hover:bg-muted/30 transition-colors"
+						>
+							<ChevronRight className={cn("size-3 text-muted-foreground/40 transition-transform flex-shrink-0", outputExpanded && "rotate-90")} />
+							<span className="text-[11px] text-muted-foreground font-medium flex-shrink-0">Result</span>
+							{!outputExpanded && workerPreview && (
+								<span className="text-[11px] text-muted-foreground/40 truncate">{workerPreview}</span>
+							)}
+						</button>
 						{outputExpanded && (
 							<div data-scrollable className="px-3 pb-3 max-h-80 overflow-y-auto">
 								<div className="text-[12px] text-foreground/80 leading-relaxed prose-sm [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-foreground [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_table]:text-[11px] [&_code]:text-[11px] [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:rounded [&_hr]:border-border/30 [&_hr]:my-3">
