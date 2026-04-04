@@ -11,6 +11,7 @@ import { existsSync, mkdirSync, unlinkSync, statSync } from "node:fs"
 import * as path from "node:path"
 import { tool, type ToolContext } from "@opencode-ai/plugin"
 import { ensureGlobalMemoryFiles } from "./lib/paths"
+import { ensureSchema } from "./lib/schema"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,26 +42,35 @@ export function initProjectsDb(dbPath: string): Database {
 		db = new Database(dbPath)
 	}
 	db.exec("PRAGMA journal_mode=DELETE; PRAGMA busy_timeout=5000")
-	db.exec(`
-		CREATE TABLE IF NOT EXISTS projects (
-			id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL UNIQUE,
-			description TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
-			opencode_id TEXT
-		);
-		CREATE TABLE IF NOT EXISTS session_projects (
-			session_id TEXT PRIMARY KEY,
-			project_id TEXT NOT NULL REFERENCES projects(id),
-			set_at TEXT NOT NULL
-		);
-		CREATE TABLE IF NOT EXISTS connectors (
-			id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE,
-			description TEXT, source TEXT, pipedream_slug TEXT,
-			env_keys TEXT, notes TEXT, auto_generated INTEGER DEFAULT 0,
-			created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-		);
-	`)
-	// Migrations: add columns that may be missing from older schemas.
-	try { db.exec("ALTER TABLE projects ADD COLUMN opencode_id TEXT") } catch {}
+
+	ensureSchema(db, "projects", [
+		{ name: "id",          type: "TEXT", notNull: true,  defaultValue: null,   primaryKey: true },
+		{ name: "name",        type: "TEXT", notNull: true,  defaultValue: null,   primaryKey: false },
+		{ name: "path",        type: "TEXT", notNull: true,  defaultValue: null,   primaryKey: false, unique: true },
+		{ name: "description", type: "TEXT", notNull: true,  defaultValue: "''",   primaryKey: false },
+		{ name: "created_at",  type: "TEXT", notNull: true,  defaultValue: null,   primaryKey: false },
+		{ name: "opencode_id", type: "TEXT", notNull: false, defaultValue: null,   primaryKey: false },
+	])
+
+	ensureSchema(db, "session_projects", [
+		{ name: "session_id", type: "TEXT", notNull: true, defaultValue: null, primaryKey: true },
+		{ name: "project_id", type: "TEXT", notNull: true, defaultValue: null, primaryKey: false },
+		{ name: "set_at",     type: "TEXT", notNull: true, defaultValue: null, primaryKey: false },
+	])
+
+	ensureSchema(db, "connectors", [
+		{ name: "id",             type: "TEXT",    notNull: true,  defaultValue: null, primaryKey: true },
+		{ name: "name",           type: "TEXT",    notNull: true,  defaultValue: null, primaryKey: false, unique: true },
+		{ name: "description",    type: "TEXT",    notNull: false, defaultValue: null, primaryKey: false },
+		{ name: "source",         type: "TEXT",    notNull: false, defaultValue: null, primaryKey: false },
+		{ name: "pipedream_slug", type: "TEXT",    notNull: false, defaultValue: null, primaryKey: false },
+		{ name: "env_keys",       type: "TEXT",    notNull: false, defaultValue: null, primaryKey: false },
+		{ name: "notes",          type: "TEXT",    notNull: false, defaultValue: null, primaryKey: false },
+		{ name: "auto_generated", type: "INTEGER", notNull: false, defaultValue: "0",  primaryKey: false },
+		{ name: "created_at",     type: "TEXT",    notNull: true,  defaultValue: null, primaryKey: false },
+		{ name: "updated_at",     type: "TEXT",    notNull: true,  defaultValue: null, primaryKey: false },
+	])
+
 	return db
 }
 

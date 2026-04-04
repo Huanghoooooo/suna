@@ -15,6 +15,7 @@ import * as path from "node:path"
 import { z } from "zod"
 import type { OpencodeClient } from "../lib"
 import { getProjectId, logWarn } from "../lib"
+import { ensureSchema } from "../lib/schema"
 
 // =============================================================================
 // TYPES
@@ -133,25 +134,22 @@ export async function initStateDb(projectRoot: string): Promise<Database> {
 	db.exec("PRAGMA journal_mode=WAL")
 	db.exec("PRAGMA busy_timeout=5000")
 
-	// Create tables with schema
-	db.exec(`
-		CREATE TABLE IF NOT EXISTS sessions (
-			id TEXT PRIMARY KEY,
-			branch TEXT NOT NULL,
-			path TEXT NOT NULL,
-			created_at TEXT NOT NULL
-		)
-	`)
+	ensureSchema(db, "sessions", [
+		{ name: "id",         type: "TEXT", notNull: true, defaultValue: null, primaryKey: true },
+		{ name: "branch",     type: "TEXT", notNull: true, defaultValue: null, primaryKey: false },
+		{ name: "path",       type: "TEXT", notNull: true, defaultValue: null, primaryKey: false },
+		{ name: "created_at", type: "TEXT", notNull: true, defaultValue: null, primaryKey: false },
+	])
 
-	db.exec(`
-		CREATE TABLE IF NOT EXISTS pending_operations (
-			id INTEGER PRIMARY KEY CHECK (id = 1),
-			type TEXT NOT NULL,
-			branch TEXT NOT NULL,
-			path TEXT NOT NULL,
-			session_id TEXT
-		)
-	`)
+	ensureSchema(db, "pending_operations", [
+		{ name: "id",         type: "INTEGER", notNull: true,  defaultValue: null, primaryKey: true },
+		{ name: "type",       type: "TEXT",    notNull: true,  defaultValue: null, primaryKey: false },
+		{ name: "branch",     type: "TEXT",    notNull: true,  defaultValue: null, primaryKey: false },
+		{ name: "path",       type: "TEXT",    notNull: true,  defaultValue: null, primaryKey: false },
+		{ name: "session_id", type: "TEXT",    notNull: false, defaultValue: null, primaryKey: false },
+	])
+	// CHECK (id = 1) is an application-level singleton constraint — enforced by always using id=1 in queries
+	// ensureSchema handles the column schema; the CHECK constraint isn't needed for schema healing
 
 	return db
 }

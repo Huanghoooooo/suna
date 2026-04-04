@@ -15,6 +15,7 @@
 import { Database } from "bun:sqlite"
 import { tool, type ToolContext } from "@opencode-ai/plugin"
 import type { ProjectManager } from "./projects"
+import { ensureSchema } from "./lib/schema"
 
 export type TaskStatus = "pending" | "in_progress" | "done" | "blocked" | "cancelled"
 
@@ -35,24 +36,17 @@ function taskId(): string {
 }
 
 export function ensureTasksTable(db: Database): void {
-	db.exec(`
-		CREATE TABLE IF NOT EXISTS tasks (
-			id TEXT PRIMARY KEY,
-			project_id TEXT NOT NULL,
-			title TEXT NOT NULL DEFAULT '',
-			description TEXT NOT NULL DEFAULT '',
-			status TEXT NOT NULL DEFAULT 'pending',
-			result TEXT,
-			priority TEXT NOT NULL DEFAULT 'medium',
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		)
-	`)
-	// Migrations: add columns that may be missing from older schemas.
-	// Each wrapped in try/catch — silently ignored if column already exists.
-	try { db.exec("ALTER TABLE tasks ADD COLUMN title TEXT NOT NULL DEFAULT ''") } catch {}
-	try { db.exec("ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'") } catch {}
-	try { db.exec("ALTER TABLE tasks ADD COLUMN result TEXT") } catch {}
+	ensureSchema(db, "tasks", [
+		{ name: "id",          type: "TEXT", notNull: true,  defaultValue: null,        primaryKey: true },
+		{ name: "project_id",  type: "TEXT", notNull: true,  defaultValue: null,        primaryKey: false },
+		{ name: "title",       type: "TEXT", notNull: true,  defaultValue: "''",        primaryKey: false },
+		{ name: "description", type: "TEXT", notNull: true,  defaultValue: "''",        primaryKey: false },
+		{ name: "status",      type: "TEXT", notNull: true,  defaultValue: "'pending'", primaryKey: false },
+		{ name: "result",      type: "TEXT", notNull: false, defaultValue: null,        primaryKey: false },
+		{ name: "priority",    type: "TEXT", notNull: true,  defaultValue: "'medium'",  primaryKey: false },
+		{ name: "created_at",  type: "TEXT", notNull: true,  defaultValue: null,        primaryKey: false },
+		{ name: "updated_at",  type: "TEXT", notNull: true,  defaultValue: null,        primaryKey: false },
+	])
 }
 
 export function taskTools(db: Database, mgr: ProjectManager) {

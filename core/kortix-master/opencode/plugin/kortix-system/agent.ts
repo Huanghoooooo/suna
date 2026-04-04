@@ -14,29 +14,36 @@
 import { Database } from "bun:sqlite"
 import { tool, type ToolContext } from "@opencode-ai/plugin"
 import type { ProjectManager } from "./projects"
+import { ensureSchema } from "./lib/schema"
+
+// ── Async agent tracking ─────────────────────────────────────────────────────
+
+let autoworkActiveSessions: Set<string>
+try {
+	const mod = require("./autowork/autowork")
+	autoworkActiveSessions = mod.autoworkActiveSessions ?? new Set<string>()
+} catch {
+	autoworkActiveSessions = new Set<string>()
+}
+
+export const asyncAgentSessions = new Set<string>()
 
 // ── DB ───────────────────────────────────────────────────────────────────────
 
 export function ensureAgentsTable(db: Database): void {
-	db.exec(`
-		CREATE TABLE IF NOT EXISTS agents (
-			id TEXT PRIMARY KEY,
-			project_id TEXT NOT NULL,
-			session_id TEXT NOT NULL,
-			parent_session_id TEXT NOT NULL,
-			agent_type TEXT NOT NULL,
-			description TEXT NOT NULL,
-			system_prompt TEXT,
-			status TEXT NOT NULL DEFAULT 'running',
-			result TEXT,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		)
-	`)
-	// Migrations: add columns that may be missing from older schemas.
-	try { db.exec("ALTER TABLE agents ADD COLUMN system_prompt TEXT") } catch {}
-	try { db.exec("ALTER TABLE agents ADD COLUMN result TEXT") } catch {}
-	try { db.exec("ALTER TABLE agents ADD COLUMN parent_session_id TEXT NOT NULL DEFAULT ''") } catch {}
+	ensureSchema(db, "agents", [
+		{ name: "id",                type: "TEXT", notNull: true,  defaultValue: null,        primaryKey: true },
+		{ name: "project_id",       type: "TEXT", notNull: true,  defaultValue: null,        primaryKey: false },
+		{ name: "session_id",       type: "TEXT", notNull: true,  defaultValue: null,        primaryKey: false },
+		{ name: "parent_session_id", type: "TEXT", notNull: true,  defaultValue: "''",        primaryKey: false },
+		{ name: "agent_type",       type: "TEXT", notNull: true,  defaultValue: null,        primaryKey: false },
+		{ name: "description",      type: "TEXT", notNull: true,  defaultValue: null,        primaryKey: false },
+		{ name: "system_prompt",    type: "TEXT", notNull: false, defaultValue: null,        primaryKey: false },
+		{ name: "status",           type: "TEXT", notNull: true,  defaultValue: "'running'", primaryKey: false },
+		{ name: "result",           type: "TEXT", notNull: false, defaultValue: null,        primaryKey: false },
+		{ name: "created_at",       type: "TEXT", notNull: true,  defaultValue: null,        primaryKey: false },
+		{ name: "updated_at",       type: "TEXT", notNull: true,  defaultValue: null,        primaryKey: false },
+	])
 }
 
 // Map session_id → system_prompt for the system transform hook
@@ -74,10 +81,16 @@ function notifyAgentEvent(
 		stopped: "warning",
 	}
 	const messages: Record<string, string> = {
-		spawned: `⚡ Worker spawned: ${description}\nSession: ${shortSid} — use Ctrl+X ↓ to jump in`,
-		completed: `✓ Worker done: ${description}`,
+		spawned: `⚡ Worker spawned: ${description}\nSession: ${shortSid} — Ctrl+X ↓ to jump in`,
+		completed: `✓ Worker done: ${description}\nSession: ${shortSid}`,
 		failed: `✗ Worker failed: ${description}`,
 		stopped: `⊘ Worker stopped: ${description}`,
+	}
+	const durations: Record<string, number> = {
+		spawned: 15000,
+		completed: 10000,
+		failed: 10000,
+		stopped: 8000,
 	}
 
 	// Show toast notification in TUI (non-blocking, best-effort)
@@ -87,7 +100,19 @@ function notifyAgentEvent(
 				title: `Agent ${event}`,
 				message: messages[event] || description,
 				variant: variants[event] || "info",
-				duration: event === "spawned" ? 8000 : 5000,
+				duration: durations[event] || 10000,
+			},
+		}).catch(() => {})
+	} catch {}
+
+	// Log to structured logs for debugging
+	try {
+		client.app?.log({
+			body: {
+				service: "kortix-agent",
+				level: "info",
+				message: `Agent ${event}: ${description} (session: ${childSessionId})`,
+				extra: { agentId, childSessionId, event },
 			},
 		}).catch(() => {})
 	} catch {}
@@ -121,9 +146,10 @@ export function agentTools(client: any, db: Database, mgr: ProjectManager) {
 				agent_type: tool.schema.string().describe('Agent type — use "worker"'),
 				system_prompt: tool.schema.string().optional().describe("Mission-specific system prompt. Defines WHO this worker is. Frames all decisions. E.g. 'You are building an academic AGI presentation. Rigorous academic tone, real citations.'"),
 				command: tool.schema.string().optional().describe('Slash command to prepend (e.g. "/autowork" for complex tasks)'),
+				async: tool.schema.boolean().optional().describe("If true, spawn in background and return immediately. Result injected back when done. Default: false (blocking)."),
 			},
 			async execute(args: {
-				description: string; prompt: string; agent_type: string; system_prompt?: string; command?: string
+				description: string; prompt: string; agent_type: string; system_prompt?: string; command?: string; async?: boolean
 			}, ctx: ToolContext): Promise<string> {
 				const pid = getProjectId(ctx)
 				if (!pid) return "Error: no project selected."
@@ -185,6 +211,33 @@ export function agentTools(client: any, db: Database, mgr: ProjectManager) {
 					// Notify TUI — user can jump to the child session
 					notifyAgentEvent(client, "spawned", id, args.description, childSessionId)
 
+					if (args.async) {
+						// ── ASYNC PATH: fire-and-forget ──
+						asyncAgentSessions.add(childSessionId)
+
+						client.session.promptAsync({
+							path: { id: childSessionId },
+							body: {
+								agent: args.agent_type,
+								...(model && { model }),
+								parts: [{ type: "text", text: fullPrompt }],
+							},
+						}).catch((err: unknown) => {
+							db.prepare("UPDATE agents SET status='failed', result=$r, updated_at=$now WHERE id=$id")
+								.run({ $r: `promptAsync failed: ${err}`, $now: new Date().toISOString(), $id: id })
+							notifyAgentEvent(client, "failed", id, args.description, childSessionId)
+							asyncAgentSessions.delete(childSessionId)
+						})
+
+						return JSON.stringify({
+							agent_id: id,
+							session_id: childSessionId,
+							status: "running",
+							description: args.description,
+							message: "Worker spawned in background. You'll receive an <agent_completed> message when it finishes.",
+						})
+					}
+
 					// Blocking execution — blocks until worker is done or cancelled.
 					// If parent is interrupted, this promise rejects but the worker keeps running.
 					let lastText = "(no output)"
@@ -244,13 +297,34 @@ export function agentTools(client: any, db: Database, mgr: ProjectManager) {
 			args: {
 				agent_id: tool.schema.string().describe("Agent ID from a previous agent_spawn"),
 				message: tool.schema.string().describe("Message to send"),
+				async: tool.schema.boolean().optional().describe("If true, send in background and return immediately. Result injected back when done. Default: false (blocking)."),
 			},
-			async execute(args: { agent_id: string; message: string }, ctx: ToolContext): Promise<string> {
+			async execute(args: { agent_id: string; message: string; async?: boolean }, ctx: ToolContext): Promise<string> {
 				const pid = getProjectId(ctx)
 				if (!pid) return "Error: no project selected."
 				const agent = db.prepare("SELECT * FROM agents WHERE (id=$id OR id LIKE $like) AND project_id=$pid")
 					.get({ $id: args.agent_id, $like: `%${args.agent_id}%`, $pid: pid }) as AgentRow | null
 				if (!agent) return `Agent not found: ${args.agent_id}`
+
+				if (args.async) {
+					// ── ASYNC PATH ──
+					db.prepare("UPDATE agents SET status='running', updated_at=$now WHERE id=$id")
+						.run({ $now: new Date().toISOString(), $id: agent.id })
+
+					asyncAgentSessions.add(agent.session_id)
+
+					client.session.promptAsync({
+						path: { id: agent.session_id },
+						body: { parts: [{ type: "text", text: args.message }] },
+					}).catch(() => {})
+
+					return JSON.stringify({
+						agent_id: agent.id,
+						session_id: agent.session_id,
+						status: "running",
+						message: "Follow-up sent. You'll receive an <agent_completed> message when the worker finishes.",
+					})
+				}
 
 				try {
 					const result = await client.session.prompt({
@@ -316,5 +390,102 @@ export function agentTools(client: any, db: Database, mgr: ProjectManager) {
 				return lines.join("\n")
 			},
 		}),
+	}
+}
+
+export async function handleAgentSessionEvent(
+	sessionId: string,
+	eventType: string,
+	client: any,
+	db: Database,
+): Promise<void> {
+	if (!asyncAgentSessions.has(sessionId)) return
+
+	const agent = db.prepare(
+		"SELECT * FROM agents WHERE session_id = $sid AND status = 'running'"
+	).get({ $sid: sessionId }) as AgentRow | null
+	if (!agent) return
+
+	if (eventType === "session.idle") {
+		// Don't mark completed if autowork is still driving this session
+		if (autoworkActiveSessions.has(sessionId)) return
+
+		let result = "(no output)"
+		try {
+			const msgs = await client.session.messages({ path: { id: sessionId } })
+			result = (msgs.data ?? [])
+				.filter((m: any) => m.info?.role === "assistant")
+				.flatMap((m: any) => m.parts ?? [])
+				.filter((p: any) => p.type === "text")
+				.pop()?.text || "(no output)"
+		} catch {}
+
+		db.prepare("UPDATE agents SET status='completed', result=$r, updated_at=$now WHERE id=$id")
+			.run({ $r: result.slice(0, 8000), $now: new Date().toISOString(), $id: agent.id })
+
+		notifyAgentEvent(client, "completed", agent.id, agent.description, sessionId)
+		asyncAgentSessions.delete(sessionId)
+
+		try {
+			const message = [
+				'<agent_completed>',
+				`Agent: ${agent.id}`,
+				`Task: ${agent.description}`,
+				`Session: ${agent.session_id}`,
+				`Status: completed`,
+				'',
+				result.slice(0, 8000),
+				'</agent_completed>',
+				'',
+				`The worker has finished. Review the result above. The worker's full session is available at session ${agent.session_id}.`,
+			].join('\n')
+
+			await client.session.promptAsync({
+				path: { id: agent.parent_session_id },
+				body: {
+					parts: [{ type: 'text', text: message }],
+				},
+			})
+		} catch {}
+
+	} else if (eventType === "session.error" || eventType === "session.aborted") {
+		const finalStatus = eventType === "session.aborted" ? "stopped" : "failed"
+		let errorMsg = `Worker ${finalStatus}`
+		try {
+			const msgs = await client.session.messages({ path: { id: sessionId } })
+			errorMsg = (msgs.data ?? [])
+				.filter((m: any) => m.info?.role === "assistant")
+				.flatMap((m: any) => m.parts ?? [])
+				.filter((p: any) => p.type === "text")
+				.pop()?.text || errorMsg
+		} catch {}
+
+		db.prepare("UPDATE agents SET status=$s, result=$r, updated_at=$now WHERE id=$id")
+			.run({ $s: finalStatus, $r: errorMsg.slice(0, 8000), $now: new Date().toISOString(), $id: agent.id })
+
+		notifyAgentEvent(client, finalStatus as "failed" | "stopped", agent.id, agent.description, sessionId)
+		asyncAgentSessions.delete(sessionId)
+
+		try {
+			const tag = finalStatus === "failed" ? "agent_failed" : "agent_stopped"
+			const message = [
+				`<${tag}>`,
+				`Agent: ${agent.id}`,
+				`Task: ${agent.description}`,
+				`Session: ${agent.session_id}`,
+				`Status: ${finalStatus}`,
+				`Error: ${errorMsg.slice(0, 2000)}`,
+				`</${tag}>`,
+				'',
+				`The worker ${finalStatus}. Check agent_status() for details, or review the worker's session ${agent.session_id}.`,
+			].join('\n')
+
+			await client.session.promptAsync({
+				path: { id: agent.parent_session_id },
+				body: {
+					parts: [{ type: 'text', text: message }],
+				},
+			})
+		} catch {}
 	}
 }

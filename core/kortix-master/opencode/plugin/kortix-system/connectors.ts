@@ -6,17 +6,17 @@
  */
 
 import { Database } from "bun:sqlite"
-import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import * as path from "node:path"
 import { type Plugin, tool } from "@opencode-ai/plugin"
+import { ensureKortixDir } from "./lib/paths"
+import { ensureSchema } from "./lib/schema"
 
 function resolveDbPath(): string {
-	const root = process.env.KORTIX_WORKSPACE?.trim()
-		|| (process.env.OPENCODE_CONFIG_DIR?.trim()
-			? path.dirname(path.resolve(process.env.OPENCODE_CONFIG_DIR))
-			: process.cwd())
-	const dbDir = path.join(root, ".kortix")
-	mkdirSync(dbDir, { recursive: true })
+	// Use shared path resolution — aligns with the parent plugin's DB location.
+	// Inside sandbox: KORTIX_WORKSPACE is set → /workspace/.kortix/kortix.db
+	// On host: walks up from import.meta.dir to find workspace root
+	const dbDir = ensureKortixDir(import.meta.dir)
 	return path.join(dbDir, "kortix.db")
 }
 
@@ -26,26 +26,90 @@ function db(): Database {
 	if (_db) return _db
 	_db = new Database(resolveDbPath())
 	_db.exec("PRAGMA journal_mode=DELETE; PRAGMA busy_timeout=5000")
-	_db.exec(`
-		CREATE TABLE IF NOT EXISTS connectors (
-			id TEXT PRIMARY KEY,
-			name TEXT NOT NULL UNIQUE,
-			description TEXT,
-			source TEXT,
-			pipedream_slug TEXT,
-			env_keys TEXT,
-			notes TEXT,
-			auto_generated INTEGER DEFAULT 0,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		);
-	`)
+
+	ensureSchema(_db, "connectors", [
+		{ name: "id",             type: "TEXT",    notNull: true,  defaultValue: null, primaryKey: true },
+		{ name: "name",           type: "TEXT",    notNull: true,  defaultValue: null, primaryKey: false, unique: true },
+		{ name: "description",    type: "TEXT",    notNull: false, defaultValue: null, primaryKey: false },
+		{ name: "source",         type: "TEXT",    notNull: false, defaultValue: null, primaryKey: false },
+		{ name: "pipedream_slug", type: "TEXT",    notNull: false, defaultValue: null, primaryKey: false },
+		{ name: "env_keys",       type: "TEXT",    notNull: false, defaultValue: null, primaryKey: false },
+		{ name: "notes",          type: "TEXT",    notNull: false, defaultValue: null, primaryKey: false },
+		{ name: "auto_generated", type: "INTEGER", notNull: false, defaultValue: "0",  primaryKey: false },
+		{ name: "created_at",     type: "TEXT",    notNull: true,  defaultValue: null, primaryKey: false },
+		{ name: "updated_at",     type: "TEXT",    notNull: true,  defaultValue: null, primaryKey: false },
+	])
+
 	return _db
 }
 
 interface Row {
 	name: string; description: string | null; source: string | null
 	pipedream_slug: string | null; env_keys: string | null; notes: string | null
+}
+
+/** Sandbox master base URL — always localhost:8000 inside the sandbox (no auth needed). */
+const SANDBOX_MASTER_URL = process.env.KORTIX_MASTER_URL?.trim() || "http://localhost:8000"
+
+interface SandboxConnectorRow {
+	id: string; name: string; description: string | null; source: string | null
+	pipedream_slug: string | null; env_keys: string[] | null; notes: string | null
+	auto_generated: boolean; created_at: string; updated_at: string
+}
+
+/**
+ * Try fetching connectors from the sandbox master HTTP API.
+ * Inside the sandbox this always works (localhost, no auth).
+ * On the host this will fail gracefully (timeout/connection refused).
+ */
+async function fetchSandboxConnectors(): Promise<Row[]> {
+	try {
+		const controller = new AbortController()
+		const timeout = setTimeout(() => controller.abort(), 2000)
+		const res = await fetch(`${SANDBOX_MASTER_URL}/kortix/connectors`, {
+			signal: controller.signal,
+		})
+		clearTimeout(timeout)
+		if (!res.ok) return []
+		const data = await res.json() as { connectors?: SandboxConnectorRow[] }
+		return (data.connectors ?? []).map(c => ({
+			name: c.name,
+			description: c.description,
+			source: c.source,
+			pipedream_slug: c.pipedream_slug,
+			env_keys: c.env_keys ? JSON.stringify(c.env_keys) : null,
+			notes: c.notes,
+		}))
+	} catch {
+		return []
+	}
+}
+
+/**
+ * Try fetching a single connector by name from the sandbox master HTTP API.
+ */
+async function fetchSandboxConnector(name: string): Promise<Row | null> {
+	try {
+		const controller = new AbortController()
+		const timeout = setTimeout(() => controller.abort(), 2000)
+		const res = await fetch(`${SANDBOX_MASTER_URL}/kortix/connectors/${encodeURIComponent(name)}`, {
+			signal: controller.signal,
+		})
+		clearTimeout(timeout)
+		if (!res.ok) return null
+		const c = await res.json() as SandboxConnectorRow
+		if (!c.name) return null
+		return {
+			name: c.name,
+			description: c.description,
+			source: c.source,
+			pipedream_slug: c.pipedream_slug,
+			env_keys: c.env_keys ? JSON.stringify(c.env_keys) : null,
+			notes: c.notes,
+		}
+	} catch {
+		return null
+	}
 }
 
 function resolveConnectorRoot(): string | null {
@@ -93,10 +157,17 @@ const ConnectorsPlugin: Plugin = async () => {
 					filter: tool.schema.string().describe('"" for all, or filter by source/name.'),
 				},
 				async execute(args: { filter: string }): Promise<string> {
-					let rows = db().query("SELECT * FROM connectors ORDER BY name").all() as Row[]
-					for (const discovered of discoverFileConnectors()) {
-						if (!rows.some((r) => r.name === discovered.name)) rows.push(discovered)
+					// Try sandbox HTTP API first (works inside sandbox, graceful fail on host)
+					let rows = await fetchSandboxConnectors()
+
+					// Fall back to local DB + file-based connectors if sandbox API returned nothing
+					if (!rows.length) {
+						rows = db().query("SELECT * FROM connectors ORDER BY name").all() as Row[]
+						for (const discovered of discoverFileConnectors()) {
+							if (!rows.some((r) => r.name === discovered.name)) rows.push(discovered)
+						}
 					}
+
 					rows.sort((a, b) => a.name.localeCompare(b.name))
 					const f = args.filter?.toLowerCase().trim()
 					if (f) rows = rows.filter(r =>
@@ -112,13 +183,22 @@ const ConnectorsPlugin: Plugin = async () => {
 				description: "Get a connector's full metadata.",
 				args: { name: tool.schema.string().describe("Connector name.") },
 				async execute(args: { name: string }): Promise<string> {
-					let row = db().query("SELECT * FROM connectors WHERE name = ? OR name LIKE ?").get(args.name, `%${args.name}%`) as Row | null
+					// Try sandbox HTTP API first
+					let row = await fetchSandboxConnector(args.name)
+
+					// Fall back to local DB
+					if (!row) {
+						row = db().query("SELECT * FROM connectors WHERE name = ? OR name LIKE ?").get(args.name, `%${args.name}%`) as Row | null
+					}
 					if (!row) {
 						row = discoverFileConnectors().find((r) => r.name === args.name || r.name.includes(args.name)) ?? null
 					}
 					if (!row) {
-						const all = (db().query("SELECT name FROM connectors ORDER BY name").all() as { name: string }[]).map(r => r.name)
-						return `Not found: "${args.name}". Available: ${all.join(", ") || "none"}`
+						// Try sandbox API for the full list to show available names
+						const sandboxRows = await fetchSandboxConnectors()
+						const localRows = (db().query("SELECT name FROM connectors ORDER BY name").all() as { name: string }[]).map(r => r.name)
+						const allNames = [...new Set([...sandboxRows.map(r => r.name), ...localRows])].sort()
+						return `Not found: "${args.name}". Available: ${allNames.join(", ") || "none"}`
 					}
 					const parts = [`name: ${row.name}`]
 					if (row.description) parts.push(`description: ${row.description}`)
