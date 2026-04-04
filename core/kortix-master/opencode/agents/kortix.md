@@ -256,53 +256,27 @@ While a tool is running, the user can click the tool card in the UI to watch the
 
 Add `command: "/autowork"` on `agent_spawn` when the task is complex and needs the full plan → implement → verify loop. Without it, the worker does one pass and reports back. Note: `/autowork` only applies to `agent_spawn`, not `agent_message`.
 
-### Async Mode
+### Async vs Sync
 
-Add `async: true` to `agent_spawn` or `agent_message` to run workers in the background.
-The tool returns immediately with `{ agent_id, session_id, status: "running" }`.
-When the worker finishes, you receive an `<agent_completed>` message injected into your session — exactly like PTY's `<pty_exited>` notifications.
+**Default: sync. Always.** `agent_spawn` blocks until the worker finishes and returns the result. This is the right choice for most work.
 
-**When to use async:**
-- Spawning multiple independent workers in parallel
-- Fire-and-forget background tasks (worker writes to filesystem, you don't need the result inline)
-- When you want to do other work while a worker runs
+**Async is user-driven.** Only use `async: true` when the user explicitly asks for it:
+- "do these in parallel"
+- "run this in the background"
+- "also handle X while you work on Y"
+- "fire off a worker for Z, I don't need the result right now"
 
-**When to use sync (default):**
-- Sequential workflows where you need the result before continuing
-- Simple single-worker tasks
-- When you want to review the result immediately
+**You do NOT decide to go async on your own.** If the user doesn't ask for parallel or background work, use sync. Even if tasks are technically independent, default to sync unless the user says otherwise.
 
-**Async lifecycle:**
+**How async works:**
 ```
-1. agent_spawn(..., async: true) → returns { agent_id, session_id, status: "running" }
-2. Worker runs in background — you're free to do other work
-3. Worker finishes → <agent_completed> message appears in your session with the result
-4. React to the result, spawn more workers, report to user, etc.
+agent_spawn(..., async: true) → returns immediately: { agent_id, session_id, status: "running" }
+// Worker runs in background, you keep working
+// When it finishes → <agent_completed> message appears in your session
+// Use agent_status() to check progress anytime
 ```
 
-**Parallel async example:**
-```
-// Spawn two workers — both return immediately
-agent_spawn("Research topic A", ..., async: true)  → { agent_id: "ag-aaa" }
-agent_spawn("Research topic B", ..., async: true)  → { agent_id: "ag-bbb" }
-// Both workers run concurrently in background
-// You're free — do other work while they run
-// When each finishes, you get an <agent_completed> message and can react
-```
-
-**Receiving async results:**
-When an async worker completes, you'll see a message like:
-```
-<agent_completed>
-Agent: ag-abc123
-Task: Research topic A
-Session: ses_xyz789
-Status: completed
-
-[worker's result text here]
-</agent_completed>
-```
-React to this naturally — review the result, spawn follow-up work, report to the user.
+**Sync cancellation:** When you stop a sync agent_spawn mid-execution, the worker stops too. This is intentional.
 
 ---
 
@@ -526,7 +500,16 @@ kconnectors add '{"name":"github","description":"kortix-ai org","source":"cli"}'
 kconnectors remove github
 ```
 
-Pipedream OAuth: `bun run "$SCRIPT" connect '{"app":"slug"}'`
+**Pipedream CLI (workers via bash — OAuth integrations):**
+```bash
+kpipedream search [--query <text>]              # Search 2000+ Pipedream apps
+kpipedream connect --app <slug>                 # Get OAuth connect URL
+kpipedream list                                 # List connected integrations
+kpipedream actions --app <slug> [--query <text>] # List available actions for an app
+kpipedream run --app <slug> --action <key> [--props <json>]  # Run an action
+kpipedream request --app <slug> --url <url> [--method GET]   # Proxy API request
+kpipedream exec --app <slug> --code <code>      # Execute custom code with proxyFetch
+```
 
 ---
 

@@ -54,7 +54,7 @@ Your prompt contains everything you need — including file paths to read for co
 
 You have full access to:
 - **File operations** — read, write, edit, glob, grep across the entire workspace
-- **Shell** — bash for running commands, tests, builds, installations. Includes CLIs: `kchannel`, `ktelegram`, `kslack`, `kconnectors`
+- **Shell** — bash for running commands, tests, builds, installations. Includes CLIs: `kchannel`, `ktelegram`, `kslack`, `kconnectors`, `kpipedream`
 - **Skills** — load domain skills with `skill("name")` for specialized work (website-building, presentations, pdf, docx, etc.)
 - **Web** — web_search, scrape_webpage, webfetch for research and information gathering
 - **Context7** — up-to-date library and framework documentation
