@@ -151,7 +151,7 @@ export type NavSubGroup =
 
 /** Human-readable labels for sub-groups (used in expanded sidebar) */
 export const navSubGroupLabels: Record<NavSubGroup, string> = {
-  tools: 'Workspace',
+  tools: '',
   services: 'Services',
   security: 'Security',
 };
@@ -385,7 +385,7 @@ export const menuRegistry: MenuItemDef[] = [
     label: 'Marketplace',
     icon: Sparkles,
     group: 'navigation',
-    showIn: ['commandPalette', 'rightSidebar'],
+    showIn: [],
     subGroup: 'tools',
     kind: 'navigate',
     href: '/marketplace',
