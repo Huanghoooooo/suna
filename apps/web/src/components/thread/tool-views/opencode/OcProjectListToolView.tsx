@@ -79,12 +79,12 @@ export function OcProjectListToolView({
                       </Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground/60">
-                    <span className="font-mono truncate max-w-[200px]" title={project.path}>
+                  <div className="text-[11px] text-muted-foreground/60 space-y-0.5">
+                    <span className="font-mono truncate block" title={project.path}>
                       {project.path}
                     </span>
                     {project.description && project.description !== '—' && (
-                      <span className="flex items-center gap-1 truncate max-w-[150px]" title={project.description}>
+                      <span className="flex items-center gap-1 truncate" title={project.description}>
                         <FileText className="size-3 flex-shrink-0" />
                         {project.description}
                       </span>
