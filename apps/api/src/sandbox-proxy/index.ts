@@ -6,6 +6,7 @@ import { combinedAuth } from '../middleware/auth';
 import { preview, proxyToDaytona } from './routes/preview';
 import { proxyToSandbox } from './routes/local-preview';
 import { getAuthToken } from './routes/auth';
+import { shareApp } from './routes/share';
 import { db } from '../shared/db';
 
 const sandboxProxyApp = new Hono();
@@ -13,6 +14,10 @@ const sandboxProxyApp = new Hono();
 // ── Cookie auth endpoint ────────────────────────────────────────────────────
 // POST /v1/p/auth — validates JWT and sets __preview_session cookie.
 sandboxProxyApp.route('/auth', getAuthToken);
+
+// ── Public URL share endpoint ───────────────────────────────────────────────
+// POST /v1/p/share — returns a shareable URL for a sandbox port.
+sandboxProxyApp.route('/share', shareApp);
 
 // ── Path-based proxy ────────────────────────────────────────────────────────
 // Auth middleware for both modes (Supabase JWT, kortix_ tokens, cookies).

@@ -29,6 +29,8 @@ import suggestionsRouter from './routes/suggestions'
 import coreRouter from './routes/core'
 import reloadRouter from './routes/reload'
 import triggersRouter from './routes/triggers'
+import shareRouter from './routes/share'
+import shareProxyRouter from './routes/share-proxy'
 import marketplaceRouter from './routes/marketplace'
 import projectsRouter from './routes/projects'
 import { tasksRouter } from './routes/tasks'
@@ -71,6 +73,10 @@ loadBootstrapEnv()
 // Initialize secret store and load ENV variables
 const secretStore = new SecretStore()
 await secretStore.loadIntoProcessEnv()
+
+// Initialize share store (load persisted shares, start prune timer)
+import { initShareStore } from './services/share-store'
+initShareStore()
 
 // ─── Guarantee KORTIX_TOKEN + KORTIX_API_URL in s6 env dir ──────────────────
 // These are injected as Docker env vars at container creation but never written
@@ -178,10 +184,8 @@ app.use('*', async (c, next) => {
   if (pathname === '/kortix/health') return next()
   // Skip docs endpoints — API docs should be accessible without auth
   if (pathname === '/docs' || pathname === '/docs/openapi.json') return next()
-  // Skip auth for channel webhook endpoints — external services (e.g. Telegram)
-  // send webhook POSTs that cannot carry our INTERNAL_SERVICE_KEY.
-  // The channel adapter verifies authenticity via its own secret token header.
-  if (pathname.startsWith('/channels/api/webhooks/')) return next()
+  // [channels v2] Channel webhooks now use /hooks/telegram/<id> and /hooks/slack/<id>
+  // which are already covered by the /hooks/* bypass below.
   // Skip auth for Pipedream event delivery — Pipedream POSTs events to
   // /events/pipedream/:listenerId. The listener ID acts as a secret token
   // (UUID, not guessable). Events are forwarded to the triggers webhook server.
@@ -189,6 +193,9 @@ app.use('*', async (c, next) => {
   // Skip auth for user-defined webhook triggers at /hooks/* — external callers
   // authenticate via the X-Kortix-Trigger-Secret header (per-trigger secret).
   if (pathname.startsWith('/hooks/')) return next()
+  // Skip auth for share proxy at /s/{token}/* — the share token IS the auth.
+  // Token validity + TTL is checked by the share-proxy route handler.
+  if (pathname.startsWith('/s/')) return next()
 
   // Skip auth for requests from inside the sandbox (localhost/loopback)
   if (isLocalRequest(c)) return next()
@@ -366,6 +373,9 @@ app.route('/kortix/tasks/', tasksRouter)
 app.route('/kortix/agents', agentsRouter)
 app.route('/kortix/agents/', agentsRouter)
 
+// Public URL sharing — /kortix/share/:port returns the public URL for a sandbox port
+app.route('/kortix/share', shareRouter)
+
 // Connectors — SQLite-backed CRUD
 app.route('/kortix/connectors', connectorsRouter)
 
@@ -425,6 +435,10 @@ app.post('/events/pipedream/:listenerId', async (c) => {
   }
 })
 
+// Share proxy — /s/:token/* validates share token + TTL, then proxies to the target port.
+// Public route (no auth) — the share token IS the authentication.
+app.route('/s', shareProxyRouter)
+
 // Dynamic port proxy — /proxy/:port/* forwards to localhost:{port} inside the sandbox
 app.route('/proxy', proxyRouter)
 
@@ -440,87 +454,9 @@ app.route('/file', filesRouter)
 import legacyMigrateRouter from './routes/legacy-migrate'
 app.route('/legacy', legacyMigrateRouter)
 
-// Proxy channel webhooks (and /reload) to opencode-channels on port 3456
-app.all('/channels/*', async (c) => {
-  const subPath = c.req.path.replace(/^\/channels/, '') || '/'
-  const targetUrl = `http://localhost:3456${subPath}`
-
-  // Read body once (avoids double-consume issues with streams)
-  let body: ArrayBuffer | undefined
-  if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
-    try {
-      body = await c.req.raw.arrayBuffer()
-    } catch {
-      return c.json({ error: 'Failed to read request body' }, 400)
-    }
-  }
-
-  // Build clean headers (strip hop-by-hop headers that break proxying)
-  const headers = new Headers()
-  for (const [key, value] of c.req.raw.headers.entries()) {
-    const lower = key.toLowerCase()
-    if (lower === 'host' || lower === 'connection' || lower === 'keep-alive' || lower === 'te' || lower === 'upgrade') continue
-    headers.set(key, value)
-  }
-  headers.set('Host', 'localhost:3456')
-
-  // Retry loop with proper error handling (matches /proxy/:port/* resilience)
-  const MAX_RETRIES = 2
-  const RETRY_DELAY_MS = 300
-  let lastError = ''
-
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const res = await fetch(targetUrl, {
-        method: c.req.method,
-        headers,
-        body,
-        signal: AbortSignal.timeout(30_000),
-      })
-      return new Response(res.body, {
-        status: res.status,
-        statusText: res.statusText,
-        headers: res.headers,
-      })
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error)
-      lastError = errMsg
-
-      // Timeout — no point retrying
-      if (error instanceof DOMException && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
-        console.error(`[channels-proxy] Timeout on ${c.req.method} ${subPath}`)
-        return c.json({ error: 'Channels service request timed out', hint: 'The channels service on port 3456 did not respond in time' }, 504)
-      }
-
-      // Connection refused — service is not running
-      if (errMsg.includes('ECONNREFUSED') || errMsg.includes('Unable to connect') || errMsg.includes('Connection refused')) {
-        console.error(`[channels-proxy] Port 3456 unreachable on ${c.req.method} ${subPath}: channels service is not running`)
-        return c.json({
-          error: 'Channels service is not running',
-          hint: 'Nothing listening on localhost:3456. The service may still be starting up — try again in a few seconds.',
-          details: errMsg,
-        }, 502)
-      }
-
-      // Transient error — retry
-      const isTransient = ['ECONNRESET', 'EPIPE', 'ECONNABORTED', 'socket hang up'].some(p => errMsg.includes(p))
-      if (isTransient && attempt < MAX_RETRIES) {
-        console.warn(`[channels-proxy] Transient error on attempt ${attempt + 1}/${MAX_RETRIES + 1}: ${errMsg}, retrying...`)
-        await Bun.sleep(RETRY_DELAY_MS * (attempt + 1))
-        continue
-      }
-
-      // Non-retryable or exhausted
-      console.error(`[channels-proxy] Error on ${c.req.method} ${subPath}: ${errMsg}`)
-    }
-  }
-
-  return c.json({
-    error: 'Failed to connect to channels service',
-    details: lastError,
-    hint: 'The channels service on port 3456 is unreachable after retries',
-  }, 502)
-})
+// [channels v2] The old channels proxy to port 3456 has been removed.
+// Channel CLIs (telegram.ts, slack.ts) are standalone scripts.
+// Channel webhooks use the existing trigger system at /hooks/*.
 
 // Proxy all other requests to OpenCode
 app.all('*',
