@@ -528,8 +528,7 @@ export const creditAccounts = kortixSchema.table(
     planType: varchar('plan_type', { length: 50 }).default('monthly'),
     stripeSubscriptionStatus: varchar('stripe_subscription_status', { length: 50 }),
     lastDailyRefresh: timestamp('last_daily_refresh', { withTimezone: true, mode: 'string' }),
-    // Auto-topup configuration — on by default: recharge $20 when balance drops below $5
-    autoTopupEnabled: boolean('auto_topup_enabled').default(true).notNull(),
+    autoTopupEnabled: boolean('auto_topup_enabled').default(false).notNull(),
     autoTopupThreshold: numeric('auto_topup_threshold', { precision: 10, scale: 2 }).default('5').notNull(),
     autoTopupAmount: numeric('auto_topup_amount', { precision: 10, scale: 2 }).default('20').notNull(),
     autoTopupLastCharged: timestamp('auto_topup_last_charged', { withTimezone: true, mode: 'string' }),

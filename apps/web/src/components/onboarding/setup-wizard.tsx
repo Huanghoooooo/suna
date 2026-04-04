@@ -31,7 +31,10 @@ import {
   Wrench,
   X,
   Bot,
+  CreditCard,
+  ShieldCheck,
 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { KortixLoader } from '@/components/ui/kortix-loader';
@@ -46,10 +49,12 @@ import { getActiveOpenCodeUrl } from '@/stores/server-store';
 import { authenticatedFetch } from '@/lib/auth-token';
 import { isBillingEnabled } from '@/lib/config';
 import { cn } from '@/lib/utils';
+import { backendApi } from '@/lib/api-client';
 
 // ─── Step definitions ───────────────────────────────────────────────────────
 
 const STEPS = [
+  { label: 'Auto Top-up', icon: CreditCard },
   { label: 'Providers', icon: Sparkles },
   { label: 'Default Model', icon: Bot },
   { label: 'Tools', icon: Wrench },
@@ -148,7 +153,75 @@ function CloudBadge({ text }: { text?: string }) {
   );
 }
 
-// ─── Step 1: Providers ──────────────────────────────────────────────────────
+/// ─── Step 0: Auto Top-up ────────────────────────────────────────────────────
+
+function AutoTopupPane({ onNext }: { onNext: () => void }) {
+  const [enabled, setEnabled] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleContinue = async () => {
+    setSaving(true);
+    try {
+      await backendApi.post('/billing/auto-topup/configure', { enabled, threshold: 5, amount: 20 });
+    } catch {
+      // Non-fatal — preference saved on next Settings visit
+    }
+    setSaving(false);
+    onNext();
+  };
+
+  return (
+    <div className="flex flex-col items-center text-center gap-6">
+      <div
+        className={cn(
+          'h-12 w-12 rounded-full flex items-center justify-center',
+          'bg-muted/60',
+        )}
+      >
+        <CreditCard className="h-5 w-5 text-muted-foreground/50" />
+      </div>
+
+      <div className="space-y-1.5">
+        <h2 className="text-lg font-medium text-foreground/90">Auto Top-up</h2>
+        <p className="text-sm text-muted-foreground/50 leading-relaxed max-w-xs mx-auto">
+          Automatically add credits when your balance runs low so your workspace never pauses.
+        </p>
+      </div>
+
+      <div className="w-full rounded-xl border bg-card/50 p-4">
+        <div className="flex items-center justify-between">
+          <div className="text-left">
+            <p className="text-sm font-medium">Enable Auto Top-up</p>
+            <p className="text-xs text-muted-foreground">Add $20 when balance drops below $5</p>
+          </div>
+          <Switch checked={enabled} onCheckedChange={setEnabled} />
+        </div>
+
+        {enabled && (
+          <div className="mt-3 pt-3 border-t flex items-start gap-2">
+            <ShieldCheck className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+            <p className="text-xs text-muted-foreground text-left">
+              Your card will only be charged when credits run low. Change or disable anytime in Settings.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <Button onClick={handleContinue} disabled={saving} className="w-full gap-2">
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        Continue
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+
+      <button
+        onClick={onNext}
+        className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+      >
+        Skip for now
+      </button>
+    </div>
+  );
+}
 
 function ProvidersPane({ onNext }: { onNext: () => void }) {
   const { data: providersData, isLoading } = useOpenCodeProviders();
@@ -763,7 +836,7 @@ function GetStartedPane({ onNext, onBack }: { onNext: () => void; onBack: () => 
 
 // ─── Main wizard ────────────────────────────────────────────────────────────
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 export function SetupWizard({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(0);
@@ -795,11 +868,12 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
           >
-            {step === 0 && <ProvidersPane onNext={next} />}
-            {step === 1 && <DefaultModelPane onNext={next} onBack={back} />}
-            {step === 2 && <ToolKeysPane onNext={next} onBack={back} />}
-            {step === 3 && <PipedreamPane onNext={next} onBack={back} />}
-            {step === 4 && <GetStartedPane onNext={next} onBack={back} />}
+            {step === 0 && <AutoTopupPane onNext={next} />}
+            {step === 1 && <ProvidersPane onNext={next} />}
+            {step === 2 && <DefaultModelPane onNext={next} onBack={back} />}
+            {step === 3 && <ToolKeysPane onNext={next} onBack={back} />}
+            {step === 4 && <PipedreamPane onNext={next} onBack={back} />}
+            {step === 5 && <GetStartedPane onNext={next} onBack={back} />}
           </motion.div>
         </AnimatePresence>
       </div>
