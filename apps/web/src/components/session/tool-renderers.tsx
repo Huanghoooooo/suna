@@ -5592,9 +5592,30 @@ ToolRegistry.register("oc-project-delete", ProjectDeleteTool);
 // Same UX as TaskTool: compact card, live shimmer, SubSessionModal
 // ============================================================================
 
+/** Clean agent_spawn output for display (strip ## Worker Result header, agent/session metadata) */
+function cleanWorkerOutput(raw: string): string {
+	if (!raw) return "";
+	let text = raw;
+	text = text.replace(/^##\s*Worker Result\s*\n/i, "");
+	text = text.replace(/^\*\*Agent:\*\*.*\n?/m, "");
+	text = text.replace(/^\*\*Task:\*\*.*\n?/m, "");
+	return text.trim();
+}
+
+/** Extract a one-line preview from cleaned worker output */
+function extractWorkerPreview(cleaned: string): string | null {
+	if (!cleaned) return null;
+	// Grab the first non-empty, non-heading line
+	const lines = cleaned.split("\n").filter(l => l.trim() && !l.startsWith("#"));
+	const first = lines[0]?.replace(/^\*\*.*?\*\*\s*/, "").trim();
+	if (!first) return null;
+	return first.length > 120 ? first.slice(0, 120).trim() + "…" : first;
+}
+
 function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 	const input = partInput(part);
 	const status = partStatus(part);
+	const output = partOutput(part);
 	const description = (input.description as string) || "";
 	const isRunning = status === "running" || status === "pending";
 	const isCompleted = status === "completed";
@@ -5612,6 +5633,7 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 	}, [childMessages]);
 
 	const [modalOpen, setModalOpen] = useState(false);
+	const [outputExpanded, setOutputExpanded] = useState(false);
 
 	const lastActivity = useMemo(() => {
 		if (childToolParts.length === 0) return null;
@@ -5620,66 +5642,112 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 		return info.title + (info.subtitle ? ` · ${info.subtitle}` : "");
 	}, [childToolParts]);
 
+	const cleanedOutput = useMemo(() => cleanWorkerOutput(output), [output]);
+	const workerPreview = useMemo(() => extractWorkerPreview(cleanedOutput), [cleanedOutput]);
+
 	const hasSession = !!childSessionId;
 
 	return (
 		<>
 			<div
-				role="button"
-				tabIndex={0}
-				onClick={() => hasSession && setModalOpen(true)}
-				onKeyDown={(e) => e.key === "Enter" && hasSession && setModalOpen(true)}
 				className={cn(
-					"rounded-lg border border-border bg-card p-3 transition-colors select-none w-full group",
-					hasSession ? "cursor-pointer hover:bg-accent/50" : "",
+					"rounded-lg border border-border/40 bg-muted/20 transition-colors select-none w-full group overflow-hidden",
 				)}
 			>
-				{/* Row 1: icon + description + status */}
-				<div className="flex items-center gap-2.5">
-					<Cpu className="size-4 text-muted-foreground flex-shrink-0" />
+				{/* Clickable header area */}
+				<div
+					role="button"
+					tabIndex={0}
+					onClick={() => hasSession && setModalOpen(true)}
+					onKeyDown={(e) => e.key === "Enter" && hasSession && setModalOpen(true)}
+					className={cn(
+						"p-3",
+						hasSession ? "cursor-pointer hover:bg-accent/50" : "",
+					)}
+				>
+					{/* Row 1: icon + description + status */}
+					<div className="flex items-center gap-2.5">
+						<Cpu className="size-4 text-muted-foreground flex-shrink-0" />
 
-					<span className="text-[13px] font-medium text-foreground truncate flex-1">{description}</span>
+						<span className="text-[13px] font-medium text-foreground truncate flex-1">{description}</span>
 
+						{isRunning && (
+							<span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium flex-shrink-0 flex items-center gap-1">
+								<Loader2 className="size-2.5 animate-spin" />
+								Running
+							</span>
+						)}
+						{isCompleted && childToolParts.length > 0 && (
+							<span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono flex-shrink-0">{childToolParts.length} steps</span>
+						)}
+						{isError && (
+							<span className="text-[10px] text-destructive bg-destructive/10 px-1.5 py-0.5 rounded font-medium flex-shrink-0">Failed</span>
+						)}
+
+						{hasSession && (
+							<ChevronRight className="size-3.5 text-muted-foreground/20 group-hover:text-muted-foreground/50 transition-colors flex-shrink-0" />
+						)}
+					</div>
+
+					{/* Row 2: live activity */}
 					{isRunning && (
-						<span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium flex-shrink-0">Running</span>
-					)}
-					{isCompleted && childToolParts.length > 0 && (
-						<span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono flex-shrink-0">{childToolParts.length} steps</span>
-					)}
-					{isError && (
-						<span className="text-[10px] text-destructive bg-destructive/10 px-1.5 py-0.5 rounded font-medium flex-shrink-0">Failed</span>
+						<div className="mt-2 pl-[26px]">
+							{lastActivity ? (
+								<TextShimmer duration={1.5} spread={2} className="text-[11px] truncate font-mono text-muted-foreground">
+									{lastActivity}
+								</TextShimmer>
+							) : (
+								<span className="text-[11px] text-muted-foreground">Starting…</span>
+							)}
+						</div>
 					)}
 
-					{hasSession && (
-						<ChevronRight className="size-3.5 text-muted-foreground/20 group-hover:text-muted-foreground/50 transition-colors flex-shrink-0" />
+					{/* Row 2: completed step summary (only when no worker output) */}
+					{isCompleted && childToolParts.length > 0 && !cleanedOutput && (
+						<div className="mt-2 pl-[26px] space-y-0.5">
+							{childToolParts.slice(-3).map((tp, i) => {
+								const info = getToolInfo(tp.tool, (tp.state.input ?? {}) as Record<string, any>);
+								return (
+									<div key={i} className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
+										<Check className="size-2.5 text-muted-foreground/50 flex-shrink-0" />
+										{info.title}{info.subtitle ? ` · ${info.subtitle}` : ""}
+									</div>
+								);
+							})}
+							{childToolParts.length > 3 && (
+								<div className="text-[11px] text-muted-foreground/50 pl-4">+{childToolParts.length - 3} more</div>
+							)}
+						</div>
 					)}
 				</div>
 
-				{/* Row 2: live activity or completed steps */}
-				{isRunning && (
-					<div className="mt-2 pl-[26px]">
-						{lastActivity ? (
-							<TextShimmer duration={1.5} spread={2} className="text-[11px] truncate font-mono text-muted-foreground">
-								{lastActivity}
-							</TextShimmer>
-						) : (
-							<span className="text-[11px] text-muted-foreground">Starting…</span>
-						)}
-					</div>
-				)}
-
-				{isCompleted && childToolParts.length > 0 && (
-					<div className="mt-2 pl-[26px] space-y-px">
-						{childToolParts.slice(-3).map((tp, i) => {
-							const info = getToolInfo(tp.tool, (tp.state.input ?? {}) as Record<string, any>);
-							return (
-								<div key={i} className="text-[11px] text-muted-foreground truncate">
-									{info.title}{info.subtitle ? ` · ${info.subtitle}` : ""}
+				{/* Worker result — collapsible output section */}
+				{isCompleted && cleanedOutput && (
+					<div className="border-t border-border/30">
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									onClick={(e) => { e.stopPropagation(); setOutputExpanded(!outputExpanded); }}
+									className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-muted/30 transition-colors"
+								>
+									<ChevronRight className={cn("size-3 text-muted-foreground/40 transition-transform flex-shrink-0", outputExpanded && "rotate-90")} />
+									<span className="text-[11px] text-muted-foreground font-medium flex-shrink-0">Result</span>
+									{!outputExpanded && workerPreview && (
+										<span className="text-[11px] text-muted-foreground/40 truncate">{workerPreview}</span>
+									)}
+								</button>
+							</TooltipTrigger>
+							<TooltipContent side="top" className="max-w-xs">
+								<p className="text-xs">{outputExpanded ? "Collapse result" : "Expand to see full worker output"}</p>
+							</TooltipContent>
+						</Tooltip>
+						{outputExpanded && (
+							<div data-scrollable className="px-3 pb-3 max-h-80 overflow-y-auto">
+								<div className="text-[12px] text-foreground/80 leading-relaxed prose-sm [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-foreground [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_table]:text-[11px] [&_code]:text-[11px] [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:rounded [&_hr]:border-border/30 [&_hr]:my-3">
+									<UnifiedMarkdown content={cleanedOutput} isStreaming={false} />
 								</div>
-							);
-						})}
-						{childToolParts.length > 3 && (
-							<div className="text-[11px] text-muted-foreground/50">+{childToolParts.length - 3} more</div>
+							</div>
 						)}
 					</div>
 				)}
@@ -5755,10 +5823,10 @@ function TaskCreateTool({ part }: ToolProps) {
 	const title = (input.title as string) || "";
 	const priority = (input.priority as string) || "medium";
 	return (
-		<div className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg bg-muted/30 border border-border/30">
+		<div className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg bg-muted/20 border border-border/40">
 			<Circle className="size-3 text-muted-foreground/40 flex-shrink-0" />
 			<span className="text-foreground/80 truncate flex-1">{title}</span>
-			{priority === "high" && <span className="text-[9px] font-medium text-foreground/40 bg-foreground/5 px-1.5 py-px rounded">high</span>}
+			{priority === "high" && <span className="text-[9px] font-medium text-foreground/50 bg-muted/60 px-1.5 py-px rounded">high</span>}
 		</div>
 	);
 }
@@ -5787,14 +5855,9 @@ ToolRegistry.register("task_list", TaskListTool);
 ToolRegistry.register("task-list", TaskListTool);
 
 function TaskUpdateTool({ part }: ToolProps) {
-	const input = partInput(part);
-	const newStatus = (input.status as string) || "";
-	// task_update is a minor status change — render as minimal inline text
-	return (
-		<div className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] text-muted-foreground/40">
-			<span>→ {newStatus === "in_progress" ? "in progress" : newStatus}</span>
-		</div>
-	);
+	// task_update is internal bookkeeping — hide it entirely.
+	// The agent_spawn card already shows task status and description.
+	return null;
 }
 ToolRegistry.register("task_update", TaskUpdateTool);
 ToolRegistry.register("task-update", TaskUpdateTool);
@@ -5803,9 +5866,9 @@ function TaskDoneTool({ part }: ToolProps) {
 	const input = partInput(part);
 	const result = (input.result as string) || "";
 	return (
-		<div className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg bg-muted/30 border border-border/30">
-			<Check className="size-3 text-foreground/40 flex-shrink-0" />
-			<span className="text-foreground/60 truncate flex-1 line-through decoration-muted-foreground/20">{result || "Completed"}</span>
+		<div className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg bg-muted/20 border border-border/40">
+			<Check className="size-3 text-muted-foreground/50 flex-shrink-0" />
+			<span className="text-muted-foreground truncate flex-1">{result || "Completed"}</span>
 		</div>
 	);
 }
@@ -6035,6 +6098,9 @@ function ProjectListTool({ part, defaultOpen, forceOpen }: ToolProps) {
 							<div className="min-w-0 flex-1">
 								<div className="font-medium text-foreground truncate">{project.name}</div>
 								<div className="text-muted-foreground/60 font-mono truncate">{project.path}</div>
+								{project.description && project.description !== '—' && (
+									<div className="text-muted-foreground/50 truncate">{project.description}</div>
+								)}
 							</div>
 							{project.sessions > 0 && (
 								<Badge variant="outline" className="h-5 py-0 text-[10px] flex-shrink-0">
@@ -6044,9 +6110,13 @@ function ProjectListTool({ part, defaultOpen, forceOpen }: ToolProps) {
 						</div>
 					))}
 				</div>
+			) : output ? (
+				<div className="p-3 text-xs text-muted-foreground whitespace-pre-wrap">
+					{output.slice(0, 2000)}
+				</div>
 			) : (
 				<div className="p-3 text-xs text-muted-foreground">
-					{output ? 'No projects found' : 'Loading...'}
+					Loading...
 				</div>
 			)}
 		</BasicTool>
@@ -6110,7 +6180,7 @@ function ProjectSelectTool({ part }: ToolProps) {
 			role="button"
 			tabIndex={0}
 			onClick={() => openTabAndNavigate({ id: `project:${projectId}`, title: name, type: 'page' as any, href: `/projects/${encodeURIComponent(projectId)}` })}
-			className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border border-border/40 bg-card cursor-pointer hover:bg-accent/50 transition-colors group"
+			className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg bg-muted/20 border border-border/40 cursor-pointer hover:bg-accent/50 transition-colors group"
 		>
 			<Folder className="size-3.5 text-muted-foreground/50 flex-shrink-0" />
 			<span className="text-[13px] font-medium text-foreground truncate flex-1">{name}</span>
@@ -6141,7 +6211,7 @@ function ProjectCreateTool({ part }: ToolProps) {
 			role="button"
 			tabIndex={0}
 			onClick={() => openTabAndNavigate({ id: `project:${projectId}`, title: displayName, type: 'page' as any, href: `/projects/${encodeURIComponent(projectId)}` })}
-			className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border border-border/40 bg-card cursor-pointer hover:bg-accent/50 transition-colors group"
+			className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg bg-muted/20 border border-border/40 cursor-pointer hover:bg-accent/50 transition-colors group"
 		>
 			<Plus className="size-3.5 text-muted-foreground/50 flex-shrink-0" />
 			<span className="text-[13px] font-medium text-foreground truncate flex-1">{displayName}</span>
