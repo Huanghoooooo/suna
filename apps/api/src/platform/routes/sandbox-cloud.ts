@@ -971,27 +971,30 @@ export function createCloudSandboxRouter(
         return c.json({ success: false, error: 'You already have an active computer', sandbox_id: existing[0].sandboxId }, 409);
       }
 
-      // Lazy-migrate: create kortix.credit_accounts row if it doesn't exist
-      // (legacy users only have public.credit_accounts, credit ops need a kortix row)
+      // Lazy-migrate: create kortix.credit_accounts row with full credits.
+      // Supabase RPCs can't access kortix schema, so set everything via drizzle directly.
       try {
         const { upsertCreditAccount } = await import('../../billing/repositories/credit-accounts');
-        const { resetExpiringCredits } = await import('../../billing/services/credits');
+        const { MACHINE_CREDIT_BONUS } = await import('../../billing/services/tiers');
         const { grantMachineBonusOnce, getLegacyClaimMachineBonusKey } = await import('../../billing/services/machine-bonus');
+
+        const tierConfig = getTier(tier);
+        const monthlyCredits = tierConfig.monthlyCredits;
 
         if (!account) {
           await upsertCreditAccount(accountId, {
             tier,
             stripeSubscriptionStatus: 'active',
             paymentStatus: 'active',
+            balance: String(monthlyCredits + MACHINE_CREDIT_BONUS),
+            expiringCredits: String(monthlyCredits),
+            nonExpiringCredits: String(MACHINE_CREDIT_BONUS),
           });
         }
 
-        const tierConfig = getTier(tier);
-        if (tierConfig.monthlyCredits > 0) {
-          await resetExpiringCredits(accountId, tierConfig.monthlyCredits, `Welcome: ${tierConfig.displayName} — $${tierConfig.monthlyCredits} credits`);
-        }
+        // Best-effort: ledger entries for audit trail (bonus uses drizzle fallback, works fine)
         await grantMachineBonusOnce({ accountId, idempotencyKey: getLegacyClaimMachineBonusKey(accountId) });
-        console.log(`[claim-computer] Granted $${tierConfig.monthlyCredits} credits + bonus for ${accountId}`);
+        console.log(`[claim-computer] Migrated ${accountId}: tier=${tier}, credits=$${monthlyCredits}+$${MACHINE_CREDIT_BONUS} bonus`);
       } catch (err) {
         console.error(`[claim-computer] Credit grant failed for ${accountId}:`, err);
       }
