@@ -944,11 +944,19 @@ export function createCloudSandboxRouter(
     const userId = c.get('userId');
     try {
       const accountId = await resolveAccountId(userId);
-      const { getCreditAccount } = await import('../../billing/repositories/credit-accounts');
+      // 1. Verify legacy paid tier (check kortix schema, then fallback to public schema in cloud)
+      const { getCreditAccount, getPublicSchemaTier } = await import('../../billing/repositories/credit-accounts');
       const { isLegacyPaidTier, getTier } = await import('../../billing/services/tiers');
 
       const account = await getCreditAccount(accountId);
-      const tier = account?.tier ?? 'free';
+      let tier = account?.tier ?? 'free';
+
+      if (!isLegacyPaidTier(tier) && config.isCloud()) {
+        const publicTier = await getPublicSchemaTier(accountId);
+        if (publicTier && isLegacyPaidTier(publicTier)) {
+          tier = publicTier;
+        }
+      }
       if (!isLegacyPaidTier(tier)) {
         return c.json({ success: false, error: 'Only legacy paid plan users can claim a computer' }, 403);
       }
