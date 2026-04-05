@@ -66,9 +66,7 @@ function CommandDialog({
       </DialogHeader>
       <DialogContent
         className={cn(
-          'overflow-hidden p-0',
-          // Spotlight positioning — anchored near top of viewport
-          'top-[22%] translate-y-0',
+          'overflow-hidden p-0 gap-0',
           // Border
           'border-border/30 rounded-xl',
           // Solid popover background
