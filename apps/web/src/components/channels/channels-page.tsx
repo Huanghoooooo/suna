@@ -199,14 +199,25 @@ export function ChannelsPage() {
 
   return (
     <div className="min-h-[100dvh]">
-      <div className="container mx-auto max-w-5xl px-3 sm:px-4 py-4 sm:py-8 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both">
-        <div className="flex items-center justify-between mb-6">
-          <PageHeader icon={Radio}>
-            <div className="text-2xl sm:text-3xl font-semibold tracking-tight">
-              Channels
+      {/* Page header — matches /triggers and /tunnel */}
+      <div className="container mx-auto max-w-7xl px-3 sm:px-4 py-4 sm:py-8 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both">
+        <PageHeader icon={Radio}>
+          <div className="space-y-2 sm:space-y-4">
+            <div className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
+              <span className="text-primary">Channels</span>
             </div>
-          </PageHeader>
-          {channels.length > 0 && (
+          </div>
+        </PageHeader>
+      </div>
+
+      <div className="container mx-auto max-w-7xl px-3 sm:px-4 pb-8">
+        {/* Action bar */}
+        {channels.length > 0 && (
+          <div className="flex items-center justify-between gap-4 pb-4 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both delay-75">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Your Channels</span>
+              <Badge variant="secondary" className="text-xs tabular-nums">{channels.length}</Badge>
+            </div>
             <div className="flex gap-2">
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={load}>
                 <RefreshCw className="h-3.5 w-3.5" />
@@ -216,11 +227,8 @@ export function ChannelsPage() {
                 Add Channel
               </Button>
             </div>
-          )}
-        </div>
-      </div>
-
-      <div className="container mx-auto max-w-5xl px-3 sm:px-4 pb-8">
+          </div>
+        )}
         {loading && !loaded ? (
           <div className="space-y-3">
             {[1, 2].map((i) => (
