@@ -117,7 +117,7 @@ function CommandPopover({
   open,
   onOpenChange,
   children,
-  modal = false,
+  modal = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
