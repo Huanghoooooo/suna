@@ -322,7 +322,7 @@ export function ScheduledTasksPage() {
           "overflow-hidden transition-colors duration-500 ease-in-out",
           panelOpen
             ? "max-h-0 opacity-0 py-0"
-            : "max-h-[300px] opacity-100 py-4 sm:py-8"
+            : "max-h-[300px] opacity-100 py-3 sm:py-4"
         )}
       >
         <div className="container mx-auto max-w-7xl px-3 sm:px-4">
