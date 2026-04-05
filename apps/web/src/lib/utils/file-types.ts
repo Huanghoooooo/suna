@@ -14,14 +14,6 @@ export const PREVIEWABLE_EXTENSIONS = [
   'pdf',
   'txt',
   'kanvax',
-  // Code file extensions — syntax-highlighted preview via CodeEditor
-  'js', 'jsx', 'ts', 'tsx', 'py', 'java', 'c', 'cpp', 'go', 'rs', 'rb', 'php',
-  'css', 'scss', 'sass', 'less',
-  'sh', 'bash', 'zsh',
-  'yaml', 'yml', 'toml',
-  'sql',
-  'swift', 'kt', 'scala', 'lua', 'r',
-  'vue', 'svelte', 'xml',
 ] as const;
 
 // Image extensions
@@ -41,8 +33,6 @@ export const CODE_EXTENSIONS = [
   'sh', 'bash', 'zsh',
   'yaml', 'yml', 'toml',
   'sql',
-  'swift', 'kt', 'scala', 'lua', 'r',
-  'vue', 'svelte', 'xml',
 ] as const;
 
 /**

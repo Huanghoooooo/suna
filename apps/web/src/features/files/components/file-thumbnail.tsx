@@ -55,8 +55,6 @@ const shikiDarkModeClasses = cn(
   '[&_pre]:!bg-transparent',
   '[&_pre]:!p-0',
   '[&_pre]:!m-0',
-  '[&_code]:!p-0',
-  '[&_code]:!m-0',
   'dark:[&_.shiki_span]:!text-[var(--shiki-dark)]',
   'dark:[&_.shiki_span]:![font-style:var(--shiki-dark-font-style)]',
   'dark:[&_.shiki_span]:![font-weight:var(--shiki-dark-font-weight)]',
@@ -396,7 +394,6 @@ export function FileThumbnail({ filePath, fileName, className }: FileThumbnailPr
 
   return (
     <div className={cn('flex items-center justify-center relative overflow-hidden bg-muted/20', className)}>
-      {/* Thumbnails by type — only one renders */}
       {thumbnailType === 'image' && <ImageThumbnail filePath={filePath} />}
       {thumbnailType === 'html' && <HtmlThumbnail filePath={filePath} />}
       {thumbnailType === 'code' && <CodeThumbnail filePath={filePath} fileName={fileName} />}

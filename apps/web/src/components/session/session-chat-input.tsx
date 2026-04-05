@@ -16,6 +16,15 @@ import {
   Loader2,
   Paperclip,
   X,
+  FileText,
+  FileCode,
+  FileImage,
+  FileAudio,
+  FileVideo,
+  FileSpreadsheet,
+  File,
+  Archive,
+  Database,
   ListPlus,
   ListTodo,
   MessageSquare,
@@ -829,79 +838,58 @@ export type AttachedFile =
       isImage: boolean;
     };
 
+type FileType = 'image' | 'code' | 'text' | 'markdown' | 'pdf' | 'audio' | 'video' | 'spreadsheet' | 'csv' | 'archive' | 'database' | 'other';
+
+function getFileType(filename: string): FileType {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  const map: Record<string, FileType> = {
+    jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', webp: 'image', svg: 'image', bmp: 'image', ico: 'image',
+    js: 'code', ts: 'code', jsx: 'code', tsx: 'code', py: 'code', rb: 'code', go: 'code', rs: 'code', java: 'code', c: 'code', cpp: 'code', h: 'code', css: 'code', html: 'code', vue: 'code', svelte: 'code',
+    txt: 'text', log: 'text',
+    md: 'markdown', mdx: 'markdown',
+    pdf: 'pdf',
+    mp3: 'audio', wav: 'audio', ogg: 'audio', flac: 'audio',
+    mp4: 'video', mov: 'video', avi: 'video', webm: 'video',
+    xls: 'spreadsheet', xlsx: 'spreadsheet',
+    csv: 'csv',
+    zip: 'archive', tar: 'archive', gz: 'archive', rar: 'archive',
+    db: 'database', sqlite: 'database', sql: 'database',
+    json: 'code', yaml: 'code', yml: 'code', toml: 'code', xml: 'code',
+  };
+  return map[ext] || 'other';
+}
+
+function getFileTypeLabel(type: FileType, ext: string): string {
+  const labels: Record<FileType, string> = {
+    image: 'Image', code: ext.toUpperCase(), text: 'Text', markdown: 'Markdown', pdf: 'PDF',
+    audio: 'Audio', video: 'Video', spreadsheet: 'Spreadsheet', csv: 'CSV',
+    archive: 'Archive', database: 'Database', other: ext.toUpperCase() || 'File',
+  };
+  return labels[type];
+}
+
+function getFileTypeIcon(type: FileType) {
+  const icons: Record<FileType, typeof File> = {
+    image: FileImage, code: FileCode, text: FileText, markdown: FileText, pdf: FileText,
+    audio: FileAudio, video: FileVideo, spreadsheet: FileSpreadsheet, csv: FileSpreadsheet,
+    archive: Archive, database: Database, other: File,
+  };
+  return icons[type];
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function isImageFile(file: File): boolean {
-  if (file.type.startsWith('image/')) return true;
-  // Fallback: check extension for when MIME type is missing (e.g. pasted files)
-  const ext = file.name.split('.').pop()?.toLowerCase() || '';
-  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'avif'].includes(ext);
+  return file.type.startsWith('image/');
 }
 
 // ============================================================================
-// Attachment Preview Strip — grid-style file cards
+// Attachment Preview Strip
 // ============================================================================
-
-/** Thumbnail for a locally attached file (not yet uploaded). */
-function AttachmentThumbnail({ af, name }: { af: AttachedFile; name: string }) {
-  const [textPreview, setTextPreview] = useState<string | null>(null);
-  const ext = name.split('.').pop()?.toLowerCase() || '';
-
-  // Check if this is an image — be generous with detection
-  const isImg = af.isImage ||
-    (af.kind === 'local' && af.file.type.startsWith('image/')) ||
-    ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'avif'].includes(ext);
-
-  // For local text/code files, read first ~12 lines for preview
-  useEffect(() => {
-    if (af.kind !== 'local' || isImg) return;
-
-    const textExts = [
-      'js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp',
-      'css', 'scss', 'html', 'vue', 'svelte', 'json', 'yaml', 'yml', 'toml', 'xml',
-      'md', 'mdx', 'txt', 'log', 'sh', 'bash', 'zsh', 'sql', 'swift', 'kt', 'scala',
-      'lua', 'r', 'php', 'pl', 'ini', 'conf', 'env', 'gitignore', 'dockerfile',
-    ];
-    if (!textExts.includes(ext)) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = reader.result as string;
-      const lines = text.split('\n').slice(0, 12).join('\n');
-      setTextPreview(lines);
-    };
-    // Read only first 2KB to avoid loading huge files
-    const slice = af.file.slice(0, 2048);
-    reader.readAsText(slice);
-  }, [af, ext, isImg]);
-
-  // Image thumbnail
-  if (isImg) {
-    const src = af.kind === 'local' ? af.localUrl : af.url;
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={src}
-        alt={name}
-        className="absolute inset-0 w-full h-full object-cover"
-        draggable={false}
-      />
-    );
-  }
-
-  // Text/code thumbnail
-  if (textPreview) {
-    return (
-      <div className="absolute inset-0 p-1 overflow-hidden">
-        <pre className="m-0 p-0 text-[6px] leading-[1.4] text-muted-foreground/70 font-mono whitespace-pre overflow-hidden select-none pointer-events-none">
-          {textPreview}
-        </pre>
-        <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-muted/20 to-transparent" />
-      </div>
-    );
-  }
-
-  // Fallback: large icon
-  return getFileIcon(name, { className: 'h-10 w-10', variant: 'monochrome' });
-}
 
 function AttachmentPreview({
   files,
@@ -917,38 +905,40 @@ function AttachmentPreview({
       {files.map((af, i) => {
         const name = af.kind === 'local' ? af.file.name : af.filename;
         const ext = name.split('.').pop()?.toLowerCase() || '';
+        const type = getFileType(name);
+        const Icon = getFileTypeIcon(type);
 
         return (
           <div key={i} className="relative group">
-            <div className={cn(
-              'flex flex-col rounded-lg border border-border/50 overflow-hidden',
-              'w-[120px] cursor-default select-none',
-              'bg-card hover:bg-muted/30 hover:border-border transition-colors duration-150',
-            )}>
-              {/* Thumbnail area */}
-              <div className="h-[80px] relative flex items-center justify-center overflow-hidden bg-muted/20">
-                <AttachmentThumbnail af={af} name={name} />
-                {/* Extension badge */}
-                {ext && !af.isImage && (
-                  <span className="absolute bottom-1 right-1 text-[0.5rem] font-medium text-muted-foreground/50 uppercase tracking-wider bg-background/80 px-1 py-0.5 rounded z-[5]">
-                    {ext.toUpperCase()}
-                  </span>
-                )}
+            {af.isImage ? (
+              <div className="h-[54px] w-[54px] rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-black/5 dark:bg-black/20">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={af.kind === 'local' ? af.localUrl : af.url} alt={name} className="h-full w-full object-cover" />
               </div>
-              {/* Name bar */}
-              <div className="px-2 py-1.5 border-t border-border/30 h-[32px] flex items-center">
-                <div className="flex items-center gap-1 min-w-0 w-full">
-                  {getFileIcon(name, { className: 'h-3.5 w-3.5 shrink-0', variant: 'monochrome' })}
-                  <span className="text-[11px] truncate text-foreground">{name}</span>
+            ) : (
+              <div className="flex items-center rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-sidebar h-[54px] w-fit min-w-[200px] max-w-[300px]">
+                <div className="w-[54px] h-full flex items-center justify-center flex-shrink-0 bg-black/5 dark:bg-white/5">
+                  <Icon className="h-5 w-5 text-black/60 dark:text-white/60" />
+                </div>
+                <div className="flex-1 min-w-0 flex flex-col justify-center px-3 py-2 overflow-hidden">
+                  <div className="text-sm font-medium truncate text-foreground">{name}</div>
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
+                    <span className="truncate">{getFileTypeLabel(type, ext)}</span>
+                    {af.kind === 'local' ? (
+                      <>
+                        <span className="flex-shrink-0">&middot;</span>
+                        <span className="flex-shrink-0">{formatFileSize(af.file.size)}</span>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
               </div>
-            </div>
-            {/* Remove button */}
+            )}
             <button
               onClick={() => onRemove(i)}
               className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black dark:bg-white border-2 border-card text-white dark:text-black flex items-center justify-center z-10 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
             >
-              <X className="h-3 w-3" />
+              <X size={10} strokeWidth={3} />
             </button>
           </div>
         );
