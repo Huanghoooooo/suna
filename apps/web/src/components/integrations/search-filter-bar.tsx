@@ -1,6 +1,8 @@
-import { cn } from '@/lib/utils';
 import React from 'react';
 import { Search, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { PipedreamSettingsDialog } from './pipedream-settings-dialog';
 
 export const SearchFilterBar = ({
@@ -28,45 +30,43 @@ export const SearchFilterBar = ({
         {/* Search */}
         <div className="flex-1 max-w-md">
           <div className="relative group">
-            <input
+            <Input
               type="text"
               name="connector-search"
               autoComplete="off"
               placeholder="Search apps..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="h-9 w-full rounded-xl border border-input bg-card pl-9 pr-8 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2"
+              className="h-9 rounded-xl pl-9 pr-8"
             />
             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors">
               <Search className="h-3.5 w-3.5" />
             </div>
             {searchQuery && (
-              <button
+              <Button
                 onClick={() => onSearchChange('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-md p-0.5 transition-colors cursor-pointer"
+                variant="ghost"
+                size="icon-xs"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2"
               >
                 <X className="h-3.5 w-3.5" />
-              </button>
+              </Button>
             )}
           </div>
         </div>
 
         {/* Filter pills */}
-        <div className="flex items-center h-9 gap-0.5 rounded-xl border border-border bg-muted/30 px-1">
+        <FilterBar>
           {(['oauth', 'keys', 'all'] as const).map((filter) => (
-            <button
+            <FilterBarItem
               key={filter}
               onClick={() => onAuthFilterChange(filter)}
-              className={cn('h-7 px-3 text-xs font-medium rounded-lg transition-colors cursor-pointer', 
-                authFilter === filter
-                  ? 'bg-background text-foreground border border-border/50 shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50 border border-transparent'
-              )}
+              data-state={authFilter === filter ? 'active' : 'inactive'}
             >
               {filter === 'oauth' ? 'OAuth' : filter === 'keys' ? 'API Key' : 'All'}
-            </button>
+            </FilterBarItem>
           ))}
-        </div>
+        </FilterBar>
 
         {/* Spacer → push gear to far right */}
         <div className="flex-1" />
