@@ -48,6 +48,10 @@ interface FilesStoreState {
   /** Whether to show hidden (dot) files and directories */
   showHidden: boolean;
 
+  // ── Root path constraint ─────────────────────────────────────
+  /** When set, navigation is constrained to this directory and its children */
+  rootPath: string | null;
+
   // ── Google Drive view state ──────────────────────────────────
   /** Grid or list view mode */
   viewMode: ViewMode;
@@ -68,6 +72,8 @@ interface FilesStoreState {
 interface FilesStoreActions {
   /** Navigate to a directory */
   navigateToPath: (path: string) => void;
+  /** Set a root path constraint — navigation cannot go above this directory */
+  setRootPath: (path: string | null) => void;
   /** Open a file in the viewer */
   openFile: (filePath: string, targetLine?: number) => void;
   /** Open a file and set the navigation list */
@@ -138,6 +144,13 @@ interface FilesStoreActions {
   toggleSortOrder: () => void;
 }
 
+/** Check if a path is equal to or a descendant of the root */
+function isWithinRoot(path: string, root: string): boolean {
+  const normPath = path.replace(/\/+$/, '') || '/';
+  const normRoot = root.replace(/\/+$/, '') || '/';
+  return normPath === normRoot || normPath.startsWith(normRoot + '/');
+}
+
 type FilesStore = FilesStoreState & FilesStoreActions;
 
 const initialState: FilesStoreState = {
@@ -154,6 +167,7 @@ const initialState: FilesStoreState = {
   clipboard: null,
   targetLine: null,
   showHidden: false,
+  rootPath: null,
   viewMode: (typeof window !== 'undefined' ? localStorage.getItem('files-view-mode') as ViewMode : null) || 'grid',
   sortBy: (typeof window !== 'undefined' ? localStorage.getItem('files-sort-by') as SortField : null) || 'name',
   sortOrder: (typeof window !== 'undefined' ? localStorage.getItem('files-sort-order') as SortOrder : null) || 'asc',
@@ -166,7 +180,12 @@ export const useFilesStore = create<FilesStore>()((set, get) => ({
   ...initialState,
 
   navigateToPath: (path: string) => {
-    const normalized = path || '/workspace';
+    const { rootPath } = get();
+    let normalized = path || '/workspace';
+    // Clamp to rootPath when set — prevent escaping the project directory
+    if (rootPath && !isWithinRoot(normalized, rootPath)) {
+      normalized = rootPath;
+    }
     set({
       currentPath: normalized,
       view: 'browser',
@@ -175,6 +194,10 @@ export const useFilesStore = create<FilesStore>()((set, get) => ({
     });
     // Auto-expand the target directory in tree (skip for root /)
     if (normalized !== '/') get().expandDir(normalized);
+  },
+
+  setRootPath: (path: string | null) => {
+    set({ rootPath: path });
   },
 
   openFile: (filePath: string, targetLine?: number) => {

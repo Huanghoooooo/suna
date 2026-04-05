@@ -66,14 +66,31 @@ export function DriveToolbar({
   const showHidden = useFilesStore((s) => s.showHidden);
   const toggleHidden = useFilesStore((s) => s.toggleHidden);
   const toggleSearch = useFilesStore((s) => s.toggleSearch);
+  const rootPath = useFilesStore((s) => s.rootPath);
 
   const invalidateFileList = useInvalidateFileList();
 
+  // Home destination: rootPath when sandboxed, otherwise /workspace
+  const homePath = rootPath || '/workspace';
+  const homeLabel = rootPath
+    ? rootPath.split('/').filter(Boolean).pop() || 'root'
+    : '/workspace';
+
   // Breadcrumb segments
   const isRoot = currentPath === '/' || currentPath === '.' || currentPath === '';
-  const segments = useMemo(
+  const allSegments = useMemo(
     () => (isRoot ? [] : currentPath.split('/').filter(Boolean)),
     [isRoot, currentPath],
+  );
+
+  // When rootPath is set, only show segments at or below it
+  const rootSegments = useMemo(
+    () => (rootPath ? rootPath.split('/').filter(Boolean) : []),
+    [rootPath],
+  );
+  const segments = useMemo(
+    () => rootPath ? allSegments.slice(rootSegments.length) : allSegments,
+    [rootPath, allSegments, rootSegments],
   );
 
   // Path editing
@@ -103,10 +120,12 @@ export function DriveToolbar({
 
   const handleSegmentClick = useCallback(
     (index: number) => {
-      const pathToHere = '/' + segments.slice(0, index + 1).join('/');
+      // Offset by rootSegments length to reconstruct the full absolute path
+      const absoluteIndex = rootPath ? index + rootSegments.length : index;
+      const pathToHere = '/' + allSegments.slice(0, absoluteIndex + 1).join('/');
       navigateToPath(pathToHere);
     },
-    [segments, navigateToPath],
+    [allSegments, rootSegments, rootPath, navigateToPath],
   );
 
   const sortLabel: Record<SortField, string> = {
@@ -128,14 +147,14 @@ export function DriveToolbar({
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                navigateToPath(editValue.trim() || '/');
+                navigateToPath(editValue.trim() || homePath);
                 setIsEditing(false);
               }
               if (e.key === 'Escape') setIsEditing(false);
             }}
             onBlur={() => setIsEditing(false)}
             className="flex-1 min-w-0 h-8 px-3 text-sm bg-muted/40 border border-border/60 rounded-lg outline-none focus:ring-1 focus:ring-primary font-mono"
-            placeholder="/path/to/folder"
+            placeholder={homePath}
           />
         ) : (
           <nav
@@ -145,7 +164,7 @@ export function DriveToolbar({
           >
             {/* Home / root */}
             <Button
-              onClick={() => navigateToPath('/workspace')}
+              onClick={() => navigateToPath(homePath)}
               variant="ghost"
               size="sm"
               className={cn(
@@ -154,12 +173,12 @@ export function DriveToolbar({
               )}
             >
               <Home className="h-4 w-4" />
-              <span className="font-mono text-xs">/workspace</span>
+              <span className="font-mono text-xs">{rootPath ? homeLabel : '/workspace'}</span>
             </Button>
 
             {segments.map((segment, index) => {
-              // Skip 'workspace' as it's represented by the root button
-              if (index === 0 && segment === 'workspace') return null;
+              // Skip 'workspace' only when not sandboxed (rootPath null)
+              if (!rootPath && index === 0 && segment === 'workspace') return null;
               const isLast = index === segments.length - 1;
 
               return (
@@ -185,38 +204,6 @@ export function DriveToolbar({
 
       {/* ── Right Actions ── */}
       <div className="flex items-center gap-1 shrink-0">
-        {/* New button */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 font-medium"
-            >
-              <Plus className="h-4 w-4" />
-              New
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={onNewFolder}>
-              <FolderPlus className="mr-2 h-4 w-4" />
-              New folder
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onNewFile}>
-              <FilePlus className="mr-2 h-4 w-4" />
-              New file
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onUpload}>
-              <Upload className="mr-2 h-4 w-4" />
-              File upload
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Divider */}
-        <div className="w-px h-5 bg-border/50 mx-1" />
-
         {/* View toggle */}
         <Button
           variant="ghost"
@@ -311,6 +298,35 @@ export function DriveToolbar({
             <Download className="h-4 w-4" />
           )}
         </Button>
+
+        {/* New button - compact icon, far right */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              title="New file or folder"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={onNewFolder}>
+              <FolderPlus className="mr-2 h-4 w-4" />
+              New folder
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onNewFile}>
+              <FilePlus className="mr-2 h-4 w-4" />
+              New file
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onUpload}>
+              <Upload className="mr-2 h-4 w-4" />
+              File upload
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

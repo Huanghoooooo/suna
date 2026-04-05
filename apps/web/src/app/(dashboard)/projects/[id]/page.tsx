@@ -1,17 +1,17 @@
 'use client';
 
-import { use, useState, useEffect, useMemo } from 'react';
+import { use, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   FolderOpen, MessageSquare, Trash2,
   ListTodo, Cpu, CheckCircle2, Circle, Loader2, Ban, AlertTriangle,
-  Code2, GitBranch, Clock, MoreHorizontal,
-  ExternalLink, FolderGit2,
+  Code2, Clock, MoreHorizontal,
+  ExternalLink, FolderGit2, Pencil, Check, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useKortixProject, useKortixProjectSessions, useDeleteProject } from '@/hooks/kortix/use-kortix-projects';
+import { useKortixProject, useKortixProjectSessions, useDeleteProject, useUpdateProject } from '@/hooks/kortix/use-kortix-projects';
 import { useKortixTasks, type KortixTask } from '@/hooks/kortix/use-kortix-tasks';
 import { useKortixAgents, type KortixAgent } from '@/hooks/kortix/use-kortix-agents';
 import { openTabAndNavigate } from '@/stores/tab-store';
@@ -65,7 +65,51 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
   const { data: tasks } = useKortixTasks(project?.id);
   const { data: agents } = useKortixAgents(project?.id);
   const nav = useFilesStore(s => s.navigateToPath);
+  const setRootPath = useFilesStore(s => s.setRootPath);
   const deleteProject = useDeleteProject();
+  const updateProject = useUpdateProject();
+
+  // Inline editing state
+  const [editingField, setEditingField] = useState<'name' | 'description' | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const startEditing = useCallback((field: 'name' | 'description', currentValue: string) => {
+    setEditingField(field);
+    setEditValue(currentValue);
+    setTimeout(() => {
+      if (field === 'name') editInputRef.current?.focus();
+      else editTextareaRef.current?.focus();
+    }, 0);
+  }, []);
+
+  const cancelEditing = useCallback(() => {
+    setEditingField(null);
+    setEditValue('');
+  }, []);
+
+  const saveEdit = useCallback(() => {
+    if (!project || !editingField) return;
+    const trimmed = editValue.trim();
+    const currentVal = editingField === 'name' ? project.name : (project.description || '');
+    if (trimmed === currentVal || (editingField === 'name' && !trimmed)) {
+      cancelEditing();
+      return;
+    }
+    updateProject.mutate(
+      { id: project.id, [editingField]: trimmed },
+      { onSuccess: () => cancelEditing() },
+    );
+  }, [project, editingField, editValue, updateProject, cancelEditing]);
+
+  const handleEditKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') cancelEditing();
+    if (e.key === 'Enter' && (editingField === 'name' || e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      saveEdit();
+    }
+  }, [cancelEditing, saveEdit, editingField]);
 
   const sessionList = sessions ?? [];
   const taskList = tasks ?? [];
@@ -78,6 +122,16 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
     return { done, inProgress, pending, total: taskList.length };
   }, [taskList]);
 
+  // Lock file explorer to project path — set rootPath on mount, clear on unmount
+  useEffect(() => {
+    if (project?.path && project.path !== '/') {
+      setRootPath(project.path);
+      nav(project.path);
+    }
+    return () => { setRootPath(null); };
+  }, [project?.path, setRootPath, nav]);
+
+  // Navigate to project path when switching to the files tab
   useEffect(() => { if (tab === 'files' && project?.path && project.path !== '/') nav(project.path); }, [tab, project?.path, nav]);
 
   const hasFiles = project?.path && project.path !== '/';
@@ -129,10 +183,10 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
   const parentDir = pathParts.length > 1 ? pathParts[pathParts.length - 2] : 'workspace';
 
   return (
-    <div className="flex-1 overflow-y-auto bg-background">
+    <div className="flex-1 bg-background flex flex-col overflow-hidden">
 
       {/* ── GitHub-style sticky header ─────────────────────────────── */}
-      <div className="border-b border-border bg-background sticky top-0 z-10">
+      <div className="border-b border-border bg-background shrink-0 z-10">
         <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Row 1: Repo name + actions */}
@@ -146,7 +200,24 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
                 {parentDir}
               </button>
               <span className="text-muted-foreground/40 text-sm">/</span>
-              <span className="text-sm font-bold text-foreground truncate">{project.name}</span>
+              {editingField === 'name' ? (
+                <input
+                  ref={editInputRef}
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={handleEditKeyDown}
+                  onBlur={saveEdit}
+                  className="text-sm font-bold bg-muted/40 border border-border rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-primary min-w-[120px] text-foreground"
+                />
+              ) : (
+                <span
+                  className="text-sm font-bold text-foreground truncate cursor-pointer hover:text-primary transition-colors"
+                  onClick={() => startEditing('name', project.name)}
+                  title="Click to rename"
+                >
+                  {project.name}
+                </span>
+              )}
               <Badge variant="outline" size="sm" className="ml-1.5 text-[10px] text-muted-foreground/50 border-border">
                 Private
               </Badge>
@@ -229,49 +300,31 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
       </div>
 
       {/* ── Main content area ──────────────────────────────────────── */}
-      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex flex-col lg:flex-row gap-8">
+      <div className={cn(
+        'max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full',
+        tab === 'files' ? 'flex-1 min-h-0 flex flex-col' : 'overflow-y-auto flex-1',
+      )}>
+        <div className={cn(
+          'flex flex-col lg:flex-row gap-8',
+          tab === 'files' && 'flex-1 min-h-0',
+        )}>
 
           {/* Left: Main content */}
-          <div className="flex-1 min-w-0">
+          <div className={cn('flex-1 min-w-0', tab === 'files' && 'flex flex-col min-h-0')}>
 
             {/* ── Files tab ── */}
             {tab === 'files' && (
-              <>
-                {hasFiles ? (
-                  <div className="rounded-lg border border-border bg-card overflow-hidden">
-                    {/* Commit-like info bar */}
-                    <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/30 border-b border-border text-sm">
-                      <GitBranch className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                      <span className="text-muted-foreground/60 font-mono text-xs truncate">{project.path}</span>
-                      {taskStats.total > 0 && (
-                        <>
-                          <span className="text-muted-foreground/20 mx-1">·</span>
-                          <Clock className="h-3.5 w-3.5 text-muted-foreground/40" />
-                          <span className="text-xs text-muted-foreground/50">
-                            {taskStats.inProgress > 0
-                              ? `${taskStats.inProgress} task${taskStats.inProgress > 1 ? 's' : ''} in progress`
-                              : taskStats.done === taskStats.total
-                                ? 'All tasks complete'
-                                : `${taskStats.pending} task${taskStats.pending > 1 ? 's' : ''} pending`
-                            }
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    {/* File explorer */}
-                    <div className="h-[calc(100vh-280px)] min-h-[400px]">
-                      <FileExplorerPage />
-                    </div>
-                  </div>
-                ) : (
-                  <EmptyState
-                    icon={FolderOpen}
-                    text="No project path configured"
-                    sub="This project doesn't have a file path associated with it yet"
-                  />
-                )}
-              </>
+              hasFiles ? (
+                <div className="flex-1 min-h-0 rounded-lg border border-border overflow-hidden">
+                  <FileExplorerPage />
+                </div>
+              ) : (
+                <EmptyState
+                  icon={FolderOpen}
+                  text="No project path configured"
+                  sub="This project doesn't have a file path associated with it yet"
+                />
+              )
             )}
 
             {/* ── Tasks tab ── */}
@@ -358,150 +411,25 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
             )}
           </div>
 
-          {/* Right sidebar — About (shown on all tabs) */}
-          <aside className="shrink-0 w-full lg:w-72">
-            <div className="space-y-6">
-
-              {/* About section */}
-              <div>
-                <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                  About
-                </h3>
-                {project.description ? (
-                  <p className="text-sm text-muted-foreground leading-relaxed mb-4">{project.description}</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground/40 italic mb-4">No description provided</p>
-                )}
-
-                {/* Meta list */}
-                <div className="space-y-2.5">
-                  {project.path && project.path !== '/' && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <FolderOpen className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                      <span className="truncate font-mono text-xs">{project.path}</span>
-                    </div>
-                  )}
-                  {project.created_at && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Clock className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                      <span>Created {ago(project.created_at)}</span>
-                    </div>
-                  )}
-                  {sessionList.length > 0 && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <MessageSquare className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                      <span>{sessionList.length} session{sessionList.length > 1 ? 's' : ''}</span>
-                    </div>
-                  )}
-                  {agentList.length > 0 && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Cpu className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                      <span>{agentList.length} agent{agentList.length > 1 ? 's' : ''}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="border-t border-border" />
-
-              {/* Task progress section */}
-              {taskStats.total > 0 && (
-                <>
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground mb-3">Task Progress</h3>
-                    <div className="space-y-3">
-                      {/* Progress bar */}
-                      <div>
-                        <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
-                          <span>{Math.round((taskStats.done / taskStats.total) * 100)}% complete</span>
-                          <span className="tabular-nums">{taskStats.done}/{taskStats.total}</span>
-                        </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                            style={{ width: `${(taskStats.done / taskStats.total) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Status breakdown */}
-                      <div className="grid grid-cols-3 gap-2">
-                        {taskStats.done > 0 && (
-                          <div className="text-center p-2 rounded-md bg-emerald-500/5 border border-emerald-500/10">
-                            <div className="text-lg font-bold text-emerald-500 tabular-nums">{taskStats.done}</div>
-                            <div className="text-[10px] text-emerald-500/60 uppercase tracking-wider">Done</div>
-                          </div>
-                        )}
-                        {taskStats.inProgress > 0 && (
-                          <div className="text-center p-2 rounded-md bg-blue-500/5 border border-blue-500/10">
-                            <div className="text-lg font-bold text-blue-400 tabular-nums">{taskStats.inProgress}</div>
-                            <div className="text-[10px] text-blue-400/60 uppercase tracking-wider">Active</div>
-                          </div>
-                        )}
-                        {taskStats.pending > 0 && (
-                          <div className="text-center p-2 rounded-md bg-muted/30 border border-border">
-                            <div className="text-lg font-bold text-muted-foreground tabular-nums">{taskStats.pending}</div>
-                            <div className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Open</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="border-t border-border" />
-                </>
-              )}
-
-              {/* Active agents section */}
-              {agentList.some(a => a.status === 'running') && (
-                <>
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground mb-3">Active Agents</h3>
-                    <div className="space-y-2">
-                      {agentList.filter(a => a.status === 'running').map(a => (
-                        <button
-                          key={a.id}
-                          onClick={() => openTabAndNavigate({ id: a.session_id, title: a.description || 'Agent', type: 'session', href: `/sessions/${a.session_id}` })}
-                          className="flex items-center gap-2 w-full text-left rounded-md px-2 py-1.5 hover:bg-muted/40 transition-colors cursor-pointer"
-                        >
-                          <Loader2 className="h-3 w-3 text-blue-400 animate-spin shrink-0" />
-                          <span className="text-xs text-foreground/70 truncate">{a.description || a.agent_type}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="border-t border-border" />
-                </>
-              )}
-
-              {/* Recent sessions */}
-              {sessionList.length > 0 && tab !== 'sessions' && (
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground mb-3">Recent Sessions</h3>
-                  <div className="space-y-1">
-                    {sessionList.slice(0, 5).map((s: any) => (
-                      <button
-                        key={s.id}
-                        onClick={() => openTabAndNavigate({ id: s.id, title: s.title || 'Session', type: 'session', href: `/sessions/${s.id}` })}
-                        className="flex items-center gap-2 w-full text-left rounded-md px-2 py-1.5 hover:bg-muted/40 transition-colors cursor-pointer"
-                      >
-                        <MessageSquare className="h-3 w-3 text-muted-foreground/30 shrink-0" />
-                        <span className="text-xs text-foreground/70 truncate flex-1">{s.title || 'Untitled'}</span>
-                        <span className="text-[10px] text-muted-foreground/30 tabular-nums shrink-0">{ago(s.time?.updated)}</span>
-                      </button>
-                    ))}
-                    {sessionList.length > 5 && (
-                      <button
-                        onClick={() => setTab('sessions')}
-                        className="text-xs text-primary hover:underline cursor-pointer px-2 py-1"
-                      >
-                        + {sessionList.length - 5} more
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </aside>
+          {/* Right sidebar — About */}
+          {/* Right sidebar — About */}
+          <ProjectSidebar
+            project={project}
+            editingField={editingField}
+            editValue={editValue}
+            editTextareaRef={editTextareaRef}
+            setEditValue={setEditValue}
+            startEditing={startEditing}
+            cancelEditing={cancelEditing}
+            saveEdit={saveEdit}
+            handleEditKeyDown={handleEditKeyDown}
+            updateProject={updateProject}
+            taskStats={taskStats}
+            agentList={agentList}
+            sessionList={sessionList}
+            tab={tab}
+            setTab={setTab}
+          />
         </div>
       </div>
     </div>
@@ -515,5 +443,203 @@ function EmptyState({ icon: Icon, text, sub }: { icon: typeof ListTodo; text: st
       <p className="text-sm text-muted-foreground/30">{text}</p>
       {sub && <p className="text-xs text-muted-foreground/15 mt-1">{sub}</p>}
     </div>
+  );
+}
+
+function ProjectSidebar({ project, editingField, editValue, editTextareaRef, setEditValue, startEditing, cancelEditing, saveEdit, handleEditKeyDown, updateProject, taskStats, agentList, sessionList, tab, setTab }: any) {
+  return (
+    <aside className="shrink-0 w-full lg:w-72">
+      <div className="space-y-6">
+        {/* About section */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            About
+            {!editingField && (
+              <button
+                onClick={() => startEditing('description', project.description || '')}
+                className="ml-auto text-muted-foreground/30 hover:text-muted-foreground transition-colors cursor-pointer"
+                title="Edit description"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </h3>
+          {editingField === 'description' ? (
+            <div className="mb-4">
+              <textarea
+                ref={editTextareaRef}
+                value={editValue}
+                onChange={(e: any) => setEditValue(e.target.value)}
+                onKeyDown={handleEditKeyDown}
+                onBlur={saveEdit}
+                rows={3}
+                className="w-full text-sm bg-muted/40 border border-border rounded-md px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-primary resize-none text-foreground placeholder:text-muted-foreground/30"
+                placeholder="Add a description..."
+              />
+              <div className="flex items-center gap-1 mt-1.5">
+                <Button
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={saveEdit}
+                  disabled={updateProject.isPending}
+                >
+                  {updateProject.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                  <span className="ml-1">Save</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs text-muted-foreground"
+                  onClick={cancelEditing}
+                >
+                  <X className="h-3 w-3" />
+                  <span className="ml-1">Cancel</span>
+                </Button>
+              </div>
+            </div>
+          ) : project.description ? (
+            <p
+              className="text-sm text-muted-foreground leading-relaxed mb-4 cursor-pointer hover:text-foreground transition-colors rounded px-1 -mx-1 py-0.5"
+              onClick={() => startEditing('description', project.description || '')}
+              title="Click to edit"
+            >
+              {project.description}
+            </p>
+          ) : (
+            <p
+              className="text-sm text-muted-foreground/40 italic mb-4 cursor-pointer hover:text-muted-foreground transition-colors rounded px-1 -mx-1 py-0.5"
+              onClick={() => startEditing('description', '')}
+              title="Click to add description"
+            >
+              No description — click to add
+            </p>
+          )}
+
+          {/* Meta list */}
+          <div className="space-y-2.5">
+            {project.path && project.path !== '/' && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <FolderOpen className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                <span className="truncate font-mono text-xs">{project.path}</span>
+              </div>
+            )}
+            {project.created_at && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Clock className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                <span>Created {ago(project.created_at)}</span>
+              </div>
+            )}
+            {sessionList.length > 0 && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <MessageSquare className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                <span>{sessionList.length} session{sessionList.length > 1 ? 's' : ''}</span>
+              </div>
+            )}
+            {agentList.length > 0 && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Cpu className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                <span>{agentList.length} agent{agentList.length > 1 ? 's' : ''}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="border-t border-border" />
+
+        {/* Task progress section */}
+        {taskStats.total > 0 && (
+          <>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-3">Task Progress</h3>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                    <span>{Math.round((taskStats.done / taskStats.total) * 100)}% complete</span>
+                    <span className="tabular-nums">{taskStats.done}/{taskStats.total}</span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                      style={{ width: `${(taskStats.done / taskStats.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {taskStats.done > 0 && (
+                    <div className="text-center p-2 rounded-md bg-emerald-500/5 border border-emerald-500/10">
+                      <div className="text-lg font-bold text-emerald-500 tabular-nums">{taskStats.done}</div>
+                      <div className="text-[10px] text-emerald-500/60 uppercase tracking-wider">Done</div>
+                    </div>
+                  )}
+                  {taskStats.inProgress > 0 && (
+                    <div className="text-center p-2 rounded-md bg-blue-500/5 border border-blue-500/10">
+                      <div className="text-lg font-bold text-blue-400 tabular-nums">{taskStats.inProgress}</div>
+                      <div className="text-[10px] text-blue-400/60 uppercase tracking-wider">Active</div>
+                    </div>
+                  )}
+                  {taskStats.pending > 0 && (
+                    <div className="text-center p-2 rounded-md bg-muted/30 border border-border">
+                      <div className="text-lg font-bold text-muted-foreground tabular-nums">{taskStats.pending}</div>
+                      <div className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Open</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-border" />
+          </>
+        )}
+
+        {/* Active agents section */}
+        {agentList.some((a: KortixAgent) => a.status === 'running') && (
+          <>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-3">Active Agents</h3>
+              <div className="space-y-2">
+                {agentList.filter((a: KortixAgent) => a.status === 'running').map((a: KortixAgent) => (
+                  <button
+                    key={a.id}
+                    onClick={() => openTabAndNavigate({ id: a.session_id, title: a.description || 'Agent', type: 'session', href: `/sessions/${a.session_id}` })}
+                    className="flex items-center gap-2 w-full text-left rounded-md px-2 py-1.5 hover:bg-muted/40 transition-colors cursor-pointer"
+                  >
+                    <Loader2 className="h-3 w-3 text-blue-400 animate-spin shrink-0" />
+                    <span className="text-xs text-foreground/70 truncate">{a.description || a.agent_type}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="border-t border-border" />
+          </>
+        )}
+
+        {/* Recent sessions */}
+        {sessionList.length > 0 && tab !== 'sessions' && (
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-3">Recent Sessions</h3>
+            <div className="space-y-1">
+              {sessionList.slice(0, 5).map((s: any) => (
+                <button
+                  key={s.id}
+                  onClick={() => openTabAndNavigate({ id: s.id, title: s.title || 'Session', type: 'session', href: `/sessions/${s.id}` })}
+                  className="flex items-center gap-2 w-full text-left rounded-md px-2 py-1.5 hover:bg-muted/40 transition-colors cursor-pointer"
+                >
+                  <MessageSquare className="h-3 w-3 text-muted-foreground/30 shrink-0" />
+                  <span className="text-xs text-foreground/70 truncate flex-1">{s.title || 'Untitled'}</span>
+                  <span className="text-[10px] text-muted-foreground/30 tabular-nums shrink-0">{ago(s.time?.updated)}</span>
+                </button>
+              ))}
+              {sessionList.length > 5 && (
+                <button
+                  onClick={() => setTab('sessions')}
+                  className="text-xs text-primary hover:underline cursor-pointer px-2 py-1"
+                >
+                  + {sessionList.length - 5} more
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </aside>
   );
 }
