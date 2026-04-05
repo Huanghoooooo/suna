@@ -51,6 +51,10 @@ export class NotificationManager {
         ? `${displayTitle.slice(0, NOTIFICATION_TITLE_TRUNCATE)}...`
         : displayTitle
 
+    const hint = exitCode === 0
+      ? 'Use pty_read to check the full output.'
+      : 'Process failed. Use pty_read with the pattern parameter to search for errors in the output.'
+
     const lines = [
       '<pty_exited>',
       `ID: ${session.id}`,
@@ -58,17 +62,9 @@ export class NotificationManager {
       `Exit Code: ${exitCode}`,
       `Output Lines: ${lineCount}`,
       `Last Line: ${lastLine}`,
+      `Hint: ${hint}`,
       '</pty_exited>',
-      '',
     ]
-
-    if (exitCode === 0) {
-      lines.push('Use pty_read to check the full output.')
-    } else {
-      lines.push(
-        'Process failed. Use pty_read with the pattern parameter to search for errors in the output.'
-      )
-    }
 
     return lines.join('\n')
   }

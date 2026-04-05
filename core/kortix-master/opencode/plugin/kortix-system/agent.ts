@@ -476,8 +476,6 @@ export async function handleAgentSessionEvent(
 				'',
 				result.slice(0, 8000),
 				'</agent_completed>',
-				'',
-				`The worker has finished. Review the result above. The worker's full session is available at session ${agent.session_id}.`,
 			].join('\n')
 
 			await client.session.promptAsync({
@@ -516,8 +514,6 @@ export async function handleAgentSessionEvent(
 				`Status: ${finalStatus}`,
 				`Error: ${errorMsg.slice(0, 2000)}`,
 				`</${tag}>`,
-				'',
-				`The worker ${finalStatus}. Review the worker's session ${agent.session_id} if needed.`,
 			].join('\n')
 
 			await client.session.promptAsync({

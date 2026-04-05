@@ -12,6 +12,7 @@ import {
 	ChevronRight,
 	ChevronUp,
 	Copy,
+	Cpu,
 	ExternalLink,
 	FileText,
 	GitFork,
@@ -96,6 +97,8 @@ import { playSound } from "@/lib/sounds";
 import { cn } from "@/lib/utils";
 import { stripKortixSystemTags, extractSessionReport, type SessionReport } from "@/lib/utils/kortix-system-tags";
 import { SubSessionModal } from "@/components/session/sub-session-modal";
+import { ChatMinimap } from "@/components/session/chat-minimap";
+import { useMessageJumpStore } from "@/stores/message-jump-store";
 import { toast as sonnerToast } from "sonner";
 import { useKortixComputerStore } from "@/stores/kortix-computer-store";
 import { useMessageQueueStore } from "@/stores/message-queue-store";
@@ -628,6 +631,45 @@ const PTY_EXITED_BLOCK_REGEX = /<pty_exited>[\s\S]*?<\/pty_exited>/gi;
 const PTY_FAILURE_HINT_REGEX =
 	/Process failed\.\s*Use pty_read with the pattern parameter to search for errors in the output\.?/gi;
 
+// ── agent_completed notifications ──────────────────────────────────────
+const AGENT_COMPLETED_BLOCK_REGEX = /<agent_(?:completed|failed|stopped)>[\s\S]*?<\/agent_(?:completed|failed|stopped)>/gi;
+
+interface AgentCompletedNotification {
+	agentId?: string;
+	task?: string;
+	sessionId?: string;
+	status?: string;
+	error?: string;
+	summary?: string;
+}
+
+function parseAgentCompletedNotifications(text: string): {
+	cleanText: string;
+	notifications: AgentCompletedNotification[];
+} {
+	const notifications: AgentCompletedNotification[] = [];
+	const cleanText = text
+		.replace(AGENT_COMPLETED_BLOCK_REGEX, (full) => {
+			const body = full.replace(/<\/?agent_(?:completed|failed|stopped)>/gi, "").trim();
+			const getField = (label: string) => {
+				const m = body.match(new RegExp(`^${label}:\\s*(.+)$`, "mi"));
+				return m?.[1]?.trim();
+			};
+			notifications.push({
+				agentId: getField("Agent"),
+				task: getField("Task"),
+				sessionId: getField("Session"),
+				status: getField("Status"),
+				error: getField("Error"),
+				summary: body,
+			});
+			return "";
+		})
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+	return { cleanText, notifications };
+}
+
 interface PtyExitedNotification {
 	id?: string;
 	description?: string;
@@ -669,6 +711,7 @@ function stripSystemPtyText(text: string): string {
 	return stripKortixSystemTags(text)
 		.replace(PTY_EXITED_BLOCK_REGEX, " ")
 		.replace(PTY_FAILURE_HINT_REGEX, " ")
+		.replace(AGENT_COMPLETED_BLOCK_REGEX, " ")
 		.replace(/\n{3,}/g, "\n\n")
 		.trim();
 }
@@ -976,6 +1019,72 @@ function PtyExitedNotificationCard({
 					{notification.outputLines && (
 						<span>
 							<span className="text-muted-foreground/60">Lines:</span> {notification.outputLines}
+						</span>
+					)}
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function AgentCompletedNotificationCard({
+	notification,
+}: {
+	notification: AgentCompletedNotification;
+}) {
+	const statusColor = notification.status === "completed"
+		? "text-emerald-600 dark:text-emerald-400"
+		: notification.status === "failed"
+		? "text-destructive"
+		: "text-amber-600 dark:text-amber-400";
+
+	const headerLabel = notification.status === "failed"
+		? "Agent failed"
+		: notification.status === "stopped"
+		? "Agent stopped"
+		: "Agent completed";
+
+	return (
+		<div className="rounded-lg border border-border/60 bg-card/50 overflow-hidden">
+			<div className="flex items-center gap-2 px-3 py-2 border-b border-border/40 bg-muted/30">
+				<Cpu className={cn("size-3.5 flex-shrink-0",
+					notification.status === "failed" ? "text-destructive/70" :
+					notification.status === "stopped" ? "text-amber-500/70" :
+					"text-muted-foreground/70"
+				)} />
+				<span className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider">
+					{headerLabel}
+				</span>
+				{notification.status && (
+					<span className={cn("text-[10px] ml-auto font-medium", statusColor)}>
+						{notification.status}
+					</span>
+				)}
+			</div>
+			<div className="px-3 py-2 text-xs text-muted-foreground space-y-1">
+				{notification.task && (
+					<div>
+						<span className="text-muted-foreground/60">Task:</span>{" "}
+						{notification.task}
+					</div>
+				)}
+				{notification.error && (
+					<div className="text-destructive/80">
+						<span className="text-muted-foreground/60">Error:</span>{" "}
+						<span className="font-mono text-[11px]">{notification.error.slice(0, 200)}</span>
+					</div>
+				)}
+				<div className="flex flex-wrap gap-x-3 gap-y-1">
+					{notification.agentId && (
+						<span>
+							<span className="text-muted-foreground/60">Agent:</span>{" "}
+							<span className="font-mono">{notification.agentId}</span>
+						</span>
+					)}
+					{notification.sessionId && (
+						<span>
+							<span className="text-muted-foreground/60">Session:</span>{" "}
+							<span className="font-mono">{notification.sessionId}</span>
 						</span>
 					)}
 				</div>
@@ -1308,7 +1417,11 @@ function UserMessageRow({
 		() => parsePtyExitedNotifications(rawVisibleText),
 		[rawVisibleText],
 	);
-	const rawText = stripSystemPtyText(textAfterPty);
+	const { cleanText: textAfterAgent, notifications: agentCompletedNotifications } = useMemo(
+		() => parseAgentCompletedNotifications(textAfterPty),
+		[textAfterPty],
+	);
+	const rawText = stripSystemPtyText(textAfterAgent);
 	const { cleanText: textAfterReply, replyContext } = useMemo(
 		() => parseReplyContext(rawText),
 		[rawText],
@@ -1501,14 +1614,18 @@ function UserMessageRow({
 		uploadedFiles.length > 0 ||
 		sessionRefs.length > 0 ||
 		ptyNotifications.length > 0 ||
+		agentCompletedNotifications.length > 0 ||
 		attachments.length > 0
 	);
 
-	if (!hasUserContent && (dcpNotifications.length > 0 || ptyNotifications.length > 0)) {
+	if (!hasUserContent && (dcpNotifications.length > 0 || ptyNotifications.length > 0 || agentCompletedNotifications.length > 0)) {
 		return (
 			<div className="flex flex-col gap-1.5 w-full">
 				{ptyNotifications.map((n, i) => (
 					<PtyExitedNotificationCard key={`pty-${i}`} notification={n} />
+				))}
+				{agentCompletedNotifications.map((n, i) => (
+					<AgentCompletedNotificationCard key={`agent-${i}`} notification={n} />
 				))}
 				{dcpNotifications.map((n, i) => (
 					<DCPNotificationCard key={i} notification={n} />
@@ -1578,6 +1695,13 @@ function UserMessageRow({
 					<div className="flex flex-col gap-1.5 w-full mt-1">
 						{ptyNotifications.map((n, i) => (
 							<PtyExitedNotificationCard key={`cmd-pty-${i}`} notification={n} />
+						))}
+					</div>
+				)}
+				{agentCompletedNotifications.length > 0 && (
+					<div className="flex flex-col gap-1.5 w-full mt-1">
+						{agentCompletedNotifications.map((n, i) => (
+							<AgentCompletedNotificationCard key={`cmd-agent-${i}`} notification={n} />
 						))}
 					</div>
 				)}
@@ -1765,6 +1889,13 @@ function UserMessageRow({
 				<div className="flex flex-col gap-1.5 w-full mt-1">
 					{ptyNotifications.map((n, i) => (
 						<PtyExitedNotificationCard key={`pty-mixed-${i}`} notification={n} />
+					))}
+				</div>
+			)}
+			{agentCompletedNotifications.length > 0 && (
+				<div className="flex flex-col gap-1.5 w-full mt-1">
+					{agentCompletedNotifications.map((n, i) => (
+						<AgentCompletedNotificationCard key={`agent-mixed-${i}`} notification={n} />
 					))}
 				</div>
 			)}
@@ -2326,7 +2457,10 @@ function SessionTurn({
 				!(p as TextPart).synthetic &&
 				!(p as any).ignored &&
 				(!!stripSystemPtyText((p as TextPart).text || "") ||
-					(p as TextPart).text?.includes("<pty_exited>")),
+					(p as TextPart).text?.includes("<pty_exited>") ||
+					(p as TextPart).text?.includes("<agent_completed>") ||
+					(p as TextPart).text?.includes("<agent_failed>") ||
+					(p as TextPart).text?.includes("<agent_stopped>")),
 		);
 		if (hasVisibleText) return true;
 		// Has any attachment (image/PDF)?
@@ -4229,6 +4363,28 @@ export function SessionChat({
 		[turns],
 	);
 
+	// ---- Jump-to-message (from CMD+K or minimap) ----
+	const targetMessageId = useMessageJumpStore((s) => s.targetMessageId);
+	const clearJumpTarget = useMessageJumpStore((s) => s.clearTarget);
+	useEffect(() => {
+		if (!targetMessageId) return;
+		const contentEl = contentRef.current;
+		const scrollEl = scrollRef.current;
+		if (!contentEl || !scrollEl) return;
+
+		const target = contentEl.querySelector<HTMLElement>(`[data-turn-id="${targetMessageId}"]`);
+		if (!target) {
+			clearJumpTarget();
+			return;
+		}
+
+		const scrollRect = scrollEl.getBoundingClientRect();
+		const targetRect = target.getBoundingClientRect();
+		const offset = targetRect.top - scrollRect.top + scrollEl.scrollTop - 24;
+		scrollEl.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+		clearJumpTarget();
+	}, [targetMessageId, clearJumpTarget, contentRef, scrollRef]);
+
 	// Reset on session change
 	useEffect(() => {
 		setPollingActive(false);
@@ -4833,7 +4989,7 @@ export function SessionChat({
 						<div
 							ref={contentRef}
 							role="log"
-							className="mx-auto max-w-4xl min-w-0 w-full px-3 sm:px-6"
+							className="mx-auto max-w-3xl min-w-0 w-full px-3 sm:px-6"
 						>
 							<div className="flex flex-col gap-12 min-w-0">
 							{/* Optimistic user message */}
@@ -5023,6 +5179,14 @@ export function SessionChat({
 						</Button>
 						</div>
 					)}
+
+					{/* Chat Minimap */}
+					<ChatMinimap
+						turns={turns}
+						scrollRef={scrollRef}
+						contentRef={contentRef}
+						messages={messages || []}
+					/>
 
 					{/* Scroll to bottom FAB */}
 					<div
