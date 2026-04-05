@@ -123,7 +123,7 @@ export function NewOnboardingPage({ className, onComplete, onClose }: NewOnboard
                 variant="outline"
                 onClick={handlePrevious}
                 size="sm"
-                className="h-9 px-6"
+                className="px-6"
               >
                 <ArrowLeft className="h-3 w-3 mr-2" />
                 Back
@@ -134,7 +134,7 @@ export function NewOnboardingPage({ className, onComplete, onClose }: NewOnboard
             <Button
               onClick={isLastStepFlag ? handleComplete : handleNext}
               size="sm"
-              className="h-9 px-6"
+              className="px-6"
               disabled={!canProceed && !canSkip}
               data-continue-button
             >

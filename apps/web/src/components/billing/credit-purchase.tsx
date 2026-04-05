@@ -120,21 +120,20 @@ export function CreditPurchaseModal({
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Buy credits</p>
                     <div className="grid grid-cols-3 gap-2">
                         {CREDIT_PACKAGES.map((pkg) => (
-                            <button
+                            <Button
                                 key={pkg.price}
                                 type="button"
                                 onClick={() => setSelectedPackage(pkg)}
                                 disabled={isProcessing}
+                                variant="outline"
                                 className={cn(
-                                    'rounded-xl border p-3 text-center transition-all cursor-pointer',
-                                    selectedPackage?.price === pkg.price
-                                        ? 'border-foreground bg-foreground/5'
-                                        : 'border-border hover:border-foreground/20',
+                                    'h-auto p-3 flex-col rounded-xl text-center',
+                                    selectedPackage?.price === pkg.price && 'border-foreground bg-foreground/5',
                                 )}
                             >
                                 <p className="text-lg font-semibold tabular-nums">${pkg.price}</p>
                                 <p className="text-xs text-muted-foreground">{formatCredits(pkg.credits)} credits</p>
-                            </button>
+                            </Button>
                         ))}
                     </div>
                 </div>

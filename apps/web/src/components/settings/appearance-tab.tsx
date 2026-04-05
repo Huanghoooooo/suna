@@ -5,6 +5,7 @@ import { Check, Monitor, Sun, Moon, Palette, ImageIcon } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { transitionFromElement } from '@/lib/view-transition';
 import { useUserPreferencesStore } from '@/stores/user-preferences-store';
@@ -21,12 +22,12 @@ function ThemeItem({
   onSelect: () => void;
 }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       onClick={onSelect}
       className={cn(
-        'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left transition-colors duration-150',
-        'hover:bg-accent/60',
+        'flex items-center gap-3 w-full h-auto px-3 py-2.5 rounded-lg text-left justify-start',
         isActive && 'bg-accent'
       )}
     >
@@ -47,7 +48,7 @@ function ThemeItem({
       {isActive && (
         <Check className="size-4 text-primary ml-auto shrink-0" />
       )}
-    </button>
+    </Button>
   );
 }
 
@@ -67,7 +68,7 @@ function WallpaperCard({
       type="button"
       onClick={onSelect}
       className={cn(
-        'group relative rounded-lg overflow-hidden transition-all duration-200',
+        'group relative cursor-pointer rounded-lg overflow-hidden transition-colors duration-200',
         'ring-2 ring-offset-1 ring-offset-background',
         isActive
           ? 'ring-primary'
@@ -131,14 +132,14 @@ function WallpaperCard({
         <span className="text-[11px] font-medium text-foreground flex items-center gap-1">
           {wallpaper.name}
           {wallpaper.id === DEFAULT_WALLPAPER_ID && (
-            <span className="text-[9px] font-medium px-1 py-px rounded-full bg-muted text-muted-foreground">
+            <span className="text-[0.5625rem] font-medium px-1 py-px rounded-full bg-muted text-muted-foreground">
               Default
             </span>
           )}
-        </span>
-      </div>
-    </button>
-  );
+         </span>
+       </div>
+     </button>
+   );
 }
 
 const BASE_MODES = [
@@ -187,31 +188,26 @@ export function AppearanceTab() {
           <label className="text-xs font-medium text-muted-foreground mb-2 block">
             Color Mode
           </label>
-          <div className="flex gap-1 p-1 bg-muted/50 rounded-lg w-fit">
+          <FilterBar>
             {BASE_MODES.map((mode) => {
               const Icon = mode.icon;
               const isActive = mounted && baseMode === mode.value;
               return (
-                <button
+                <FilterBarItem
                   key={mode.value}
-                  type="button"
-                  onClick={(e) => {
+                  value={mode.value}
+                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                     if (mode.value === baseMode) return;
                     transitionFromElement(e.currentTarget as HTMLElement, () => setBaseMode(mode.value));
                   }}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150',
-                    isActive
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
+                  data-state={isActive ? 'active' : 'inactive'}
                 >
                   <Icon className="size-3.5" />
                   {mode.label}
-                </button>
+                </FilterBarItem>
               );
             })}
-          </div>
+          </FilterBar>
         </div>
 
         <div>

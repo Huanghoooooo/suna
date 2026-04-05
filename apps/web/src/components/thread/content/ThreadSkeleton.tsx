@@ -109,7 +109,7 @@ export function ThreadSkeleton({
     return (
         <div className="flex h-screen">
             <div
-                className="flex flex-col flex-1 overflow-hidden transition-all duration-200 ease-in-out sm:mr-[50vw]"
+                className="flex flex-col flex-1 overflow-hidden transition-colors duration-200 ease-in-out sm:mr-[50vw]"
             >
                 {/* Skeleton Header */}
                 {showHeader && (

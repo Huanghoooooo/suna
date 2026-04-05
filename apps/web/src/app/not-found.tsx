@@ -24,7 +24,7 @@ export default function NotFound() {
           </h1>
 
           {/* Description - responsive */}
-          <p className="text-sm sm:text-[16px] text-foreground/60 text-center leading-relaxed px-2">
+          <p className="text-sm sm:text-base text-foreground/60 text-center leading-relaxed px-2">
             The page you're looking for doesn't exist or has been moved.
           </p>
 
@@ -36,7 +36,7 @@ export default function NotFound() {
                   <AlertCircle className="h-6 w-6 text-orange-500" />
                 </div>
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[14px] font-medium text-foreground">
+                  <span className="text-sm font-medium text-foreground">
                     404 Error
                   </span>
                   <span className="text-[13px] text-foreground/60">

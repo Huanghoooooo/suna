@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import React from 'react';
 import { Search, X } from 'lucide-react';
 import { PipedreamSettingsDialog } from './pipedream-settings-dialog';
@@ -56,11 +57,11 @@ export const SearchFilterBar = ({
             <button
               key={filter}
               onClick={() => onAuthFilterChange(filter)}
-              className={`h-7 px-3 text-xs font-medium rounded-lg transition-all cursor-pointer ${
+              className={cn('h-7 px-3 text-xs font-medium rounded-lg transition-colors cursor-pointer', 
                 authFilter === filter
                   ? 'bg-background text-foreground border border-border/50 shadow-sm'
                   : 'text-muted-foreground hover:text-foreground hover:bg-background/50 border border-transparent'
-              }`}
+              )}
             >
               {filter === 'oauth' ? 'OAuth' : filter === 'keys' ? 'API Key' : 'All'}
             </button>

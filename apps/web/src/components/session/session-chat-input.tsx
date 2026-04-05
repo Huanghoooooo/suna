@@ -229,7 +229,7 @@ export function AgentSelector({
             <button
               type="button"
               className={cn(
-                'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200 capitalize cursor-pointer',
+                'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors duration-200 capitalize cursor-pointer',
                 flash && 'bg-primary/10 text-foreground',
                 open && 'bg-muted text-foreground',
               )}
@@ -575,7 +575,7 @@ function AutoContinueSelector({
               type="button"
               onClick={() => setOpen(!open)}
               className={cn(
-                'inline-flex items-center gap-1 h-8 px-2 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer',
+                'inline-flex items-center gap-1 h-8 px-2 rounded-xl text-xs font-medium transition-colors duration-200 cursor-pointer',
                 isActive
                   ? 'text-primary bg-primary/10 hover:bg-primary/15'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted',
@@ -601,8 +601,7 @@ function AutoContinueSelector({
 
         {open && (
           <div
-            className="absolute bottom-full left-0 mb-1.5 z-50 bg-popover border border-border rounded-xl overflow-hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-150"
-            style={{ width: 320 }}
+            className="absolute bottom-full left-0 mb-1.5 z-50 w-80 bg-popover border border-border rounded-xl overflow-hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-150"
           >
             <div className="p-1">
               <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -640,7 +639,7 @@ function AutoContinueSelector({
               </button>
 
               <div
-                className="overflow-hidden transition-all duration-200 ease-out"
+                className="overflow-hidden transition-colors duration-200 ease-out"
                 style={{
                   maxHeight: expanded ? available.length * 40 + 16 : 0,
                   opacity: expanded ? 1 : 0,
@@ -710,7 +709,7 @@ function AutoContinueSelector({
                     <ul className="space-y-1">
                       {detailAlg.strengths.map((s, i) => (
                         <li key={i} className="text-sm text-muted-foreground flex gap-1.5">
-                          <span className="text-green-500 shrink-0 mt-0.5">+</span>
+                          <span className="text-emerald-500 shrink-0 mt-0.5">+</span>
                           <span>{s}</span>
                         </li>
                       ))}
@@ -1094,7 +1093,7 @@ function MentionPopover({
                     idx === selectedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted',
                   )}
                 >
-                  <span className="size-4 rounded flex items-center justify-center bg-purple-500/15 text-purple-500 text-[10px] font-bold shrink-0">@</span>
+                  <span className="size-4 rounded flex items-center justify-center bg-purple-500/15 text-purple-500 text-[10px] font-semibold shrink-0">@</span>
                   <span className="truncate font-medium capitalize">{item.label}</span>
                   {item.description && <span className="text-muted-foreground/40 truncate text-[10px]">{item.description}</span>}
                 </button>
@@ -2184,7 +2183,7 @@ export function SessionChatInput({
               {text.trim().length === 0 && !stagedCommand && (
                 <div
                   aria-hidden
-                  className="absolute left-0.5 top-4 h-6 w-[calc(100%-0.5rem)] text-[16px] sm:text-[15px] text-muted-foreground pointer-events-none overflow-hidden"
+                  className="absolute left-0.5 top-4 h-6 w-[calc(100%-0.5rem)] text-base sm:text-[15px] text-muted-foreground pointer-events-none overflow-hidden"
                 >
                   {lockForQuestion ? (
                     <div className="absolute inset-0">
@@ -2216,7 +2215,7 @@ export function SessionChatInput({
               {text.trim().length === 0 && stagedCommand && (
                 <div
                   aria-hidden
-                  className="absolute left-0.5 top-4 text-[16px] sm:text-[15px] text-muted-foreground/50 pointer-events-none"
+                  className="absolute left-0.5 top-4 text-base sm:text-[15px] text-muted-foreground/50 pointer-events-none"
                 >
                   Enter details and press Enter, or press Esc to cancel
                 </div>
@@ -2226,8 +2225,7 @@ export function SessionChatInput({
                 <div
                   ref={highlightRef}
                   aria-hidden
-                  className="absolute inset-0 pointer-events-none px-0.5 pb-6 pt-4 text-[16px] sm:text-[15px] whitespace-pre-wrap break-words text-foreground"
-                  style={{ wordBreak: 'break-word', lineHeight: 'normal' }}
+                  className="absolute inset-0 pointer-events-none px-0.5 pb-6 pt-4 text-base sm:text-[15px] whitespace-pre-wrap break-words leading-normal text-foreground"
                 >
                   {highlightSegments.map((seg, i) => (
                     <span
@@ -2257,7 +2255,7 @@ export function SessionChatInput({
                 rows={1}
                 disabled={disabled}
                 className={cn(
-                  'relative w-full bg-transparent border-none shadow-none focus-visible:ring-0 px-0.5 pb-6 pt-4 min-h-[72px] max-h-[200px] overflow-y-auto resize-none rounded-[24px] text-[16px] sm:text-[15px] outline-none placeholder:text-muted-foreground disabled:opacity-50',
+                  'relative w-full bg-transparent border-none shadow-none focus-visible:ring-0 px-0.5 pb-6 pt-4 min-h-[72px] max-h-[200px] overflow-y-auto resize-none rounded-[24px] text-base sm:text-[15px] outline-none placeholder:text-muted-foreground disabled:opacity-50',
                   highlightSegments && 'caret-foreground text-transparent',
                 )}
                 autoFocus={shouldAutoFocus}

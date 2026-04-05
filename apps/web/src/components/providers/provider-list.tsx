@@ -105,7 +105,7 @@ export function ProviderList({
           <Button
             variant="outline"
             size="sm"
-            className="mt-3 h-8 px-3 text-xs rounded-lg gap-1.5"
+            className="mt-3"
             onClick={onConnect}
           >
             <Plus className="h-3 w-3" />
@@ -137,7 +137,7 @@ export function ProviderList({
                     <span className="text-[13px] font-medium text-foreground/85">
                       {PROVIDER_LABELS[p.id] || p.name || p.id}
                     </span>
-                    <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[9px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[0.5625rem] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                       <span className="w-1 h-1 rounded-full bg-emerald-500" />
                       connected
                     </span>
@@ -147,10 +147,12 @@ export function ProviderList({
                     {source && <> · <span className="capitalize">{source}</span></>}
                   </span>
                 </div>
-                <button
+                <Button
                   onClick={() => setConfirmDisconnect(p.id)}
                   disabled={isDisc}
-                  className="flex items-center gap-1 p-1.5 rounded-lg text-muted-foreground/30 hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-50"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground/30 hover:text-red-500 hover:bg-red-500/10"
                   title="Disconnect"
                 >
                   {isDisc ? (
@@ -158,13 +160,15 @@ export function ProviderList({
                   ) : (
                     <Unplug className="h-3.5 w-3.5" />
                   )}
-                </button>
+                </Button>
               </div>
 
               {!compact && modelCount > 0 && (
-                <button
+                <Button
                   onClick={() => setExpanded(isExp ? null : p.id)}
-                  className="flex items-center gap-1 px-3 pb-2 text-[11px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+                  variant="muted"
+                  size="xs"
+                  className="mx-3 mb-2"
                 >
                   {isExp ? (
                     <ChevronDown className="h-3 w-3" />
@@ -172,7 +176,7 @@ export function ProviderList({
                     <ChevronRight className="h-3 w-3" />
                   )}
                   {isExp ? 'Hide models' : 'Show models'}
-                </button>
+                </Button>
               )}
 
               {isExp && (

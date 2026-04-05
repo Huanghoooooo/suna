@@ -89,7 +89,7 @@ export function FileCarousel({
                                     size="sm"
                                     onClick={handlePrev}
                                     disabled={!canGoPrev}
-                                    className="h-8 w-8 p-0 border-2 hover:bg-accent hover:border-accent-foreground/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                    className="h-8 w-8 p-0 border-2 hover:bg-accent hover:border-accent-foreground/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <ChevronLeft className="h-4 w-4" />
                                 </Button>
@@ -107,7 +107,7 @@ export function FileCarousel({
                                 key={idx}
                                 onClick={() => onIndexChange(idx)}
                                 className={cn(
-                                    "h-2 rounded-full transition-all duration-200",
+                                    "h-2 rounded-full transition-colors duration-200",
                                     idx === currentIndex
                                         ? "w-6 bg-primary"
                                         : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50"
@@ -129,7 +129,7 @@ export function FileCarousel({
                                     size="sm"
                                     onClick={handleNext}
                                     disabled={!canGoNext}
-                                    className="h-8 w-8 p-0 border-2 hover:bg-accent hover:border-accent-foreground/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                    className="h-8 w-8 p-0 border-2 hover:bg-accent hover:border-accent-foreground/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>

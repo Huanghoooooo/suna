@@ -144,19 +144,18 @@ export function DriveToolbar({
             title="Double-click to edit path"
           >
             {/* Home / root */}
-            <button
+            <Button
               onClick={() => navigateToPath('/workspace')}
+              variant="ghost"
+              size="sm"
               className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm transition-colors cursor-pointer shrink-0',
-                'hover:bg-muted/60',
-                segments.length === 0
-                  ? 'text-foreground font-medium'
-                  : 'text-muted-foreground',
+                'gap-1.5 shrink-0',
+                segments.length === 0 ? 'text-foreground font-medium' : 'text-muted-foreground',
               )}
             >
               <Home className="h-4 w-4" />
               <span className="font-mono text-xs">/workspace</span>
-            </button>
+            </Button>
 
             {segments.map((segment, index) => {
               // Skip 'workspace' as it's represented by the root button
@@ -166,18 +165,17 @@ export function DriveToolbar({
               return (
                 <div key={index} className="flex items-center gap-0.5 min-w-0 shrink-0">
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
-                  <button
+                  <Button
                     onClick={() => handleSegmentClick(index)}
+                    variant="ghost"
+                    size="sm"
                     className={cn(
-                      'px-2 py-1.5 rounded-lg text-sm transition-colors cursor-pointer truncate max-w-[200px]',
-                      'hover:bg-muted/60',
-                      isLast
-                        ? 'text-foreground font-medium'
-                        : 'text-muted-foreground',
+                      'truncate max-w-[200px]',
+                      isLast ? 'text-foreground font-medium' : 'text-muted-foreground',
                     )}
                   >
                     {segment}
-                  </button>
+                  </Button>
                 </div>
               );
             })}
@@ -193,7 +191,7 @@ export function DriveToolbar({
             <Button
               variant="outline"
               size="sm"
-              className="h-8 gap-1.5 text-sm font-medium"
+              className="gap-1.5 font-medium"
             >
               <Plus className="h-4 w-4" />
               New

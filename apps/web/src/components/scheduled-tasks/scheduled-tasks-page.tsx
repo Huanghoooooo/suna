@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTriggers, useDeleteTrigger, type Trigger } from '@/hooks/scheduled-tasks';
 import { Button } from '@/components/ui/button';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -168,7 +169,7 @@ const TaskListItem = ({
             onClick={onDelete}
             disabled={isDeleting}
             className={cn(
-              "p-2 rounded-lg transition-all",
+              "p-2 rounded-lg transition-colors",
               "opacity-0 group-hover:opacity-100 focus:opacity-100",
               "text-muted-foreground hover:text-red-500 hover:bg-red-500/10",
               isDeleting && "opacity-100 text-red-500"
@@ -318,7 +319,7 @@ export function ScheduledTasksPage() {
       {/* Hero / PageHeader — collapses when panel is open */}
       <div
         className={cn(
-          "overflow-hidden transition-all duration-500 ease-in-out",
+          "overflow-hidden transition-colors duration-500 ease-in-out",
           panelOpen
             ? "max-h-0 opacity-0 py-0"
             : "max-h-[300px] opacity-100 py-4 sm:py-8"
@@ -364,25 +365,24 @@ export function ScheduledTasksPage() {
                     </div>
                   </div>
                 </div>
-                <div className="hidden sm:flex items-center gap-1 border rounded-lg p-0.5">
+                <FilterBar className="hidden sm:inline-flex">
                   {(['all', 'cron', 'webhook'] as const).map((f) => (
-                    <button
+                    <FilterBarItem
                       key={f}
+                      value={f}
                       onClick={() => setTypeFilter(f)}
-                      className={cn(
-                        "px-2.5 py-1 text-xs font-medium rounded-md transition-colors capitalize",
-                        typeFilter === f ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-                      )}
+                      data-state={typeFilter === f ? 'active' : 'inactive'}
+                      className="capitalize"
                     >
                       {f}
-                    </button>
+                    </FilterBarItem>
                   ))}
-                </div>
+                </FilterBar>
               </div>
               <Button
                 variant="default"
                 size="sm"
-                className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl gap-1.5 sm:gap-2 text-sm"
+                className="sm:h-10 px-3 sm:px-4 rounded-xl gap-1.5 sm:gap-2 "
                 onClick={() => setShowCreateDialog(true)}
               >
                 <Plus className="h-4 w-4" />
@@ -420,7 +420,7 @@ export function ScheduledTasksPage() {
         {/* Detail Panel */}
         <div
           className={cn(
-            "h-screen transition-all duration-300 ease-in-out bg-background",
+            "h-screen transition-colors duration-300 ease-in-out bg-background",
             "fixed 2xl:relative top-0 right-0",
             "z-40 2xl:z-auto",
             selectedTrigger ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden",

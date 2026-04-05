@@ -57,7 +57,7 @@ export const AutoTopupStep = () => {
               className="space-y-3 pt-2 border-t"
             >
               <div className="flex items-start gap-2">
-                <ShieldCheck className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                <ShieldCheck className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
                 <p className="text-xs text-muted-foreground">
                   Your card will only be charged when credits run low. You can change the amount or disable this anytime in Settings.
                 </p>

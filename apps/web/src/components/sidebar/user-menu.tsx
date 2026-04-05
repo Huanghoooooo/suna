@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -206,11 +207,11 @@ export function UserMenu({ user }: UserMenuProps) {
                         key={mode.value}
                         type="button"
                         onClick={(e) => handleThemeChange(mode.value, e)}
-                        className={`p-1.5 rounded-sm transition-all duration-150 cursor-pointer ${
+                        className={cn('p-1.5 rounded-sm transition-colors duration-150 cursor-pointer', 
                           isActive
                             ? 'bg-background text-foreground'
                             : 'text-muted-foreground hover:text-foreground'
-                        }`}
+                        )}
                       >
                         <Icon className="size-3.5" />
                       </button>

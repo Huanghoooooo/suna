@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { KortixLoader } from '@/components/ui/kortix-loader';
@@ -175,7 +176,7 @@ export default function GitHubOAuthPopup() {
       case 'error':
         return 'text-red-500';
       case 'processing':
-        return 'text-green-500';
+        return 'text-emerald-500';
       default:
         return 'text-muted-foreground';
     }
@@ -190,7 +191,7 @@ export default function GitHubOAuthPopup() {
 
         <div className="space-y-2">
           <h1 className="text-lg font-medium">GitHub Sign-In</h1>
-          <p className={`text-sm ${getStatusColor()}`}>{getStatusMessage()}</p>
+          <p className={cn('text-sm', getStatusColor())}>{getStatusMessage()}</p>
         </div>
 
         {status === 'error' && (

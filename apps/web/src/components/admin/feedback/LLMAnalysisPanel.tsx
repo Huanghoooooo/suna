@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,7 +55,7 @@ export function LLMAnalysisPanel() {
         {[1, 2, 3].map((i) => (
           <div 
             key={i} 
-            className={`w-1.5 h-1.5 rounded-full ${i <= count ? 'bg-secondary' : 'bg-muted'}`} 
+            className={cn('w-1.5 h-1.5 rounded-full', i <= count ? 'bg-secondary' : 'bg-muted')} 
           />
         ))}
       </div>
@@ -194,9 +195,9 @@ export function LLMAnalysisPanel() {
                     <div className="space-y-2">
                       {analysis.improvement_areas.slice(0, 4).map((area, i) => (
                         <div key={i} className="flex items-center gap-2 text-sm">
-                          <div className={`w-2 h-2 rounded-full shrink-0 ${
+                          <div className={cn('w-2 h-2 rounded-full shrink-0', 
                             area.severity === 'high' ? 'bg-destructive' : 'bg-secondary'
-                          }`} />
+                          )} />
                           <span className="text-muted-foreground truncate">{area.area}</span>
                           <span className="text-xs text-muted-foreground ml-auto shrink-0">{area.frequency}</span>
                         </div>
@@ -216,7 +217,7 @@ export function LLMAnalysisPanel() {
                     {analysis.improvement_areas.map((area, i) => (
                       <div 
                         key={i} 
-                        className={`rounded-lg border-l-4 p-4 ${getSeverityStyles(area.severity)}`}
+                        className={cn('rounded-lg border-l-4 p-4', getSeverityStyles(area.severity))}
                       >
                         <div className="flex items-start justify-between gap-4 mb-2">
                           <div>
@@ -224,11 +225,11 @@ export function LLMAnalysisPanel() {
                               <span className="font-medium">{area.area}</span>
                               <Badge 
                                 variant="outline" 
-                                className={`text-[10px] uppercase ${
+                                className={cn('text-[10px] uppercase', 
                                   area.severity === 'high' 
                                     ? 'border-destructive/50 text-destructive' 
                                     : 'border-secondary/50 text-secondary'
-                                }`}
+                                )}
                               >
                                 {area.severity}
                               </Badge>
@@ -265,11 +266,11 @@ export function LLMAnalysisPanel() {
                         className="group rounded-xl border bg-card p-4 hover:border-secondary/50 transition-colors"
                       >
                         <div className="flex items-start gap-4">
-                          <div className={`p-2 rounded-lg shrink-0 ${
+                          <div className={cn('p-2 rounded-lg shrink-0', 
                             rec.priority === 'high' 
                               ? 'bg-destructive/10 text-destructive' 
                               : 'bg-secondary/10 text-secondary'
-                          }`}>
+                          )}>
                             {rec.priority === 'high' ? (
                               <Zap className="h-3.5 w-3.5" />
                             ) : (

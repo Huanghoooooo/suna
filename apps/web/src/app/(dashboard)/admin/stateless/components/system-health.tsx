@@ -99,7 +99,7 @@ interface ServiceStatusProps {
 
 function ServiceStatus({ name, running, icon, details }: ServiceStatusProps) {
   return (
-    <div className="flex items-center justify-between p-3 rounded-lg border transition-all">
+    <div className="flex items-center justify-between p-3 rounded-lg border transition-colors">
       <div className="flex items-center gap-3">
         <div className={cn("p-2", running ? "text-emerald-500" : "text-red-500")}>
           {icon}

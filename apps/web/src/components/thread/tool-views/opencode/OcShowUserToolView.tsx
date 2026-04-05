@@ -146,22 +146,22 @@ function SidePanelIframePreview({ url, title }: { url: string; title?: string })
         <span className="text-xs text-muted-foreground font-mono truncate flex-1">{displayLabel}</span>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button type="button" onClick={handleRefresh} className="p-1 rounded hover:bg-muted/60 text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+            <Button type="button" onClick={handleRefresh} variant="ghost" size="icon-xs">
               <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
-            </button>
+            </Button>
           </TooltipTrigger>
           <TooltipContent side="top">Refresh</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button type="button" onClick={() => authenticatedUrl && window.open(authenticatedUrl, '_blank', 'noopener,noreferrer')} disabled={!isAuthReady} className="p-1 rounded hover:bg-muted/60 text-muted-foreground/50 hover:text-muted-foreground transition-colors disabled:opacity-30">
+            <Button type="button" onClick={() => authenticatedUrl && window.open(authenticatedUrl, '_blank', 'noopener,noreferrer')} disabled={!isAuthReady} variant="ghost" size="icon-xs">
               <ExternalLink className="h-3.5 w-3.5" />
-            </button>
+            </Button>
           </TooltipTrigger>
           <TooltipContent side="top">Open in browser</TooltipContent>
         </Tooltip>
         {proxy && (
-          <Button variant="default" size="sm" className="h-6 text-[10px] gap-1 px-2 rounded-md" onClick={navigateToPreviewTab}>
+          <Button variant="subtle" size="xs" onClick={navigateToPreviewTab}>
             <MonitorPlay className="h-3 w-3" />
             Open Tab
           </Button>
@@ -181,7 +181,7 @@ function SidePanelIframePreview({ url, title }: { url: string; title?: string })
           <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
             <div className="text-center text-muted-foreground">
               <p className="text-sm">Failed to load preview</p>
-              <button type="button" onClick={handleRefresh} className="text-xs text-primary hover:underline mt-1">Retry</button>
+              <Button type="button" onClick={handleRefresh} variant="link" size="sm" className="mt-1 h-auto p-0 text-xs">Retry</Button>
             </div>
           </div>
         )}

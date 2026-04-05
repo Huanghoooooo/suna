@@ -101,7 +101,7 @@ function StepIndicator({ currentStep }: { currentStep: Step }) {
             <div className="flex items-center gap-1.5">
               <div
                 className={cn(
-                  'flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-medium transition-all',
+                  'flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-medium transition-colors',
                   isCompleted
                     ? 'bg-primary text-primary-foreground'
                     : isCurrent
@@ -165,7 +165,7 @@ function NameStep({
         </p>
       </div>
 
-      <Button onClick={onNext} className="w-full h-9 text-sm">
+      <Button onClick={onNext} className="w-full text-sm">
         Continue
         <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
       </Button>
@@ -197,13 +197,13 @@ function ScopeToggle({
     <button
       onClick={onToggle}
       className={cn(
-        'flex items-center gap-2.5 w-full rounded-md px-2.5 py-1.5 text-left transition-all cursor-pointer',
+        'flex items-center gap-2.5 w-full rounded-md px-2.5 py-1.5 text-left transition-colors cursor-pointer',
         enabled ? 'bg-primary/8 border border-primary/15' : 'hover:bg-muted/60 border border-transparent',
       )}
     >
       <div
         className={cn(
-          'flex items-center justify-center w-4 h-4 rounded border-[1.5px] shrink-0 transition-all',
+          'flex items-center justify-center w-4 h-4 rounded border-[1.5px] shrink-0 transition-colors',
           enabled
             ? 'border-primary bg-primary'
             : 'border-muted-foreground/30',
@@ -257,7 +257,7 @@ function PermissionsStep({
               >
                 <div
                   className={cn(
-                    'flex items-center justify-center w-3.5 h-3.5 rounded-sm border-[1.5px] shrink-0 transition-all',
+                    'flex items-center justify-center w-3.5 h-3.5 rounded-sm border-[1.5px] shrink-0 transition-colors',
                     allEnabled
                       ? 'border-primary bg-primary'
                       : someEnabled
@@ -298,14 +298,14 @@ function PermissionsStep({
       )}
 
       <div className="flex gap-2">
-        <Button variant="outline" onClick={onBack} className="flex-1 h-9 text-sm">
+        <Button variant="outline" onClick={onBack} className="flex-1 text-sm">
           <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
           Back
         </Button>
         <Button
           onClick={onNext}
           disabled={selectedScopes.size === 0}
-          className="flex-1 h-9 text-sm"
+          className="flex-1 text-sm"
         >
           {selectedScopes.size === 0 ? 'Select scopes' : 'Create Connection'}
           {selectedScopes.size > 0 && <ArrowRight className="h-3.5 w-3.5 ml-1.5" />}
@@ -484,7 +484,7 @@ function ConnectStep({
         )}
       </div>
 
-      <Button onClick={onDone} className="w-full h-9 text-sm">
+      <Button onClick={onDone} className="w-full text-sm">
         {isConnected ? 'Done' : 'Close'}
       </Button>
     </div>

@@ -12,6 +12,7 @@ import {
 } from '@/hooks/deployments/use-deployments';
 import { useSecrets } from '@/hooks/secrets/use-secrets';
 import { Button } from '@/components/ui/button';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -216,22 +217,18 @@ export function DeploymentsPage() {
         {/* Filter tabs + Search + Create */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4">
           {/* Filter tabs */}
-          <div className="flex items-center gap-1 bg-muted/30 rounded-xl p-1">
+          <FilterBar>
             {filterTabs.map((tab) => (
-              <button
+              <FilterBarItem
                 key={tab.label}
+                value={tab.label}
                 onClick={() => setStatusFilter(tab.value)}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer',
-                  statusFilter === tab.value
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
+                data-state={statusFilter === tab.value ? 'active' : 'inactive'}
               >
                 {tab.label}
-              </button>
+              </FilterBarItem>
             ))}
-          </div>
+          </FilterBar>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
             {/* Search */}
@@ -252,7 +249,7 @@ export function DeploymentsPage() {
             <Button
               variant="default"
               size="sm"
-              className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl gap-1.5 sm:gap-2 text-sm shrink-0"
+              className="sm:h-10 px-3 sm:px-4 rounded-xl gap-1.5 sm:gap-2 shrink-0"
               onClick={handleNewDeployment}
             >
               <Plus className="h-4 w-4" />

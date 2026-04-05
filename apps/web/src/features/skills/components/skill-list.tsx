@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { KortixLoader } from '@/components/ui/kortix-loader';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
 import { useSkills } from '../hooks/use-skills';
 import { useSkillsStore } from '../store/skills-store';
 import { SkillCard } from './skill-card';
@@ -136,17 +137,12 @@ export function SkillList() {
                 </div>
 
                 {/* Source filter tabs */}
-                <div className="flex items-center gap-1">
+                <FilterBar>
                   {SKILL_FILTER_TABS.map((tab) => (
-                    <button
+                    <FilterBarItem
                       key={tab.value}
                       onClick={() => setActiveFilter(tab.value)}
-                      className={cn(
-                        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer',
-                        activeFilter === tab.value
-                          ? 'text-foreground'
-                          : 'text-muted-foreground hover:text-foreground',
-                      )}
+                      data-state={activeFilter === tab.value ? 'active' : 'inactive'}
                     >
                       {tab.label}
                       <span
@@ -159,9 +155,9 @@ export function SkillList() {
                       >
                         {sourceCounts[tab.value]}
                       </span>
-                    </button>
+                    </FilterBarItem>
                   ))}
-                </div>
+                </FilterBar>
               </div>
 
               {/* Results summary */}

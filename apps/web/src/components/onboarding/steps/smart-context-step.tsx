@@ -118,7 +118,7 @@ export const SmartContextStep = () => {
                 className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 rounded-xl border border-green-200 dark:border-green-800"
               >
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
+                  <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse" />
                   <p className="text-sm font-semibold text-green-800 dark:text-green-300">
                     Great! Here's what we learned:
                   </p>

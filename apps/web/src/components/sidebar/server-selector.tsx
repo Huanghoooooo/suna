@@ -30,6 +30,7 @@ import { useNewInstanceModalStore } from '@/stores/pricing-modal-store';
 import { useSubscriptionStore } from '@/stores/subscription-store';
 import { useTabStore } from '@/stores/tab-store';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { authenticatedFetch } from '@/lib/auth-token';
@@ -211,11 +212,11 @@ function renderSshConfigHighlighted(config: string) {
 }
 
 const copyButtonBaseClass =
-  'inline-flex items-center justify-center gap-1.5 h-7 px-2.5 text-[11px] font-medium rounded-md border border-border/70 bg-background/80 text-foreground/90 transition-all hover:bg-background hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer';
+  'inline-flex items-center justify-center gap-1.5 h-7 px-2.5 text-[11px] font-medium rounded-md border border-border/70 bg-background/80 text-foreground/90 transition-colors hover:bg-background hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer';
 const copyIconButtonBaseClass =
-  'inline-flex items-center justify-center h-7 w-7 rounded-md border border-border/70 bg-background/80 text-muted-foreground shadow-sm transition-all hover:bg-background hover:text-foreground hover:border-border hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer';
+  'inline-flex items-center justify-center h-7 w-7 rounded-md border border-border/70 bg-background/80 text-muted-foreground shadow-sm transition-colors hover:bg-background hover:text-foreground hover:border-border hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer';
 const codeCopyButtonClass =
-  'absolute top-2.5 right-2.5 z-10 inline-flex items-center justify-center h-5 w-5 p-0 rounded-md border border-white/30 bg-slate-950/55 text-white backdrop-blur-sm transition-all hover:bg-slate-950/80 hover:border-white/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60 cursor-pointer';
+  'absolute top-2.5 right-2.5 z-10 inline-flex items-center justify-center h-5 w-5 p-0 rounded-md border border-white/30 bg-slate-950/55 text-white backdrop-blur-sm transition-colors hover:bg-slate-950/80 hover:border-white/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60 cursor-pointer';
 
 const SSH_META_STORAGE_KEY = 'kortix:ssh-access-meta:v1';
 
@@ -367,7 +368,7 @@ function DialogInstanceRow({
   return (
     <div
       className={cn(
-        'relative rounded-xl transition-all group/row cursor-pointer',
+        'relative rounded-xl transition-colors group/row cursor-pointer',
         isActive
           ? 'bg-primary/[0.05] dark:bg-primary/[0.08] ring-1 ring-primary/15'
           : 'hover:bg-muted/50',
@@ -390,18 +391,18 @@ function DialogInstanceRow({
           </span>
 
           {providerBadge && (
-            <span className={cn('px-1.5 py-px text-[9px] font-medium rounded-full uppercase tracking-wider leading-none flex-shrink-0', providerBadge.cls)}>
+            <span className={cn('px-1.5 py-px text-[0.5625rem] font-medium rounded-full uppercase tracking-wider leading-none flex-shrink-0', providerBadge.cls)}>
               {providerBadge.label}
             </span>
           )}
           {isCancelledAtPeriodEnd && (
-            <span className="flex items-center gap-0.5 px-1.5 py-px text-[9px] font-medium rounded-full uppercase tracking-wider leading-none flex-shrink-0 bg-destructive/10 text-destructive border border-destructive/20">
+            <span className="flex items-center gap-0.5 px-1.5 py-px text-[0.5625rem] font-medium rounded-full uppercase tracking-wider leading-none flex-shrink-0 bg-destructive/10 text-destructive border border-destructive/20">
               <CalendarX2 className="h-2.5 w-2.5" />
               Cancelling
             </span>
           )}
           {server.isDefault && (
-            <span className="px-1.5 py-px text-[9px] font-medium text-muted-foreground/60 bg-muted/50 rounded-full uppercase tracking-wider leading-none flex-shrink-0">
+            <span className="px-1.5 py-px text-[0.5625rem] font-medium text-muted-foreground/60 bg-muted/50 rounded-full uppercase tracking-wider leading-none flex-shrink-0">
               default
             </span>
           )}
@@ -430,14 +431,16 @@ function DialogInstanceRow({
 
           {/* Update available */}
           {sandboxUpdate?.updateAvailable && !sandboxUpdate.isUpdating && (
-            <button
+            <Button
               type="button"
-              className="flex items-center gap-1 h-5 px-2 text-[10px] font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-full transition-colors cursor-pointer"
+              variant="subtle"
+              size="xs"
+              className="rounded-full"
               onClick={(e) => { e.stopPropagation(); sandboxUpdate.update(); }}
             >
               <ArrowDownToLine className="h-3 w-3" />
               Update to v{sandboxUpdate.latestVersion}
-            </button>
+            </Button>
           )}
 
           {/* Updating */}
@@ -469,37 +472,41 @@ function DialogInstanceRow({
           <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
             {/* Edit — non-default entries only */}
             {!server.isDefault && onEdit && (
-              <button
+              <Button
                 type="button"
-                className="p-1.5 rounded-lg hover:bg-muted/80 transition-colors cursor-pointer"
+                variant="ghost"
+                size="icon-sm"
                 onClick={(e) => { e.stopPropagation(); onEdit(); }}
                 aria-label="Edit"
               >
                 <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-              </button>
+              </Button>
             )}
             {/* Cancel / Reactivate — paid VPS only */}
             {isPaidVps && isCancelledAtPeriodEnd && (
-              <button
+              <Button
                 type="button"
                 disabled={isReactivating}
-                className="flex items-center gap-1 h-6 px-2 text-[11px] font-medium text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-md transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                variant="success"
+                size="xs"
                 onClick={(e) => { e.stopPropagation(); onReactivate?.(); }}
               >
                 {isReactivating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Power className="h-3 w-3" />}
                 Reactivate
-              </button>
+              </Button>
             )}
             {isPaidVps && !isCancelledAtPeriodEnd && (
-              <button
+              <Button
                 type="button"
                 disabled={isCancelling}
-                className="flex items-center gap-1 h-6 px-2 text-[11px] font-medium text-muted-foreground/60 hover:text-destructive bg-muted/40 hover:bg-destructive/10 border border-border/30 hover:border-destructive/20 rounded-md transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                variant="muted"
+                size="xs"
+                className="hover:text-destructive hover:bg-destructive/10"
                 onClick={(e) => { e.stopPropagation(); onCancel?.(); }}
               >
                 {isCancelling ? <Loader2 className="h-3 w-3 animate-spin" /> : <CalendarX2 className="h-3 w-3" />}
                 Cancel
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -975,7 +982,7 @@ export function InstanceManagerDialog({
                     placeholder="Search instances..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="w-full h-8 text-xs pl-8 pr-3 rounded-lg bg-muted/40 border border-border/40 outline-none placeholder:text-muted-foreground/40 focus:border-primary/30 focus:bg-muted/60 transition-all"
+                    className="w-full h-8 text-xs pl-8 pr-3 rounded-lg bg-muted/40 border border-border/40 outline-none placeholder:text-muted-foreground/40 focus:border-primary/30 focus:bg-muted/60 transition-colors"
                   />
                 </div>
               </div>
@@ -1100,7 +1107,7 @@ export function InstanceManagerDialog({
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-primary/90 transition-all duration-1000 ease-out"
+                    className="h-full rounded-full bg-primary/90 transition-colors duration-1000 ease-out"
                     style={{ width: `${Math.max(sandboxProgress.progress, 2)}%` }}
                   />
                 </div>
@@ -1113,7 +1120,7 @@ export function InstanceManagerDialog({
                   type="button"
                   onClick={() => handleCreateSandbox('daytona')}
                   disabled={isCreatingSandbox}
-                  className="flex items-start gap-3 w-full p-3.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 hover:border-primary/30 text-left transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-start gap-3 w-full p-3.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 hover:border-primary/30 text-left transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-violet-500/10 flex-shrink-0 mt-0.5">
                     {isCreatingSandbox && creatingProvider === 'daytona' ? (
@@ -1134,7 +1141,7 @@ export function InstanceManagerDialog({
                   type="button"
                   onClick={() => handleCreateSandbox('justavps')}
                   disabled={isCreatingSandbox}
-                  className="flex items-start gap-3 w-full p-3.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 hover:border-primary/30 text-left transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-start gap-3 w-full p-3.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 hover:border-primary/30 text-left transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-orange-500/10 flex-shrink-0 mt-0.5">
                     {isCreatingSandbox && creatingProvider === 'justavps' ? (
@@ -1155,7 +1162,7 @@ export function InstanceManagerDialog({
                   type="button"
                   onClick={() => handleCreateSandbox('local_docker')}
                   disabled={isCreatingSandbox}
-                  className="flex items-start gap-3 w-full p-3.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 hover:border-primary/30 text-left transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-start gap-3 w-full p-3.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 hover:border-primary/30 text-left transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-blue-500/10 flex-shrink-0 mt-0.5">
                     {isCreatingSandbox && creatingProvider === 'local_docker' ? (
@@ -1179,7 +1186,7 @@ export function InstanceManagerDialog({
                 <button
                   type="button"
                   onClick={() => useNewInstanceModalStore.getState().openNewInstanceModal()}
-                  className="flex items-start gap-3 w-full p-3.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 hover:border-primary/30 text-left transition-all cursor-pointer"
+                  className="flex items-start gap-3 w-full p-3.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 hover:border-primary/30 text-left transition-colors cursor-pointer"
                 >
                   <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-primary/10 flex-shrink-0 mt-0.5">
                     <Plus className="h-4 w-4 text-primary" />
@@ -1202,7 +1209,7 @@ export function InstanceManagerDialog({
                 type="button"
                 onClick={() => { setFormUrl(''); setFormLabel(''); setMode('custom'); }}
                 disabled={isCreatingSandbox}
-                className="flex items-start gap-3 w-full p-3.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 hover:border-primary/30 text-left transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-start gap-3 w-full p-3.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 hover:border-primary/30 text-left transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-muted/60 flex-shrink-0 mt-0.5">
                   <Globe className="h-4 w-4 text-muted-foreground" />
@@ -1248,7 +1255,7 @@ export function InstanceManagerDialog({
                   placeholder="http://localhost:8008/v1/p/kortix-sandbox/8000"
                   value={formUrl}
                   onChange={(e) => setFormUrl(e.target.value)}
-                  className="w-full h-9 px-3 text-sm font-mono rounded-lg bg-muted/30 border border-border/60 outline-none placeholder:text-muted-foreground/30 focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all"
+                  className="w-full h-9 px-3 text-sm font-mono rounded-lg bg-muted/30 border border-border/60 outline-none placeholder:text-muted-foreground/30 focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-colors"
                   required
                 />
                 <p className="text-[10px] text-muted-foreground/50">
@@ -1265,7 +1272,7 @@ export function InstanceManagerDialog({
                   placeholder="My dev instance"
                   value={formLabel}
                   onChange={(e) => setFormLabel(e.target.value)}
-                  className="w-full h-9 px-3 text-sm rounded-lg bg-muted/30 border border-border/60 outline-none placeholder:text-muted-foreground/30 focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all"
+                  className="w-full h-9 px-3 text-sm rounded-lg bg-muted/30 border border-border/60 outline-none placeholder:text-muted-foreground/30 focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-colors"
                 />
               </div>
             </div>
@@ -1314,15 +1321,15 @@ export function InstanceManagerDialog({
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="rounded-lg border border-border/40 bg-muted/20 px-2.5 py-2">
-                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground/40 mb-0.5">Host</p>
+                    <p className="text-[0.5625rem] uppercase tracking-wider text-muted-foreground/40 mb-0.5">Host</p>
                     <p className="text-xs font-mono text-foreground/80">{sshMeta.host}</p>
                   </div>
                   <div className="rounded-lg border border-border/40 bg-muted/20 px-2.5 py-2">
-                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground/40 mb-0.5">Port</p>
+                    <p className="text-[0.5625rem] uppercase tracking-wider text-muted-foreground/40 mb-0.5">Port</p>
                     <p className="text-xs font-mono text-foreground/80">{sshMeta.port}</p>
                   </div>
                   <div className="rounded-lg border border-border/40 bg-muted/20 px-2.5 py-2">
-                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground/40 mb-0.5">User</p>
+                    <p className="text-[0.5625rem] uppercase tracking-wider text-muted-foreground/40 mb-0.5">User</p>
                     <p className="text-xs font-mono text-foreground/80">{sshMeta.username}</p>
                   </div>
                 </div>
@@ -1341,7 +1348,7 @@ export function InstanceManagerDialog({
               </button>
               <button
                 type="button"
-                className="h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted/40 hover:bg-muted/60 border border-border/40 rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                className="h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted/40 hover:bg-muted/60 border border-border/40 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                 onClick={handleGenerateSSH}
                 disabled={isGeneratingSSH}
               >

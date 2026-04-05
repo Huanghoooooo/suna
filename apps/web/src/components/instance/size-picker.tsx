@@ -60,7 +60,7 @@ export function SizePicker({
             onClick={() => !isDisabled && onSelect(t.name)}
             disabled={isDisabled}
             className={cn(
-              'flex items-center gap-3.5 w-full px-3 py-2.5 rounded-xl border text-left transition-all',
+              'flex items-center gap-3.5 w-full px-3 py-2.5 rounded-xl border text-left transition-colors',
               isDisabled
                 ? 'opacity-40 cursor-not-allowed'
                 : 'cursor-pointer',
@@ -74,7 +74,7 @@ export function SizePicker({
               'shrink-0 w-11 h-11 rounded-lg border flex flex-col items-center justify-center',
               isSelected && !isDisabled ? 'bg-foreground text-background' : 'bg-muted/60 text-foreground/70',
             )}>
-              <span className="text-[15px] font-bold tabular-nums leading-none">{t.cores}</span>
+              <span className="text-[15px] font-semibold tabular-nums leading-none">{t.cores}</span>
               <span className="text-[8px] font-medium opacity-60 mt-0.5">vCPU</span>
             </div>
 
@@ -82,10 +82,10 @@ export function SizePicker({
               <div className="flex items-center gap-2">
                 <span className="text-[13px] font-semibold text-foreground">{label}</span>
                 {isDefault && defaultOnly && (
-                  <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">Included</span>
+                  <span className="text-[0.5625rem] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">Included</span>
                 )}
                 {isDisabled && (
-                  <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground/50">Coming soon</span>
+                  <span className="text-[0.5625rem] font-medium px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground/50">Coming soon</span>
                 )}
               </div>
               <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-muted-foreground/60">
@@ -96,7 +96,7 @@ export function SizePicker({
             </div>
 
             <div className="shrink-0 text-right">
-              <span className="text-[14px] font-semibold text-foreground tabular-nums tracking-tight">
+              <span className="text-sm font-semibold text-foreground tabular-nums tracking-tight">
                 {isDefault && defaultOnly ? 'Included' : formatPrice(t.priceMonthlyMarkup)}
               </span>
               {!(isDefault && defaultOnly) && (

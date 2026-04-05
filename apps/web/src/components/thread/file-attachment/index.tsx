@@ -257,20 +257,13 @@ export function FileAttachment({
                         standalone ? "min-h-[300px] h-auto" : "h-[300px]",
                 className
             )}
-            style={{
-                gridColumn: "1 / -1",
-                width: "100%",
-                minWidth: 0,
-                ...customStyle
-            }}
+            style={customStyle}
             onClick={hasError && !isSandboxDeleted ? handleClick : undefined}
         >
             {/* Content area */}
             <div
-                className="h-full w-full relative"
+                className="h-full w-full relative min-w-0"
                 style={{
-                    minWidth: 0,
-                    width: '100%',
                     containIntrinsicSize: (isPdf || isPreviewable) ? '100% 500px' : undefined,
                     contain: (isPdf || isPreviewable) ? 'layout size' : undefined
                 }}
@@ -493,22 +486,15 @@ export function FileAttachmentGrid({
                             <div
                                 key={`url-${index}`}
                                 className={cn(
-                                    "group relative w-full",
+                                    "group relative w-full col-span-full min-w-0",
                                     "rounded-xl border bg-card overflow-hidden pt-10",
                                     standalone ? "min-h-[300px] h-[400px]" : "!min-h-[200px] sm:min-h-0 sm:h-[400px] max-h-[600px] sm:!min-w-[300px]"
                                 )}
-                                style={{
-                                    gridColumn: "1 / -1",
-                                    width: "100%",
-                                    minWidth: 0
-                                }}
                             >
                                 {/* URL preview */}
                                 <div
-                                    className="h-full w-full relative"
+                                    className="h-full w-full relative min-w-0"
                                     style={{
-                                        minWidth: 0,
-                                        width: '100%',
                                         containIntrinsicSize: '100% 500px',
                                         contain: 'layout size'
                                     }}

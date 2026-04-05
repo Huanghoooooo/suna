@@ -66,7 +66,7 @@ export default function CreditTransactions({ accountId }: Props) {
 
   const getTransactionIcon = (type: string, amount: number) => {
     if (amount > 0) {
-      return <Plus className="h-4 w-4 text-green-500" />;
+      return <Plus className="h-4 w-4 text-emerald-500" />;
     }
     if (type === 'usage') {
       return <Minus className="h-4 w-4 text-orange-500" />;
@@ -166,7 +166,7 @@ export default function CreditTransactions({ accountId }: Props) {
             <SelectItem value="promotional">Promotional</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => refetch()}>
+        <Button variant="ghost" size="icon" className="w-9" onClick={() => refetch()}>
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
@@ -227,7 +227,7 @@ export default function CreditTransactions({ accountId }: Props) {
                         </TableCell>
                         <TableCell className={cn(
                           "text-right font-mono font-semibold",
-                          tx.amount >= 0 ? "text-green-600" : "text-red-600"
+                          tx.amount >= 0 ? "text-emerald-600" : "text-red-600"
                         )}>
                           {formatCreditsWithSign(tx.amount, { showDecimals: true })}
                         </TableCell>

@@ -174,7 +174,7 @@ export const AppWindow = memo(function AppWindow({
               e.stopPropagation();
               onClose();
             }}
-            className="group w-3 h-3 rounded-full bg-[#ff5f57] hover:bg-[#ff5f57]/80 flex items-center justify-center transition-all"
+            className="group w-3 h-3 rounded-full bg-[#ff5f57] hover:bg-[#ff5f57]/80 flex items-center justify-center transition-colors"
           >
             <X className="w-2 h-2 text-[#ff5f57] group-hover:text-red-900 transition-colors opacity-0 group-hover:opacity-100" strokeWidth={2.5} />
           </button>
@@ -183,7 +183,7 @@ export const AppWindow = memo(function AppWindow({
               e.stopPropagation();
               onMinimize?.();
             }}
-            className="group w-3 h-3 rounded-full bg-[#febc2e] hover:bg-[#febc2e]/80 flex items-center justify-center transition-all"
+            className="group w-3 h-3 rounded-full bg-[#febc2e] hover:bg-[#febc2e]/80 flex items-center justify-center transition-colors"
           >
             <Minus className="w-2 h-2 text-[#febc2e] group-hover:text-yellow-900 transition-colors opacity-0 group-hover:opacity-100" strokeWidth={2.5} />
           </button>
@@ -192,7 +192,7 @@ export const AppWindow = memo(function AppWindow({
               e.stopPropagation();
               handleMaximize();
             }}
-            className="group w-3 h-3 rounded-full bg-[#28c840] hover:bg-[#28c840]/80 flex items-center justify-center transition-all"
+            className="group w-3 h-3 rounded-full bg-[#28c840] hover:bg-[#28c840]/80 flex items-center justify-center transition-colors"
           >
             <Square className="w-1.5 h-1.5 text-[#28c840] group-hover:text-green-900 transition-colors opacity-0 group-hover:opacity-100" strokeWidth={2.5} />
           </button>

@@ -155,7 +155,7 @@ export function OcSessionGetToolView({
                     {showTodos ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
                     <ListTodo className="size-3.5" />
                     <span className="text-xs font-medium">Todos</span>
-                    <Badge variant="outline" className="h-4 py-0 text-[9px] ml-auto">{data.todos.length}</Badge>
+                    <Badge variant="outline" className="h-4 py-0 text-[0.5625rem] ml-auto">{data.todos.length}</Badge>
                   </button>
                   {showTodos && (
                     <div className="border-t border-border/30 px-3 py-2 space-y-1">

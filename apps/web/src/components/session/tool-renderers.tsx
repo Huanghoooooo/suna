@@ -92,6 +92,7 @@ import {
 	renderHighlightedLine,
 	useDiffHighlight,
 } from "@/hooks/use-diff-highlight";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
 	hasStructuredContent,
@@ -147,7 +148,7 @@ import {
 // the BasicTool body wrapper to avoid the double-border look.
 // ============================================================================
 const MD_FLUSH_CLASSES =
-	"[&_.relative.group]:my-0 [&_pre]:my-0 [&_pre]:border-0 [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:rounded-none [&_pre]:text-[12px] [&_code]:text-[12px]";
+	"[&_.relative.group]:my-0 [&_pre]:my-0 [&_pre]:border-0 [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:rounded-none [&_pre]:text-xs [&_code]:text-xs";
 
 // ============================================================================
 // InlineServicePreview — reusable embedded iframe preview for localhost URLs
@@ -291,14 +292,15 @@ function InlineServicePreview({
 				{proxy && (
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<button
+							<Button
 								type="button"
 								onClick={navigateToPreviewTab}
-							 className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-medium hover:bg-primary/20 transition-colors"
+								variant="subtle"
+								size="xs"
 							>
 								<MonitorPlay className="h-3 w-3" />
 								Preview
-							</button>
+							</Button>
 						</TooltipTrigger>
 						<TooltipContent side="top">Open as tab</TooltipContent>
 					</Tooltip>
@@ -792,7 +794,7 @@ function ToolOutputFallback({
 	return (
 		<div
 			data-scrollable
-			className={`p-2 max-h-72 overflow-auto ${MD_FLUSH_CLASSES}`}
+			className={cn('p-2 max-h-72 overflow-auto', MD_FLUSH_CLASSES)}
 		>
 			<UnifiedMarkdown content={output} isStreaming={isStreaming} />
 		</div>
@@ -1395,7 +1397,7 @@ function GetMemTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 											<FileText className="size-3" />
 											Narrative
 										</div>
-										<p className="text-[12px] leading-relaxed text-foreground/85">{report.narrative}</p>
+										<p className="text-xs leading-relaxed text-foreground/85">{report.narrative}</p>
 									</div>
 								)}
 								{report.facts.length > 0 && (
@@ -1411,7 +1413,7 @@ function GetMemTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 										</div>
 										<ul className="space-y-1">
 											{report.facts.map((fact, index) => (
-												<li key={`${report.id}-${index}`} className="flex items-start gap-1.5 text-[12px] leading-relaxed text-foreground/90">
+												<li key={`${report.id}-${index}`} className="flex items-start gap-1.5 text-xs leading-relaxed text-foreground/90">
 													<span className="mt-[6px] size-1.5 rounded-full bg-emerald-500/90 flex-shrink-0" />
 													<span>{fact}</span>
 												</li>
@@ -1481,7 +1483,7 @@ function GetMemTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 											<FileText className="size-3" />
 											Caption
 										</div>
-										<p className="text-[12px] leading-relaxed text-foreground/85">{report.caption}</p>
+										<p className="text-xs leading-relaxed text-foreground/85">{report.caption}</p>
 									</div>
 								)}
 								{report.content && (
@@ -1490,7 +1492,7 @@ function GetMemTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 											<ListTree className="size-3" />
 											Content
 										</div>
-										<p className="text-[12px] leading-relaxed text-foreground/90">{report.content}</p>
+										<p className="text-xs leading-relaxed text-foreground/90">{report.content}</p>
 									</div>
 								)}
 								{report.tags.length > 0 && (
@@ -1608,7 +1610,7 @@ function MemorySearchTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 											</span>
 										)}
 									</div>
-									<p className="text-[12px] leading-relaxed text-foreground/90">
+									<p className="text-xs leading-relaxed text-foreground/90">
 										{hit.content}
 									</p>
 									{hit.files.length > 0 && (
@@ -1942,7 +1944,7 @@ function InlineSessionMessagesList({
 										<span
 											key={i}
 											className={cn(
-												"text-[9px] px-1 py-0.5 rounded border",
+												"text-[0.5625rem] px-1 py-0.5 rounded border",
 												toolStatus === "completed"
 													? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
 													: "bg-muted/50 border-border/50 text-muted-foreground",
@@ -2024,7 +2026,7 @@ function BashTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 		>
 			<div data-scrollable className="max-h-96 overflow-auto">
 				{/* Command */}
-				<div className="px-3 py-2.5 [&_code]:text-[12px] [&_code]:leading-relaxed [&_code]:whitespace-pre-wrap [&_code]:break-words [&_pre]:contents">
+				<div className="px-3 py-2.5 [&_code]:text-xs [&_code]:leading-relaxed [&_code]:whitespace-pre-wrap [&_code]:break-words [&_pre]:contents">
 					{isWaiting ? (
 						<div className="rounded-md border border-border/40 bg-background/50 px-2.5 py-2">
 							<div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
@@ -2048,7 +2050,7 @@ function BashTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 						{/* Output label */}
 						<div className="flex items-center gap-1.5 px-2.5 py-1 border-b border-border/30">
 							<div className="size-1.5 rounded-full bg-muted-foreground/25" />
-							<span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/40">
+							<span className="text-[0.5625rem] font-medium uppercase tracking-wider text-muted-foreground/40">
 								Output
 							</span>
 						</div>
@@ -2065,7 +2067,7 @@ function BashTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 								<StructuredOutput sections={structuredSections} />
 							</div>
 						) : outputBlock ? (
-							<div className={`p-2 ${MD_FLUSH_CLASSES}`}>
+							<div className={cn('p-2', MD_FLUSH_CLASSES)}>
 								<UnifiedMarkdown
 									content={outputBlock}
 									isStreaming={status === "running"}
@@ -2118,7 +2120,7 @@ function PtySpawnTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 		>
 			<div className="space-y-0">
 				{command && (
-					<div className="px-3 py-2.5 [&_code]:text-[12px] [&_code]:leading-relaxed [&_code]:whitespace-pre-wrap [&_code]:break-words [&_pre]:contents">
+					<div className="px-3 py-2.5 [&_code]:text-xs [&_code]:leading-relaxed [&_code]:whitespace-pre-wrap [&_code]:break-words [&_pre]:contents">
 						<HighlightedCode code={`$ ${command}`} language="bash">
 							{`$ ${command}`}
 						</HighlightedCode>
@@ -2281,7 +2283,7 @@ function PtyWriteTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 		>
 			{ptyInput && (
 				<div className="px-3 py-2.5">
-					<pre className="font-mono text-[12px] leading-relaxed text-foreground/90 whitespace-pre-wrap break-all">
+					<pre className="font-mono text-xs leading-relaxed text-foreground/90 whitespace-pre-wrap break-all">
 						<span className="text-muted-foreground/60 select-none">&gt; </span>
 						{ptyInput}
 					</pre>
@@ -2388,7 +2390,7 @@ function EditTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 					/>
 				</div>
 			) : codeEdit ? (
-				<div data-scrollable className={`max-h-96 overflow-auto ${MD_FLUSH_CLASSES}`}>
+				<div data-scrollable className={cn('max-h-96 overflow-auto', MD_FLUSH_CLASSES)}>
 					<div className="p-2">
 						{morphInstructions && (
 							<div className="mb-2 text-[11px] text-muted-foreground italic">
@@ -2462,7 +2464,7 @@ function WriteTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 			{content ? (
 				<div
 					data-scrollable
-					className={`max-h-96 overflow-auto ${MD_FLUSH_CLASSES}`}
+					className={cn('max-h-96 overflow-auto', MD_FLUSH_CLASSES)}
 				>
 					<div className="p-2">
 						<UnifiedMarkdown
@@ -3168,7 +3170,7 @@ function WebSearchTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 											{qr.query}
 										</span>
 										{qr.sources.length > 0 && (
-											<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground flex-shrink-0">
+											<span className="text-[0.5625rem] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground flex-shrink-0">
 												{qr.sources.length}
 											</span>
 										)}
@@ -3197,7 +3199,7 @@ function WebSearchTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 										{qr.sources.length > 0 && (
 											<div className="space-y-1">
 												{qr.answer && (
-													<div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1.5">
+													<div className="text-[0.5625rem] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1.5">
 														Sources
 													</div>
 												)}
@@ -3594,7 +3596,7 @@ function ImageSearchTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 										}}
 									/>
 									<div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/50 to-transparent flex items-end p-1">
-										<span className="text-[9px] text-white truncate">
+										<span className="text-[0.5625rem] text-white truncate">
 											{title}
 										</span>
 									</div>
@@ -4441,7 +4443,7 @@ function IntegrationListTool({ part, defaultOpen, forceOpen, locked }: ToolProps
 							</div>
 							{intg.status && (
 								<span className={cn(
-									"text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0",
+									"text-[0.5625rem] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0",
 									intg.status === "connected"
 										? "bg-emerald-500/10 text-emerald-600"
 										: "bg-muted/60 text-muted-foreground",
@@ -4615,7 +4617,7 @@ function IntegrationSearchTool({ part, defaultOpen, forceOpen, locked }: ToolPro
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center gap-1.5">
 									<span className="text-[11px] font-medium text-foreground">{app.name}</span>
-									<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/70 font-mono">{app.slug}</span>
+									<span className="text-[0.5625rem] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/70 font-mono">{app.slug}</span>
 								</div>
 								{app.description && (
 									<p className="text-[10px] text-muted-foreground/60 leading-relaxed line-clamp-2 mt-0.5">{app.description}</p>
@@ -4699,10 +4701,10 @@ function IntegrationActionsTool({ part, defaultOpen, forceOpen, locked }: ToolPr
 								>
 									<div className="min-w-0 flex-1">
 										<div className="text-[11px] font-medium text-foreground">{action.name}</div>
-										<div className="text-[9px] font-mono text-muted-foreground/50 mt-0.5">{action.key}</div>
+										<div className="text-[0.5625rem] font-mono text-muted-foreground/50 mt-0.5">{action.key}</div>
 									</div>
 									{action.required_params && action.required_params.length > 0 && (
-										<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/60 flex-shrink-0">
+										<span className="text-[0.5625rem] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/60 flex-shrink-0">
 											{action.required_params.length} req
 										</span>
 									)}
@@ -4720,20 +4722,20 @@ function IntegrationActionsTool({ part, defaultOpen, forceOpen, locked }: ToolPr
 										)}
 										{action.required_params && action.required_params.length > 0 && (
 											<div>
-												<div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Required</div>
+												<div className="text-[0.5625rem] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Required</div>
 												<div className="flex flex-wrap gap-1">
 													{action.required_params.map((p, pi) => (
-														<span key={pi} className="text-[9px] px-1.5 py-0.5 rounded bg-muted/60 font-mono text-foreground/70">{p}</span>
+														<span key={pi} className="text-[0.5625rem] px-1.5 py-0.5 rounded bg-muted/60 font-mono text-foreground/70">{p}</span>
 													))}
 												</div>
 											</div>
 										)}
 										{action.optional_params && action.optional_params.length > 0 && (
 											<div>
-												<div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Optional</div>
+												<div className="text-[0.5625rem] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Optional</div>
 												<div className="flex flex-wrap gap-1">
 													{action.optional_params.map((p, pi) => (
-														<span key={pi} className="text-[9px] px-1.5 py-0.5 rounded bg-muted/40 font-mono text-muted-foreground/60">{p}</span>
+														<span key={pi} className="text-[0.5625rem] px-1.5 py-0.5 rounded bg-muted/40 font-mono text-muted-foreground/60">{p}</span>
 													))}
 												</div>
 											</div>
@@ -4905,7 +4907,7 @@ function IntegrationRequestTool({ part, defaultOpen, forceOpen, locked }: ToolPr
 							)}
 						</>
 					) : body !== undefined ? (
-						<div className={`max-h-[300px] overflow-auto rounded-lg bg-muted/40 border border-border/40 p-2 ${MD_FLUSH_CLASSES}`}>
+						<div className={cn('max-h-[300px] overflow-auto rounded-lg bg-muted/40 border border-border/40 p-2', MD_FLUSH_CLASSES)}>
 							<pre className="text-[10px] font-mono text-foreground/80 whitespace-pre-wrap break-all">
 								{typeof body === "string" ? body : JSON.stringify(body, null, 2)}
 							</pre>
@@ -4980,8 +4982,8 @@ function IntegrationExecTool({ part, defaultOpen, forceOpen, locked }: ToolProps
 				{/* Code input */}
 				{!!input.code && (
 					<div className="px-3 pt-2.5 pb-1">
-						<div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Code</div>
-						<div className={`rounded-lg bg-muted/40 border border-border/40 p-2 max-h-[200px] overflow-auto ${MD_FLUSH_CLASSES}`}>
+						<div className="text-[0.5625rem] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Code</div>
+						<div className={cn('rounded-lg bg-muted/40 border border-border/40 p-2 max-h-[200px] overflow-auto', MD_FLUSH_CLASSES)}>
 							<pre className="text-[10px] font-mono text-foreground/80 whitespace-pre-wrap">{String(input.code)}</pre>
 						</div>
 					</div>
@@ -4989,7 +4991,7 @@ function IntegrationExecTool({ part, defaultOpen, forceOpen, locked }: ToolProps
 					{/* stdout */}
 					{stdout && (
 						<div className="px-3 pt-1.5 pb-1">
-							<div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Output</div>
+							<div className="text-[0.5625rem] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Output</div>
 							<div className="rounded-lg bg-muted/40 border border-border/40 p-2 max-h-[200px] overflow-auto">
 								<pre className="text-[10px] font-mono text-foreground/80 whitespace-pre-wrap">{stdout}</pre>
 							</div>
@@ -4998,7 +5000,7 @@ function IntegrationExecTool({ part, defaultOpen, forceOpen, locked }: ToolProps
 					{/* stderr */}
 					{stderr && (
 						<div className="px-3 pt-1.5 pb-2.5">
-							<div className="text-[9px] font-semibold uppercase tracking-wider text-destructive/50 mb-1">Stderr</div>
+							<div className="text-[0.5625rem] font-semibold uppercase tracking-wider text-destructive/50 mb-1">Stderr</div>
 							<div className="rounded-lg bg-destructive/5 border border-destructive/20 p-2 max-h-[150px] overflow-auto">
 								<pre className="text-[10px] font-mono text-destructive/80 whitespace-pre-wrap">{stderr}</pre>
 							</div>
@@ -5391,10 +5393,10 @@ function SessionSearchTool({ part, defaultOpen, forceOpen, locked }: ToolProps) 
 						<div key={h.id} className="px-3 py-2 hover:bg-muted/20 transition-colors">
 							<div className="flex items-center gap-2 mb-0.5">
 								<span className="text-[11px] font-medium text-foreground truncate flex-1">{h.title || "(untitled)"}</span>
-								<span className="text-[9px] font-mono text-muted-foreground/40 bg-muted/40 px-1 rounded flex-shrink-0">{h.score}</span>
+								<span className="text-[0.5625rem] font-mono text-muted-foreground/40 bg-muted/40 px-1 rounded flex-shrink-0">{h.score}</span>
 							</div>
 							{h.snippet && <p className="text-[10px] text-muted-foreground/60 line-clamp-1">{h.snippet}</p>}
-							<div className="flex items-center gap-2 text-[9px] text-muted-foreground/40 mt-0.5">
+							<div className="flex items-center gap-2 text-[0.5625rem] text-muted-foreground/40 mt-0.5">
 								<span className="font-mono">{h.id.slice(-12)}</span>
 								<span>{h.updated}</span>
 							</div>
@@ -5547,7 +5549,7 @@ function SessionListBackgroundTool({ part, defaultOpen, forceOpen, locked }: Too
 							)} />
 							<span className="text-[10px] font-mono text-foreground/70 truncate">{w.id.slice(-12)}</span>
 							<span className="text-[10px] text-muted-foreground/50 truncate flex-1">{w.project}</span>
-							<span className="text-[9px] text-muted-foreground/40">{w.status}</span>
+							<span className="text-[0.5625rem] text-muted-foreground/40">{w.status}</span>
 						</div>
 					))}
 				</div>
@@ -5737,7 +5739,7 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 						</button>
 						{outputExpanded && (
 							<div data-scrollable className="px-3 pb-3 max-h-80 overflow-y-auto">
-								<div className="text-[12px] text-foreground/80 leading-relaxed prose-sm [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-foreground [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_table]:text-[11px] [&_code]:text-[11px] [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:rounded [&_hr]:border-border/30 [&_hr]:my-3">
+								<div className="text-xs text-foreground/80 leading-relaxed prose-sm [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-foreground [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_table]:text-[11px] [&_code]:text-[11px] [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:rounded [&_hr]:border-border/30 [&_hr]:my-3">
 									<UnifiedMarkdown content={cleanedOutput} isStreaming={false} />
 								</div>
 							</div>
@@ -5819,7 +5821,7 @@ function TaskCreateTool({ part }: ToolProps) {
 		<div className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg bg-muted/20 border border-border/40">
 			<Circle className="size-3 text-muted-foreground/40 flex-shrink-0" />
 			<span className="text-foreground/80 truncate flex-1">{title}</span>
-			{priority === "high" && <span className="text-[9px] font-medium text-foreground/50 bg-muted/60 px-1.5 py-px rounded">high</span>}
+			{priority === "high" && <span className="text-[0.5625rem] font-medium text-foreground/50 bg-muted/60 px-1.5 py-px rounded">high</span>}
 		</div>
 	);
 }
@@ -6768,27 +6770,31 @@ function PermissionPromptInline({
 				Permission: <span className="font-medium">{label}</span>
 			</span>
 			<div className="flex items-center gap-1.5">
-				<button
+				<Button
 					disabled={replying}
 					onClick={() => handleReply("reject")}
-				 className="px-2 py-1 text-[11px] rounded-md text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+					variant="muted"
+					size="xs"
+					className="hover:text-destructive hover:bg-destructive/10"
 				>
 					Deny
-				</button>
-				<button
+				</Button>
+				<Button
 					disabled={replying}
 					onClick={() => handleReply("always")}
-				 className="px-2 py-1 text-[11px] rounded-md text-foreground hover:bg-muted transition-colors border border-border disabled:opacity-50"
+					variant="outline"
+					size="xs"
 				>
 					Allow always
-				</button>
-				<button
+				</Button>
+				<Button
 					disabled={replying}
 					onClick={() => handleReply("once")}
-				 className="px-2 py-1 text-[11px] rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+					variant="default"
+					size="xs"
 				>
 					Allow once
-				</button>
+				</Button>
 			</div>
 		</div>
 	);

@@ -41,7 +41,7 @@ export function FileCard({
         return (
             <div
                 className={cn(
-                    "group flex items-center rounded-xl transition-all duration-200 overflow-hidden cursor-not-allowed",
+                    "group flex items-center rounded-xl transition-colors duration-200 overflow-hidden cursor-not-allowed",
                     "border border-border/50",
                     "bg-muted/30 opacity-50",
                     "text-left",
@@ -72,7 +72,7 @@ export function FileCard({
         <button
             onClick={uploadStatus === 'uploading' ? undefined : onClick}
             className={cn(
-                "group flex items-center rounded-xl transition-all duration-200 overflow-hidden",
+                "group flex items-center rounded-xl transition-colors duration-200 overflow-hidden",
                 uploadStatus === 'uploading' ? "cursor-default" : "cursor-pointer",
                 "border border-black/10 dark:border-white/10",
                 uploadStatus === 'error' || hasError

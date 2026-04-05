@@ -233,7 +233,7 @@ function DiffFile({ header, content }: { header: string; content: string }) {
       >
         {open ? <ChevronDown className="size-3 shrink-0" /> : <ChevronRight className="size-3 shrink-0" />}
         <span className="text-xs font-mono truncate flex-1">{path}</span>
-        <Badge variant="outline" className="h-4 py-0 text-[9px] shrink-0">
+        <Badge variant="outline" className="h-4 py-0 text-[0.5625rem] shrink-0">
           {status}
         </Badge>
         <span className="text-[10px] text-emerald-500">+{additions}</span>

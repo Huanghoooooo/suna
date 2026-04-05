@@ -18,10 +18,9 @@ import { SlackIcon } from '@/components/ui/icons/slack';
 import { TelegramIcon } from '@/components/ui/icons/telegram';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { useCreateOpenCodeSession } from '@/hooks/opencode/use-opencode-sessions';
-import { openTabAndNavigate } from '@/stores/tab-store';
 import { useServerStore, getActiveOpenCodeUrl } from '@/stores/server-store';
 import { authenticatedFetch } from '@/lib/auth-token';
+import { ChannelConfigDialog } from './channel-config-dialog';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -96,10 +95,10 @@ function ChannelCard({
             {channel.default_agent}{channel.created_by ? ` · by ${channel.created_by}` : ''}
           </p>
           <div className="mt-auto flex items-center gap-1.5 justify-end">
-            <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => onToggle(channel.id, !channel.enabled)}>
+            <Button variant="ghost" size="sm" className="px-2" onClick={() => onToggle(channel.id, !channel.enabled)}>
               {channel.enabled ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 px-2 text-destructive hover:text-destructive" onClick={() => onRemove(channel.id)}>
+            <Button variant="ghost" size="sm" className="px-2 text-destructive hover:text-destructive" onClick={() => onRemove(channel.id)}>
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -115,7 +114,8 @@ export function ChannelsPage() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
-  const createSession = useCreateOpenCodeSession();
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [configDialogPlatform, setConfigDialogPlatform] = useState<'telegram' | 'slack' | undefined>(undefined);
 
   // Subscribe to server URL changes so we re-fetch when it becomes available
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
@@ -172,24 +172,13 @@ export function ChannelsPage() {
     }
   };
 
-  const handleSetup = async (platform: 'telegram' | 'slack') => {
-    try {
-      const session = await createSession.mutateAsync();
-      const prompt = platform === 'telegram'
-        ? 'I want to set up a new Telegram bot. Walk me through the setup using the ktelegram CLI. Start by asking me for my bot token from @BotFather.'
-        : 'I want to set up a new Slack bot. Walk me through the setup using the kslack CLI. Start by generating a manifest with kslack manifest, then guide me through the Slack app creation.';
+  const openSetupDialog = (platform?: 'telegram' | 'slack') => {
+    setConfigDialogPlatform(platform);
+    setConfigDialogOpen(true);
+  };
 
-      sessionStorage.setItem(`opencode_pending_prompt:${session.id}`, prompt);
-      openTabAndNavigate({
-        id: session.id,
-        title: `Setup ${platform === 'telegram' ? 'Telegram' : 'Slack'}`,
-        type: 'session',
-        href: `/sessions/${session.id}`,
-        serverId: useServerStore.getState().activeServerId,
-      });
-    } catch {
-      toast.error('Failed to create session');
-    }
+  const handleChannelCreated = () => {
+    load();
   };
 
   return (
@@ -228,13 +217,13 @@ export function ChannelsPage() {
                 Connect Telegram or Slack so people can interact with your agent via chat.
               </p>
               <div className="flex gap-4">
-                <button onClick={() => handleSetup('telegram')} className="flex flex-col items-center gap-3 p-6 rounded-2xl border border-border/50 bg-card hover:bg-muted/50 transition-colors cursor-pointer group">
+                <button onClick={() => openSetupDialog('telegram')} className="flex flex-col items-center gap-3 p-6 rounded-2xl border border-border/50 bg-card hover:bg-muted/50 transition-colors cursor-pointer group">
                   <div className="w-12 h-12 rounded-xl bg-muted border border-border/50 flex items-center justify-center group-hover:border-primary/30 transition-colors">
                     <TelegramIcon className="h-6 w-6 text-foreground" />
                   </div>
                   <p className="text-sm font-medium">Telegram</p>
                 </button>
-                <button onClick={() => handleSetup('slack')} className="flex flex-col items-center gap-3 p-6 rounded-2xl border border-border/50 bg-card hover:bg-muted/50 transition-colors cursor-pointer group">
+                <button onClick={() => openSetupDialog('slack')} className="flex flex-col items-center gap-3 p-6 rounded-2xl border border-border/50 bg-card hover:bg-muted/50 transition-colors cursor-pointer group">
                   <div className="w-12 h-12 rounded-xl bg-muted border border-border/50 flex items-center justify-center group-hover:border-primary/30 transition-colors">
                     <SlackIcon className="h-6 w-6 text-foreground" />
                   </div>
@@ -251,11 +240,11 @@ export function ChannelsPage() {
                 <Badge variant="secondary" className="text-xs tabular-nums">{channels.length}</Badge>
               </div>
               <div className="flex gap-2">
-                <Button variant="ghost" size="sm" className="h-8 px-2" onClick={load}><RefreshCw className="h-3.5 w-3.5" /></Button>
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleSetup('telegram')}>
+                <Button variant="ghost" size="sm" className="px-2" onClick={load}><RefreshCw className="h-3.5 w-3.5" /></Button>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openSetupDialog('telegram')}>
                   <TelegramIcon className="h-3.5 w-3.5" /><span className="hidden sm:inline">Telegram</span>
                 </Button>
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleSetup('slack')}>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openSetupDialog('slack')}>
                   <SlackIcon className="h-3.5 w-3.5" /><span className="hidden sm:inline">Slack</span>
                 </Button>
               </div>
@@ -270,6 +259,13 @@ export function ChannelsPage() {
           </>
         )}
       </div>
+
+      <ChannelConfigDialog
+        open={configDialogOpen}
+        onOpenChange={setConfigDialogOpen}
+        onCreated={handleChannelCreated}
+        initialPlatform={configDialogPlatform}
+      />
     </div>
   );
 }

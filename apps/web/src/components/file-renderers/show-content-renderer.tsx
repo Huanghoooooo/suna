@@ -670,7 +670,7 @@ export function ShowCarousel({ items, LocalhostPreview, onIndexChange }: ShowCar
                   type="button"
                   onClick={() => goTo(i)}
                   className={cn(
-                    'rounded-full transition-all',
+                    'rounded-full transition-colors',
                     i === currentIndex
                       ? 'w-5 h-1.5 bg-foreground/60'
                       : 'w-1.5 h-1.5 bg-foreground/15 hover:bg-foreground/30',

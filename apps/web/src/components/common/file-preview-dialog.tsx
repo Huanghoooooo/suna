@@ -79,7 +79,7 @@ export function FilePreviewDialog() {
       <DialogContent
         hideCloseButton
         className={cn(
-          'flex flex-col p-0 gap-0 overflow-hidden transition-all duration-200',
+          'flex flex-col p-0 gap-0 overflow-hidden transition-colors duration-200',
           isFullscreen
             ? 'sm:max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] h-[calc(100vh-2rem)]'
             : 'sm:max-w-4xl max-h-[80vh] h-[80vh]',

@@ -325,14 +325,14 @@ export default function TemplateSharePage() {
       {/* Top Navigation Bar */}
       <header
         className={cn(
-          'sticky z-50 flex justify-center transition-all duration-300',
+          'sticky z-50 flex justify-center transition-colors duration-300',
           hasScrolled ? 'top-6 mx-4 md:mx-0' : 'top-4 mx-2 md:mx-0',
         )}
       >
         <div className="w-full max-w-7xl">
           <div
             className={cn(
-              'mx-auto rounded-2xl transition-all duration-300',
+              'mx-auto rounded-2xl transition-colors duration-300',
               hasScrolled
                 ? 'px-2 md:px-4 border border-border backdrop-blur-lg bg-background/75'
                 : 'shadow-none px-3 md:px-6',
@@ -351,8 +351,8 @@ export default function TemplateSharePage() {
                   onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
                   className="h-8 w-8 rounded-md"
                 >
-                  <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                  <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                  <Sun className="h-4 w-4 rotate-0 scale-100 transition-colors dark:-rotate-90 dark:scale-0" />
+                  <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-colors dark:rotate-0 dark:scale-100" />
                   <span className="sr-only">Toggle theme</span>
                 </Button>
                 <Button
@@ -392,7 +392,7 @@ export default function TemplateSharePage() {
               <div className="relative">
                 {colorPalette.length > 0 && (
                   <div
-                    className="absolute -inset-10 rounded-2xl opacity-0 dark:opacity-100 transition-all duration-1000 pointer-events-none"
+                    className="absolute -inset-10 rounded-2xl opacity-0 dark:opacity-100 transition-colors duration-1000 pointer-events-none"
                     style={gradientStyle}
                   />
                 )}
@@ -497,7 +497,7 @@ export default function TemplateSharePage() {
                 <div className="rounded-lg border bg-muted/10 p-6">
                   <div className="relative">
                     <div className={cn(
-                      "transition-all duration-300 overflow-hidden",
+                      "transition-colors duration-300 overflow-hidden",
                       !isPromptExpanded && "max-h-[600px]"
                     )}>
                       <UnifiedMarkdown 

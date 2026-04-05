@@ -90,13 +90,13 @@ interface TreeNodeProps {
 }
 
 const gitStatusTextColor: Record<GitStatusType, string> = {
-  added: 'text-green-500 dark:text-green-400',
+  added: 'text-emerald-500 dark:text-green-400',
   modified: 'text-yellow-500 dark:text-yellow-400',
   deleted: 'text-red-500 dark:text-red-400',
 };
 
 const gitStatusBadgeColor: Record<GitStatusType, string> = {
-  added: 'text-green-500 dark:text-green-400',
+  added: 'text-emerald-500 dark:text-green-400',
   modified: 'text-yellow-500 dark:text-yellow-400',
   deleted: 'text-red-500 dark:text-red-400',
 };
@@ -1034,9 +1034,9 @@ export function FileTree() {
           <span className="truncate">
             {clipboard.operation === 'cut' ? 'Move' : 'Copy'}: <span className="font-medium text-foreground/80">{clipboard.name}</span>
           </span>
-          <button onClick={clearClipboard} className="text-muted-foreground/60 hover:text-foreground transition-colors shrink-0 cursor-pointer">
+          <Button onClick={clearClipboard} variant="muted" size="xs">
             Cancel
-          </button>
+          </Button>
         </div>
       )}
 

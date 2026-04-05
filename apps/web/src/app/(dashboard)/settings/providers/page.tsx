@@ -32,7 +32,6 @@ export default function ProvidersPage() {
           <Button
             variant="outline"
             size="sm"
-            className="h-9 px-3 text-sm gap-1.5 rounded-lg"
             onClick={() => openProviderModal('providers')}
           >
             <Plus className="h-4 w-4" />
@@ -56,7 +55,6 @@ export default function ProvidersPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-9 px-4 text-sm gap-1.5 rounded-lg"
               onClick={() => openProviderModal('providers')}
             >
               <Plus className="h-4 w-4" />

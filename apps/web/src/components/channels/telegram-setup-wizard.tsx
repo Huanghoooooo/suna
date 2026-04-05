@@ -1,0 +1,167 @@
+"use client";
+
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Loader2,
+  ExternalLink,
+} from 'lucide-react';
+import { TelegramIcon } from '@/components/ui/icons/telegram';
+import { toast } from 'sonner';
+import { useTelegramVerifyToken, useTelegramConnect } from '@/hooks/channels/use-telegram-wizard';
+
+interface TelegramSetupWizardProps {
+  onCreated: () => void;
+  onBack: () => void;
+}
+
+export function TelegramSetupWizard({ onCreated, onBack }: TelegramSetupWizardProps) {
+  const [botToken, setBotToken] = useState('');
+  const [botInfo, setBotInfo] = useState<{ id: number; username: string; firstName: string } | null>(null);
+
+  const verifyToken = useTelegramVerifyToken();
+  const connect = useTelegramConnect();
+
+  const handleVerify = async () => {
+    const trimmed = botToken.trim();
+    if (!trimmed) return;
+    const result = await verifyToken.mutateAsync({ botToken: trimmed });
+    if (result.ok && result.bot) {
+      setBotInfo(result.bot);
+      toast.success(`Verified: @${result.bot.username}`);
+    } else {
+      toast.error(result.error || 'Invalid token');
+    }
+  };
+
+  const handleConnect = async () => {
+    const trimmed = botToken.trim();
+    if (!trimmed) return;
+
+    // If not verified yet, verify first
+    if (!botInfo) {
+      const result = await verifyToken.mutateAsync({ botToken: trimmed });
+      if (!result.ok || !result.bot) {
+        toast.error(result.error || 'Invalid token');
+        return;
+      }
+      setBotInfo(result.bot);
+    }
+
+    try {
+      // publicUrl is empty — backend auto-resolves via getMasterPublicBaseUrl()
+      const result = await connect.mutateAsync({
+        botToken: trimmed,
+        publicUrl: '',
+      });
+      toast.success(result.message || 'Telegram bot connected!');
+      onCreated();
+    } catch (err: any) {
+      toast.error(err.message || 'Setup failed');
+    }
+  };
+
+  const isWorking = verifyToken.isPending || connect.isPending;
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button onClick={onBack} variant="ghost" size="icon">
+          <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+        </Button>
+        <div className="flex items-center justify-center w-9 h-9 rounded-[10px] bg-muted border border-border/50">
+          <TelegramIcon className="h-4.5 w-4.5 text-foreground" />
+        </div>
+        <div>
+          <h3 className="text-base font-semibold">Telegram Setup</h3>
+          <p className="text-xs text-muted-foreground">Connect a Telegram bot to your agent</p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {/* Instructions */}
+        <div className="rounded-xl border border-border/50 bg-muted/30 p-4 text-sm text-muted-foreground space-y-2">
+          <p>
+            <span className="font-medium text-foreground">1.</span>{' '}
+            Open{' '}
+            <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+              @BotFather <ExternalLink className="h-3 w-3" />
+            </a>{' '}
+            in Telegram
+          </p>
+          <p>
+            <span className="font-medium text-foreground">2.</span>{' '}
+            Send <code className="px-1.5 py-0.5 rounded bg-muted text-foreground text-xs">/newbot</code> and follow the prompts
+          </p>
+          <p>
+            <span className="font-medium text-foreground">3.</span>{' '}
+            Copy the bot token and paste it below
+          </p>
+        </div>
+
+        {/* Token input */}
+        <div className="space-y-2">
+          <Label htmlFor="bot-token">Bot Token</Label>
+          <Input
+            id="bot-token"
+            type="password"
+            placeholder="123456789:ABCdefGhIJKlmnOPQRstUVWxyz..."
+            value={botToken}
+            onChange={(e) => setBotToken(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (botInfo ? handleConnect() : handleVerify())}
+          />
+        </div>
+
+        {/* Verified badge */}
+        {botInfo && (
+          <div className="flex items-center gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+            <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground">@{botInfo.username}</p>
+              <p className="text-[11px] text-muted-foreground">{botInfo.firstName}</p>
+            </div>
+            <Badge variant="highlight" className="text-[11px]">Verified</Badge>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center justify-end gap-2">
+          {!botInfo ? (
+            <Button
+              onClick={handleVerify}
+              disabled={!botToken.trim() || isWorking}
+              className="gap-2"
+            >
+              {verifyToken.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4" />
+              )}
+              Verify Token
+            </Button>
+          ) : (
+            <Button
+              onClick={handleConnect}
+              disabled={isWorking}
+              className="gap-2"
+            >
+              {connect.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4" />
+              )}
+              Connect Bot
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

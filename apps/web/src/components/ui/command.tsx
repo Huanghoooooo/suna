@@ -71,8 +71,8 @@ function CommandDialog({
           'top-[22%] translate-y-0',
           // Border
           'border-border/30 rounded-xl',
-          // Solid popover with very subtle translucency
-          'bg-popover backdrop-blur-sm',
+          // Solid popover background
+          'bg-popover',
           // Refined floating shadow
           'shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3),0_0_0_1px_rgba(0,0,0,0.03)]',
           'dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.05)]',
@@ -272,7 +272,7 @@ function CommandItem({
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        'relative flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm outline-hidden select-none transition-all duration-75',
+        'relative flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm outline-hidden select-none transition-colors duration-75',
         'data-[selected=true]:bg-foreground/[0.07] data-[selected=true]:text-foreground',
         "[&_svg:not([class*='text-'])]:text-muted-foreground/60",
         'data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-40',

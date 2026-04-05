@@ -171,7 +171,7 @@ export const ExpandableMarkdownEditor: React.FC<ExpandableMarkdownEditorProps> =
                 size="default"
                 variant="outline"
                 onClick={handleCancel}
-                className="h-9 px-4"
+                className="px-4"
               >
                 <X className="h-3 w-3 mr-1" />
                 Cancel
@@ -180,7 +180,7 @@ export const ExpandableMarkdownEditor: React.FC<ExpandableMarkdownEditorProps> =
                 size="default"
                 variant="default"
                 onClick={handleSave}
-                className="h-9 px-4"
+                className="px-4"
               >
                 <Save className="h-3 w-3 mr-1" />
                 Save Changes

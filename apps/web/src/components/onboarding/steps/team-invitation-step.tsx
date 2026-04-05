@@ -82,7 +82,7 @@ export const TeamInvitationStep = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-6"
           >
-            <Send className="h-8 w-8 text-green-600 mx-auto mb-3" />
+            <Send className="h-8 w-8 text-emerald-600 mx-auto mb-3" />
             <h3 className="font-semibold text-green-800 dark:text-green-300 mb-2">
               Invitations Sent!
             </h3>
@@ -217,8 +217,8 @@ export const TeamInvitationStep = () => {
             {inviteEmails.some(email => email.trim()) && (
               <div className="text-sm">
                 {hasValidEmails ? (
-                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                    <div className="w-2 h-2 bg-green-500 rounded-full" />
+                  <div className="flex items-center gap-2 text-emerald-600 dark:text-green-400">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full" />
                     {validEmails.length} valid email{validEmails.length !== 1 ? 's' : ''} ready to send
                   </div>
                 ) : (

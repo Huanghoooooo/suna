@@ -208,7 +208,7 @@ export function ImageRenderer({ url, className }: ImageRendererProps) {
       {/* Floating Controls - Only visible on hover */}
       <div 
         className={cn(
-          "absolute top-4 left-1/2 -translate-x-1/2 z-10 transition-all duration-200",
+          "absolute top-4 left-1/2 -translate-x-1/2 z-10 transition-colors duration-200",
           showControls || showInfo ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"
         )}
       >

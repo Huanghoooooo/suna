@@ -199,7 +199,7 @@ export function OcImageSearchToolView({
                       type="button"
                       onClick={() => setCurrentQueryIndex(idx)}
                       className={`
-                        inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all
+                        inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
                         ${isActive
                           ? 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/20'
                           : 'bg-muted/40 text-muted-foreground hover:bg-muted/70 border border-transparent'

@@ -91,7 +91,7 @@ export function OcSessionSearchToolView({
                     <span className="text-sm font-medium text-foreground truncate flex-1">
                       {h.title || '(untitled)'}
                     </span>
-                    <Badge variant="outline" className="h-4 py-0 text-[9px] font-normal text-muted-foreground/60">
+                    <Badge variant="outline" className="h-4 py-0 text-[0.5625rem] font-normal text-muted-foreground/60">
                       {h.score}
                     </Badge>
                   </div>

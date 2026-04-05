@@ -9,7 +9,7 @@ const cardVariants = cva(
     variants: {
       variant: {
         default: "bg-card py-6",
-        glass: "bg-background/40 backdrop-blur-xl shadow-2xl py-6 border border-border/20",
+        glass: "bg-card/40 shadow-lg py-6 border border-border/20",
       },
     },
     defaultVariants: {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
+import { Button } from '@/components/ui/button';
 import {
   Folder,
   MoreVertical,
@@ -231,12 +232,14 @@ function ListRow({
           {/* Actions column */}
           <div className="flex justify-end">
             {!isRenaming && (
-              <button
+              <Button
                 onClick={handleDotsClick}
-                className="h-6 w-6 flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity cursor-pointer"
+                variant="ghost"
+                size="icon-xs"
+                className="opacity-0 group-hover:opacity-100"
               >
                 <MoreVertical className="h-4 w-4 text-muted-foreground" />
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -379,27 +382,33 @@ export function DriveListView({
     <div className="flex flex-col">
       {/* Table header */}
       <div className="grid grid-cols-[1fr_80px_80px_40px] items-center gap-4 px-4 h-9 border-b border-border/40 bg-muted/20 sticky top-0 z-10">
-        <button
+        <Button
           onClick={() => handleHeaderClick('name')}
-          className="flex items-center text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors text-left"
+          variant="ghost"
+          size="xs"
+          className="text-muted-foreground uppercase tracking-wider justify-start"
         >
           Name
           <SortIcon field="name" />
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => handleHeaderClick('type')}
-          className="flex items-center text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors"
+          variant="ghost"
+          size="xs"
+          className="text-muted-foreground uppercase tracking-wider"
         >
           Type
           <SortIcon field="type" />
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => handleHeaderClick('size')}
-          className="flex items-center text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors"
+          variant="ghost"
+          size="xs"
+          className="text-muted-foreground uppercase tracking-wider"
         >
           Size
           <SortIcon field="size" />
-        </button>
+        </Button>
         <span />
       </div>
 

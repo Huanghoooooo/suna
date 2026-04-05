@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from '@/lib/utils';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -152,14 +153,14 @@ export function TechnicalIssueDialog({
                       <div
                         key={service.id}
                         onClick={() => toggleService(service.label)}
-                        className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors text-sm ${
+                        className={cn('flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors text-sm', 
                           isSelected 
                             ? 'border-primary bg-primary/5' 
                             : 'border-border hover:border-primary/50'
-                        }`}
+                        )}
                       >
                         <Checkbox checked={isSelected} />
-                        <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                        <Icon className={cn('w-3.5 h-3.5', isSelected ? 'text-primary' : 'text-muted-foreground')} />
                         <span>{service.label}</span>
                       </div>
                     );

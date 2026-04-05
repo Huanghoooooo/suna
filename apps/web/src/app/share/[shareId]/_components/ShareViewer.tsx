@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { getEnv } from '@/lib/env-config';
 import { UnifiedMarkdown } from '@/components/markdown/unified-markdown';
@@ -240,7 +241,7 @@ function ShareHeader({ sessionTitle }: { sessionTitle: string }) {
                   variant="ghost"
                   onClick={copyShareLink}
                   size="sm"
-                  className="h-9 px-2.5 cursor-pointer gap-1.5"
+                  className="px-2.5 cursor-pointer gap-1.5"
                 >
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   <span className="hidden sm:inline text-sm">{copied ? 'Copied!' : 'Copy Link'}</span>
@@ -367,7 +368,7 @@ function MessageActions({ text, className }: { text: string; className?: string 
   if (!text?.trim()) return null;
 
   return (
-    <div className={`flex items-center gap-1 mt-2 ${className || ''}`}>
+    <div className={cn('flex items-center gap-1 mt-2', className || '')}>
       {/* Copy */}
       <Tooltip>
         <TooltipTrigger asChild>

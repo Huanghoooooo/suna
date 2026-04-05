@@ -365,10 +365,10 @@ export const PtyTerminal = forwardRef<PtyTerminalHandle, PtyTerminalProps>(funct
       className={cn(
         'overflow-hidden',
         'bg-[#0f0f14]',
+        'p-2 px-3',
         hidden && 'invisible pointer-events-none',
         className,
       )}
-      style={{ padding: '8px 12px' }}
     />
   );
 });

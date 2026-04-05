@@ -92,7 +92,7 @@ export function SyncStatusIndicator({
     return (
       <div className={cn('flex items-center gap-2', className)}>
         <div className={cn(
-          'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all duration-200',
+          'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors duration-200',
           config.bgColor,
           config.color
         )}>
@@ -126,7 +126,7 @@ export function SyncStatusIndicator({
       <Tooltip delayDuration={300}>
         <TooltipTrigger asChild>
           <div className={cn(
-            'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all duration-200 cursor-default',
+            'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors duration-200 cursor-default',
             config.bgColor,
             config.color,
             className

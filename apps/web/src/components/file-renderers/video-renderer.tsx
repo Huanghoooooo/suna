@@ -308,7 +308,7 @@ export function VideoRenderer({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 text-white hover:bg-white/20"
+                className="w-8 p-0 text-white hover:bg-white/20"
                 onClick={() => setShowInfo(!showInfo)}
               >
                 <Info className="h-4 w-4" />
@@ -317,7 +317,7 @@ export function VideoRenderer({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0 text-white hover:bg-white/20"
+                  className="w-8 p-0 text-white hover:bg-white/20"
                   onClick={onDownload}
                 >
                   <Download className="h-4 w-4" />
@@ -365,7 +365,7 @@ export function VideoRenderer({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-9 w-9 p-0 text-white hover:bg-white/20"
+                className="w-9 p-0 text-white hover:bg-white/20"
                 onClick={togglePlay}
               >
                 {isPlaying ? (
@@ -378,7 +378,7 @@ export function VideoRenderer({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-9 w-9 p-0 text-white hover:bg-white/20"
+                className="w-9 p-0 text-white hover:bg-white/20"
                 onClick={handleRestart}
               >
                 <RotateCcw className="h-4 w-4" />
@@ -396,7 +396,7 @@ export function VideoRenderer({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-9 w-9 p-0 text-white hover:bg-white/20"
+                  className="w-9 p-0 text-white hover:bg-white/20"
                   onClick={toggleMute}
                 >
                   {isMuted || volume === 0 ? (
@@ -418,7 +418,7 @@ export function VideoRenderer({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-9 w-9 p-0 text-white hover:bg-white/20"
+                className="w-9 p-0 text-white hover:bg-white/20"
                 onClick={toggleFullscreen}
               >
                 {isFullscreen ? (

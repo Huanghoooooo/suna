@@ -64,7 +64,7 @@ export function TodoDialog({ sessionId, open, onOpenChange }: TodoDialogProps) {
           <div className="px-6 pb-4">
             <div className="h-1.5 bg-muted rounded-full overflow-hidden">
               <div
-                className="h-full bg-foreground/50 rounded-full transition-all duration-300"
+                className="h-full bg-foreground/50 rounded-full transition-colors duration-300"
                 style={{ width: `${(completed / total) * 100}%` }}
               />
             </div>
@@ -128,7 +128,7 @@ export function TodoDialog({ sessionId, open, onOpenChange }: TodoDialogProps) {
                   </p>
                   {priority && todo.priority !== 'medium' && (
                     <span className={cn(
-                      'text-[9px] font-medium px-1.5 py-px rounded border flex-shrink-0',
+                      'text-[0.5625rem] font-medium px-1.5 py-px rounded border flex-shrink-0',
                       priority.color,
                     )}>
                       {priority.label}

@@ -79,7 +79,7 @@ export const AgentAvatar: React.FC<AgentAvatarProps> = ({
         return (
           <div
             className={cn(
-              "flex items-center justify-center transition-all border",
+              "flex items-center justify-center transition-colors border",
               filteredClassName
             )}
             style={{

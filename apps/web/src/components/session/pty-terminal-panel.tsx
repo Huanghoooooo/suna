@@ -307,7 +307,7 @@ function PtyTab({
           onClose();
         }}
         onMouseDown={(e) => e.stopPropagation()}
-        className="flex-shrink-0 p-1 -mr-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all cursor-pointer"
+        className="flex-shrink-0 p-1 -mr-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
       >
         <X className="w-3 h-3" />
       </button>

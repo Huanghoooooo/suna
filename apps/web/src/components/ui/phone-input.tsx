@@ -191,9 +191,9 @@ const CountrySelectOption = ({
         {`+${RPNInput.getCountryCallingCode(country)}`}
       </span>
       <CheckIcon
-        className={`ml-auto size-4 ${
+        className={cn('ml-auto size-4', 
           country === selectedCountry ? "opacity-100" : "opacity-0"
-        }`}
+        )}
       />
     </CommandItem>
   );

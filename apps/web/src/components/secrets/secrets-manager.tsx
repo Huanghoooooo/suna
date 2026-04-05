@@ -118,7 +118,7 @@ export function SecretsManager() {
           </div>
           <Button
             variant="outline" size="sm"
-            className="h-8 text-xs flex-shrink-0"
+            className="text-xs flex-shrink-0"
             onClick={() => setAddingNew(true)}
           >
             <Plus className="h-3.5 w-3.5 mr-1" />

@@ -452,7 +452,7 @@ export function FileContentRenderer({
               </div>
             )}
             {!readOnly && saveFlash && !hasUnsavedChanges && (
-              <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-500 px-2 py-0.5 bg-green-50 dark:bg-green-900/20 rounded-md shrink-0">
+              <div className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-500 px-2 py-0.5 bg-green-50 dark:bg-green-900/20 rounded-md shrink-0">
                 <Check className="h-3 w-3" />
                 <span className="font-semibold">Saved</span>
               </div>
@@ -729,7 +729,7 @@ export function FileContentRenderer({
               <p className="text-sm text-muted-foreground/50">
                 Binary file
               </p>
-              <Button variant="outline" size="sm" className="h-8 text-sm" onClick={handleDownload}>
+              <Button variant="outline" size="sm" className="" onClick={handleDownload}>
                 <Download className="h-3.5 w-3.5 mr-1.5" />
                 Download
               </Button>
@@ -837,7 +837,7 @@ function JsonNode({ value, keyName, depth }: { value: unknown; keyName: string |
     return (
       <div style={{ paddingLeft: depth * 20 }} className="break-all">
         {keyName !== null && <span className="text-primary/70">{`"${keyName}"`}: </span>}
-        <span className="text-green-500/80">
+        <span className="text-emerald-500/80">
           &quot;{value.length > 200 ? value.slice(0, 200) + '...' : value}&quot;
         </span>
         {isUrl && (

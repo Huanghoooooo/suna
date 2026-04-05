@@ -162,7 +162,7 @@ function CopyButton({ code }: { code: string }) {
       aria-label={copied ? "Copied!" : "Copy code"}
     >
       {copied ? (
-        <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+        <Check className="h-4 w-4 text-emerald-600 dark:text-green-400" />
       ) : (
         <Copy className="h-4 w-4" />
       )}

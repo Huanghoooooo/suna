@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -193,7 +194,7 @@ function ServiceCard({
               {canOpen && (
                 <Button
                   variant="ghost" size="sm"
-                  className="h-8 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={() => onOpen(service)}
                 >
                   <ExternalLink className="h-3.5 w-3.5 mr-1" />
@@ -204,7 +205,7 @@ function ServiceCard({
                 <>
                   <Button
                     variant="ghost" size="sm"
-                    className="h-8 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                     disabled={!!pendingAction}
                     onClick={() => onAction(service, mainAction)}
                   >
@@ -212,7 +213,7 @@ function ServiceCard({
                   </Button>
                   <Button
                     variant="ghost" size="sm"
-                    className="h-8 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                     disabled={!!pendingAction}
                     onClick={() => onAction(service, 'restart')}
                   >
@@ -220,7 +221,7 @@ function ServiceCard({
                   </Button>
                   <Button
                     variant="ghost" size="sm"
-                    className="h-8 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={() => onShowLogs(service.id)}
                   >
                     <Activity className="h-3.5 w-3.5" />
@@ -228,7 +229,7 @@ function ServiceCard({
                   {!service.builtin && (
                     <Button
                       variant="ghost" size="sm"
-                      className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="px-2 text-xs text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                       disabled={!!pendingAction}
                       onClick={() => onAction(service, 'delete')}
                     >
@@ -466,29 +467,25 @@ export function RunningServicesPanel() {
           </div>
 
           {/* Filter segmented control */}
-          <div className="hidden sm:flex items-center gap-1 rounded-2xl border border-border bg-muted/30 p-1">
+          <FilterBar className="hidden sm:inline-flex">
             {filters.map((f) => (
-              <button
+              <FilterBarItem
                 key={f.key}
+                value={f.key}
                 onClick={() => setFilter(f.key)}
-                className={cn(
-                  'px-3 py-1.5 text-xs font-medium rounded-xl transition-all cursor-pointer',
-                  filter === f.key
-                    ? 'bg-background text-foreground border border-border/50 shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-background/70 border border-transparent',
-                )}
+                data-state={filter === f.key ? 'active' : 'inactive'}
               >
                 {f.label}
                 {f.count > 0 && <span className="ml-1 tabular-nums opacity-60">{f.count}</span>}
-              </button>
+              </FilterBarItem>
             ))}
-          </div>
+          </FilterBar>
 
           {/* Actions */}
           <div className="flex items-center gap-1.5">
             <Button
               variant="outline" size="sm"
-              className="h-9 px-3 rounded-xl gap-1.5 text-sm"
+              className="px-3 rounded-xl gap-1.5 "
               disabled={pendingGlobal !== null}
               onClick={() => setRestartDialogOpen(true)}
             >
@@ -497,7 +494,7 @@ export function RunningServicesPanel() {
             </Button>
             <Button
               variant="default" size="sm"
-              className="h-9 px-3 sm:px-4 rounded-xl gap-1.5 text-sm"
+              className="px-3 sm:px-4 rounded-xl gap-1.5 "
               onClick={() => setIsRegisterOpen(true)}
             >
               <Plus className="h-4 w-4" />

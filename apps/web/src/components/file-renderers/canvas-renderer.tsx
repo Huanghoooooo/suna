@@ -213,7 +213,7 @@ function AIProcessingOverlay({ isVisible }: { isVisible: boolean }) {
             )
           `,
           backgroundSize: '300% 100%',
-          animation: 'shimmer 2.5s infinite linear',
+          animation: 'canvas-shimmer 2.5s infinite linear',
         }}
       />
       {/* Second wave for more intensity - slower */}
@@ -231,17 +231,10 @@ function AIProcessingOverlay({ isVisible }: { isVisible: boolean }) {
             )
           `,
           backgroundSize: '250% 100%',
-          animation: 'shimmer 2s infinite linear',
+          animation: 'canvas-shimmer 2s infinite linear',
           animationDelay: '0.8s',
         }}
       />
-
-      <style>{`
-        @keyframes shimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}</style>
     </div>
   );
 }
@@ -600,16 +593,10 @@ function CanvasImageElement({
             style={{
               background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%)',
               backgroundSize: '200% 100%',
-              animation: 'shimmer 2s ease-in-out infinite',
+              animation: 'canvas-shimmer 2s ease-in-out infinite',
             }}
           />
         </div>
-        <style>{`
-          @keyframes shimmer {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-          }
-        `}</style>
       </div>
     );
   }
@@ -1620,7 +1607,7 @@ function FloatingToolbar({
                 {activeAction === 'upscale' ? (
                   <KortixLoader size="small" />
                 ) : (
-                  <span className="text-[10px] font-bold border border-current rounded px-0.5">HD</span>
+                  <span className="text-[10px] font-semibold border border-current rounded px-0.5">HD</span>
                 )}
                 Upscale
               </Button>
@@ -1966,7 +1953,7 @@ function FrameFloatingToolbar({
                         },
                       ].map(cat => (
                         <div key={cat.cat}>
-                          <div className="px-2 py-1 text-[9px] text-muted-foreground uppercase tracking-wider">{cat.cat}</div>
+                          <div className="px-2 py-1 text-[0.5625rem] text-muted-foreground uppercase tracking-wider">{cat.cat}</div>
                           {cat.items.map(p => (
                             <button
                               key={p.n}
@@ -1977,7 +1964,7 @@ function FrameFloatingToolbar({
                               }}
                             >
                               <span>{p.n}</span>
-                              <span className="text-[9px] text-muted-foreground font-mono">{p.w}×{p.h}</span>
+                              <span className="text-[0.5625rem] text-muted-foreground font-mono">{p.w}×{p.h}</span>
                             </button>
                           ))}
                         </div>
@@ -2052,7 +2039,7 @@ function FrameFloatingToolbar({
                   <button
                     key={color}
                     className={cn(
-                      "w-6 h-6 rounded-sm border border-border hover:ring-2 hover:ring-blue-500 transition-all",
+                      "w-6 h-6 rounded-sm border border-border hover:ring-2 hover:ring-blue-500 transition-colors",
                       element.backgroundColor === color && "ring-2 ring-blue-500"
                     )}
                     style={{
@@ -2071,7 +2058,7 @@ function FrameFloatingToolbar({
                 ))}
                 {/* Custom color picker */}
                 <label
-                  className="w-6 h-6 rounded-sm border border-dashed border-muted-foreground hover:border-blue-500 hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer flex items-center justify-center overflow-hidden relative bg-background"
+                  className="w-6 h-6 rounded-sm border border-dashed border-muted-foreground hover:border-blue-500 hover:ring-2 hover:ring-blue-500 transition-colors cursor-pointer flex items-center justify-center overflow-hidden relative bg-background"
                 >
                   <Plus className="h-3 w-3 text-muted-foreground" />
                   <input
@@ -2346,7 +2333,7 @@ function MultiSelectToolbar({
                         ) : (
                           <div className="w-full h-full flex flex-col items-center justify-center text-xs text-muted-foreground p-1">
                             <ImagePlus className="h-4 w-4 mb-0.5 opacity-50" />
-                            <span className="truncate w-full text-center text-[9px]">{el.name?.split('/').pop() || `Image ${idx + 1}`}</span>
+                            <span className="truncate w-full text-center text-[0.5625rem]">{el.name?.split('/').pop() || `Image ${idx + 1}`}</span>
                           </div>
                         )}
                       </div>
@@ -3783,7 +3770,7 @@ export function CanvasRenderer({ content, filePath, fileName, sandboxId, classNa
                     key={region.id}
                     points={points}
                     className={cn(
-                      "cursor-pointer transition-all pointer-events-auto",
+                      "cursor-pointer transition-colors pointer-events-auto",
                       isSelected
                         ? "fill-blue-500/20 stroke-blue-500"
                         : "fill-transparent stroke-blue-400/50 hover:stroke-blue-500 hover:fill-blue-500/10"

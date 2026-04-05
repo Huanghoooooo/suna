@@ -172,13 +172,15 @@ function GeneralSection({
             onSelect={handleModelSelect}
           />
           {selectedModel && (
-            <button
+            <Button
               type="button"
               onClick={() => onDraft('model', undefined)}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-xs text-muted-foreground"
             >
               Reset to auto
-            </button>
+            </Button>
           )}
           {!selectedModel && (
             <span className="text-xs text-muted-foreground/60">Auto-detect</span>
@@ -234,7 +236,7 @@ function ProvidersSection({
         <Button
           variant="outline"
           size="sm"
-          className="h-7 px-2.5 text-xs gap-1.5 rounded-lg"
+          className="h-7 px-2.5 text-xs gap-1.5 "
           onClick={() => openProviderModal('providers')}
         >
           <Plus className="h-3 w-3" />
@@ -327,38 +329,34 @@ function PermissionsSection({
         </p>
         <div className="flex gap-1.5">
           {ACTIONS.map((a) => (
-            <button
+            <Button
               key={a}
               onClick={() => setGlobalMode(a)}
+              size="toolbar"
+              variant={isGlobalMode && globalAction === a
+                ? a === 'allow' ? 'success'
+                : a === 'deny' ? 'destructive'
+                : 'muted'
+                : 'muted'}
               className={cn(
-                'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer',
-                isGlobalMode && globalAction === a
-                  ? a === 'allow'
-                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                    : a === 'deny'
-                      ? 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/20'
-                      : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent',
+                isGlobalMode && globalAction === a && a === 'allow' && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20',
+                isGlobalMode && globalAction === a && a === 'deny' && 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/20 hover:bg-red-500/20',
+                isGlobalMode && globalAction === a && a === 'ask' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20',
               )}
             >
               {a}
-            </button>
+            </Button>
           ))}
-          <button
-            onClick={() => {
-              if (isGlobalMode) {
-                onDraft('permission', {});
-              }
-            }}
+          <Button
+            onClick={() => { if (isGlobalMode) { onDraft('permission', {}); } }}
+            size="toolbar"
+            variant="muted"
             className={cn(
-              'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer',
-              !isGlobalMode
-                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent',
+              !isGlobalMode && 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20 hover:bg-blue-500/20',
             )}
           >
             per-tool
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -380,22 +378,19 @@ function PermissionsSection({
                 </div>
                 <div className="flex gap-1 flex-shrink-0">
                   {ACTIONS.map((a) => (
-                    <button
+                    <Button
                       key={a}
                       onClick={() => setAction(key, a)}
+                      size="xs"
+                      variant="muted"
                       className={cn(
-                        'px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer',
-                        getAction(key) === a
-                          ? a === 'allow'
-                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                            : a === 'deny'
-                              ? 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/20'
-                              : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent',
+                        getAction(key) === a && a === 'allow' && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20',
+                        getAction(key) === a && a === 'deny' && 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/20 hover:bg-red-500/20',
+                        getAction(key) === a && a === 'ask' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20',
                       )}
                     >
                       {a}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -642,13 +637,14 @@ function McpServersSection() {
     return (
       <div className="space-y-4 overflow-y-auto pr-1">
         <div className="flex items-center gap-2">
-          <button
+          <Button
             type="button"
             onClick={() => { setView({ type: 'list' }); setAuthError(''); }}
-            className="p-1.5 -ml-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            variant="ghost"
+            size="icon-sm"
           >
             <ChevronRight className="h-4 w-4 rotate-180" />
-          </button>
+          </Button>
           <h3 className="text-sm font-semibold">Authorize: {view.name}</h3>
         </div>
 
@@ -723,13 +719,14 @@ function McpServersSection() {
     return (
       <div className="space-y-4 overflow-y-auto pr-1">
         <div className="flex items-center gap-2">
-          <button
+          <Button
             type="button"
             onClick={() => { setView({ type: 'list' }); setAddError(''); }}
-            className="p-1.5 -ml-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            variant="ghost"
+            size="icon-sm"
           >
             <ChevronRight className="h-4 w-4 rotate-180" />
-          </button>
+          </Button>
           <h3 className="text-sm font-semibold">Add MCP Server</h3>
         </div>
 
@@ -749,30 +746,24 @@ function McpServersSection() {
           <div className="space-y-2">
             <label className="text-xs text-muted-foreground mb-1 block">Transport Type</label>
             <div className="flex gap-1.5">
-              <button
+              <Button
                 type="button"
                 onClick={() => setAddForm((f) => ({ ...f, transportType: 'stdio' }))}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer',
-                  addForm.transportType === 'stdio'
-                    ? 'bg-primary/10 text-primary border border-primary/20'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent',
-                )}
+                size="toolbar"
+                variant={addForm.transportType === 'stdio' ? 'subtle' : 'muted'}
+                className={cn(addForm.transportType === 'stdio' && 'border border-primary/20')}
               >
                 Stdio (command)
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={() => setAddForm((f) => ({ ...f, transportType: 'http' }))}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer',
-                  addForm.transportType === 'http'
-                    ? 'bg-primary/10 text-primary border border-primary/20'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent',
-                )}
+                size="toolbar"
+                variant={addForm.transportType === 'http' ? 'subtle' : 'muted'}
+                className={cn(addForm.transportType === 'http' && 'border border-primary/20')}
               >
                 HTTP (URL)
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -804,14 +795,15 @@ function McpServersSection() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs text-muted-foreground">Environment Variables</label>
-              <button
+              <Button
                 type="button"
                 onClick={addEnvPair}
-                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                variant="muted"
+                size="xs"
               >
                 <Plus className="h-3 w-3" />
                 Add
-              </button>
+              </Button>
             </div>
             {addForm.envPairs.length > 0 && (
               <div className="space-y-2">
@@ -829,13 +821,15 @@ function McpServersSection() {
                       onChange={(e) => updateEnvPair(i, 'value', e.target.value)}
                       className="flex-1 text-xs"
                     />
-                    <button
+                    <Button
                       type="button"
                       onClick={() => removeEnvPair(i)}
-                      className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer flex-shrink-0"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
                     >
                       <X className="h-3.5 w-3.5" />
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -932,25 +926,26 @@ function McpServersSection() {
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {/* Auth button for servers needing authentication */}
                     {needsAuth && (
-                      <button
+                      <Button
                         onClick={() => handleAuthStart(name)}
                         disabled={authStartMutation.isPending}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors cursor-pointer disabled:opacity-50"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
                         title="Authorize"
                       >
                         <Plug className="h-3.5 w-3.5" />
-                      </button>
+                      </Button>
                     )}
 
                     {/* Connect / Disconnect toggle */}
-                    <button
+                    <Button
                       onClick={() => isConnected ? handleDisconnect(name) : handleConnect(name)}
                       disabled={isToggling}
+                      variant="ghost"
+                      size="icon-sm"
                       className={cn(
-                        'flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors cursor-pointer disabled:opacity-50',
-                        isConnected
-                          ? 'text-muted-foreground hover:text-red-500 hover:bg-red-500/10'
-                          : 'text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10',
+                        isConnected ? 'hover:text-red-500 hover:bg-red-500/10' : 'hover:text-emerald-500 hover:bg-emerald-500/10',
                       )}
                       title={isConnected ? 'Disconnect' : 'Connect'}
                     >
@@ -961,16 +956,17 @@ function McpServersSection() {
                       ) : (
                         <Plug className="h-3.5 w-3.5" />
                       )}
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
                 {/* Tools expand/collapse */}
                 {tools.length > 0 && (
                   <>
-                    <button
+                    <Button
                       onClick={() => setExpanded(isExp ? null : name)}
-                      className="flex items-center gap-1 px-3 pb-2 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      variant="muted"
+                      size="xs"
                     >
                       {isExp ? (
                         <ChevronDown className="h-3 w-3" />
@@ -978,7 +974,7 @@ function McpServersSection() {
                         <ChevronRight className="h-3 w-3" />
                       )}
                       {isExp ? 'Hide tools' : 'Show tools'}
-                    </button>
+                    </Button>
 
                     {isExp && (
                       <div className="border-t border-border/30 max-h-40 overflow-y-auto">

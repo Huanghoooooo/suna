@@ -148,7 +148,7 @@ function SessionRow({
         <span
           className={cn(
             'flex-1 truncate',
-            isChild ? 'text-[12px]' : 'text-[13px]',
+            isChild ? 'text-xs' : 'text-[13px]',
             isActive && 'font-medium',
           )}
         >
@@ -675,9 +675,10 @@ export function SessionList({ projectId }: SessionListProps = {}) {
       {/* Archived sessions toggle */}
       {archivedSessions.length > 0 && !isLoading && !error && (
         <div className="px-2 pb-1">
-          <button
+          <Button
             onClick={() => setShowArchived((v) => !v)}
-            className="flex items-center gap-1.5 w-full px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors cursor-pointer"
+            variant="ghost"
+            className="flex items-center gap-1.5 w-full px-3 py-1.5 h-auto rounded-lg text-xs text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent justify-start"
           >
             <Archive className="size-3" />
             <span>Archived</span>
@@ -687,7 +688,7 @@ export function SessionList({ projectId }: SessionListProps = {}) {
             ) : (
               <ChevronRight className="size-3" />
             )}
-          </button>
+          </Button>
           {showArchived && (
             <div className="space-y-0.5 mt-0.5 mb-1">
               {archivedSessions.map((session) => (
@@ -746,12 +747,14 @@ export function SessionList({ projectId }: SessionListProps = {}) {
             <Frown className="h-8 w-8 text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">Failed to connect</p>
             <p className="text-xs text-muted-foreground mt-1">Could not reach server</p>
-            <button
+            <Button
               onClick={() => refetch()}
-              className="mt-3 text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg bg-muted hover:bg-sidebar-accent transition-colors cursor-pointer"
+              variant="muted"
+              size="sm"
+              className="mt-3"
             >
               Retry
-            </button>
+            </Button>
           </div>
         ) : rootSessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
@@ -785,13 +788,14 @@ export function SessionList({ projectId }: SessionListProps = {}) {
                     />
                   ))}
                   {hasMore && (
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setDisplayLimit((l) => l + SESSION_PAGE_SIZE)}
-                      className="w-full py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent rounded-lg transition-colors cursor-pointer"
+                      variant="ghost"
+                      className="w-full h-auto py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent rounded-lg"
                     >
                       Show more ({remaining.length - displayLimit} remaining)
-                    </button>
+                    </Button>
                   )}
                 </>
               );

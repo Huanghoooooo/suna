@@ -115,7 +115,7 @@ export function OcSessionListToolView({
                       {s.title || '(untitled)'}
                     </span>
                     {s.parent && (
-                      <Badge variant="outline" className="h-4 py-0 text-[9px] font-normal text-muted-foreground/60">
+                      <Badge variant="outline" className="h-4 py-0 text-[0.5625rem] font-normal text-muted-foreground/60">
                         fork
                       </Badge>
                     )}

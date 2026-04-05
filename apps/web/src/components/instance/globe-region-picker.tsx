@@ -81,7 +81,7 @@ export function GlobeRegionPicker({
                 type="button"
                 onClick={() => onLocationChange(loc.id)}
                 className={cn(
-                  'px-5 py-1.5 rounded-full text-[13px] font-medium transition-all cursor-pointer',
+                  'px-5 py-1.5 rounded-full text-[13px] font-medium transition-colors cursor-pointer',
                   location === loc.id
                     ? 'bg-foreground text-background dark:bg-white dark:text-black shadow-sm'
                     : 'text-muted-foreground hover:text-foreground dark:text-white/40 dark:hover:text-white/70',
@@ -129,7 +129,7 @@ export function RegionToggle({
           type="button"
           onClick={() => onLocationChange(loc.id)}
           className={cn(
-            'px-5 py-1.5 rounded-full text-[13px] font-medium transition-all cursor-pointer',
+            'px-5 py-1.5 rounded-full text-[13px] font-medium transition-colors cursor-pointer',
             location === loc.id
               ? 'bg-foreground text-background shadow-sm'
               : 'text-muted-foreground hover:text-foreground',

@@ -26,7 +26,7 @@ function TabsList({
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        'bg-muted text-muted-foreground inline-flex h-10 w-fit items-center justify-center rounded-xl p-1 gap-0.5',
+        'bg-foreground/[0.05] text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-full p-0.5 gap-0.5',
         className,
       )}
       {...props}
@@ -42,10 +42,9 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "cursor-pointer inline-flex h-[calc(100%-2px)] flex-1 items-center justify-center gap-1.5 rounded-lg border border-transparent px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all duration-150",
-        "text-muted-foreground hover:text-foreground",
-        "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border-border/30",
-        "dark:data-[state=active]:bg-background dark:data-[state=active]:text-foreground",
+        "cursor-pointer inline-flex h-[calc(100%-2px)] flex-1 items-center justify-center gap-1.5 rounded-full border border-transparent px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors duration-150",
+        "text-muted-foreground/60 hover:text-foreground/80",
+        "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-foreground/[0.06]",
         "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring focus-visible:ring-[3px] focus-visible:outline-1",
         "disabled:pointer-events-none disabled:opacity-50",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -56,7 +55,7 @@ function TabsTrigger({
   );
 }
 
-/** Compact variant of TabsList for inline/toolbar contexts (smaller height, subtler bg). */
+/** Compact Radix TabsList — use inside <Tabs> root for smaller contexts. */
 function TabsListCompact({
   className,
   ...props
@@ -65,7 +64,7 @@ function TabsListCompact({
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        'bg-muted/50 text-muted-foreground inline-flex h-8 w-fit items-center justify-center rounded-lg p-0.5 gap-0.5 border border-border/50',
+        'bg-foreground/[0.05] text-muted-foreground inline-flex h-7 w-fit items-center justify-center rounded-full p-0.5 gap-0.5',
         className,
       )}
       {...props}
@@ -73,7 +72,7 @@ function TabsListCompact({
   );
 }
 
-/** Compact variant of TabsTrigger for inline/toolbar contexts (smaller text, tighter padding). */
+/** Compact Radix TabsTrigger — use inside <Tabs> root for smaller contexts. */
 function TabsTriggerCompact({
   className,
   ...props
@@ -82,11 +81,50 @@ function TabsTriggerCompact({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "cursor-pointer inline-flex h-[calc(100%-2px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-all duration-150",
-        "text-muted-foreground hover:text-foreground hover:bg-background/50",
-        "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border-border/30",
-        "dark:data-[state=active]:bg-accent/50 dark:data-[state=active]:text-foreground",
-        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring focus-visible:ring-[3px] focus-visible:outline-1",
+        "cursor-pointer inline-flex h-[calc(100%-2px)] flex-1 items-center justify-center gap-1.5 rounded-full border border-transparent px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors duration-150",
+        "text-muted-foreground/60 hover:text-foreground/80",
+        "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-foreground/[0.06]",
+        "disabled:pointer-events-none disabled:opacity-50",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+/** Standalone filter pill bar — works WITHOUT a <Tabs> root. Use for filter bars, mode toggles. */
+function FilterBar({
+  className,
+  ...props
+}: React.ComponentProps<'div'>) {
+  return (
+    <div
+      data-slot="filter-bar"
+      role="tablist"
+      className={cn(
+        'bg-foreground/[0.05] text-muted-foreground inline-flex h-7 w-fit items-center justify-center rounded-full p-0.5 gap-0.5',
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+/** Standalone filter pill — works WITHOUT a <Tabs> root. Pair with FilterBar. */
+function FilterBarItem({
+  className,
+  ...props
+}: React.ComponentProps<'button'>) {
+  return (
+    <button
+      data-slot="filter-bar-item"
+      role="tab"
+      type="button"
+      className={cn(
+        "cursor-pointer inline-flex h-[calc(100%-2px)] flex-1 items-center justify-center gap-1.5 rounded-full border border-transparent px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors duration-150",
+        "text-muted-foreground/60 hover:text-foreground/80",
+        "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-foreground/[0.06]",
         "disabled:pointer-events-none disabled:opacity-50",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
         className,
@@ -103,10 +141,10 @@ function TabsContent({
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
-      className={cn('flex-1 outline-none animate-in fade-in-0 duration-150', className)}
+      className={cn('flex-1 outline-none', className)}
       {...props}
     />
   );
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsListCompact, TabsTriggerCompact, TabsContent };
+export { Tabs, TabsList, TabsTrigger, TabsListCompact, TabsTriggerCompact, TabsContent, FilterBar, FilterBarItem };

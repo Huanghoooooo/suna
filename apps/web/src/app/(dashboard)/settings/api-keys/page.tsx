@@ -1,7 +1,8 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import React, { useState, useMemo, useCallback } from 'react';
-import { Key, Plus, Trash2, Copy, Check, Shield, RefreshCw, Bot, AlertCircle, ExternalLink } from 'lucide-react';
+import { Key, Plus, Trash2, Copy, Check, Shield, RefreshCw, Bot, AlertCircle, ExternalLink, Loader2, CheckCircle2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
 
@@ -43,8 +44,9 @@ import {
   APIKeyRegenerateResponse,
 } from '@/lib/api/api-keys';
 import { getActiveServer, getActiveOpenCodeUrl } from '@/stores/server-store';
-import { getAuthToken } from '@/lib/auth-token';
+import { authenticatedFetch, getAuthToken } from '@/lib/auth-token';
 import { useServerStore } from '@/stores/server-store';
+import { getEnv } from '@/lib/env-config';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -52,6 +54,20 @@ interface NewAPIKeyData {
   title: string;
   description: string;
   expiresInDays: string;
+}
+
+interface ShareFormData {
+  port: string;
+  ttl: string;
+  label: string;
+}
+
+interface PublicShareEntry {
+  url: string;
+  port: number;
+  token: string;
+  expiresAt: string;
+  label?: string;
 }
 
 function CopyButton({ value, label, size = 'sm' }: { value: string; label?: string; size?: 'sm' | 'icon' }) {
@@ -75,14 +91,14 @@ function CopyButton({ value, label, size = 'sm' }: { value: string; label?: stri
         className="inline-flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
         title="Copy"
       >
-        {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+        {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
       </button>
     );
   }
 
   return (
     <Button size="sm" variant="outline" onClick={handleCopy}>
-      {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+      {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
       {label && <span className="ml-1.5">{label}</span>}
     </Button>
   );
@@ -152,6 +168,10 @@ export default function APIKeysPage() {
     const server = s.servers.find((e) => e.id === s.activeServerId);
     return server?.instanceId;
   });
+  const activeSandboxExternalId = useServerStore((s) => {
+    const server = s.servers.find((e) => e.id === s.activeServerId);
+    return server?.sandboxId;
+  });
   const activeServer = getActiveServer();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newKeyData, setNewKeyData] = useState<NewAPIKeyData>({
@@ -161,7 +181,13 @@ export default function APIKeysPage() {
   });
   const [createdApiKey, setCreatedApiKey] = useState<APIKeyCreateResponse | APIKeyRegenerateResponse | null>(null);
   const [showCreatedKey, setShowCreatedKey] = useState(false);
+  const [shareForm, setShareForm] = useState<ShareFormData>({
+    port: '8000',
+    ttl: '1h',
+    label: '',
+  });
   const queryClient = useQueryClient();
+  const activeInstanceUrl = getActiveOpenCodeUrl()?.replace(/\/+$/, '');
 
   // ── Queries & mutations ────────────────────────────────────────────────
 
@@ -235,6 +261,73 @@ export default function APIKeysPage() {
       }
     },
     onError: () => toast.warning('Failed to regenerate sandbox key'),
+  });
+
+  const [publicUrlResult, setPublicUrlResult] = useState<{ url: string; expiresAt?: string; label?: string } | null>(null);
+  const {
+    data: publicShares,
+    isLoading: isSharesLoading,
+    refetch: refetchShares,
+  } = useQuery({
+    queryKey: ['public-shares', activeInstanceUrl],
+    enabled: !!activeInstanceUrl,
+    queryFn: async (): Promise<PublicShareEntry[]> => {
+      const res = await authenticatedFetch(`${activeInstanceUrl}/kortix/share`);
+      if (!res.ok) throw new Error('Failed to load public links');
+      const data = await res.json() as { shares?: PublicShareEntry[] };
+      return data.shares ?? [];
+    },
+  });
+
+  const publicUrlMutation = useMutation({
+    mutationFn: async () => {
+      const backendBase = (getEnv().BACKEND_URL || 'http://localhost:8008/v1').replace(/\/+$/, '');
+      const sandboxId = activeSandboxExternalId;
+      if (!sandboxId) throw new Error('No active sandbox external id');
+      const token = await getAuthToken();
+      if (!token) throw new Error('Not authenticated');
+      const res = await fetch(`${backendBase}/p/share`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          sandbox_id: sandboxId,
+          port: Number(shareForm.port),
+          ttl: shareForm.ttl,
+          label: shareForm.label.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Failed to generate public URL');
+      return data as { url: string; expiresAt?: string; label?: string };
+    },
+    onSuccess: (data) => {
+      setPublicUrlResult(data);
+      refetchShares();
+      toast.info('Public URL ready');
+    },
+    onError: (err: any) => toast.warning(err?.message || 'Failed to generate public URL'),
+  });
+
+  const revokeShareMutation = useMutation({
+    mutationFn: async (token: string) => {
+      if (!activeInstanceUrl) throw new Error('No active sandbox URL');
+      const res = await authenticatedFetch(`${activeInstanceUrl}/kortix/share/${token}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Failed to revoke public link');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchShares();
+      toast.info('Public link revoked');
+    },
+    onError: (err: any) => toast.warning(err?.message || 'Failed to revoke public link'),
   });
 
   const handleCreateAPIKey = () => {
@@ -343,6 +436,155 @@ export default function APIKeysPage() {
             </AlertDialog>
           </div>
         )}
+
+        {/* ── Public Access Links ─────────────────────────────────────── */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-muted-foreground">Public Links</h2>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  New Link
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>Create Public Link</DialogTitle>
+                  <DialogDescription>
+                    Generate a token-based public URL for a sandbox port.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="share-port" className="text-xs text-muted-foreground">Port</Label>
+                    <Input
+                      id="share-port"
+                      inputMode="numeric"
+                      value={shareForm.port}
+                      onChange={(e) => setShareForm((prev) => ({ ...prev, port: e.target.value.replace(/[^0-9]/g, '') }))}
+                      placeholder="8000"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="share-ttl" className="text-xs text-muted-foreground">Expires after</Label>
+                    <Select value={shareForm.ttl} onValueChange={(value) => setShareForm((prev) => ({ ...prev, ttl: value }))}>
+                      <SelectTrigger id="share-ttl"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1h">1 hour</SelectItem>
+                        <SelectItem value="1d">1 day</SelectItem>
+                        <SelectItem value="7d">7 days</SelectItem>
+                        <SelectItem value="30d">30 days</SelectItem>
+                        <SelectItem value="365d">1 year</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="share-label" className="text-xs text-muted-foreground">Label <span className="font-normal">(optional)</span></Label>
+                    <Input
+                      id="share-label"
+                      value={shareForm.label}
+                      onChange={(e) => setShareForm((prev) => ({ ...prev, label: e.target.value }))}
+                      placeholder="e.g. channels-master"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button
+                    onClick={() => publicUrlMutation.mutate()}
+                    disabled={!activeSandboxExternalId || !shareForm.port || publicUrlMutation.isPending}
+                  >
+                    {publicUrlMutation.isPending ? 'Creating...' : 'Create Link'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Created link callout */}
+          {publicUrlResult && (
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium">Link created</span>
+                </div>
+                <CopyButton value={publicUrlResult.url} label="Copy" />
+              </div>
+              <Input value={publicUrlResult.url} readOnly className="font-mono text-xs" />
+              {publicUrlResult.expiresAt && (
+                <p className="text-[11px] text-muted-foreground">Expires {formatDateFull(publicUrlResult.expiresAt)}</p>
+              )}
+            </div>
+          )}
+
+          {/* Active links list */}
+          <div className="rounded-2xl border bg-card overflow-hidden">
+            {!activeInstanceUrl ? (
+              <div className="px-4 py-12 text-center space-y-2">
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                  <AlertCircle className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium">No sandbox active</p>
+                <p className="text-xs text-muted-foreground">A running sandbox is required to manage public links.</p>
+              </div>
+            ) : isSharesLoading ? (
+              <div className="divide-y">
+                {[1, 2].map((i) => (
+                  <div key={i} className="px-4 py-4 animate-pulse">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-muted" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3.5 bg-muted rounded w-1/4" />
+                        <div className="h-3 bg-muted rounded w-1/3" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : !publicShares || publicShares.length === 0 ? (
+              <div className="px-4 py-12 text-center">
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                  <ExternalLink className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium mb-1">No public links</p>
+                <p className="text-xs text-muted-foreground">Create a link to expose a sandbox port publicly.</p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {publicShares.map((share) => (
+                  <div
+                    key={share.token}
+                    className="px-4 py-3.5 flex items-center gap-3"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">Port {share.port}</span>
+                        {share.label && <Badge variant="secondary" className="text-[11px]">{share.label}</Badge>}
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+                        <span className="font-mono truncate max-w-[260px]">{share.url.replace(/^https?:\/\//, '')}</span>
+                        <span>Expires {formatDate(share.expiresAt)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <CopyButton value={share.url} size="icon" />
+                      <Button variant="ghost" size="sm" onClick={() => window.open(share.url, '_blank', 'noopener,noreferrer')} className="text-muted-foreground hover:text-foreground">
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => revokeShareMutation.mutate(share.token)} disabled={revokeShareMutation.isPending} className="text-muted-foreground hover:text-destructive">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* ── User API Keys ───────────────────────────────────────────── */}
         <div className="space-y-3">
@@ -471,9 +713,9 @@ export default function APIKeysPage() {
                 {userKeys.map((apiKey: APIKeyResponse) => (
                   <div
                     key={apiKey.key_id}
-                    className={`px-4 py-3.5 flex items-center gap-3 ${
+                    className={cn('px-4 py-3.5 flex items-center gap-3', 
                       isKeyExpired(apiKey.expires_at) ? 'bg-yellow-500/5' : ''
-                    }`}
+                    )}
                   >
                     <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                       <Key className="w-3.5 h-3.5 text-muted-foreground" />

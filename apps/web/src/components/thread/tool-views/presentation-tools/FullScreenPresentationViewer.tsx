@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -468,7 +469,7 @@ export function FullScreenPresentationViewer({
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-8 w-8 p-0"
+              className="w-8 p-0"
               title={showEditor ? "Close editor" : "Edit presentation"}
               onClick={() => setShowEditor(!showEditor)}
             >
@@ -481,7 +482,7 @@ export function FullScreenPresentationViewer({
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-8 w-8 p-0"
+                  className="w-8 p-0"
                   title="Export presentation"
                   disabled={isDownloadingPDF || isDownloadingPPTX || isDownloadingGoogleSlides}
                 >
@@ -582,11 +583,11 @@ export function FullScreenPresentationViewer({
                     <button
                       key={slide.number}
                       onClick={() => setCurrentSlide(slide.number)}
-                      className={`w-2.5 h-2.5 rounded-full transition-all duration-200 ${
+                      className={cn('w-2.5 h-2.5 rounded-full transition-colors duration-200', 
                         slide.number === currentSlide
                           ? 'bg-black dark:bg-white'
                           : 'bg-zinc-300 dark:bg-zinc-600 hover:bg-zinc-400 dark:hover:bg-zinc-500'
-                      }`}
+                      )}
                     />
                   ))}
                 </div>

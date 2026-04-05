@@ -186,7 +186,7 @@ export function AutoTopupCard({
 
           {/* Green confirmation */}
           <div className="flex items-start gap-2 pt-1">
-            <ShieldCheck className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+            <ShieldCheck className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
             <p className="text-xs text-muted-foreground">
               Your card is only charged when your balance drops. Disable anytime in Settings.
             </p>

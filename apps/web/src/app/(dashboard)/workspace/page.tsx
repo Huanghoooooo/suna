@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/ui/page-header';
 import { WorkspaceItemCard } from '@/components/ui/workspace-item-card';
@@ -337,17 +338,14 @@ function LoadingSkeleton() {
 
 function FilterPill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button
+    <Button
       onClick={onClick}
-      className={cn(
-        'px-3 py-1.5 text-xs font-medium rounded-lg transition-all cursor-pointer border',
-        active
-          ? 'bg-background text-foreground border-border/50 shadow-sm'
-          : 'text-muted-foreground hover:text-foreground bg-transparent border-transparent hover:border-border/30',
-      )}
+      variant={active ? 'outline' : 'ghost'}
+      size="sm"
+      className={cn(!active && 'text-muted-foreground hover:text-foreground')}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -360,9 +358,9 @@ function EmptyState({ hasFilters, onClear }: { hasFilters: boolean; onClear: () 
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
         No items match your filters.{' '}
-        <button onClick={onClear} className="underline underline-offset-2 hover:text-foreground transition-colors cursor-pointer">
+        <Button onClick={onClear} variant="link" size="sm" className="h-auto p-0 ">
           Clear filters
-        </button>
+        </Button>
       </div>
     );
   }
@@ -638,20 +636,25 @@ export default function WorkspacePage() {
                 className="h-9 w-full rounded-lg border border-input bg-card pl-9 pr-8 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               />
               {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer">
+                <Button onClick={() => setSearch('')} variant="ghost" size="icon-xs" className="absolute right-2.5 top-1/2 -translate-y-1/2">
                   <X className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               )}
             </div>
 
-            <div className="hidden lg:flex items-center gap-0.5 rounded-lg border border-border bg-muted/40 p-0.5">
+            <FilterBar className="hidden lg:inline-flex">
               {kindTabs.map((tab) => (
-                <FilterPill key={tab.value} active={kindFilter === tab.value} onClick={() => { setKindFilter(tab.value); setScopeFilter('all'); }}>
+                <FilterBarItem
+                  key={tab.value}
+                  value={tab.value}
+                  onClick={() => { setKindFilter(tab.value); setScopeFilter('all'); }}
+                  data-state={kindFilter === tab.value ? 'active' : 'inactive'}
+                >
                   {tab.label}
                   {kindCounts[tab.value] > 0 && <span className="ml-1 opacity-50 tabular-nums">{kindCounts[tab.value]}</span>}
-                </FilterPill>
+                </FilterBarItem>
               ))}
-            </div>
+            </FilterBar>
 
             <select
               value={kindFilter}
@@ -666,13 +669,18 @@ export default function WorkspacePage() {
 
           {/* Scope sub-filter */}
           {!isLoading && activeScopeTabs.length > 2 && (
-            <div className="flex items-center gap-0.5 rounded-lg border border-border bg-muted/40 p-0.5 w-fit mb-4">
+            <FilterBar className="w-fit mb-4">
               {activeScopeTabs.map((tab) => (
-                <FilterPill key={tab.value} active={scopeFilter === tab.value} onClick={() => setScopeFilter(tab.value)}>
+                <FilterBarItem
+                  key={tab.value}
+                  value={tab.value}
+                  onClick={() => setScopeFilter(tab.value)}
+                  data-state={scopeFilter === tab.value ? 'active' : 'inactive'}
+                >
                   {tab.label} <span className="ml-1 opacity-50 tabular-nums">{scopeCounts[tab.value]}</span>
-                </FilterPill>
+                </FilterBarItem>
               ))}
-            </div>
+            </FilterBar>
           )}
 
           <OpenCodeSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} initialTab={settingsTab} />

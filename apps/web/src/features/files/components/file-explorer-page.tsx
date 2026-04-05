@@ -543,7 +543,7 @@ export function FileExplorerPage() {
             <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{serverUrl}</code>
           </p>
         </div>
-        <Button variant="outline" size="sm" className="h-8 text-sm" onClick={() => refetch()}>
+        <Button variant="outline" size="sm" className="" onClick={() => refetch()}>
           <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
           Retry
         </Button>

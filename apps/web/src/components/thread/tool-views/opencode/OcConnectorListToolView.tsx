@@ -69,7 +69,7 @@ export function OcConnectorListToolView({
                     <Badge 
                       variant="outline" 
                       className={cn(
-                        "h-4 py-0 text-[9px] font-normal capitalize",
+                        "h-4 py-0 text-[0.5625rem] font-normal capitalize",
                         conn.source === 'pipedream' && 'border-indigo-500/50 text-indigo-600 dark:text-indigo-400',
                         conn.source === 'api-key' && 'border-amber-500/50 text-amber-600 dark:text-amber-400',
                         conn.source === 'cli' && 'border-gray-500/50 text-gray-600 dark:text-gray-400',

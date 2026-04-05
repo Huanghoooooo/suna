@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import { ChevronDown } from 'lucide-react';
 import { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
@@ -17,9 +18,9 @@ function FAQItem({ question, answer }: { question: string; answer: React.ReactNo
       >
         <span className="text-base text-foreground/70">{question}</span>
         <ChevronDown
-          className={`size-4 text-muted-foreground/40 shrink-0 transition-transform duration-200 ${
+          className={cn('size-4 text-muted-foreground/40 shrink-0 transition-transform duration-200', 
             isOpen ? 'rotate-180' : ''
-          }`}
+          )}
         />
       </button>
       {isOpen && (

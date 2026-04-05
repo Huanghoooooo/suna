@@ -111,7 +111,7 @@ function ConnectionItem({
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
-              <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs">
+              <Button variant="ghost" size="sm" className="px-2.5 text-xs">
                 Manage
               </Button>
             </div>
@@ -354,12 +354,14 @@ export function TunnelOverview() {
                 <Search className="h-4 w-4" />
               </div>
               {searchQuery && (
-                <button
+                <Button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-md p-0.5 transition-colors cursor-pointer"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
                 >
                   <X className="h-4 w-4" />
-                </button>
+                </Button>
               )}
             </div>
           </div>

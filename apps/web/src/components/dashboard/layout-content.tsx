@@ -17,6 +17,7 @@ import { useSandboxConnection } from "@/hooks/platform/use-sandbox-connection";
 import { useWebNotifications } from "@/hooks/use-web-notifications";
 import { backendApi } from "@/lib/api-client";
 import { getClient } from "@/lib/opencode-sdk";
+import { Button } from "@/components/ui/button";
 import { KortixLogo } from "@/components/sidebar/kortix-logo";
 import { KortixLoader } from "@/components/ui/kortix-loader";
 import { featureFlags } from "@/lib/feature-flags";
@@ -458,12 +459,14 @@ function OnboardingSkipButton({ onConfirm }: { onConfirm: () => void }) {
 	return (
 		<AlertDialog>
 			<AlertDialogTrigger asChild>
-				<button
-					className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-foreground/[0.06] bg-background text-[13px] font-medium text-muted-foreground/60 hover:text-foreground/80 hover:border-foreground/[0.12] hover:bg-foreground/[0.03] transition-all duration-200 cursor-pointer"
+				<Button
+					variant="outline"
+					size="sm"
+					className="absolute top-3 right-3 z-20"
 				>
 					Skip onboarding
 					<ChevronRight className="h-3.5 w-3.5" />
-				</button>
+				</Button>
 			</AlertDialogTrigger>
 			<AlertDialogContent className="max-w-sm rounded-2xl">
 				<AlertDialogHeader>
@@ -907,9 +910,9 @@ export default function DashboardLayoutContent({
 								initial={{ height: 0, opacity: 0 }}
 								animate={{ height: "auto", opacity: 1 }}
 								exit={{ height: 0, opacity: 0 }}
-								transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-								style={{ overflow: "hidden" }}
-							>
+							transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+							className="overflow-hidden"
+						>
 								<TabBar />
 							</motion.div>
 						)}

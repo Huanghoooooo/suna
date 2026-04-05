@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import type { UserEmailLinkProps } from '../types';
 
 export function UserEmailLink({ email, onUserClick, className = '' }: UserEmailLinkProps) {
@@ -13,7 +14,7 @@ export function UserEmailLink({ email, onUserClick, className = '' }: UserEmailL
         e.stopPropagation();
         onUserClick(email);
       }}
-      className={`text-primary hover:underline hover:text-primary/80 transition-colors text-left ${className}`}
+      className={cn('text-primary hover:underline hover:text-primary/80 transition-colors text-left', className)}
     >
       {email}
     </button>

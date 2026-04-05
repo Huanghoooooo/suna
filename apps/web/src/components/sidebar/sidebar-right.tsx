@@ -170,7 +170,7 @@ export function SidebarRight() {
           onClick={toggleSidebar}
           title="Toggle Sidebar"
           className={cn(
-            'hover:after:bg-sidebar-border absolute inset-y-0 left-0 z-20 hidden w-4 -translate-x-1/2 transition-all duration-300 ease-out after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex',
+            'hover:after:bg-sidebar-border absolute inset-y-0 left-0 z-20 hidden w-4 -translate-x-1/2 transition-colors duration-300 ease-out after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex',
             state === 'expanded' ? 'cursor-w-resize' : 'cursor-e-resize',
           )}
         />

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useCallback, useState, useRef } from 'react';
+import { Button } from '@/components/ui/button';
 import {
   Folder,
   FolderOpen,
@@ -161,7 +162,7 @@ function FolderCard({
           onClick={isRenaming ? undefined : onClick}
           className={cn(
             'group flex items-center gap-3 h-11 px-3 rounded-xl border border-border/50 cursor-pointer select-none',
-            'transition-all duration-150',
+            'transition-colors duration-150',
             'hover:bg-muted/50 hover:border-border',
             'active:scale-[0.98]',
             isCut && 'opacity-40',
@@ -192,12 +193,14 @@ function FolderCard({
             )}
           </div>
           {!isRenaming && (
-            <button
+            <Button
               onClick={handleDotsClick}
-              className="h-6 w-6 flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity cursor-pointer shrink-0"
+              variant="ghost"
+              size="icon-xs"
+              className="opacity-0 group-hover:opacity-100 shrink-0"
             >
               <MoreVertical className="h-4 w-4 text-muted-foreground" />
-            </button>
+            </Button>
           )}
         </div>
       </ContextMenuTrigger>
@@ -326,7 +329,7 @@ function FileCard({
           onDoubleClick={isRenaming ? undefined : onDoubleClick}
           className={cn(
             'group relative flex flex-col rounded-xl border border-border/50 cursor-pointer select-none overflow-hidden',
-            'transition-all duration-150',
+            'transition-colors duration-150',
             'hover:bg-muted/30 hover:border-border hover:shadow-sm',
             'active:scale-[0.98]',
             isCut && 'opacity-40',
@@ -342,12 +345,14 @@ function FileCard({
 
           {/* Three-dot menu trigger */}
           {!isRenaming && (
-            <button
+            <Button
               onClick={handleDotsClick}
-              className="absolute top-2 right-2 h-7 w-7 flex items-center justify-center rounded-full bg-background/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity cursor-pointer z-10"
+              variant="ghost"
+              size="icon-sm"
+              className="absolute top-2 right-2 bg-background/80 opacity-0 group-hover:opacity-100 z-10"
             >
               <MoreVertical className="h-4 w-4 text-muted-foreground" />
-            </button>
+            </Button>
           )}
 
           {/* Name area - fixed height to prevent layout shift */}

@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -252,30 +253,22 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b">
-        <button
+      <FilterBar className="w-full px-2">
+        <FilterBarItem
           onClick={() => setTab('settings')}
-          className={cn(
-            "flex-1 py-2.5 text-sm font-medium text-center border-b-2 transition-colors",
-            tab === 'settings'
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
+          data-state={tab === 'settings' ? 'active' : 'inactive'}
+          className="flex-1"
         >
           Settings
-        </button>
-        <button
+        </FilterBarItem>
+        <FilterBarItem
           onClick={() => setTab('executions')}
-          className={cn(
-            "flex-1 py-2.5 text-sm font-medium text-center border-b-2 transition-colors",
-            tab === 'executions'
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
+          data-state={tab === 'executions' ? 'active' : 'inactive'}
+          className="flex-1"
         >
           Executions
-        </button>
-      </div>
+        </FilterBarItem>
+      </FilterBar>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 pb-12">

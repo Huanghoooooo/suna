@@ -198,34 +198,32 @@ export function TaskConfigDialog({ open, onOpenChange, onCreated }: TaskConfigDi
             <div className="space-y-4">
               <Label>Trigger Source</Label>
               <div className="grid grid-cols-2 gap-3">
-                <button
+                <Button
                   type="button"
                   onClick={() => setSourceType('cron')}
-                  className={cn(
-                    "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer",
-                    sourceType === 'cron'
+                  variant="outline"
+                  className={cn("flex flex-col items-center gap-2 p-4 h-auto rounded-xl border-2", sourceType === 'cron'
                       ? "border-primary bg-primary/5"
                       : "border-border hover:border-primary/50 hover:bg-muted/30"
-                  )}
+                 )}
                 >
                   <Timer className="h-6 w-6" />
                   <div className="text-sm font-medium">Cron Schedule</div>
                   <div className="text-xs text-muted-foreground text-center">Runs on a time-based schedule</div>
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => setSourceType('webhook')}
-                  className={cn(
-                    "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer",
-                    sourceType === 'webhook'
+                  variant="outline"
+                  className={cn("flex flex-col items-center gap-2 p-4 h-auto rounded-xl border-2", sourceType === 'webhook'
                       ? "border-primary bg-primary/5"
                       : "border-border hover:border-primary/50 hover:bg-muted/30"
-                  )}
+                 )}
                 >
                   <Webhook className="h-6 w-6" />
                   <div className="text-sm font-medium">Webhook</div>
                   <div className="text-xs text-muted-foreground text-center">Fires when an HTTP request is received</div>
-                </button>
+                </Button>
               </div>
 
               {/* Source config */}
@@ -285,48 +283,45 @@ export function TaskConfigDialog({ open, onOpenChange, onCreated }: TaskConfigDi
             <div className="space-y-4">
               <Label>Action Type</Label>
               <div className="grid grid-cols-3 gap-3">
-                <button
+                <Button
                   type="button"
                   onClick={() => setActionType('prompt')}
-                  className={cn(
-                    "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer",
-                    actionType === 'prompt'
+                  variant="outline"
+                  className={cn("flex flex-col items-center gap-2 p-4 h-auto rounded-xl border-2", actionType === 'prompt'
                       ? "border-primary bg-primary/5"
                       : "border-border hover:border-primary/50 hover:bg-muted/30"
-                  )}
+                 )}
                 >
                   <MessageSquare className="h-5 w-5" />
                   <div className="text-sm font-medium">Prompt</div>
                   <div className="text-xs text-muted-foreground text-center">Send to AI agent</div>
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => setActionType('command')}
-                  className={cn(
-                    "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer",
-                    actionType === 'command'
+                  variant="outline"
+                  className={cn("flex flex-col items-center gap-2 p-4 h-auto rounded-xl border-2", actionType === 'command'
                       ? "border-primary bg-primary/5"
                       : "border-border hover:border-primary/50 hover:bg-muted/30"
-                  )}
+                 )}
                 >
                   <Terminal className="h-5 w-5" />
                   <div className="text-sm font-medium">Command</div>
                   <div className="text-xs text-muted-foreground text-center">Run shell command</div>
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => setActionType('http')}
-                  className={cn(
-                    "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer",
-                    actionType === 'http'
+                  variant="outline"
+                  className={cn("flex flex-col items-center gap-2 p-4 h-auto rounded-xl border-2", actionType === 'http'
                       ? "border-primary bg-primary/5"
                       : "border-border hover:border-primary/50 hover:bg-muted/30"
-                  )}
+                 )}
                 >
                   <Globe className="h-5 w-5" />
                   <div className="text-sm font-medium">HTTP</div>
                   <div className="text-xs text-muted-foreground text-center">Call external URL</div>
-                </button>
+                </Button>
               </div>
             </div>
           )}

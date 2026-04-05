@@ -146,7 +146,7 @@ export function SessionSiteHeader({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-9 px-2.5 cursor-pointer gap-1.5"
+                  className="px-2.5 cursor-pointer gap-1.5"
                 >
                   <Upload className="h-4 w-4" />
                   <span className="hidden sm:inline text-sm">Share</span>

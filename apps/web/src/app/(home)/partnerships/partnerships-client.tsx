@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import { useState, useEffect, useCallback } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -147,13 +148,13 @@ export default function PartnershipsPageClient() {
 
       {/* Floating CTA Bar — commented out for now
       <div
-        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-1.5 py-1.5 rounded-full border border-border/50 bg-background/95 backdrop-blur-md transition-all duration-300 ${
+        className={cn('fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-1.5 py-1.5 rounded-full border border-border/50 bg-background/95 backdrop-blur-md transition-colors duration-300', 
           showFloatingCta ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'
-        }`}
+        )}
       >
         <Button
           size="sm"
-          className="h-8 px-5 text-xs rounded-full font-medium"
+          className="px-5 text-xs rounded-full font-medium"
           onClick={openCal}
         >
           Schedule a call<ArrowRight className="ml-1.5 size-3" />

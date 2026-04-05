@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useKortixProject, useKortixProjectSessions, useDeleteProject } from '@/hooks/kortix/use-kortix-projects';
 import { useKortixTasks, type KortixTask } from '@/hooks/kortix/use-kortix-tasks';
@@ -132,7 +133,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
           {taskStats.total > 0 && (
             <div className="mt-3 h-1.5 bg-muted rounded-full overflow-hidden max-w-xs">
               <div
-                className="h-full bg-emerald-500/60 rounded-full transition-all duration-500"
+                className="h-full bg-emerald-500/60 rounded-full transition-colors duration-500"
                 style={{ width: `${(taskStats.done / taskStats.total) * 100}%` }}
               />
             </div>
@@ -142,13 +143,14 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
         {/* Tabs */}
         <div className="flex items-center border-b border-border mb-6">
           <div className="flex -mb-px">
-            {tabs.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                className={cn('flex items-center gap-1.5 h-10 px-4 text-sm font-medium border-b-2 cursor-pointer transition-colors',
+             {tabs.map(t => (
+              <Button key={t.id} onClick={() => setTab(t.id)}
+                variant="ghost"
+                className={cn('flex items-center gap-1.5 h-10 px-4 rounded-none border-b-2',
                   tab === t.id ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground/40 hover:text-muted-foreground')}>
                 <t.I className="h-4 w-4" />{t.label}
                 {t.n > 0 && <span className="text-[10px] text-muted-foreground/20 tabular-nums ml-1">{t.n}</span>}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -170,7 +172,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
                       {t.title}
                     </span>
                     {t.priority && t.priority !== 'medium' && (
-                      <span className={cn('text-[9px] font-medium px-1.5 py-px rounded border shrink-0', priorityBadge[t.priority] || '')}>
+                      <span className={cn('text-[0.5625rem] font-medium px-1.5 py-px rounded border shrink-0', priorityBadge[t.priority] || '')}>
                         {t.priority}
                       </span>
                     )}
@@ -193,7 +195,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
                     onClick={() => openTabAndNavigate({ id: a.session_id, title: a.description || 'Agent', type: 'session', href: `/sessions/${a.session_id}` })}
                     className="flex items-center h-11 px-4 gap-3 w-full hover:bg-accent/50 transition-colors cursor-pointer text-left border-b border-border last:border-0">
                     <SI className={cn('h-3.5 w-3.5 shrink-0', si.color, a.status === 'running' && 'animate-spin')} />
-                    <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-mono shrink-0">{a.agent_type}</Badge>
+                    <Badge variant="outline" className="text-[0.5625rem] h-4 px-1.5 font-mono shrink-0">{a.agent_type}</Badge>
                     <span className="text-sm text-foreground/70 truncate flex-1">{a.description}</span>
                     <span className="text-[10px] text-muted-foreground/20 tabular-nums shrink-0">{ago(a.created_at)}</span>
                   </button>

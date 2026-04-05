@@ -1,0 +1,299 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Loader2,
+  ExternalLink,
+  Copy,
+  ClipboardCheck,
+} from 'lucide-react';
+import { SlackIcon } from '@/components/ui/icons/slack';
+import { toast } from 'sonner';
+import { useGenerateManifest, useSlackConnect } from '@/hooks/channels/use-slack-wizard';
+import { getActiveOpenCodeUrl } from '@/stores/server-store';
+import { authenticatedFetch } from '@/lib/auth-token';
+
+interface SlackSetupWizardProps {
+  onCreated: () => void;
+  onBack: () => void;
+}
+
+const STEP_ANIMATION = {
+  initial: { opacity: 0, x: 20 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: -20 },
+  transition: { duration: 0.2 },
+};
+
+const BOT_NAMES = [
+  'Atlas', 'Nova', 'Sage', 'Echo', 'Bolt', 'Iris', 'Dash', 'Cleo',
+  'Finn', 'Luna', 'Juno', 'Axel', 'Niko', 'Zara', 'Milo', 'Ruby',
+  'Hugo', 'Aria', 'Leo', 'Ivy', 'Rex', 'Mae', 'Kai', 'Pia',
+];
+
+function randomBotName(): string {
+  return `Kortix ${BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)]}`;
+}
+
+export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
+  const [step, setStep] = useState(1);
+  const [botName, setBotName] = useState(() => randomBotName());
+  const [manifest, setManifest] = useState<Record<string, unknown> | null>(null);
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [manifestCopied, setManifestCopied] = useState(false);
+  const [botToken, setBotToken] = useState('');
+  const [signingSecret, setSigningSecret] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const slackConnect = useSlackConnect();
+
+  // Auto-generate manifest on mount — backend resolves public URL internally
+  const handleGenerateManifest = async () => {
+    setIsGenerating(true);
+    try {
+      const baseUrl = getActiveOpenCodeUrl();
+      if (!baseUrl) {
+        toast.error('No active sandbox');
+        return;
+      }
+      const res = await authenticatedFetch(`${baseUrl}/kortix/channels/slack-manifest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicUrl: '', botName: botName.trim() || undefined }),
+      });
+      const data = await res.json() as any;
+      if (data.ok && data.manifest) {
+        setManifest(data.manifest);
+        setWebhookUrl(data.webhookUrl || '');
+        toast.success('Manifest generated');
+        setStep(2);
+      } else {
+        toast.error(data.error || 'Failed to generate manifest');
+      }
+    } catch {
+      toast.error('Failed to generate manifest');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleCopyManifest = async () => {
+    if (!manifest) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(manifest, null, 2));
+      setManifestCopied(true);
+      toast.success('Manifest copied to clipboard');
+      setTimeout(() => setManifestCopied(false), 3000);
+    } catch {
+      toast.error('Failed to copy');
+    }
+  };
+
+  const handleConnect = async () => {
+    const trimmedToken = botToken.trim();
+    if (!trimmedToken) {
+      toast.error('Enter a bot token');
+      return;
+    }
+    try {
+      // publicUrl empty — backend auto-resolves
+      const result = await slackConnect.mutateAsync({
+        botToken: trimmedToken,
+        signingSecret: signingSecret.trim() || undefined,
+        publicUrl: '',
+        name: botName.trim() || undefined,
+      });
+      toast.success(result.message || 'Slack bot connected!');
+      onCreated();
+    } catch (err: any) {
+      toast.error(err.message || 'Setup failed');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button onClick={onBack} variant="ghost" size="icon">
+          <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+        </Button>
+        <div className="flex items-center justify-center w-9 h-9 rounded-[10px] bg-muted border border-border/50">
+          <SlackIcon className="h-4.5 w-4.5 text-foreground" />
+        </div>
+        <div>
+          <h3 className="text-base font-semibold">Slack Setup</h3>
+          <p className="text-xs text-muted-foreground">Connect a Slack bot to your agent</p>
+        </div>
+      </div>
+
+      {/* Step indicators */}
+      <div className="flex items-center gap-2">
+        {[1, 2, 3].map((s) => (
+          <div key={s} className="flex items-center gap-2">
+            <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium transition-colors ${
+              s < step ? 'bg-primary text-primary-foreground' :
+              s === step ? 'bg-primary text-primary-foreground' :
+              'bg-muted text-muted-foreground'
+            }`}>
+              {s < step ? <CheckCircle2 className="h-3.5 w-3.5" /> : s}
+            </div>
+            <span className={`text-xs ${s === step ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+              {s === 1 ? 'Bot Name' : s === 2 ? 'Create App' : 'Connect'}
+            </span>
+            {s < 3 && <div className="w-6 h-px bg-border" />}
+          </div>
+        ))}
+      </div>
+
+      {/* Steps */}
+      <AnimatePresence mode="wait">
+        {step === 1 && (
+          <motion.div key="step1" {...STEP_ANIMATION} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="slack-bot-name">Bot Name</Label>
+              <Input
+                id="slack-bot-name"
+                placeholder="Kortix Agent"
+                value={botName}
+                onChange={(e) => setBotName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleGenerateManifest()}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                This will be the display name of your bot in Slack.
+              </p>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                onClick={handleGenerateManifest}
+                disabled={isGenerating}
+                className="gap-2"
+              >
+                {isGenerating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowRight className="h-4 w-4" />
+                )}
+                Generate Manifest
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {step === 2 && (
+          <motion.div key="step2" {...STEP_ANIMATION} className="space-y-3">
+            <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground space-y-1.5">
+              <p className="font-medium text-foreground text-sm">Create your Slack app</p>
+              <ol className="list-decimal list-inside space-y-1 text-[12px]">
+                <li>Go to{' '}
+                  <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">
+                    api.slack.com/apps <ExternalLink className="h-2.5 w-2.5" />
+                  </a>{' '}
+                  → <strong className="text-foreground">Create New App</strong> → <strong className="text-foreground">From an app manifest</strong>
+                </li>
+                <li>Select your workspace, paste the manifest below (JSON format)</li>
+                <li>After creating, <strong className="text-foreground">Install to Workspace</strong> from OAuth & Permissions</li>
+              </ol>
+            </div>
+
+            {manifest && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">App Manifest</Label>
+                  <Button variant="ghost" size="sm" className="gap-1 h-6 text-[11px] px-2" onClick={handleCopyManifest}>
+                    {manifestCopied ? <ClipboardCheck className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    {manifestCopied ? 'Copied' : 'Copy JSON'}
+                  </Button>
+                </div>
+                <pre className="rounded-lg border bg-muted/50 px-2.5 py-2 text-[11px] text-muted-foreground overflow-x-auto max-h-24 overflow-y-auto leading-tight">
+                  {JSON.stringify(manifest, null, 2)}
+                </pre>
+              </div>
+            )}
+
+            {webhookUrl && (
+              <p className="text-[11px] text-muted-foreground">
+                Webhook: <code className="px-1 py-0.5 rounded bg-muted text-foreground text-[11px]">{webhookUrl}</code>
+              </p>
+            )}
+
+            <div className="flex items-center justify-between pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setStep(1)} className="h-8 text-xs">
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+                Back
+              </Button>
+              <Button onClick={() => setStep(3)} className="gap-1.5 h-8 text-xs">
+                <ArrowRight className="h-3.5 w-3.5" />
+                Enter Credentials
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {step === 3 && (
+          <motion.div key="step3" {...STEP_ANIMATION} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="slack-token" className="text-xs">Bot User OAuth Token</Label>
+              <Input
+                id="slack-token"
+                type="password"
+                placeholder="xoxb-..."
+                value={botToken}
+                onChange={(e) => setBotToken(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Find this in your{' '}
+                <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Slack app</a>
+                {' '}→ <strong className="text-foreground">OAuth & Permissions</strong> → <strong className="text-foreground">Bot User OAuth Token</strong>
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="slack-signing" className="text-xs">Signing Secret (optional)</Label>
+              <Input
+                id="slack-signing"
+                type="password"
+                placeholder="abc123..."
+                value={signingSecret}
+                onChange={(e) => setSigningSecret(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Find this in your{' '}
+                <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Slack app</a>
+                {' '}→ <strong className="text-foreground">Basic Information</strong> → <strong className="text-foreground">App Credentials</strong> → Signing Secret
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setStep(2)} className="h-8 text-xs">
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+                Back
+              </Button>
+              <Button
+                onClick={handleConnect}
+                disabled={!botToken.trim() || slackConnect.isPending}
+                className="gap-1.5 h-8 text-xs"
+              >
+                {slackConnect.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                )}
+                Connect Bot
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

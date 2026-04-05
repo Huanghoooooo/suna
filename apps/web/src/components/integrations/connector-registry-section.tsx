@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from '@/lib/utils';
 import React, { useState } from 'react';
 import { Terminal, KeyRound, Plug, Globe, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +27,7 @@ function ConnectorCard({ connector, pipedreamConnections }: { connector: KortixC
   return (
     <div className="rounded-xl border border-border/50 bg-card transition-colors hover:border-border overflow-hidden cursor-pointer" onClick={() => setExpanded(!expanded)}>
       <div className="flex items-center gap-3 px-4 py-3">
-        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/30 bg-muted/50 ${cfg.color}`}>
+        <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/30 bg-muted/50', cfg.color)}>
           <Icon className="h-3.5 w-3.5" />
         </div>
         <div className="flex-1 min-w-0">

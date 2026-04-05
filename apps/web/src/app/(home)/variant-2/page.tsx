@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
@@ -112,7 +113,7 @@ export default function Variant2Home() {
             >
               <Button
                 size="lg"
-                className="h-14 px-10 text-base rounded-full transition-all"
+                className="h-14 px-10 text-base rounded-full transition-colors"
                 onClick={handleLaunch}
               >
                 Launch Kortix<ArrowRight className="ml-2 size-4" />
@@ -124,7 +125,7 @@ export default function Variant2Home() {
                 </span>
                 <button
                   onClick={handleCopy}
-                  className="group flex items-center justify-between w-full max-w-sm h-10 px-4 rounded-lg bg-foreground/[0.03] border border-foreground/[0.08] hover:bg-foreground/[0.06] hover:border-foreground/[0.12] transition-all cursor-pointer backdrop-blur-md"
+                  className="group flex items-center justify-between w-full max-w-sm h-10 px-4 rounded-lg bg-foreground/[0.03] border border-foreground/[0.08] hover:bg-foreground/[0.06] hover:border-foreground/[0.12] transition-colors cursor-pointer backdrop-blur-md"
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
                     <span className="font-mono text-xs text-muted-foreground/40 select-none">$</span>
@@ -132,7 +133,7 @@ export default function Variant2Home() {
                   </div>
                   <div className="pl-3 border-l border-foreground/[0.08] shrink-0">
                     {copied
-                      ? <Check className="size-3.5 text-green-500" />
+                      ? <Check className="size-3.5 text-emerald-500" />
                       : <Copy className="size-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />}
                   </div>
                 </button>
@@ -197,7 +198,7 @@ export default function Variant2Home() {
                         <div className="size-1.5 rounded-full bg-muted-foreground/15" />
                         <div className="size-1.5 rounded-full bg-muted-foreground/15" />
                       </div>
-                      <span className="text-[9px] font-mono text-muted-foreground/30 ml-1">output</span>
+                      <span className="text-[0.5625rem] font-mono text-muted-foreground/30 ml-1">output</span>
                     </div>
                     <div className="relative overflow-hidden" style={{ aspectRatio: `${width}/${height}` }}>
                       <Image src={src} alt={label} width={width} height={height} className="w-full h-full object-cover" />
@@ -260,13 +261,13 @@ export default function Variant2Home() {
                   </div>
                   <div className="p-5 space-y-5">
                     <div className="space-y-1">
-                      <div className="text-muted-foreground/35 text-[9px] uppercase tracking-widest">You</div>
+                      <div className="text-muted-foreground/35 text-[0.5625rem] uppercase tracking-widest">You</div>
                       <div className="text-foreground/65 leading-relaxed">
                         Research our top 3 competitors, summarise their pricing, and send a Slack report to #strategy.
                       </div>
                     </div>
                     <div className="space-y-2 pl-3 border-l border-border/25">
-                      <div className="text-muted-foreground/35 text-[9px] uppercase tracking-widest mb-3">Kortix</div>
+                      <div className="text-muted-foreground/35 text-[0.5625rem] uppercase tracking-widest mb-3">Kortix</div>
                       {[
                         { done: true, text: 'Browsing competitor sites via Chromium...' },
                         { done: true, text: 'Extracting pricing pages (3 sites)...' },
@@ -275,7 +276,7 @@ export default function Variant2Home() {
                         { done: false, text: 'Sending to #strategy via Slack OAuth...' },
                       ].map(({ done, text }, i) => (
                         <div key={i} className="flex items-start gap-2.5">
-                          <div className={`mt-[3px] size-1.5 rounded-full shrink-0 ${done ? 'bg-foreground/20' : 'bg-foreground/50 animate-pulse'}`} />
+                          <div className={cn('mt-[3px] size-1.5 rounded-full shrink-0', done ? 'bg-foreground/20' : 'bg-foreground/50 animate-pulse')} />
                           <span className={done ? 'text-muted-foreground/40 line-through decoration-muted-foreground/25' : 'text-foreground/70'}>
                             {text}
                           </span>
@@ -310,7 +311,7 @@ export default function Variant2Home() {
                     <div className="size-2.5 opacity-0" />
                   </div>
                   <div className="p-5 space-y-1 text-[11px]">
-                    <div className="grid grid-cols-12 gap-2 text-[9px] text-muted-foreground/30 uppercase tracking-widest pb-2 border-b border-border/20 mb-3">
+                    <div className="grid grid-cols-12 gap-2 text-[0.5625rem] text-muted-foreground/30 uppercase tracking-widest pb-2 border-b border-border/20 mb-3">
                       <div className="col-span-5">Agent</div>
                       <div className="col-span-3">Uptime</div>
                       <div className="col-span-4">Last action</div>
@@ -324,7 +325,7 @@ export default function Variant2Home() {
                     ].map(({ name, uptime, last, running }) => (
                       <div key={name} className="grid grid-cols-12 gap-2 py-1.5 items-center">
                         <div className="col-span-5 flex items-center gap-2">
-                          <div className={`size-1.5 rounded-full shrink-0 ${running ? 'bg-foreground/40 animate-pulse' : 'bg-muted-foreground/20'}`} />
+                          <div className={cn('size-1.5 rounded-full shrink-0', running ? 'bg-foreground/40 animate-pulse' : 'bg-muted-foreground/20')} />
                           <span className={running ? 'text-foreground/65' : 'text-muted-foreground/35'}>{name}</span>
                         </div>
                         <div className="col-span-3 text-muted-foreground/35">{uptime}</div>
@@ -403,7 +404,7 @@ export default function Variant2Home() {
                       ].map(({ name, tag }) => (
                         <div key={name} className="flex items-center justify-between py-1.5">
                           <span className="text-sm text-foreground/70 font-medium">{name}</span>
-                          <span className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground/35 bg-muted/20 px-2 py-0.5 rounded-md">{tag}</span>
+                          <span className="text-[0.5625rem] font-mono uppercase tracking-widest text-muted-foreground/35 bg-muted/20 px-2 py-0.5 rounded-md">{tag}</span>
                         </div>
                       ))}
                       <div className="pt-2 text-[10px] text-muted-foreground/30 text-center border-t border-border/20">
@@ -468,7 +469,7 @@ export default function Variant2Home() {
                 <code className="text-[11px] font-mono text-foreground/70 tracking-tight">{INSTALL_CMD}</code>
                 <div className="pl-2.5 border-l border-foreground/[0.08]">
                   {copied
-                    ? <Check className="size-3 text-green-500" />
+                    ? <Check className="size-3 text-emerald-500" />
                     : <Copy className="size-3 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
                   }
                 </div>

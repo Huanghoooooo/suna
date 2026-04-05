@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import { useState, useCallback, useEffect } from 'react';
 import { BackgroundAALChecker } from '@/components/auth/background-aal-checker';
 import { WallpaperBackground } from '@/components/ui/wallpaper-background';
@@ -99,7 +100,7 @@ export default function Home() {
             <div className="relative z-[1] pb-8 px-4 flex flex-col items-center gap-6">
               <Button
                 size="lg"
-                className="h-12 px-8 text-sm rounded-full transition-all"
+                className="h-12 px-8 text-sm rounded-full transition-colors"
                 onClick={handleLaunch}
               >
                 Launch Your Kortix<ArrowRight className="ml-1.5 size-3.5" />
@@ -112,7 +113,7 @@ export default function Home() {
                 <code className="text-[11px] font-mono text-foreground/60 tracking-tight">{INSTALL_CMD}</code>
                 <div className="pl-2.5 border-l border-foreground/[0.06]">
                   {copied
-                    ? <Check className="size-3 text-green-500" />
+                    ? <Check className="size-3 text-emerald-500" />
                     : <Copy className="size-3 text-muted-foreground/25 group-hover:text-muted-foreground/50 transition-colors" />
                   }
                 </div>
@@ -312,9 +313,9 @@ export default function Home() {
 
         {/* ═══════════════ FLOATING CTA BAR ═══════════════ */}
         <div
-           className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-1.5 py-1.5 rounded-full border border-border/50 bg-background/95 backdrop-blur-md transition-all duration-300 ${
+           className={cn('fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-1.5 py-1.5 rounded-full border border-border/50 bg-background/95 backdrop-blur-md transition-colors duration-300', 
             showFloatingCta ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'
-          }`}
+          )}
         >
           <button
             onClick={handleCopy}
@@ -323,7 +324,7 @@ export default function Home() {
             <span className="font-mono text-[11px] text-muted-foreground/40 select-none">$</span>
             <code className="text-[11px] font-mono text-foreground/60 tracking-tight">curl -fsSL kortix.com/install</code>
             {copied
-              ? <Check className="size-3 text-green-500" />
+              ? <Check className="size-3 text-emerald-500" />
               : <Copy className="size-3 text-muted-foreground/30 group-hover:text-muted-foreground/50 transition-colors" />
             }
           </button>
@@ -339,7 +340,7 @@ export default function Home() {
           </a>
           <Button
             size="sm"
-            className="h-8 px-5 text-xs rounded-full font-medium"
+            className="px-5 text-xs rounded-full font-medium"
             onClick={handleLaunch}
           >
             Launch Your Kortix<ArrowRight className="ml-1.5 size-3" />

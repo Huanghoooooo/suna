@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import React, { useState } from 'react';
 import { X, Plus, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -91,9 +92,9 @@ export function FilesystemScopeEditor({ scope, onChange }: FilesystemScopeEditor
             {scope.paths.map((p) => (
               <Badge key={p} variant="secondary" className="gap-1 pr-1 font-mono text-xs">
                 {p}
-                <button onClick={() => removePath(p)} className="ml-0.5 rounded hover:bg-muted-foreground/20">
+                <Button onClick={() => removePath(p)} variant="ghost" size="icon-xs" className="ml-0.5">
                   <X className="h-3 w-3" />
-                </button>
+                </Button>
               </Badge>
             ))}
           </div>
@@ -116,7 +117,7 @@ export function FilesystemScopeEditor({ scope, onChange }: FilesystemScopeEditor
       {/* Exclude Patterns (collapsible) */}
       <Collapsible open={excludesOpen} onOpenChange={setExcludesOpen}>
         <CollapsibleTrigger className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${excludesOpen ? '' : '-rotate-90'}`} />
+          <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', excludesOpen ? '' : '-rotate-90')} />
           Exclude Patterns
           {(scope.excludePatterns?.length ?? 0) > 0 && (
             <Badge variant="secondary" className="text-xs px-1.5 py-0">{scope.excludePatterns!.length}</Badge>
@@ -129,9 +130,9 @@ export function FilesystemScopeEditor({ scope, onChange }: FilesystemScopeEditor
                 {scope.excludePatterns!.map((p) => (
                   <Badge key={p} variant="secondary" className="gap-1 pr-1 font-mono text-xs">
                     {p}
-                    <button onClick={() => removeExclude(p)} className="ml-0.5 rounded hover:bg-muted-foreground/20">
+                    <Button onClick={() => removeExclude(p)} variant="ghost" size="icon-xs" className="ml-0.5">
                       <X className="h-3 w-3" />
-                    </button>
+                    </Button>
                   </Badge>
                 ))}
               </div>

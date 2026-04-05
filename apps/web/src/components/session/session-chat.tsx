@@ -318,15 +318,16 @@ function AnsweredQuestionCard({ part, defaultExpanded = false }: { part: ToolPar
 		<Collapsible open={expanded} onOpenChange={setExpanded}>
 			<div className="rounded-lg border border-border/40 bg-muted/20 overflow-hidden">
 				<CollapsibleTrigger asChild>
-					<button
+					<Button
 						type="button"
-						className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left cursor-pointer hover:bg-muted/40 transition-colors"
+						variant="ghost"
+						className="flex items-center gap-1.5 w-full px-2.5 py-1.5 h-auto text-left rounded-none justify-start hover:bg-muted/40"
 					>
 						<MessageSquare className="size-3.5 text-muted-foreground shrink-0" />
 						<span className="text-xs font-medium text-foreground">Questions</span>
 						<span className="text-[11px] text-muted-foreground/70">{answeredCount} answered</span>
 						<ChevronDown className={cn('size-3 text-muted-foreground ml-auto transition-transform', expanded && 'rotate-180')} />
-					</button>
+					</Button>
 				</CollapsibleTrigger>
 				<CollapsibleContent>
 					<div className="border-t border-border/30">
@@ -827,11 +828,12 @@ function DCPNotificationCard({
 	return (
 		<div className="rounded-lg border border-border/60 bg-card/50 overflow-hidden">
 			{/* Header */}
-			<button
+			<Button
 				onClick={() => hasDetails && setExpanded(!expanded)}
+				variant="ghost"
 				className={cn(
-					"flex items-center gap-2 w-full px-3 py-2 border-b border-border/40 bg-muted/30",
-					hasDetails && "cursor-pointer hover:bg-muted/50 transition-colors",
+					"flex items-center gap-2 w-full px-3 py-2 h-auto border-b border-border/40 bg-muted/30 rounded-none justify-start",
+					!hasDetails && "pointer-events-none",
 				)}
 			>
 				<Scissors className="size-3.5 text-muted-foreground/70 flex-shrink-0" />
@@ -859,7 +861,7 @@ function DCPNotificationCard({
 							</span>
 						)}
 					{notification.batchSaved > 0 && (
-						<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-500 font-medium">
+						<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 font-medium">
 							-{formatDCPTokens(notification.batchSaved)} tokens
 						</span>
 					)}
@@ -875,7 +877,7 @@ function DCPNotificationCard({
 						/>
 					)}
 				</div>
-			</button>
+			</Button>
 
 			{/* Expandable details */}
 			{expanded && hasDetails && (
@@ -1132,17 +1134,9 @@ function PartActions({
 				{/* Edit & fork button */}
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<button
-							onClick={() => setEditOpen(true)}
-							disabled={isBusy}
-							className={cn(
-								"p-1.5 rounded-md transition-colors cursor-pointer",
-								"text-muted-foreground/50 hover:text-foreground hover:bg-muted/60",
-								"disabled:opacity-30 disabled:cursor-not-allowed",
-							)}
-						>
+						<Button variant="ghost" size="icon-xs" className="text-muted-foreground/50" onClick={() => setEditOpen(true)}>
 							<Pencil className="size-3.5" />
-						</button>
+						</Button>
 					</TooltipTrigger>
 					<TooltipContent side="top" className="text-xs">
 						Edit fork prompt
@@ -2584,16 +2578,13 @@ function SessionTurn({
 					<div className="flex justify-end mt-1 opacity-0 group-hover/turn:opacity-100 transition-opacity duration-150">
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<button
-									onClick={handleCopyUser}
-									className="p-1.5 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
-								>
+								<Button variant="ghost" size="icon-xs" onClick={handleCopyUser}>
 									{userCopied ? (
 										<Check className="size-3.5" />
 									) : (
 										<Copy className="size-3.5" />
 									)}
-								</button>
+								</Button>
 							</TooltipTrigger>
 							<TooltipContent>{userCopied ? "Copied!" : "Copy"}</TooltipContent>
 						</Tooltip>
@@ -2619,12 +2610,9 @@ function SessionTurn({
 						{!isBusy && (
 							<Tooltip>
 							<TooltipTrigger asChild>
-								<button
-									onClick={() => onFork(turn.userMessage.info.id)}
-									className="p-1.5 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
-								>
-										<GitFork className="size-3.5" />
-									</button>
+							<Button variant="ghost" size="icon-xs" onClick={() => onFork(turn.userMessage.info.id)}>
+									<GitFork className="size-3.5" />
+								</Button>
 								</TooltipTrigger>
 								<TooltipContent>Fork to new session</TooltipContent>
 							</Tooltip>
@@ -2641,8 +2629,7 @@ function SessionTurn({
 					<img
 						src="/kortix-logomark-white.svg"
 						alt="Kortix"
-						className={cn("dark:invert-0 invert flex-shrink-0")}
-						style={{ height: "14px", width: "auto" }}
+						className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
 					/>
 				</div>
 			)}
@@ -2756,8 +2743,7 @@ function SessionTurn({
 					<img
 						src="/kortix-logomark-white.svg"
 						alt="Kortix"
-						className="dark:invert-0 invert flex-shrink-0"
-						style={{ height: '14px', width: 'auto' }}
+						className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
 					/>
 				</div>
 			)}
@@ -2898,16 +2884,13 @@ function SessionTurn({
 					)}
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<button
-								onClick={handleCopy}
-								className="p-1.5 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
-							>
+							<Button variant="ghost" size="icon-xs" onClick={handleCopy}>
 								{copied ? (
 									<Check className="size-3.5" />
 								) : (
 									<Copy className="size-3.5" />
 								)}
-							</button>
+							</Button>
 						</TooltipTrigger>
 						<TooltipContent>{copied ? "Copied!" : "Copy"}</TooltipContent>
 					</Tooltip>
@@ -4816,8 +4799,7 @@ export function SessionChat({
 											<img
 												src="/kortix-logomark-white.svg"
 												alt="Kortix"
-												className="dark:invert-0 invert flex-shrink-0"
-												style={{ height: "14px", width: "auto" }}
+												className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
 											/>
 											{isRetrying && (
 												<span className="text-xs text-amber-500">
@@ -4845,8 +4827,7 @@ export function SessionChat({
 													<img
 														src="/kortix-logomark-white.svg"
 														alt="Kortix"
-														className="dark:invert-0 invert flex-shrink-0"
-														style={{ height: "14px", width: "auto" }}
+														className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
 													/>
 													<div className="text-sm text-muted-foreground">
 														Compacting session...
@@ -4914,8 +4895,7 @@ export function SessionChat({
 										<img
 											src="/kortix-logomark-white.svg"
 											alt="Kortix"
-											className="dark:invert-0 invert flex-shrink-0"
-											style={{ height: "14px", width: "auto" }}
+											className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
 										/>
 									</div>
 								)}
@@ -4940,20 +4920,22 @@ export function SessionChat({
 								transform: "translate(-50%, -100%)",
 							}}
 						>
-							<button
-								onClick={handleSelectionReply}
-								className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-popover border border-border shadow-md text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
-							>
-								<Reply className="size-3.5" />
-								Reply
-							</button>
+						<Button
+							onClick={handleSelectionReply}
+							variant="outline"
+							size="toolbar"
+							className="bg-popover shadow-md"
+						>
+							<Reply className="size-3.5" />
+							Reply
+						</Button>
 						</div>
 					)}
 
 					{/* Scroll to bottom FAB */}
 					<div
 						className={cn(
-							"absolute bottom-4 left-1/2 -translate-x-1/2 transition-all duration-300 ease-out",
+							"absolute bottom-4 left-1/2 -translate-x-1/2 transition-colors duration-300 ease-out",
 							showScrollButton
 								? "opacity-100 translate-y-0 scale-100"
 								: "opacity-0 translate-y-4 scale-95 pointer-events-none",
@@ -4962,7 +4944,7 @@ export function SessionChat({
 						<Button
 							variant="outline"
 							size="sm"
-							className="rounded-full h-7 text-xs bg-background/90 backdrop-blur-sm border-border/60 shadow-lg"
+							className="rounded-full h-7 text-xs bg-background/90 border-border/60 shadow-lg"
 							onClick={smoothScrollToAbsoluteBottom}
 						>
 							<ArrowDown className="size-3 mr-1" />
@@ -5033,11 +5015,12 @@ export function SessionChat({
 							{queuedMessages.length > 0 && (
 								<div className="rounded-xl bg-muted/50 overflow-hidden">
 							{/* Compact header row */}
-							<button
-								type="button"
-								onClick={() => setQueueExpanded((v) => !v)}
-								className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted/80 transition-colors cursor-pointer"
-							>
+						<Button
+							type="button"
+							onClick={() => setQueueExpanded((v) => !v)}
+							variant="ghost"
+							className="flex items-center gap-2 w-full px-3 py-1.5 h-auto rounded-none justify-start hover:bg-muted/80"
+						>
 								<ListPlus className="size-3.5 text-muted-foreground flex-shrink-0" />
 							<span className="text-xs text-muted-foreground flex-1 text-left truncate">
 								{queuedMessages.length} message
@@ -5092,11 +5075,11 @@ export function SessionChat({
 											"size-3 text-muted-foreground/40 transition-transform",
 											!queueExpanded && "rotate-180",
 										)}
-									/>
-								</div>
-							</button>
+								/>
+							</div>
+						</Button>
 
-						{/* Expanded list — show for any number of queued messages */}
+					{/* Expanded list — show for any number of queued messages */}
 						{queueExpanded && queuedMessages.length > 0 && (
 							<div className="border-t border-border/30 max-h-[160px] overflow-y-auto scrollbar-hide">
 								<div className="flex flex-col px-1.5 py-1">
@@ -5114,43 +5097,48 @@ export function SessionChat({
 											<div className="flex items-center gap-0.5 opacity-0 group-hover/q:opacity-100 transition-opacity shrink-0">
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<button
-															type="button"
-															onClick={() => handleQueueSendNow(qm.id)}
-															className="inline-flex items-center justify-center size-5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-														>
-															<Send className="size-2.5" />
-														</button>
-													</TooltipTrigger>
-													<TooltipContent side="top">
-														<p className="text-xs">Send now</p>
-													</TooltipContent>
-												</Tooltip>
-												{idx > 0 && (
-													<button
-														type="button"
-														onClick={() => queueMoveUp(qm.id)}
-														className="inline-flex items-center justify-center size-5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-													>
-														<ArrowUp className="size-2.5" />
-													</button>
-												)}
-												{idx < queuedMessages.length - 1 && (
-													<button
-														type="button"
-														onClick={() => queueMoveDown(qm.id)}
-														className="inline-flex items-center justify-center size-5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-													>
-														<ArrowDown className="size-2.5" />
-													</button>
-												)}
-												<button
+								<Button
 													type="button"
-													onClick={() => queueRemove(qm.id)}
-													className="inline-flex items-center justify-center size-5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+													onClick={() => handleQueueSendNow(qm.id)}
+													variant="ghost"
+													size="icon-xs"
 												>
-													<X className="size-2.5" />
-												</button>
+													<Send className="size-2.5" />
+												</Button>
+												</TooltipTrigger>
+												<TooltipContent side="top">
+													<p className="text-xs">Send now</p>
+												</TooltipContent>
+											</Tooltip>
+											{idx > 0 && (
+												<Button
+													type="button"
+													onClick={() => queueMoveUp(qm.id)}
+													variant="ghost"
+													size="icon-xs"
+												>
+													<ArrowUp className="size-2.5" />
+												</Button>
+											)}
+											{idx < queuedMessages.length - 1 && (
+												<Button
+													type="button"
+													onClick={() => queueMoveDown(qm.id)}
+													variant="ghost"
+													size="icon-xs"
+												>
+													<ArrowDown className="size-2.5" />
+												</Button>
+											)}
+											<Button
+												type="button"
+												onClick={() => queueRemove(qm.id)}
+												variant="ghost"
+												size="icon-xs"
+												className="hover:text-destructive hover:bg-destructive/10"
+											>
+												<X className="size-2.5" />
+											</Button>
 											</div>
 										</div>
 									))}

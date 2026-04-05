@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import { X, ExternalLink, LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -120,7 +121,7 @@ export function AlertBanner({
           >
             <div className="flex items-start gap-3">
               <div className={`w-12 h-12 ${styles.iconBg} rounded-xl border ${styles.iconBorder} flex items-center justify-center flex-shrink-0`}>
-                <Icon className={`h-5 w-5 ${styles.iconColor}`} />
+                <Icon className={cn('h-5 w-5', styles.iconColor)} />
               </div>
               <div className="flex-1 min-w-0 pr-4">
                 <h3 className="text-foreground dark:text-white text-sm font-semibold mb-1">

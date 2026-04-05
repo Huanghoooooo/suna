@@ -47,7 +47,7 @@ export function MaintenancePage() {
           </h1>
 
           {/* Description - 16px */}
-          <p className="text-[16px] text-foreground/60 text-center leading-relaxed">
+          <p className="text-base text-foreground/60 text-center leading-relaxed">
             Performing scheduled maintenance to enhance system stability. All services will resume shortly.
           </p>
 

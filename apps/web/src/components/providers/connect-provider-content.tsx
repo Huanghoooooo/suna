@@ -432,13 +432,15 @@ export function ConnectProviderContent({
       {/* Header */}
       <div className="flex items-center gap-2 pb-3">
         {view.type !== 'list' && (
-          <button
+          <Button
             type="button"
             onClick={handleBack}
-            className="p-1.5 -ml-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            variant="ghost"
+            size="icon-sm"
+            className="-ml-1.5"
           >
             <ArrowLeft className="h-4 w-4" />
-          </button>
+          </Button>
         )}
         <h3 className="flex-1 text-sm font-medium text-foreground">
           {view.type === 'custom' && 'Add Custom'}
@@ -490,10 +492,11 @@ export function ConnectProviderContent({
           <div className="space-y-3">
             {/* Custom provider */}
             {(!search || 'custom'.includes(search.toLowerCase())) && (
-              <button
+              <Button
                 type="button"
                 onClick={() => setView({ type: 'custom' })}
-                className="group mb-1 flex w-full items-center gap-3 rounded-2xl border border-border/50 bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/35"
+                variant="ghost"
+                className="group mb-1 h-auto w-full items-center gap-3 rounded-2xl border border-border/50 bg-muted/20 px-4 py-3 text-left hover:bg-muted/35 justify-start"
               >
                 <ProviderLogo providerID="custom" name="Custom" size="default" />
                 <span className="min-w-0 flex-1">
@@ -502,8 +505,8 @@ export function ConnectProviderContent({
                     Add any OpenAI-compatible endpoint
                   </span>
                 </span>
-                <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
-              </button>
+                <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors ml-auto" />
+              </Button>
             )}
 
             {/* Popular providers */}
@@ -515,18 +518,19 @@ export function ConnectProviderContent({
                 {popularGroup.map((p) => {
                   const isConnected = connectedIds.has(p.id);
                   return (
-                    <button
+                    <Button
                       key={p.id}
                       type="button"
                       onClick={() => handleSelectProvider(p.id)}
-                       className="group mb-1 flex w-full items-center gap-3 rounded-2xl border border-border/50 bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/35"
+                      variant="ghost"
+                      className="group mb-1 h-auto w-full items-center gap-3 rounded-2xl border border-border/50 bg-muted/20 px-4 py-3 text-left hover:bg-muted/35 justify-start"
                     >
                       <ProviderLogo providerID={p.id} name={p.name} size="default" />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-2">
                           <span className="text-sm font-medium text-foreground">{PROVIDER_LABELS[p.id] || p.name}</span>
                           {isConnected && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[9px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[0.5625rem] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
                               <span className="w-1 h-1 rounded-full bg-emerald-500" />
                               connected
                             </span>
@@ -543,8 +547,8 @@ export function ConnectProviderContent({
                           {PROVIDER_HINTS[p.id]}
                         </span>
                       )}
-                      <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
-                    </button>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors ml-auto" />
+                    </Button>
                   );
                 })}
               </>
@@ -569,29 +573,30 @@ export function ConnectProviderContent({
                   <AccordionContent className="pt-1 pb-0">
                     {otherGroup.map((p) => {
                       const isConnected = connectedIds.has(p.id);
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => handleSelectProvider(p.id)}
-                           className="group mb-1 flex w-full items-center gap-3 rounded-2xl border border-border/50 bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/35"
-                        >
-                          <ProviderLogo providerID={p.id} name={p.name} size="default" />
-                          <span className="min-w-0 flex-1">
-                            <span className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-foreground">{PROVIDER_LABELS[p.id] || p.name}</span>
-                              {isConnected && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[9px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
-                                  <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                                  connected
-                                </span>
-                              )}
+                        return (
+                          <Button
+                            key={p.id}
+                            type="button"
+                            onClick={() => handleSelectProvider(p.id)}
+                            variant="ghost"
+                            className="group mb-1 h-auto w-full items-center gap-3 rounded-2xl border border-border/50 bg-muted/20 px-4 py-3 text-left hover:bg-muted/35 justify-start"
+                          >
+                            <ProviderLogo providerID={p.id} name={p.name} size="default" />
+                            <span className="min-w-0 flex-1">
+                              <span className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-foreground">{PROVIDER_LABELS[p.id] || p.name}</span>
+                                {isConnected && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[0.5625rem] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
+                                    <span className="w-1 h-1 rounded-full bg-emerald-500" />
+                                    connected
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-xs text-muted-foreground block mt-0.5">{p.id}</span>
                             </span>
-                            <span className="text-xs text-muted-foreground block mt-0.5">{p.id}</span>
-                          </span>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
-                        </button>
-                      );
+                            <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors ml-auto" />
+                          </Button>
+                        );
                     })}
                   </AccordionContent>
                 </AccordionItem>
@@ -646,7 +651,7 @@ export function ConnectProviderContent({
               <span>{error}</span>
             </div>
           )}
-          <Button type="submit" disabled={saving} size="sm" className="h-9 px-4">
+          <Button type="submit" disabled={saving} size="sm" className="px-4">
             {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Connecting...</> : 'Connect'}
           </Button>
         </form>
@@ -665,11 +670,12 @@ export function ConnectProviderContent({
                   const Icon = methodIcon(method);
                   const desc = methodDescription(method);
                   return (
-                    <button
+                    <Button
                       key={i}
                       type="button"
                       onClick={() => selectMethod(view.providerID, authMethods, i)}
-                      className="group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-background/70"
+                      variant="ghost"
+                      className="group h-auto w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-background/70 justify-start"
                     >
                       <span className="flex items-center justify-center size-8 rounded-lg bg-muted/50 text-muted-foreground group-hover:text-foreground transition-colors shrink-0">
                         <Icon className="h-4 w-4" />
@@ -680,8 +686,8 @@ export function ConnectProviderContent({
                           <span className="text-xs text-muted-foreground/70 block mt-0.5">{desc}</span>
                         )}
                       </span>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
-                    </button>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0 ml-auto" />
+                    </Button>
                   );
                 })}
               </div>
@@ -703,7 +709,7 @@ export function ConnectProviderContent({
                   <span>{error}</span>
                 </div>
               )}
-              <Button type="submit" disabled={saving} size="sm" className="h-9 px-4 rounded-lg">
+              <Button type="submit" disabled={saving} size="sm" className="px-4 ">
                 {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Connecting...</> : 'Connect'}
               </Button>
             </form>
@@ -724,19 +730,19 @@ export function ConnectProviderContent({
                 </h3>
                 <div className="space-y-2 text-sm text-muted-foreground">
                   <div className="flex items-start gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">1</span>
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center mt-0.5">1</span>
                     <span>Click the button below to open the authorization page</span>
                   </div>
                   <div className="flex items-start gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">2</span>
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center mt-0.5">2</span>
                     <span>Sign in and authorize access</span>
                   </div>
                   <div className="flex items-start gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">3</span>
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center mt-0.5">3</span>
                     <span>After redirect, copy the full URL from your browser&apos;s address bar (starts with <code className="text-xs bg-muted px-1 py-0.5 rounded">http://localhost...</code>)</span>
                   </div>
                   <div className="flex items-start gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mt-0.5">4</span>
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center mt-0.5">4</span>
                     <span>Paste it below and click Connect</span>
                   </div>
                 </div>
@@ -746,7 +752,7 @@ export function ConnectProviderContent({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="w-full h-10 rounded-lg gap-2"
+                className="w-full h-10 gap-2"
                 onClick={() => window.open(oauthUrl, '_blank')}
               >
                 <ExternalLink className="h-4 w-4" />
@@ -765,7 +771,7 @@ export function ConnectProviderContent({
                   <span>{error}</span>
                 </div>
               )}
-              <Button type="submit" disabled={saving || !oauthCode.trim()} size="sm" className="w-full h-9 rounded-lg">
+              <Button type="submit" disabled={saving || !oauthCode.trim()} size="sm" className="w-full ">
                 {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Connecting...</> : 'Connect'}
               </Button>
             </form>
@@ -777,7 +783,7 @@ export function ConnectProviderContent({
                 <p>A browser tab should have opened automatically. Complete the authorization there, then return here.</p>
               </div>
               {oauthInstructions && (
-                <div className="px-3 py-2.5 rounded-lg bg-background border border-border/30 font-mono text-sm select-all break-all text-center font-bold tracking-widest">
+                <div className="px-3 py-2.5 rounded-lg bg-background border border-border/30 font-mono text-sm select-all break-all text-center font-semibold tracking-widest">
                   {oauthInstructions.includes(':') ? oauthInstructions.split(':')[1]?.trim() : oauthInstructions}
                 </div>
               )}
@@ -785,7 +791,7 @@ export function ConnectProviderContent({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="w-full h-10 rounded-lg gap-2"
+                className="w-full h-10 gap-2"
                 onClick={() => window.open(oauthUrl, '_blank')}
               >
                 <ExternalLink className="h-4 w-4" />
@@ -804,7 +810,7 @@ export function ConnectProviderContent({
                 <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
                 <span>{error || 'Authorization failed'}</span>
               </div>
-              <Button variant="outline" size="sm" className="h-9" onClick={() => { setOauthState('idle'); setMethodIndex(undefined); setError(''); }}>
+              <Button variant="outline" size="sm" className="" onClick={() => { setOauthState('idle'); setMethodIndex(undefined); setError(''); }}>
                 Try again
               </Button>
             </div>

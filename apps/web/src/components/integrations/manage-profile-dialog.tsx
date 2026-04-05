@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from '@/lib/utils';
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   AlertCircle,
@@ -209,7 +210,7 @@ export const ManageProfileDialog = ({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-9 px-2"
+                      className="px-2"
                       onClick={handleSaveLabel}
                       disabled={renameMutation.isPending}
                     >
@@ -222,7 +223,7 @@ export const ManageProfileDialog = ({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-9 px-2 text-muted-foreground"
+                      className="px-2 text-muted-foreground"
                       onClick={() => {
                         setEditingLabel(false);
                         setLabelValue(currentLabel || '');
@@ -300,11 +301,11 @@ export const ManageProfileDialog = ({
                   return (
                     <div
                       key={inst.sandbox_id}
-                      className={`flex items-center gap-2.5 p-3 rounded-xl border transition-colors ${
+                      className={cn('flex items-center gap-2.5 p-3 rounded-xl border transition-colors', 
                         isLinked
                           ? 'border-muted-foreground/30 bg-muted-foreground/5'
                           : 'border-border/50 hover:bg-muted/30'
-                      }`}
+                      )}
                     >
                       <div className="w-7 h-7 rounded-md bg-muted/60 border border-border/50 flex items-center justify-center shrink-0">
                         <Monitor className="h-3.5 w-3.5 text-muted-foreground" />

@@ -19,7 +19,7 @@ export function StatusOverlay() {
 
       {state.operation === 'success' && (
         <>
-          <CheckCircle className="h-5 w-5 text-green-500" />
+          <CheckCircle className="h-5 w-5 text-emerald-500" />
           <span className="text-sm">Completed</span>
         </>
       )}

@@ -411,7 +411,7 @@ export default function AdminAnalyticsPage() {
                             <button
                               onClick={() => setIncludeStuckTasks(!includeStuckTasks)}
                               className={cn(
-                                "text-[9px] mt-1 px-1.5 py-0.5 rounded cursor-pointer transition-colors",
+                                "text-[0.5625rem] mt-1 px-1.5 py-0.5 rounded cursor-pointer transition-colors",
                                 includeStuckTasks
                                   ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                                   : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -687,7 +687,7 @@ export default function AdminAnalyticsPage() {
 
                           {/* Per User Metrics */}
                           <div className="relative flex items-center justify-between p-3 pt-4 rounded-lg border mt-2">
-                            <span className="absolute top-1 left-2 text-[9px] text-muted-foreground">Per Paying User ({profitability.unique_paying_users})</span>
+                            <span className="absolute top-1 left-2 text-[0.5625rem] text-muted-foreground">Per Paying User ({profitability.unique_paying_users})</span>
                             <div>
                               <p className="text-[10px] text-muted-foreground">Revenue/User</p>
                               <p className="text-sm font-semibold">${profitability.avg_revenue_per_paid_user.toFixed(2)}</p>

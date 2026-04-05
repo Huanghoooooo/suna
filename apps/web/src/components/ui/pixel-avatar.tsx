@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import React from 'react';
 
 export const PIXEL_ART_DESIGNS = {
@@ -218,7 +219,7 @@ export const PixelAvatar: React.FC<PixelAvatarProps> = ({
   if (!pixelArt) {
     return (
       <div 
-        className={`inline-block ${className}`} 
+        className={cn('inline-block', className)} 
         style={{ width: size, height: size }}
       >
         <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
@@ -233,7 +234,7 @@ export const PixelAvatar: React.FC<PixelAvatarProps> = ({
 
   return (
     <div 
-      className={`inline-block ${className}`} 
+      className={cn('inline-block', className)} 
       style={{ width: size, height: size }}
       dangerouslySetInnerHTML={{ __html: pixelArt }}
     />

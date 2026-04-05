@@ -121,12 +121,14 @@ function ConfigureModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h3 className="text-sm font-medium text-foreground/90">{title}</h3>
-          <button
+          <Button
             onClick={onClose}
-            className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-foreground/5 text-foreground/40 hover:text-foreground/70 transition-colors cursor-pointer"
+            variant="ghost"
+            size="icon-sm"
+            className="text-foreground/40 hover:text-foreground/70"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-5 pb-5">
@@ -191,7 +193,8 @@ function WelcomePane({ onNext }: { onNext: () => void }) {
       >
         <Button
           onClick={onNext}
-          className="w-full h-11 text-sm rounded-xl shadow-none gap-2"
+          size="lg"
+          className="w-full shadow-none"
         >
           Get started <ChevronRight className="h-4 w-4" />
         </Button>
@@ -263,15 +266,15 @@ function HowItWorksPane({ onNext, onBack }: { onNext: () => void; onBack: () => 
       <div className="space-y-2">
         <Button
           onClick={onNext}
-          className="w-full h-11 text-sm rounded-xl shadow-none gap-2"
+          size="lg" className="w-full shadow-none"
         >
           Connect a provider <ChevronRight className="h-4 w-4" />
         </Button>
 
         <div className="flex justify-center pt-1">
-          <button onClick={onBack} className="flex items-center gap-1 text-[12px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors cursor-pointer">
+          <Button onClick={onBack} variant="muted" size="xs" className="mx-auto">
             <ArrowLeft className="h-3 w-3" /> Back
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -330,16 +333,16 @@ function AutoTopupPane({ onNext, onBack }: { onNext: () => void; onBack: () => v
         />
       </div>
 
-      <Button onClick={handleContinue} disabled={saving} className="w-full h-11 text-sm rounded-xl shadow-none gap-2">
+      <Button onClick={handleContinue} disabled={saving} size="lg" className="w-full shadow-none">
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
         Continue
         <ChevronRight className="h-4 w-4" />
       </Button>
 
       <div className="flex justify-center pt-1">
-        <button onClick={onBack} className="flex items-center gap-1 text-[12px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors cursor-pointer">
+        <Button onClick={onBack} variant="muted" size="xs" className="mx-auto">
           <ArrowLeft className="h-3 w-3" /> Back
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -363,7 +366,7 @@ function ProvidersPane({ onNext, onBack }: { onNext: () => void; onBack: () => v
     return (
       <div className="flex flex-col items-center py-16 space-y-4">
         <KortixLoader size="small" />
-        <p className="text-[12px] text-muted-foreground/40">Checking providers…</p>
+        <p className="text-xs text-muted-foreground/40">Checking providers…</p>
       </div>
     );
   }
@@ -419,7 +422,7 @@ function ProvidersPane({ onNext, onBack }: { onNext: () => void; onBack: () => v
         <Button
           onClick={() => openProviderModal('providers')}
           variant={hasLLM ? 'outline' : 'default'}
-          className="w-full h-11 text-sm rounded-xl shadow-none gap-2"
+          size="lg" className="w-full shadow-none"
         >
           <Settings2 className="h-4 w-4" />
           {hasLLM ? 'Manage providers' : 'Connect a provider'}
@@ -441,9 +444,9 @@ function ProvidersPane({ onNext, onBack }: { onNext: () => void; onBack: () => v
         </Button>
 
         <div className="flex justify-center pt-1">
-          <button onClick={onBack} className="flex items-center gap-1 text-[12px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors cursor-pointer">
+          <Button onClick={onBack} variant="muted" size="xs" className="mx-auto">
             <ArrowLeft className="h-3 w-3" /> Back
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -518,7 +521,7 @@ function DefaultModelPane({ onNext, onBack }: { onNext: () => void; onBack: () =
     return (
       <div className="flex flex-col items-center py-16 space-y-4">
         <KortixLoader size="small" />
-        <p className="text-[12px] text-muted-foreground/40">Loading models…</p>
+        <p className="text-xs text-muted-foreground/40">Loading models…</p>
       </div>
     );
   }
@@ -563,7 +566,7 @@ function DefaultModelPane({ onNext, onBack }: { onNext: () => void; onBack: () =
                     key={`${model.providerID}:${model.modelID}`}
                     onClick={() => handleSelect(model)}
                     className={cn(
-                      'w-full flex items-center gap-3 px-3 py-2 rounded-xl border text-left transition-all cursor-pointer',
+                      'w-full flex items-center gap-3 px-3 py-2 rounded-xl border text-left transition-colors cursor-pointer',
                       isSelected
                         ? 'border-foreground/20 bg-foreground/[0.04]'
                         : 'border-foreground/[0.06] bg-foreground/[0.01] hover:bg-foreground/[0.03]',
@@ -590,15 +593,15 @@ function DefaultModelPane({ onNext, onBack }: { onNext: () => void; onBack: () =
       <div className="space-y-2">
         <Button
           onClick={handleContinue}
-          className="w-full h-11 text-sm rounded-xl shadow-none gap-2"
+          size="lg" className="w-full shadow-none"
         >
           {selected ? 'Continue' : 'Skip for now'} <ChevronRight className="h-4 w-4" />
         </Button>
 
         <div className="flex justify-center pt-1">
-          <button onClick={onBack} className="flex items-center gap-1 text-[12px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors cursor-pointer">
+          <Button onClick={onBack} variant="muted" size="xs" className="mx-auto">
             <ArrowLeft className="h-3 w-3" /> Back
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -690,9 +693,10 @@ function ToolKeysPane({ onNext, onBack }: { onNext: () => void; onBack: () => vo
         {/* Actions */}
         <div className="space-y-2">
           <Button
-            variant="outline"
+            variant="ghost"
+            size="lg"
             onClick={() => setModalOpen(true)}
-            className="w-full h-11 text-sm rounded-xl shadow-none gap-2 text-muted-foreground"
+            className="w-full shadow-none"
           >
             <Settings2 className="h-4 w-4" />
             {isCloud ? 'Use my own API keys' : 'Configure tool keys'}
@@ -700,15 +704,15 @@ function ToolKeysPane({ onNext, onBack }: { onNext: () => void; onBack: () => vo
 
           <Button
             onClick={onNext}
-            className="w-full h-11 text-sm rounded-xl shadow-none gap-2"
+            size="lg" className="w-full shadow-none"
           >
             Continue <ChevronRight className="h-4 w-4" />
           </Button>
 
           <div className="flex justify-center pt-1">
-            <button onClick={onBack} className="flex items-center gap-1 text-[12px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors cursor-pointer">
+            <Button onClick={onBack} variant="muted" size="xs" className="mx-auto">
               <ArrowLeft className="h-3 w-3" /> Back
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -716,7 +720,7 @@ function ToolKeysPane({ onNext, onBack }: { onNext: () => void; onBack: () => vo
       {/* Configure modal */}
       <ConfigureModal open={modalOpen} onClose={() => setModalOpen(false)} title="Tool API Keys">
         <div className="space-y-4">
-          <p className="text-[12px] text-muted-foreground/50 leading-relaxed">
+          <p className="text-xs text-muted-foreground/50 leading-relaxed">
             {isCloud
               ? 'These keys will override the default Kortix-managed keys for these tools.'
               : 'Paste your API keys below. All fields are optional.'}
@@ -867,9 +871,10 @@ function PipedreamPane({ onNext, onBack }: { onNext: () => void; onBack: () => v
         {/* Actions */}
         <div className="space-y-2">
           <Button
-            variant="outline"
+            variant="ghost"
+            size="lg"
             onClick={() => setModalOpen(true)}
-            className="w-full h-11 text-sm rounded-xl shadow-none gap-2 text-muted-foreground"
+            className="w-full shadow-none"
           >
             <Settings2 className="h-4 w-4" />
             {isCloud ? 'Use my own Pipedream credentials' : 'Configure Pipedream'}
@@ -877,15 +882,15 @@ function PipedreamPane({ onNext, onBack }: { onNext: () => void; onBack: () => v
 
           <Button
             onClick={onNext}
-            className="w-full h-11 text-sm rounded-xl shadow-none gap-2"
+            size="lg" className="w-full shadow-none"
           >
             Continue <ChevronRight className="h-4 w-4" />
           </Button>
 
           <div className="flex justify-center pt-1">
-            <button onClick={onBack} className="flex items-center gap-1 text-[12px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors cursor-pointer">
+            <Button onClick={onBack} variant="muted" size="xs" className="mx-auto">
               <ArrowLeft className="h-3 w-3" /> Back
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -893,7 +898,7 @@ function PipedreamPane({ onNext, onBack }: { onNext: () => void; onBack: () => v
       {/* Configure modal */}
       <ConfigureModal open={modalOpen} onClose={() => setModalOpen(false)} title="Pipedream Credentials">
         <div className="space-y-4">
-          <p className="text-[12px] text-muted-foreground/50 leading-relaxed">
+          <p className="text-xs text-muted-foreground/50 leading-relaxed">
             Enter your Pipedream Connect project credentials. Get them at{' '}
             <a href="https://pipedream.com/connect" target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground/70">
               pipedream.com/connect
@@ -902,7 +907,7 @@ function PipedreamPane({ onNext, onBack }: { onNext: () => void; onBack: () => v
           <div className="space-y-3">
             {PD_KEYS.map((f) => (
               <div key={f.key} className="space-y-1">
-                <label className="text-[12px] font-medium text-foreground/60">{f.label}</label>
+                <label className="text-xs font-medium text-foreground/60">{f.label}</label>
                 <Input
                   type={f.secret ? 'password' : 'text'}
                   placeholder={f.placeholder}
@@ -956,15 +961,15 @@ function GetStartedPane({ onNext, onBack }: { onNext: () => void; onBack: () => 
       <div className="space-y-2">
         <Button
           onClick={onNext}
-          className="w-full h-11 text-sm rounded-xl shadow-none gap-2"
+          size="lg" className="w-full shadow-none"
         >
           Start onboarding <ChevronRight className="h-4 w-4" />
         </Button>
 
         <div className="flex justify-center pt-1">
-          <button onClick={onBack} className="flex items-center gap-1 text-[12px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors cursor-pointer">
+          <Button onClick={onBack} variant="muted" size="xs" className="mx-auto">
             <ArrowLeft className="h-3 w-3" /> Back
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -262,7 +262,7 @@ export default function BackupsPage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !create.isPending && handleCreate()}
-                className="flex-1 h-10 text-sm px-3 rounded-xl bg-muted/40 border border-border/50 outline-none placeholder:text-muted-foreground/40 focus:border-primary/30 focus:bg-muted/60 transition-all"
+                className="flex-1 h-10 text-sm px-3 rounded-xl bg-muted/40 border border-border/50 outline-none placeholder:text-muted-foreground/40 focus:border-primary/30 focus:bg-muted/60 transition-colors"
               />
               <Button
                 onClick={handleCreate}

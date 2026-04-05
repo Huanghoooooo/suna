@@ -535,7 +535,7 @@ function TabItem({
         <button
           onClick={handleCloseClick}
           className={cn(
-            'flex-shrink-0 p-0.5 rounded-sm transition-all duration-100 cursor-pointer',
+            'flex-shrink-0 p-0.5 rounded-sm transition-colors duration-100 cursor-pointer',
             'hover:bg-foreground/10',
             isActive
               ? 'opacity-40 hover:opacity-80'

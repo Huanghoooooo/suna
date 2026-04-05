@@ -75,9 +75,9 @@ export function NetworkScopeEditor({ scope, onChange }: NetworkScopeEditorProps)
             {scope.ports.map((port) => (
               <Badge key={port} variant="secondary" className="gap-1 pr-1 font-mono text-xs">
                 {port}
-                <button onClick={() => removePort(port)} className="ml-0.5 rounded hover:bg-muted-foreground/20">
+                <Button onClick={() => removePort(port)} variant="ghost" size="icon-xs" className="ml-0.5">
                   <X className="h-3 w-3" />
-                </button>
+                </Button>
               </Badge>
             ))}
           </div>
@@ -107,9 +107,9 @@ export function NetworkScopeEditor({ scope, onChange }: NetworkScopeEditorProps)
             {scope.hosts.map((host) => (
               <Badge key={host} variant="secondary" className="gap-1 pr-1 font-mono text-xs">
                 {host}
-                <button onClick={() => removeHost(host)} className="ml-0.5 rounded hover:bg-muted-foreground/20">
+                <Button onClick={() => removeHost(host)} variant="ghost" size="icon-xs" className="ml-0.5">
                   <X className="h-3 w-3" />
-                </button>
+                </Button>
               </Badge>
             ))}
           </div>

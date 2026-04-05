@@ -11,6 +11,7 @@ import {
   useUnshareSession,
 } from '@/hooks/opencode/use-opencode-sessions';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getEnv } from '@/lib/env-config';
 
@@ -161,7 +162,7 @@ function SharePopoverContent({
         <div className="flex items-center gap-2.5 min-w-0">
           <div
             className={cn(
-              'flex items-center justify-center h-7 w-7 rounded-lg shrink-0 transition-all duration-200',
+              'flex items-center justify-center h-7 w-7 rounded-lg shrink-0 transition-colors duration-200',
               isPublic
                 ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
                 : 'bg-muted text-muted-foreground',
@@ -199,7 +200,7 @@ function SharePopoverContent({
           <button
             onClick={handleCopy}
             className={cn(
-              'w-full flex items-center gap-2 px-2.5 h-8 rounded-lg transition-all cursor-pointer',
+              'w-full flex items-center gap-2 px-2.5 h-8 rounded-lg transition-colors cursor-pointer',
               'bg-muted/50 hover:bg-muted active:scale-[0.99]',
               copied && 'bg-emerald-500/10',
             )}
@@ -225,27 +226,31 @@ function SharePopoverContent({
 
           {/* Actions Row */}
           <div className="flex items-center gap-1.5">
-            <button
+            <Button
               onClick={handleOpen}
-              className="flex-1 flex items-center justify-center gap-1.5 h-7 rounded-lg text-[11px] font-medium bg-foreground text-background hover:bg-foreground/90 active:scale-[0.98] transition-all cursor-pointer"
+              variant="inverse"
+              size="toolbar"
+              className="flex-1"
             >
               <ExternalLink className="h-3 w-3" />
               Open
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleShareX}
-              className="flex items-center justify-center h-7 w-7 rounded-lg border border-border/60 hover:bg-muted transition-colors cursor-pointer"
+              variant="outline"
+              size="icon-sm"
               title="Share on X"
             >
               <XIcon />
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleShareLinkedIn}
-              className="flex items-center justify-center h-7 w-7 rounded-lg border border-border/60 hover:bg-muted transition-colors cursor-pointer"
+              variant="outline"
+              size="icon-sm"
               title="Share on LinkedIn"
             >
               <LinkedInIcon />
-            </button>
+            </Button>
           </div>
         </div>
       )}

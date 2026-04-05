@@ -81,7 +81,7 @@ export function ToolViewWrapper({
             {!isStreaming && showStatus && (
               <div className="flex items-center gap-2">
                 {isSuccess ? (
-                  <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                  <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-green-400" />
                 ) : (
                   <AlertCircle className="h-3.5 w-3.5" />
                 )}

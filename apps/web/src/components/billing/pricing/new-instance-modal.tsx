@@ -128,9 +128,9 @@ export function NewInstanceModal({ open, onOpenChange, returnUrl, title }: NewIn
         className="relative bg-background rounded-2xl border border-border overflow-hidden flex flex-col max-h-[90vh] w-full max-w-[460px] outline-none animate-in fade-in-0 zoom-in-[0.97] duration-150"
       >
         {/* Close */}
-        <button onClick={() => onOpenChange(false)} className="absolute top-3.5 right-3.5 z-10 p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors cursor-pointer" aria-label="Close">
+        <Button onClick={() => onOpenChange(false)} variant="ghost" size="icon-sm" className="absolute top-3.5 right-3.5 z-10" aria-label="Close">
           <X className="size-4" />
-        </button>
+        </Button>
 
         {/* Scrollable content */}
         <div className="flex-1 min-h-0 overflow-y-auto">
@@ -164,7 +164,7 @@ export function NewInstanceModal({ open, onOpenChange, returnUrl, title }: NewIn
                     <label
                       key={t.name}
                       className={cn(
-                        'relative flex items-center gap-3.5 px-4 py-3.5 rounded-xl border-2 transition-all cursor-pointer',
+                        'relative flex items-center gap-3.5 px-4 py-3.5 rounded-xl border-2 transition-colors cursor-pointer',
                         isSelected
                           ? 'border-foreground bg-foreground/[0.03]'
                           : 'border-border hover:border-foreground/20',
@@ -191,7 +191,7 @@ export function NewInstanceModal({ open, onOpenChange, returnUrl, title }: NewIn
 
                       {/* Price */}
                       <div className="text-right shrink-0">
-                        <span className="text-lg font-bold tabular-nums text-foreground">${t.priceMonthlyMarkup.toFixed(0)}</span>
+                        <span className="text-lg font-semibold tabular-nums text-foreground">${t.priceMonthlyMarkup.toFixed(0)}</span>
                         <span className="text-[11px] text-muted-foreground">/mo</span>
                       </div>
                     </label>
@@ -235,7 +235,7 @@ export function NewInstanceModal({ open, onOpenChange, returnUrl, title }: NewIn
         <div className="shrink-0 border-t border-border px-5 py-4 flex items-center justify-between gap-4">
           <div>
             <div className="flex items-baseline gap-0.5">
-              <span className="text-xl font-bold tabular-nums text-foreground">{price}</span>
+              <span className="text-xl font-semibold tabular-nums text-foreground">{price}</span>
               <span className="text-xs text-muted-foreground">/mo</span>
             </div>
             <p className="text-[11px] text-muted-foreground/60 mt-0.5">Cancel anytime</p>

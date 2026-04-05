@@ -147,13 +147,13 @@ export function BackupDialog({ open, onOpenChange, sandboxId }: BackupDialogProp
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !create.isPending && handleCreate()}
-                className="flex-1 h-9 text-xs px-3 rounded-lg bg-muted/40 border border-border/40 outline-none placeholder:text-muted-foreground/40 focus:border-primary/30 focus:bg-muted/60 transition-all"
+                className="flex-1 h-9 text-xs px-3 rounded-lg bg-muted/40 border border-border/40 outline-none placeholder:text-muted-foreground/40 focus:border-primary/30 focus:bg-muted/60 transition-colors"
               />
               <Button
                 size="sm"
                 onClick={handleCreate}
                 disabled={create.isPending}
-                className="gap-1.5 h-9"
+                className="gap-1.5 "
               >
                 {create.isPending ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

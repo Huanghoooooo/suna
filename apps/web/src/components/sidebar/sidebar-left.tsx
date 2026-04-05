@@ -123,7 +123,7 @@ function CollapsedIconButton({ icon, label, onClick, flyoutContent, disabled, is
       disabled={disabled}
       className={cn(
         'flex items-center justify-center w-full py-2 rounded-lg cursor-pointer',
-        'transition-all duration-150 ease-out',
+        'transition-colors duration-150 ease-out',
         isActive
           ? 'bg-sidebar-accent text-sidebar-accent-foreground'
           : 'text-sidebar-foreground hover:bg-sidebar-accent',
@@ -426,25 +426,28 @@ function SidebarUpdateIndicator({ collapsed }: { collapsed: boolean }) {
       {/* Actions */}
       <div className="flex items-center gap-1.5 px-2.5 pb-2.5 pt-1">
         {!isUpdating ? (
-          <button
+          <Button
             onClick={() => openDialog()}
-            className="flex-1 flex items-center justify-center gap-1.5 h-7 text-[11px] font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-lg transition-colors cursor-pointer"
+            variant="default"
+            size="toolbar"
+            className="flex-1"
           >
             <ArrowDownToLine className="h-3 w-3" />
             Update
-          </button>
+          </Button>
         ) : (
           <div className="flex-1 flex items-center justify-center gap-1.5 h-7 text-[11px] font-medium text-amber-600 dark:text-amber-400">
             <Loader2 className="h-3 w-3 animate-spin" />
             Updating...
           </div>
         )}
-        <button
+        <Button
           onClick={navigateToChangelog}
-          className="flex items-center justify-center h-7 px-2.5 text-[11px] font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/60 transition-colors cursor-pointer"
+          variant="muted"
+          size="toolbar"
         >
           Details
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -537,12 +540,10 @@ function SidebarSections() {
                       key={project.id}
                       onClick={() => handleProjectClick(project)}
                       className={cn(
-                        'flex items-center gap-2 py-1.5 rounded-lg text-[13px] cursor-pointer',
+                        'flex items-center gap-2 py-1.5 pl-3.5 pr-2.5 rounded-lg text-[13px] cursor-pointer',
                         'transition-colors duration-150',
                         'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground',
-                        'pr-2.5',
                       )}
-                      style={{ paddingLeft: '14px' }}
                     >
                       <span className="flex-1 truncate">{project.name}</span>
                       {(project.sessionCount ?? 0) > 0 && (
@@ -635,7 +636,7 @@ function SidebarSections() {
               </div>
               <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+                  className="h-full rounded-full bg-primary transition-colors duration-300 ease-out"
                   style={{ width: `${Math.round(((migrateStatus.completed + migrateStatus.failed) / migrateStatus.total) * 100)}%` }}
                 />
               </div>
@@ -752,20 +753,22 @@ function ScheduledDeletionCard() {
 
   return (
     <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-3.5 py-3">
-      <p className="text-[12px] font-medium text-red-600 dark:text-red-400">
+      <p className="text-xs font-medium text-red-600 dark:text-red-400">
         Subscription cancelled
       </p>
       <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
         This instance will be deleted {daysLeft !== null ? `in ${daysLeft} day${daysLeft === 1 ? '' : 's'}` : `on ${dateStr}`}. All data will be permanently removed.
       </p>
-      <button
+      <Button
         type="button"
         disabled={reactivating}
         onClick={handleReactivate}
-        className="mt-2.5 w-full h-7 text-[11px] font-medium rounded-lg border border-border bg-background text-foreground hover:bg-muted transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+        variant="outline"
+        size="toolbar"
+        className="mt-2.5 w-full"
       >
         {reactivating ? <><Loader2 className="h-3 w-3 animate-spin" /> Reactivating...</> : 'Reactivate'}
-      </button>
+      </Button>
     </div>
   );
 }

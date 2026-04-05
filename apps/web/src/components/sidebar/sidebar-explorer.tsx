@@ -579,7 +579,7 @@ export function SidebarFileBrowser({ openFileAsTab = false }: SidebarFileBrowser
           <Button
             variant="ghost"
             size="icon"
-            className={`h-6 w-6 ${showHidden ? 'text-primary' : ''}`}
+            className={cn('h-6 w-6', showHidden ? 'text-primary' : '')}
             onClick={toggleHidden}
             title={showHidden ? 'Hide dotfiles' : 'Show dotfiles'}
           >

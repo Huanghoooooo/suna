@@ -270,7 +270,7 @@ export function StuckRunsTable({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-2">
+                <Button variant="outline" size="sm" className="gap-2">
                   <Filter className="w-4 h-4" />
                   Reason
                   {selectedReasons.size > 0 && (
@@ -314,7 +314,7 @@ export function StuckRunsTable({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-2">
+                <Button variant="outline" size="sm" className="gap-2">
                   Sort
                   <ChevronDown className="w-3 h-3" />
                 </Button>

@@ -194,20 +194,19 @@ export function UserSettingsModal({
                                     const isActive = activeTab === tab.id;
 
                                     return (
-                                        <button
+                                        <Button
                                             key={tab.id}
                                             onClick={() => handleTabClick(tab.id)}
                                             disabled={tab.disabled}
+                                            variant={isActive ? "secondary" : "ghost"}
                                             className={cn(
-                                                "flex items-center gap-2 px-3 py-2 text-sm rounded-lg whitespace-nowrap flex-shrink-0 transition-colors",
-                                                isActive
-                                                    ? "bg-muted text-foreground font-medium"
-                                                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                                                "flex items-center gap-2 whitespace-nowrap flex-shrink-0 justify-start",
+                                                !isActive && "text-muted-foreground hover:text-foreground"
                                             )}
                                         >
                                             <Icon className="h-4 w-4 flex-shrink-0" />
                                             <span>{tab.label}</span>
-                                        </button>
+                                        </Button>
                                     );
                                 })}
                             </div>
@@ -256,20 +255,19 @@ export function UserSettingsModal({
                                                 const isActive = activeTab === tab.id;
 
                                                 return (
-                                                    <button
+                                                    <Button
                                                         key={tab.id}
                                                         onClick={() => handleTabClick(tab.id)}
                                                         disabled={tab.disabled}
+                                                        variant={isActive ? "secondary" : "ghost"}
                                                         className={cn(
-                                                            "w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-lg transition-colors",
-                                                            isActive
-                                                                ? "bg-muted text-foreground"
-                                                                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                                                            "w-full flex items-center gap-3 justify-start",
+                                                            !isActive && "text-muted-foreground hover:text-foreground"
                                                         )}
                                                     >
                                                         <Icon className="h-4 w-4 flex-shrink-0" />
                                                         <span>{tab.label}</span>
-                                                    </button>
+                                                    </Button>
                                                 );
                                             })}
                                         </div>
@@ -511,18 +509,19 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                                     {getInitials(userName)}
                                 </AvatarFallback>
                             </Avatar>
-                            <button
+                            <Button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isUploadingAvatar}
-                                className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                variant="ghost"
+                                className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 h-auto"
                             >
                                 {isUploadingAvatar ? (
                                     <KortixLoader size="small" variant="white" />
                                 ) : (
                                     <Camera className="h-5 w-5 text-white" />
                                 )}
-                            </button>
+                            </Button>
                             <input
                                 ref={fileInputRef}
                                 type="file"
@@ -1438,7 +1437,7 @@ function BillingTab({ returnUrl, isActive }: { returnUrl: string; isActive: bool
                     <AlertDescription>
                         <div className="font-medium mb-1">Self-Hosted</div>
                         <div className="text-sm text-muted-foreground">
-                            All premium features are available in this environment
+                            Billing is disabled in this environment.
                         </div>
                     </AlertDescription>
                 </Alert>

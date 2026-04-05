@@ -144,14 +144,14 @@ export default function ActivateTrialPage() {
 
             <div className="grid md:grid-cols-2 gap-4">
               <div className="flex items-start gap-3">
-                <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <CheckCircle className="h-5 w-5 text-emerald-500 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="font-medium">$5 in Credits</p>
                   <p className="text-sm text-muted-foreground">Full access to all AI models</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <CheckCircle className="h-5 w-5 text-emerald-500 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="font-medium">7 Days Free</p>
                   <p className="text-sm text-muted-foreground">Cancel anytime, no charge</p>
