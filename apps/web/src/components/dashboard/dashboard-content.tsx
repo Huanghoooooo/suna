@@ -15,7 +15,8 @@ import {
 import { getClient } from '@/lib/opencode-sdk';
 import { openTabAndNavigate } from '@/stores/tab-store';
 import { useServerStore } from '@/stores/server-store';
-import { SessionChatInput } from '@/components/session/session-chat-input';
+import { type AttachedFile, SessionChatInput } from '@/components/session/session-chat-input';
+import { usePendingFilesStore } from '@/stores/pending-files-store';
 import { WallpaperBackground } from '@/components/ui/wallpaper-background';
 import { PersonalisedSuggestions } from '@/components/dashboard/personalised-suggestions';
 import { useOpenCodeLocal, formatModelString } from '@/hooks/opencode/use-opencode-local';
@@ -50,8 +51,8 @@ export function DashboardContent() {
   const local = useOpenCodeLocal({ agents, providers, config });
 
   const handleSend = useCallback(
-    async (text: string, _files?: unknown) => {
-      if (!text.trim() || isSubmitting) return;
+    async (text: string, files?: AttachedFile[]) => {
+      if ((!text.trim() && (!files || files.length === 0)) || isSubmitting) return;
       playSound('send');
       setIsSubmitting(true);
       setIsFadingOutWelcome(true);
@@ -87,6 +88,11 @@ export function DashboardContent() {
         // race condition where the send fires before the session page mounts its
         // SSE listeners and polling, causing missed responses.
         sessionStorage.setItem(`opencode_pending_prompt:${session.id}`, text);
+        // Files can't go through sessionStorage (they're File objects/blobs).
+        // Store them in a Zustand store that survives the navigation hop.
+        if (files && files.length > 0) {
+          usePendingFilesStore.getState().setPendingFiles(files);
+        }
         if (Object.keys(options).length > 0) {
           sessionStorage.setItem(`opencode_pending_options:${session.id}`, JSON.stringify(options));
         }
@@ -104,6 +110,7 @@ export function DashboardContent() {
           sessionStorage.removeItem(`opencode_pending_prompt:${createdSessionId}`);
           sessionStorage.removeItem(`opencode_pending_options:${createdSessionId}`);
         }
+        usePendingFilesStore.getState().setPendingFiles([]);
         setIsFadingOutWelcome(false);
         setIsSubmitting(false);
         toast.warning('Failed to create session');

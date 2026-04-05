@@ -284,10 +284,11 @@ export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId:
 						statusXml = [
 							`<project_status selected="${project.name}" path="${project.path}" />`,
 							`<system-reminder>`,
-							`Follow your orchestrator workflow:`,
-							`1. task_create for each piece of work — tell the user your plan`,
-							`2. agent_spawn(agent_type:"worker") for each task — blocks until worker is done, returns real result`,
-							`3. Review worker results, task_done for each, report to user`,
+							`Orchestrator workflow:`,
+							`1. task_create → plan the work, tell user`,
+							`2. agent_message existing workers. agent_spawn ONLY if no worker exists yet.`,
+							`3. Default: sync (blocking). Use async: true ONLY when user explicitly asks for parallel/background work.`,
+							`4. Review results, task_done, report to user`,
 							`</system-reminder>`,
 						].join("\n")
 					} else {
