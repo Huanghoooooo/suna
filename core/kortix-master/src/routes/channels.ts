@@ -15,6 +15,7 @@
 
 import { Hono } from 'hono'
 import { getMasterPublicBaseUrl } from './share'
+import { createShare } from '../services/share-store'
 
 const channelsRouter = new Hono()
 
@@ -24,6 +25,31 @@ function joinPublicBaseUrl(baseUrl: string, path: string): string {
   const suffix = path.startsWith('/') ? path : `/${path}`
   url.pathname = `${basePath}${suffix}`
   return url.toString()
+}
+
+/**
+ * Get a usable public base URL for channel webhooks.
+ * For cloud: returns the proxy URL directly.
+ * For local: if getMasterPublicBaseUrl returns a real public URL, use it.
+ * Otherwise, create a long-lived share link so the webhook URL is stable.
+ */
+function getChannelPublicBaseUrl(): string {
+  const base = getMasterPublicBaseUrl()
+
+  // If it's already a real public URL (not localhost), use it directly
+  if (base && !base.includes('localhost') && !base.includes('127.0.0.1')) {
+    return base
+  }
+
+  // Local mode: create/reuse a share link that fronts port 8000
+  // The share system will use PUBLIC_BASE_URL or localhost as its base
+  const share = createShare(8000, 365 * 24 * 60 * 60 * 1000, 'channels-webhook')
+  if (share.url && !share.url.includes('localhost')) {
+    return share.url.replace(/\/+$/, '')
+  }
+
+  // Last resort: return whatever we have (might be localhost — webhook won't work externally)
+  return base
 }
 
 // Dynamic import to avoid loading bun:sqlite at module scope in test environments
@@ -37,7 +63,7 @@ channelsRouter.get('/', async (c) => {
     const { listChannels } = await loadDb()
     const platform = c.req.query('platform')
     const channels = listChannels(platform || undefined)
-    const publicBase = getMasterPublicBaseUrl()
+    const publicBase = getChannelPublicBaseUrl()
     return c.json({
       ok: true,
       channels: channels.map(ch => ({
@@ -129,7 +155,7 @@ channelsRouter.post('/setup/telegram', async (c) => {
     const cmdData = await cmdRes.json() as any
 
     // 4. Set Telegram webhook — auto-resolve public URL if not provided
-    const resolvedPublicUrl = publicUrl || getMasterPublicBaseUrl() || ''
+    const resolvedPublicUrl = publicUrl || getChannelPublicBaseUrl() || ''
     let webhookUrl: string | null = null
     if (resolvedPublicUrl) {
       webhookUrl = joinPublicBaseUrl(resolvedPublicUrl, channel.webhook_path)
@@ -235,7 +261,7 @@ function buildSlackManifest(displayName: string, webhookUrl: string) {
 channelsRouter.post('/slack-manifest', async (c) => {
   try {
     const { publicUrl, botName } = await c.req.json()
-    const resolvedUrl = publicUrl || getMasterPublicBaseUrl() || ''
+    const resolvedUrl = publicUrl || getChannelPublicBaseUrl() || ''
     if (!resolvedUrl) return c.json({ ok: false, error: 'Could not resolve public URL. Set PUBLIC_BASE_URL or provide publicUrl.' }, 400)
 
     const displayName = botName || generateBotName()
@@ -305,7 +331,7 @@ channelsRouter.post('/setup/slack', async (c) => {
       })
     }
 
-    const resolvedSlackUrl = publicUrl || getMasterPublicBaseUrl() || ''
+    const resolvedSlackUrl = publicUrl || getChannelPublicBaseUrl() || ''
     const webhookUrl = resolvedSlackUrl ? joinPublicBaseUrl(resolvedSlackUrl, channel.webhook_path) : null
 
     return c.json({
@@ -332,7 +358,7 @@ channelsRouter.get('/:id', async (c) => {
     const { getChannel } = await loadDb()
     const ch = getChannel(c.req.param('id'))
     if (!ch) return c.json({ ok: false, error: 'Not found' }, 404)
-    const publicBase = getMasterPublicBaseUrl()
+    const publicBase = getChannelPublicBaseUrl()
     return c.json({
       ok: true,
       channel: {
