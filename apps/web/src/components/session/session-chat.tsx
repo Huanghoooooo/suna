@@ -43,7 +43,7 @@ import { SessionRetryDisplay, TurnErrorDisplay } from "@/components/session/sess
 import { SessionSiteHeader } from "@/components/session/session-site-header";
 import { QuestionPrompt, type QuestionPromptHandle, type QuestionAction } from "@/components/session/question-prompt";
 import { SessionWelcome } from "@/components/session/session-welcome";
-import { FileCard } from "@/components/file-previews/FileCard";
+import { GridFileCard } from "@/components/thread/file-attachment/GridFileCard";
 
 import { ToolPartRenderer } from "@/components/session/tool-renderers";
 import { SandboxUrlDetector } from "@/components/thread/content/sandbox-url-detector";
@@ -99,6 +99,7 @@ import { SubSessionModal } from "@/components/session/sub-session-modal";
 import { toast as sonnerToast } from "sonner";
 import { useKortixComputerStore } from "@/stores/kortix-computer-store";
 import { useMessageQueueStore } from "@/stores/message-queue-store";
+import { usePendingFilesStore } from "@/stores/pending-files-store";
 import { useOpenCodePendingStore } from "@/stores/opencode-pending-store";
 import { useOpenCodeCompactionStore } from "@/stores/opencode-compaction-store";
 import { useFilePreviewStore } from "@/stores/file-preview-store";
@@ -1636,10 +1637,11 @@ function UserMessageRow({
 								key={i}
 								onClick={(e) => e.stopPropagation()}
 							>
-								<FileCard
-									filepath={f.path}
-									onClick={() => openPreview(f.path)}
-								/>
+							<GridFileCard
+								filePath={f.path}
+								fileName={f.path.split('/').pop() || f.path}
+								onClick={() => openPreview(f.path)}
+							/>
 							</div>
 						))}
 					</div>
@@ -3228,15 +3230,72 @@ export function SessionChat({
 						removeOptimisticUserMessage(messageID);
 					});
 			};
-			console.log("[session-chat] sending promptAsync for pending prompt", { sessionId });
-			void client.session
-				.promptAsync({
-					sessionID: sessionId,
-					parts: [{ type: "text", text: pendingPrompt }],
-					...(sendOpts?.agent && { agent: sendOpts.agent }),
-					...(sendOpts?.model && { model: sendOpts.model }),
-					...(sendOpts?.variant && { variant: sendOpts.variant }),
-				} as any)
+			// Consume any pending files stored by the dashboard (File objects
+			// can't survive sessionStorage, so they're in a Zustand store).
+			const pendingFiles = usePendingFilesStore.getState().consumePendingFiles();
+
+			console.log("[session-chat] sending promptAsync for pending prompt", { sessionId, pendingFileCount: pendingFiles.length });
+
+			// Upload local files and build the parts array (text + file refs)
+			const sendPendingPrompt = async () => {
+				const parts: Array<
+					| { type: "text"; text: string }
+					| { type: "file"; mime: string; url: string; filename: string }
+				> = [{ type: "text", text: pendingPrompt }];
+
+				const localFiles = pendingFiles.filter(
+					(f): f is Extract<typeof f, { kind: "local" }> => f.kind === "local",
+				);
+				const remoteFiles = pendingFiles.filter(
+					(f): f is Extract<typeof f, { kind: "remote" }> => f.kind === "remote",
+				);
+
+				// Include remote files (from fork drafts etc.)
+				for (const file of remoteFiles) {
+					parts.push({ type: "file", mime: file.mime, url: file.url, filename: file.filename });
+				}
+
+				// Upload local files
+				if (localFiles.length > 0) {
+					const uploadBatchTs = Date.now();
+					const uploadResults = await Promise.all(
+						localFiles.map(async (af, index) => {
+							const safeName = af.file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+							const uniqueName = `${uploadBatchTs}-${index}-${safeName}`;
+							const uploadBlob = new File([af.file], uniqueName, { type: af.file.type });
+							const results = await uploadFile(uploadBlob, "/workspace/uploads");
+							if (!results || results.length === 0) {
+								throw new Error(`Failed to upload file: ${af.file.name}`);
+							}
+							return {
+								path: results[0].path,
+								mime: af.file.type || "application/octet-stream",
+								filename: af.file.name,
+							};
+						}),
+					);
+					const uploadedFileRefs = uploadResults
+						.map(
+							(f) =>
+								`<file path="${f.path}" mime="${f.mime}" filename="${f.filename}">\nThis file has been uploaded and is available at the path above.\n</file>`,
+						)
+						.join("\n");
+					(parts[0] as { type: "text"; text: string }).text += `\n\n${uploadedFileRefs}`;
+				}
+
+				return parts;
+			};
+
+			void sendPendingPrompt()
+				.then((parts) =>
+					client.session.promptAsync({
+						sessionID: sessionId,
+						parts,
+						...(sendOpts?.agent && { agent: sendOpts.agent }),
+						...(sendOpts?.model && { model: sendOpts.model }),
+						...(sendOpts?.variant && { variant: sendOpts.variant }),
+					} as any),
+				)
 				.then((res: any) => {
 					console.log("[session-chat] promptAsync resolved", { sessionId, status: res?.response?.status, hasError: !!res?.error, res });
 					// The SDK resolves (not rejects) on HTTP errors, returning
@@ -4804,10 +4863,11 @@ export function SessionChat({
 													key={i}
 													onClick={(e) => e.stopPropagation()}
 												>
-													<FileCard
-														filepath={f.path}
-														onClick={() => openPreview(f.path)}
-													/>
+												<GridFileCard
+													filePath={f.path}
+													fileName={f.path.split('/').pop() || f.path}
+													onClick={() => openPreview(f.path)}
+												/>
 												</div>
 											))}
 										</div>

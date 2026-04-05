@@ -1,48 +1,32 @@
 /**
  * FileAttachment - Main file attachment component
- * Clean, focused implementation using separated preview components
+ * Simplified: uses GridFileCard (FileThumbnail) for all file types.
+ * Click-to-open is handled by the parent via onClick.
  */
 
-import React, { useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import React from 'react';
 import { cn } from '@/lib/utils';
-import { FileCard } from '@/components/file-previews/FileCard';
-import { ImagePreview } from '@/components/file-previews/ImagePreview';
-import { PdfPreview } from '@/components/file-previews/PdfPreview';
-import { SpreadsheetPreview } from '@/components/file-previews/SpreadsheetPreview';
-import { DocumentPreview } from '@/components/file-previews/DocumentPreview';
-import { KanvaxPreview } from '@/components/file-previews/KanvaxPreview';
-import { DocxPreview } from '@/components/file-previews/DocxPreview';
-import { FileCarousel } from '@/components/file-layouts/FileCarousel';
-import { FileGrid } from '@/components/file-layouts/FileGrid';
-import { useFileContent } from '@/features/files';
-import { getFileType, getFilename } from '@/lib/utils/file-utils';
-import { isImageFile, isPdfExtension, isSpreadsheetExtension, isCsvExtension, isPreviewableFile, isKanvaxFile, isDocxExtension } from '@/lib/utils/file-types';
+import { GridFileCard } from './GridFileCard';
+import { getFilename } from '@/lib/utils/file-utils';
 import { Project } from '@/types/project';
 import { PresentationSlidePreview } from '@/components/thread/tool-views/presentation-tools/PresentationSlidePreview';
 import { usePresentationViewerStore } from '@/stores/presentation-viewer-store';
 import { IframePreview } from '../iframe-preview';
 
 // Helper function to check if a filepath is a presentation attachment
-// Matches paths like: presentations/name/slide_01.html, /workspace/presentations/name/slide_01.html, etc.
 function isPresentationAttachment(filepath: string): boolean {
     const presentationPattern = /presentations\/([^\/]+)\/slide_(\d+)\.html$/i;
     return presentationPattern.test(filepath);
 }
 
-// Helper function to extract presentation name from filepath
 function extractPresentationName(filepath: string): string | null {
     const match = filepath.match(/presentations\/([^\/]+)\/slide_\d+\.html$/i);
     return match ? match[1] : null;
 }
 
-// Helper function to extract slide number from filepath
 function extractSlideNumber(filepath: string): number | null {
     const match = filepath.match(/slide_(\d+)\.html$/i);
-    if (match) {
-        return parseInt(match[1], 10);
-    }
-    return null;
+    return match ? parseInt(match[1], 10) : null;
 }
 
 export interface FileAttachmentProps {
@@ -65,57 +49,19 @@ export function FileAttachment({
     filepath,
     onClick,
     className,
-    sandboxId,
-    showPreview = true,
-    localPreviewUrl,
-    customStyle,
-    collapsed = true,
     project,
-    isSingleItemGrid = false,
-    standalone = false,
     alignRight = false,
-    uploadStatus,
 }: FileAttachmentProps) {
     const { openPresentation } = usePresentationViewerStore();
     const filename = getFilename(filepath);
-    const extension = filename.split('.').pop()?.toLowerCase() || '';
-    const fileType = getFileType(filename);
-    
-    // Determine file characteristics
-    const isImage = isImageFile(filepath);
-    const isPdf = isPdfExtension(extension);
-    const isSpreadsheet = isSpreadsheetExtension(extension) || isCsvExtension(extension);
-    const isDocx = isDocxExtension(extension);
-    const isKanvax = isKanvaxFile(filepath);
-    const isPreviewable = isPreviewableFile(filepath);
-    const isGridLayout = customStyle?.gridColumn === '1 / -1' || Boolean(customStyle && ('--attachment-height' in customStyle));
-    // Images should also show previews, not just previewable files
-    const shouldShowPreview = (isPreviewable || isImage) && showPreview && collapsed === false;
-    
-    // Call all hooks at the top level before any early returns
-    const { data: fileContentData, isLoading, error } = useFileContent(
-        shouldShowPreview ? filepath : null,
-        { enabled: shouldShowPreview }
-    );
-    const retryCount = 0;
-    const data = fileContentData?.content;
-    
-    const isSandboxDeleted = error?.message?.includes('404') || 
-                             error?.message?.includes('Sandbox not found') ||
-                             error?.message?.includes('no project owns this sandbox');
-    const isStillRetrying = retryCount < 15;
-    const hasError = !!(error && !isStillRetrying);
-    const hasContent = data || localPreviewUrl;
-    // For images, we have content if we have localPreviewUrl
-    const waitingForSandbox = (isPdf || isSpreadsheet || isPreviewable) && !sandboxId && !localPreviewUrl;
-    
+
     const handleClick = () => {
         if (onClick) {
             onClick(filepath);
         }
     };
-    
-    // Check for presentation attachments
+
+    // Presentation attachments get special rendering
     if (isPresentationAttachment(filepath) && project) {
         const presentationName = extractPresentationName(filepath);
         const slideNumber = extractSlideNumber(filepath);
@@ -128,8 +74,8 @@ export function FileAttachment({
                     onFullScreenClick={(slideNum) => {
                         openPresentation(
                             presentationName,
-                    project.sandbox.sandbox_url!,
-                    slideNum || slideNumber || 1
+                            project.sandbox.sandbox_url!,
+                            slideNum || slideNumber || 1
                         );
                     }}
                     className={className}
@@ -137,219 +83,28 @@ export function FileAttachment({
             );
         }
     }
-    
-    // Show compact FileCard when collapsed or not in grid layout
-    if (collapsed || !isGridLayout) {
-        // For images, always show preview in grid layout (even when collapsed prop is true)
-        if (isImage && isGridLayout && showPreview) {
-            return (
-                <ImagePreview
-                    filepath={filepath}
-                    sandboxId={sandboxId}
-                    localPreviewUrl={localPreviewUrl}
-                    onClick={handleClick}
-                    className={className}
-                    customStyle={customStyle}
-                    uploadStatus={uploadStatus}
-                    isGridLayout={isGridLayout}
-                />
-            );
-        }
 
-        // For kanvax, show preview in grid layout when we have localPreviewUrl or sandboxId
-        if (isKanvax && isGridLayout && showPreview && (localPreviewUrl || sandboxId)) {
-            return (
-                <div
-                    className={cn(
-                        "group relative w-full rounded-xl border bg-card overflow-hidden",
-                        "aspect-[4/3] min-h-[200px]",
-                        className
-                    )}
-                    style={customStyle}
-                >
-                    <KanvaxPreview
-                        filepath={filepath}
-                        sandboxId={sandboxId}
-                        localPreviewUrl={localPreviewUrl}
-                        className="h-full w-full"
-                    />
-                </div>
-            );
-        }
-
-        // For DOCX, show preview when we have sandboxId (file in sandbox)
-        // Works in both grid and inline layouts
-        if (isDocx && showPreview && sandboxId) {
-            return (
-                <div
-                    className={cn(
-                        "group relative rounded-xl border bg-card overflow-hidden",
-                        isGridLayout
-                            ? "w-full min-h-[300px] max-h-[500px]"
-                            : "w-full max-w-[600px] h-[300px]",
-                        className
-                    )}
-                    style={isGridLayout ? { gridColumn: '1 / -1', ...customStyle } : customStyle}
-                >
-                    <DocxPreview
-                        filepath={filepath}
-                        sandboxId={sandboxId}
-                        localPreviewUrl={localPreviewUrl}
-                        className="h-full w-full"
-                    />
-                </div>
-            );
-        }
-
-        // Otherwise show compact FileCard
-        // Don't show loading state for files that are already uploaded (ready) or when there's no sandbox to load from
-        const shouldShowLoading = shouldShowPreview && 
-            retryCount < 15 && 
-            !isKanvax && 
-            uploadStatus !== 'ready' && 
-            !!(sandboxId || localPreviewUrl);
-        
-        return (
-            <FileCard
-                filepath={filepath}
-                onClick={handleClick}
-                className={className}
-                uploadStatus={uploadStatus}
-                isLoading={shouldShowLoading}
-                hasError={hasError}
-                isSandboxDeleted={isSandboxDeleted ?? undefined}
-                alignRight={alignRight}
-            />
-        );
-    }
-    
-    // Large preview layout - only show when content is loaded
-    // For images/kanvax with localPreviewUrl, always show preview even if shouldShowPreview is false
-    const canShowPreview = shouldShowPreview || ((isImage || isKanvax) && localPreviewUrl);
-    
-    // Kanvax, images, and DOCX handle their own loading state internally, so skip content check for them
-    const needsContentCheck = !isKanvax && !isImage && !isDocx;
-    if (!canShowPreview || waitingForSandbox || hasError || isSandboxDeleted || (needsContentCheck && !hasContent && !localPreviewUrl)) {
-        // Don't show loading state for files that are already uploaded (ready) or when there's no sandbox
-        const shouldShowLoading = isLoading && !isKanvax && uploadStatus !== 'ready' && !!(sandboxId || localPreviewUrl);
-        return (
-            <FileCard
-                filepath={filepath}
-                onClick={handleClick}
-                className={className}
-                uploadStatus={uploadStatus}
-                isLoading={shouldShowLoading}
-                hasError={hasError}
-                isSandboxDeleted={isSandboxDeleted ?? undefined}
-                alignRight={alignRight}
-            />
-        );
-    }
-    
-    // Render appropriate preview component
-    return (
-        <div
-            className={cn(
-                "group relative w-full",
-                "rounded-xl border bg-card overflow-hidden pt-10",
-                isPdf ? "!min-h-[200px] sm:min-h-0 sm:h-[400px] max-h-[500px] sm:!min-w-[300px]" :
-                    isPreviewable ? "!min-h-[200px] sm:min-h-0 sm:h-[400px] max-h-[600px] sm:!min-w-[300px]" :
-                        standalone ? "min-h-[300px] h-auto" : "h-[300px]",
-                className
-            )}
-            style={customStyle}
-            onClick={hasError && !isSandboxDeleted ? handleClick : undefined}
-        >
-            {/* Content area */}
-            <div
-                className="h-full w-full relative min-w-0"
-                style={{
-                    containIntrinsicSize: (isPdf || isPreviewable) ? '100% 500px' : undefined,
-                    contain: (isPdf || isPreviewable) ? 'layout size' : undefined
-                }}
-            >
-                {!hasError && !isSandboxDeleted && (
-                    <>
-                        {isImage && (
-                            <ImagePreview
-                                filepath={filepath}
-                                sandboxId={sandboxId}
-                                localPreviewUrl={localPreviewUrl}
-                                onClick={handleClick}
-                                className="h-full w-full"
-                                customStyle={customStyle}
-                                uploadStatus={uploadStatus}
-                                isGridLayout={true}
-                            />
-                        )}
-                        
-                        {isPdf && (
-                            <PdfPreview
-                                filepath={filepath}
-                                sandboxId={sandboxId}
-                                localPreviewUrl={localPreviewUrl}
-                                className="h-full w-full"
-                            />
-                        )}
-                        
-                        {isSpreadsheet && (
-                            <SpreadsheetPreview
-                                filepath={filepath}
-                                sandboxId={sandboxId}
-                                project={project}
-                                className="h-full w-full"
-                            />
-                        )}
-
-                        {isDocx && (
-                            <DocxPreview
-                                filepath={filepath}
-                                sandboxId={sandboxId}
-                                localPreviewUrl={localPreviewUrl}
-                                className="h-full w-full"
-                            />
-                        )}
-
-                        {isKanvax && (
-                            <KanvaxPreview
-                                filepath={filepath}
-                                sandboxId={sandboxId}
-                                localPreviewUrl={localPreviewUrl}
-                                className="h-full w-full"
-                            />
-                        )}
-
-                        {isPreviewable && !isImage && !isPdf && !isSpreadsheet && !isDocx && !isKanvax && (
-                            <DocumentPreview
-                                filepath={filepath}
-                                sandboxId={sandboxId}
-                                project={project}
-                                className="h-full w-full"
-                            />
-                        )}
-                    </>
-                )}
-            </div>
-            
-            {/* Header with filename */}
-            <div className="absolute top-0 left-0 right-0 bg-accent p-2 h-[40px] z-10 flex items-center justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                    <div className="text-sm font-medium truncate">{filename}</div>
-                </div>
-                <div className="flex items-center gap-1">
-                    {onClick && (
-                        <button
-                            onClick={handleClick}
-                            className="cursor-pointer p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10"
-                            title="Open in viewer"
-                        >
-                            <ExternalLink size={14} />
-                        </button>
-                    )}
-                </div>
-            </div>
-        </div>
+    // All other files: render a GridFileCard
+    const card = (
+        <GridFileCard
+            filePath={filepath}
+            fileName={filename}
+            onClick={handleClick}
+            className={className}
+        />
     );
+
+    if (alignRight) {
+        return (
+            <div className="w-full flex justify-end">
+                <div className="max-w-[85%]">
+                    {card}
+                </div>
+            </div>
+        );
+    }
+
+    return card;
 }
 
 // FileAttachmentGrid component for multiple files
@@ -366,12 +121,10 @@ export interface FileAttachmentGridProps {
     localPreviewUrls?: Record<string, string>;
 }
 
-// Helper function to check if a string is a URL
 function isUrl(str: string): boolean {
     return str.startsWith('http://') || str.startsWith('https://');
 }
 
-// Helper function to check if a URL points to an image
 function isImageUrl(url: string): boolean {
     try {
         const urlObj = new URL(url);
@@ -387,72 +140,41 @@ export function FileAttachmentGrid({
     attachments,
     onFileClick,
     className,
-    sandboxId,
-    showPreviews = true,
-    collapsed = false,
     project,
     standalone = false,
     alignRight = false,
-    localPreviewUrls = {},
 }: FileAttachmentGridProps) {
-    // Call hooks at the top level before any early returns
-    const [currentIndex, setCurrentIndex] = useState(0);
-    
     if (!attachments || attachments.length === 0) return null;
-    
+
     // Separate URLs from file paths
     const urls = attachments.filter(isUrl);
     const filePaths = attachments.filter(att => !isUrl(att));
-    
-    // Always show previews for grid layout
-    const shouldCollapse = false;
-    
-    // Calculate grid image height
-    const getGridImageHeight = () => {
-        if (!standalone) return 200;
-        const fileCount = filePaths.length;
-        if (fileCount === 1) return 600;
-        if (fileCount === 2) return 400;
-        if (fileCount <= 4) return 300;
-        return 250;
-    };
-    
-    const gridImageHeight = getGridImageHeight();
-    
-    // Use carousel for 2+ files
-    const shouldUseCarousel = filePaths.length >= 2;
-    
+
     const handleFileClick = (path: string) => {
         if (onFileClick) {
             onFileClick(path, filePaths);
         }
     };
-    
+
     const content = (
         <div className="space-y-4">
             {/* Render URL previews */}
             {urls.length > 0 && (
                 <div className="space-y-3">
                     {urls.map((url, index) => {
-                        // Check if this URL is an image
                         if (isImageUrl(url)) {
-                            // Extract filename from URL for caption
                             let imageName = '';
                             try {
                                 const urlObj = new URL(url);
                                 const pathname = urlObj.pathname;
                                 imageName = pathname.split('/').pop() || '';
-                                // Decode URI and clean up the name
                                 imageName = decodeURIComponent(imageName).replace(/[_-]/g, ' ');
                             } catch {
                                 // Keep empty if parsing fails
                             }
 
                             return (
-                                <span
-                                    key={`url-${index}`}
-                                    className="block my-5"
-                                >
+                                <span key={`url-${index}`} className="block my-5">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                         src={url}
@@ -460,7 +182,6 @@ export function FileAttachmentGrid({
                                         className={cn(
                                             "max-w-full h-auto rounded-xl",
                                             "border border-border/40",
-                                            ""
                                         )}
                                         loading="lazy"
                                     />
@@ -473,7 +194,6 @@ export function FileAttachmentGrid({
                             );
                         }
 
-                        // Non-image URLs: render with iframe preview
                         let domain = url;
                         try {
                             const urlObj = new URL(url);
@@ -491,7 +211,6 @@ export function FileAttachmentGrid({
                                     standalone ? "min-h-[300px] h-[400px]" : "!min-h-[200px] sm:min-h-0 sm:h-[400px] max-h-[600px] sm:!min-w-[300px]"
                                 )}
                             >
-                                {/* URL preview */}
                                 <div
                                     className="h-full w-full relative min-w-0"
                                     style={{
@@ -521,86 +240,23 @@ export function FileAttachmentGrid({
                     })}
                 </div>
             )}
-            
-            {/* Render file attachments */}
+
+            {/* Render file attachments as grid of GridFileCards */}
             {filePaths.length > 0 && (
-                <>
-                    {shouldUseCarousel ? (
-                        <FileCarousel
-                            files={filePaths}
-                            currentIndex={currentIndex}
-                            onIndexChange={setCurrentIndex}
-                            className={className}
-                        >
-                            {(filepath, index) => {
-                                const filename = getFilename(filepath);
-                                const localUrl = localPreviewUrls[filename] || localPreviewUrls[filepath];
-                                return (
-                                    <FileAttachment
-                                        filepath={filepath}
-                                        onClick={() => handleFileClick(filepath)}
-                                        sandboxId={sandboxId}
-                                        showPreview={showPreviews}
-                                        collapsed={shouldCollapse}
-                                        project={project}
-                                        isSingleItemGrid={filePaths.length === 1}
-                                        standalone={standalone}
-                                        alignRight={alignRight}
-                                        localPreviewUrl={localUrl}
-                                        customStyle={
-                                            isImageFile(filepath) ? {
-                                                width: '100%',
-                                                height: 'auto',
-                                                maxHeight: `${gridImageHeight}px`,
-                                                '--attachment-height': `${gridImageHeight}px`
-                                            } as React.CSSProperties : isPreviewableFile(filepath) ? {
-                                                gridColumn: '1 / -1',
-                                                width: '100%'
-                                            } : undefined
-                                        }
-                                    />
-                                );
-                            }}
-                        </FileCarousel>
-                    ) : (
-                        <FileGrid files={filePaths} className={className}>
-                            {(filepath, index) => {
-                                const filename = getFilename(filepath);
-                                const localUrl = localPreviewUrls[filename] || localPreviewUrls[filepath];
-                                return (
-                                    <FileAttachment
-                                        filepath={filepath}
-                                        onClick={() => handleFileClick(filepath)}
-                                        sandboxId={sandboxId}
-                                        showPreview={showPreviews}
-                                        collapsed={shouldCollapse}
-                                        project={project}
-                                        isSingleItemGrid={filePaths.length === 1}
-                                        standalone={standalone}
-                                        alignRight={alignRight}
-                                        localPreviewUrl={localUrl}
-                                        customStyle={
-                                            isImageFile(filepath) ? {
-                                                width: '100%',
-                                                height: 'auto',
-                                                maxHeight: `${gridImageHeight}px`,
-                                                '--attachment-height': `${gridImageHeight}px`
-                                            } as React.CSSProperties : isPreviewableFile(filepath) ? {
-                                                gridColumn: '1 / -1',
-                                                width: '100%'
-                                            } : undefined
-                                        }
-                                    />
-                                );
-                            }}
-                        </FileGrid>
-                    )}
-                </>
+                <div className={cn("flex flex-wrap gap-3", className)}>
+                    {filePaths.map((filepath, index) => (
+                        <FileAttachment
+                            key={index}
+                            filepath={filepath}
+                            onClick={() => handleFileClick(filepath)}
+                            project={project}
+                        />
+                    ))}
+                </div>
             )}
         </div>
     );
-    
-    // Wrap with alignment container if alignRight is true
+
     if (alignRight) {
         return (
             <div className="w-full flex justify-end">
@@ -610,10 +266,9 @@ export function FileAttachmentGrid({
             </div>
         );
     }
-    
+
     return content;
 }
 
 // Export AttachmentGroup for backward compatibility
 export { AttachmentGroup } from './AttachmentGroup';
-
