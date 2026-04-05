@@ -4,7 +4,6 @@ import React, { useMemo, useCallback, useState, useEffect, useRef, lazy, Suspens
 import {
   AlertTriangle,
   Braces,
-  ChevronRight,
   CircleAlert,
   Code,
   Download,
@@ -26,13 +25,11 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import { UnifiedMarkdown } from '@/components/markdown';
 import { CodeEditor } from '@/components/file-editors/code-editor';
-import { getFileIcon } from './file-icon';
 import { useDiagnosticsStore, findDiagnosticsForFile } from '@/stores/diagnostics-store';
 import { useSandboxProxy } from '@/hooks/use-sandbox-proxy';
 import { SANDBOX_PORTS } from '@/lib/platform-client';
 import { useAuthenticatedPreviewUrl } from '@/hooks/use-authenticated-preview-url';
-import { openTabAndNavigate } from '@/stores/tab-store';
-import { useFilesStore } from '../store/files-store';
+import { FilePathBreadcrumbs } from './file-breadcrumbs';
 
 // ---------------------------------------------------------------------------
 // Lazy-load heavy renderers to keep initial bundle small
@@ -185,73 +182,6 @@ function FileNotFoundState({ filePath }: { filePath: string }) {
       <p className="text-xs text-muted-foreground/40 max-w-xs">
         This file does not exist or may have been deleted.
       </p>
-    </div>
-  );
-}
-
-/**
- * Clickable breadcrumb showing the full path.
- * Directory segments open the folder in the Files tab.
- * The last segment (filename) is displayed as current / non-clickable.
- */
-function PathBreadcrumb({ filePath }: { filePath: string }) {
-  const segments = useMemo(() => {
-    // Strip leading slash and split
-    const parts = filePath.replace(/^\/+/, '').split('/');
-    return parts.map((name, i) => ({
-      name,
-      // Rebuild the absolute path up to this segment
-      path: '/' + parts.slice(0, i + 1).join('/'),
-      isLast: i === parts.length - 1,
-    }));
-  }, [filePath]);
-
-  const handleDirClick = useCallback((dirPath: string) => {
-    // Navigate files store to this directory
-    useFilesStore.getState().navigateToPath(dirPath);
-    // Open the Files tab
-    openTabAndNavigate({
-      id: 'page:/files',
-      title: 'Files',
-      type: 'page',
-      href: '/files',
-    });
-  }, []);
-
-  // For very long paths, only show the last few segments with ellipsis
-  const maxVisible = 4;
-  const collapsed = segments.length > maxVisible;
-  const visible = collapsed
-    ? [segments[0], ...segments.slice(-(maxVisible - 1))]
-    : segments;
-
-  return (
-    <div className="flex items-center gap-0 min-w-0 overflow-hidden">
-      {visible.map((seg, i) => (
-        <React.Fragment key={seg.path}>
-          {/* Ellipsis for collapsed middle segments */}
-          {collapsed && i === 1 && (
-            <>
-              <ChevronRight className="h-3 w-3 text-muted-foreground/30 shrink-0 mx-0.5" />
-              <span className="text-xs text-muted-foreground/40 shrink-0">…</span>
-            </>
-          )}
-          {i > 0 && (
-            <ChevronRight className="h-3 w-3 text-muted-foreground/30 shrink-0 mx-0.5" />
-          )}
-          {seg.isLast ? (
-            <span className="text-sm font-medium truncate">{seg.name}</span>
-          ) : (
-            <button
-              onClick={() => handleDirClick(seg.path)}
-              className="text-xs text-muted-foreground/60 hover:text-foreground truncate max-w-[120px] transition-colors cursor-pointer shrink-0"
-              title={seg.path}
-            >
-              {seg.name}
-            </button>
-          )}
-        </React.Fragment>
-      ))}
     </div>
   );
 }
@@ -551,9 +481,8 @@ export function FileContentRenderer({
       {/* Header */}
       {showHeader && (
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/50 shrink-0 h-10">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            {getFileIcon(fileName, { className: 'h-4 w-4 shrink-0' })}
-            <PathBreadcrumb filePath={filePath} />
+          <div className="flex items-center gap-1 flex-1 min-w-0">
+            <FilePathBreadcrumbs filePath={filePath} />
             {/* Edit state indicator */}
             {!readOnly && hasUnsavedChanges && (
               <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-500 px-2 py-0.5 bg-amber-50 dark:bg-amber-900/20 rounded-md shrink-0">

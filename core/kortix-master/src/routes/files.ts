@@ -138,7 +138,7 @@ filesRouter.get('/content',
   describeRoute({
     tags: ['Files'],
     summary: 'Read file content',
-    description: 'Returns file content as text or base64-encoded binary depending on file type. Returns empty text content for non-existent files.',
+    description: 'Returns file content as text or base64-encoded binary depending on file type. Returns 404 for non-existent files.',
     responses: {
       200: {
         description: 'File content (text or binary)',
@@ -150,6 +150,7 @@ filesRouter.get('/content',
       },
       400: { description: 'Missing path parameter', content: { 'application/json': { schema: resolver(ErrorResponse) } } },
       403: { description: 'Access denied', content: { 'application/json': { schema: resolver(ErrorResponse) } } },
+      404: { description: 'File not found', content: { 'application/json': { schema: resolver(ErrorResponse) } } },
     },
   }),
   async (c) => {
@@ -161,7 +162,7 @@ filesRouter.get('/content',
 
     const file = Bun.file(resolved)
     if (!(await file.exists())) {
-      return c.json({ type: 'text', content: '' })
+      return c.json({ error: 'File not found', path: filePath }, 404)
     }
 
     const mimeType = file.type || 'application/octet-stream'
