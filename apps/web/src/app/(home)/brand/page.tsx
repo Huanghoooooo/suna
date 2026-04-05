@@ -972,8 +972,8 @@ export default function BrandPage() {
                   <ComponentLabel>Button</ComponentLabel>
                   <ComponentDesc>
                     10 variants × 8 sizes. The foundation of every interaction.
-                    Default sizes use <code className="font-mono text-[11px] bg-muted px-1 rounded">rounded-full</code>.
-                    Compact sizes stay tight for dense UI.
+                    All sizes use <code className="font-mono text-[11px] bg-muted px-1 rounded">rounded-full</code> pill shape.
+                    Containers (cards, inputs, dialogs) use <code className="font-mono text-[11px] bg-muted px-1 rounded">rounded-2xl</code>.
                   </ComponentDesc>
                   <DemoContainer>
                     <div className="space-y-6">

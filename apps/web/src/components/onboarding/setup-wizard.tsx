@@ -763,10 +763,10 @@ function ToolKeysPane({ onNext, onBack }: { onNext: () => void; onBack: () => vo
             })}
           </div>
           <div className="flex gap-2 pt-1">
-            <Button variant="ghost" onClick={() => setModalOpen(false)} className="flex-1 h-10 text-sm rounded-xl shadow-none">
+            <Button variant="ghost" onClick={() => setModalOpen(false)} className="flex-1 h-10 text-sm shadow-none">
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving} className="flex-1 h-10 text-sm rounded-xl shadow-none">
+            <Button onClick={handleSave} disabled={saving} className="flex-1 h-10 text-sm shadow-none">
               {saving ? (
                 <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
               ) : filled > 0 ? (
@@ -920,10 +920,10 @@ function PipedreamPane({ onNext, onBack }: { onNext: () => void; onBack: () => v
             ))}
           </div>
           <div className="flex gap-2 pt-1">
-            <Button variant="ghost" onClick={() => setModalOpen(false)} className="flex-1 h-10 text-sm rounded-xl shadow-none">
+            <Button variant="ghost" onClick={() => setModalOpen(false)} className="flex-1 h-10 text-sm shadow-none">
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving} className="flex-1 h-10 text-sm rounded-xl shadow-none">
+            <Button onClick={handleSave} disabled={saving} className="flex-1 h-10 text-sm shadow-none">
               {saving ? (
                 <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
               ) : allFilled ? (
