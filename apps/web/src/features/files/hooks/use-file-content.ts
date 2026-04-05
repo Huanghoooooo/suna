@@ -31,7 +31,9 @@ export function useFileContent(
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     retry: (failureCount, error: Error) => {
-      if (error.message.includes('404') || error.message.includes('403')) return false;
+      const msg = error.message.toLowerCase();
+      // Don't retry permanent failures (not found, access denied)
+      if (msg.includes('404') || msg.includes('403') || msg.includes('not found') || msg.includes('access denied')) return false;
       return failureCount < 3;
     },
     retryDelay: (attempt) => Math.min(1000 * Math.pow(2, attempt), 5000),

@@ -458,7 +458,7 @@ export function TaskConfigDialog({ open, onOpenChange, onCreated }: TaskConfigDi
             )}
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" size="sm" onClick={handleClose} className="cursor-pointer rounded-xl">Cancel</Button>
+            <Button variant="outline" size="sm" onClick={handleClose} className="cursor-pointer ">Cancel</Button>
             {step === 'source' && (
               <Button size="sm" onClick={() => setStep('action')} className="cursor-pointer rounded-xl">
                 Next <ArrowRight className="h-4 w-4 ml-1" />
@@ -470,7 +470,7 @@ export function TaskConfigDialog({ open, onOpenChange, onCreated }: TaskConfigDi
               </Button>
             )}
             {step === 'config' && (
-              <Button size="sm" onClick={handleCreate} disabled={!isValid() || createMutation.isPending} className="cursor-pointer rounded-xl">
+              <Button size="sm" onClick={handleCreate} disabled={!isValid() || createMutation.isPending} className="cursor-pointer ">
                 {createMutation.isPending ? 'Creating...' : 'Create Trigger'}
                 <ArrowRight className="h-4 w-4 ml-2" />
               </Button>

@@ -6,6 +6,7 @@ import { Cable, Plus, Monitor, Trash2, Search, X, Terminal, Copy, Check } from '
 import { getEnv } from '@/lib/env-config';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { PageSearchBar } from '@/components/ui/page-search-bar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SpotlightCard } from '@/components/ui/spotlight-card';
 import { Ripple } from '@/components/ui/ripple';
@@ -161,7 +162,7 @@ function ConnectButton() {
     <>
       <Button
         variant="default"
-        className="px-3 sm:px-4 rounded-2xl gap-1.5 sm:gap-2 text-sm"
+        className="px-3 sm:px-4 gap-1.5 sm:gap-2"
         onClick={() => setOpen(true)}
       >
         <Plus className="h-4 w-4" />
@@ -341,30 +342,12 @@ export function TunnelOverview() {
       <div className="container mx-auto max-w-7xl px-3 sm:px-4">
         {/* Search + action bar */}
         <div className="flex items-center justify-between gap-2 sm:gap-4 pb-3 sm:pb-4 pt-2 sm:pt-3 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both delay-75">
-          <div className="flex-1 max-w-md">
-            <div className="relative group">
-              <input
-                type="text"
-                placeholder="Search connections..." autoComplete="off"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-11 w-full rounded-2xl border border-input bg-card px-10 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-              />
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors">
-                <Search className="h-4 w-4" />
-              </div>
-              {searchQuery && (
-                <Button
-                  onClick={() => setSearchQuery('')}
-                  variant="ghost"
-                  size="icon-xs"
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </div>
+          <PageSearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search connections..."
+            className="max-w-md"
+          />
           <ConnectButton />
         </div>
 

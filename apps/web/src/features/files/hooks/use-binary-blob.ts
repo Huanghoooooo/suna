@@ -56,8 +56,9 @@ export function useBinaryBlob(filePath: string | null): {
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     retry: (failureCount, error: Error) => {
-      // Don't retry on 404 / 403 — those are permanent failures
-      if (error.message.includes('404') || error.message.includes('403')) return false;
+      // Don't retry permanent failures (not found, access denied)
+      const msg = error.message.toLowerCase();
+      if (msg.includes('404') || msg.includes('403') || msg.includes('not found') || msg.includes('access denied')) return false;
       return failureCount < 3;
     },
     retryDelay: (attempt) => Math.min(1000 * Math.pow(2, attempt), 5000),

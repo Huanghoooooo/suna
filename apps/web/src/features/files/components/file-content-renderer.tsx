@@ -1,14 +1,16 @@
 'use client';
 
-import { useMemo, useCallback, useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useMemo, useCallback, useState, useEffect, useRef, lazy, Suspense } from 'react';
 import {
   AlertTriangle,
   Braces,
+  ChevronRight,
   CircleAlert,
   Code,
   Download,
   Eye,
   FileWarning,
+  FileX,
   GitBranch,
   Globe,
   Loader2,
@@ -29,6 +31,8 @@ import { useDiagnosticsStore, findDiagnosticsForFile } from '@/stores/diagnostic
 import { useSandboxProxy } from '@/hooks/use-sandbox-proxy';
 import { SANDBOX_PORTS } from '@/lib/platform-client';
 import { useAuthenticatedPreviewUrl } from '@/hooks/use-authenticated-preview-url';
+import { openTabAndNavigate } from '@/stores/tab-store';
+import { useFilesStore } from '../store/files-store';
 
 // ---------------------------------------------------------------------------
 // Lazy-load heavy renderers to keep initial bundle small
@@ -148,6 +152,106 @@ function RendererFallback() {
   return (
     <div className="flex items-center justify-center h-full">
       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
+    </div>
+  );
+}
+
+/** Detect error messages that indicate "file not found" vs other failures. */
+function isNotFoundError(errorMsg: string): boolean {
+  const lower = errorMsg.toLowerCase();
+  return (
+    lower.includes('404') ||
+    lower.includes('not found') ||
+    lower.includes('no such file') ||
+    lower.includes('enoent') ||
+    lower.includes('does not exist') ||
+    lower.includes('path not found')
+  );
+}
+
+/** Shared "file does not exist" UI shown when a file cannot be loaded. */
+function FileNotFoundState({ filePath }: { filePath: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
+      <div className="h-12 w-12 rounded-xl bg-muted/50 flex items-center justify-center">
+        <FileX className="h-6 w-6 text-muted-foreground/40" />
+      </div>
+      <p className="text-sm font-medium text-muted-foreground">
+        File not found
+      </p>
+      <p className="text-xs font-mono text-muted-foreground/50 max-w-sm break-all">
+        {filePath}
+      </p>
+      <p className="text-xs text-muted-foreground/40 max-w-xs">
+        This file does not exist or may have been deleted.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Clickable breadcrumb showing the full path.
+ * Directory segments open the folder in the Files tab.
+ * The last segment (filename) is displayed as current / non-clickable.
+ */
+function PathBreadcrumb({ filePath }: { filePath: string }) {
+  const segments = useMemo(() => {
+    // Strip leading slash and split
+    const parts = filePath.replace(/^\/+/, '').split('/');
+    return parts.map((name, i) => ({
+      name,
+      // Rebuild the absolute path up to this segment
+      path: '/' + parts.slice(0, i + 1).join('/'),
+      isLast: i === parts.length - 1,
+    }));
+  }, [filePath]);
+
+  const handleDirClick = useCallback((dirPath: string) => {
+    // Navigate files store to this directory
+    useFilesStore.getState().navigateToPath(dirPath);
+    // Open the Files tab
+    openTabAndNavigate({
+      id: 'page:/files',
+      title: 'Files',
+      type: 'page',
+      href: '/files',
+    });
+  }, []);
+
+  // For very long paths, only show the last few segments with ellipsis
+  const maxVisible = 4;
+  const collapsed = segments.length > maxVisible;
+  const visible = collapsed
+    ? [segments[0], ...segments.slice(-(maxVisible - 1))]
+    : segments;
+
+  return (
+    <div className="flex items-center gap-0 min-w-0 overflow-hidden">
+      {visible.map((seg, i) => (
+        <React.Fragment key={seg.path}>
+          {/* Ellipsis for collapsed middle segments */}
+          {collapsed && i === 1 && (
+            <>
+              <ChevronRight className="h-3 w-3 text-muted-foreground/30 shrink-0 mx-0.5" />
+              <span className="text-xs text-muted-foreground/40 shrink-0">…</span>
+            </>
+          )}
+          {i > 0 && (
+            <ChevronRight className="h-3 w-3 text-muted-foreground/30 shrink-0 mx-0.5" />
+          )}
+          {seg.isLast ? (
+            <span className="text-sm font-medium truncate">{seg.name}</span>
+          ) : (
+            <button
+              onClick={() => handleDirClick(seg.path)}
+              className="text-xs text-muted-foreground/60 hover:text-foreground truncate max-w-[120px] transition-colors cursor-pointer shrink-0"
+              title={seg.path}
+            >
+              {seg.name}
+            </button>
+          )}
+        </React.Fragment>
+      ))}
     </div>
   );
 }
@@ -409,6 +513,15 @@ export function FileContentRenderer({
   const contentError = needsBlob ? blobError : (error instanceof Error ? error.message : error ? String(error) : null);
   const showLoadingState = needsBlob ? blobLoading : isLoading;
 
+  // Detect "file not found" — either via explicit error or empty resolution
+  const isNotFound = useMemo(() => {
+    if (contentError) return isNotFoundError(contentError);
+    // Query settled with no data and no error → file likely doesn't exist
+    if (!showLoadingState && !contentError && !needsBlob && !isLoading && !fileContent) return true;
+    if (!showLoadingState && !contentError && needsBlob && !blobLoading && !blobError && !rawBlob) return true;
+    return false;
+  }, [contentError, showLoadingState, needsBlob, isLoading, fileContent, blobLoading, blobError, rawBlob]);
+
   // ---------------------------------------------------------------------------
   // Shared CodeEditor props — keeps edit & read-only paths DRY
   // ---------------------------------------------------------------------------
@@ -440,7 +553,7 @@ export function FileContentRenderer({
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/50 shrink-0 h-10">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {getFileIcon(fileName, { className: 'h-4 w-4 shrink-0' })}
-            <span className="text-sm truncate">{fileName}</span>
+            <PathBreadcrumb filePath={filePath} />
             {/* Edit state indicator */}
             {!readOnly && hasUnsavedChanges && (
               <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-500 px-2 py-0.5 bg-amber-50 dark:bg-amber-900/20 rounded-md shrink-0">
@@ -589,12 +702,24 @@ export function FileContentRenderer({
         {/* Error */}
         {contentError && !showLoadingState && (
           errorFallback ? errorFallback(contentError, filePath) : (
-            <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
-              <FileWarning className="h-8 w-8 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground/60 max-w-sm">
-                {contentError}
-              </p>
-            </div>
+            isNotFound ? (
+              <FileNotFoundState filePath={filePath} />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
+                <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center">
+                  <FileWarning className="h-6 w-6 text-destructive/50" />
+                </div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Failed to load file
+                </p>
+                <p className="text-xs text-muted-foreground/50 max-w-sm break-all font-mono">
+                  {filePath}
+                </p>
+                <p className="text-xs text-muted-foreground/60 max-w-sm">
+                  {contentError}
+                </p>
+              </div>
+            )
           )
         )}
 
@@ -620,7 +745,7 @@ export function FileContentRenderer({
         )}
 
         {/* XLSX / XLS preview */}
-        {!isLoading && !error && fileCategory === 'xlsx' && (
+        {!isLoading && !error && !isNotFound && fileCategory === 'xlsx' && (
           <Suspense fallback={<RendererFallback />}>
             <XlsxRenderer
               filePath={filePath}
@@ -631,7 +756,7 @@ export function FileContentRenderer({
         )}
 
         {/* SQLite database viewer */}
-        {!isLoading && !error && fileCategory === 'sqlite' && (
+        {!isLoading && !error && !isNotFound && fileCategory === 'sqlite' && (
           <Suspense fallback={<RendererFallback />}>
             <SqliteRenderer
               filePath={filePath}
@@ -769,6 +894,11 @@ export function FileContentRenderer({
               )}
             </div>
           )}
+
+        {/* File not found fallback — catches cases where loading settled but no content/error */}
+        {!showLoadingState && !contentError && isNotFound && (
+          <FileNotFoundState filePath={filePath} />
+        )}
       </div>
     </div>
   );

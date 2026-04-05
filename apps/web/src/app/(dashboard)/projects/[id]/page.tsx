@@ -201,7 +201,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
               </button>
               <span className="text-muted-foreground/40 text-sm">/</span>
               {editingField === 'name' ? (
-                <input
+                <input type="text"
                   ref={editInputRef}
                   value={editValue}
                   onChange={(e) => setEditValue(e.target.value)}

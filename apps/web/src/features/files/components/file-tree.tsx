@@ -938,7 +938,7 @@ export function FileTree() {
           </Button>
         )}
         {pathInputActive ? (
-          <input
+          <input type="text"
             ref={pathInputRef2}
             value={pathInputValue}
             onChange={(e) => setPathInputValue(e.target.value)}

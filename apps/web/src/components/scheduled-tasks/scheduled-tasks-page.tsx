@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { useTriggers, useDeleteTrigger, type Trigger } from '@/hooks/scheduled-tasks';
 import { Button } from '@/components/ui/button';
 import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
+import { PageSearchBar } from '@/components/ui/page-search-bar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -165,11 +166,12 @@ const TaskListItem = ({
               </div>
             )}
           </div>
-          <button
+          <Button
             onClick={onDelete}
             disabled={isDeleting}
+            variant="ghost"
+            size="icon-sm"
             className={cn(
-              "p-2 rounded-lg transition-colors",
               "opacity-0 group-hover:opacity-100 focus:opacity-100",
               "text-muted-foreground hover:text-red-500 hover:bg-red-500/10",
               isDeleting && "opacity-100 text-red-500"
@@ -177,7 +179,7 @@ const TaskListItem = ({
             title="Delete trigger"
           >
             <Trash2 className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
       </div>
     </SpotlightCard>
@@ -351,20 +353,12 @@ export function ScheduledTasksPage() {
           <div className="container mx-auto max-w-7xl px-3 sm:px-4">
             <div className="flex items-center justify-between gap-2 sm:gap-4 pb-3 sm:pb-4 pt-2 sm:pt-3">
               <div className="flex-1 flex items-center gap-2">
-                <div className="flex-1 max-w-md">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Search triggers..." autoComplete="off"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="h-9 sm:h-10 w-full rounded-xl border border-input bg-background px-8 sm:px-10 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    />
-                    <div className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      <Search className="h-4 w-4" />
-                    </div>
-                  </div>
-                </div>
+                <PageSearchBar
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder="Search triggers..."
+                  className="max-w-md"
+                />
                 <FilterBar className="hidden sm:inline-flex">
                   {(['all', 'cron', 'webhook'] as const).map((f) => (
                     <FilterBarItem
@@ -381,8 +375,7 @@ export function ScheduledTasksPage() {
               </div>
               <Button
                 variant="default"
-                size="sm"
-                className="sm:h-10 px-3 sm:px-4 rounded-xl gap-1.5 sm:gap-2 "
+                size="default"
                 onClick={() => setShowCreateDialog(true)}
               >
                 <Plus className="h-4 w-4" />

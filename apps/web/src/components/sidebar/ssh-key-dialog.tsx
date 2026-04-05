@@ -86,19 +86,15 @@ function CopyOverlay({ copied }: { copied: boolean }) {
 function InlineCopyButton({ text, label }: { text: string; label?: string }) {
   const { copied, copy } = useCopy(text, label);
   return (
-    <button
+    <Button
       type="button"
       onClick={copy}
-      className={cn(
-        'shrink-0 flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 h-7 rounded-md border transition-colors cursor-pointer',
-        copied
-          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-          : 'border-border bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted',
-      )}
+      variant={copied ? 'success' : 'outline'}
+      size="toolbar"
     >
       {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
       {copied ? 'Copied!' : 'Copy'}
-    </button>
+    </Button>
   );
 }
 
@@ -389,18 +385,19 @@ export function SSHKeyDialog({ open, onOpenChange }: SSHKeyDialogProps) {
               </p>
             )}
 
-            <button
+            <Button
               type="button"
               onClick={handleGenerate}
               disabled={isGenerating}
-              className="flex items-center justify-center gap-2 w-full h-10 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              size="default"
+              className="w-full"
             >
               {isGenerating ? (
                 <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
               ) : (
                 <><Key className="h-3.5 w-3.5" /> Generate SSH Key</>
               )}
-            </button>
+            </Button>
             <p className="text-[10px] text-muted-foreground/60 text-center">
               Generates an ed25519 keypair unique to this machine and configures SSH access.
             </p>

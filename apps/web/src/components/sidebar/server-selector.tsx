@@ -978,7 +978,7 @@ export function InstanceManagerDialog({
               <div className="px-4 pb-3">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50 pointer-events-none" />
-                  <input
+                  <input type="text"
                     placeholder="Search instances..." autoComplete="off"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -1250,7 +1250,7 @@ export function InstanceManagerDialog({
                 <label className="text-[11px] font-medium text-muted-foreground">
                   Instance Address
                 </label>
-                <input
+                <input type="text"
                   ref={urlInputRef}
                   placeholder="http://localhost:8008/v1/p/kortix-sandbox/8000"
                   value={formUrl}
@@ -1268,7 +1268,7 @@ export function InstanceManagerDialog({
                 <label className="text-[11px] font-medium text-muted-foreground">
                   Display Name <span className="text-muted-foreground/40">(optional)</span>
                 </label>
-                <input
+                <input type="text"
                   placeholder="My dev instance"
                   value={formLabel}
                   onChange={(e) => setFormLabel(e.target.value)}

@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
+import { PageSearchBar } from '@/components/ui/page-search-bar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/ui/page-header';
 import { WorkspaceItemCard } from '@/components/ui/workspace-item-card';
@@ -626,21 +627,12 @@ export default function WorkspacePage() {
 
           {/* Search + kind filter */}
           <div className="flex items-center gap-2 pb-3 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both delay-75">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search..." autoComplete="off"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-9 w-full rounded-lg border border-input bg-card pl-9 pr-8 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              />
-              {search && (
-                <Button onClick={() => setSearch('')} variant="ghost" size="icon-xs" className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              )}
-            </div>
+            <PageSearchBar
+              value={search}
+              onChange={setSearch}
+              placeholder="Search..."
+              className="max-w-sm"
+            />
 
             <FilterBar className="hidden lg:inline-flex">
               {kindTabs.map((tab) => (

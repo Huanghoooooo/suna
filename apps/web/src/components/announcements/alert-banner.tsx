@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { X, ExternalLink, LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -108,12 +109,10 @@ export function AlertBanner({
         className="fixed bottom-4 right-4 z-[110] w-[340px]"
       >
         <div className="relative bg-muted rounded-xl overflow-hidden border">
-          <button
-            onClick={handleDismiss}
-            className="absolute top-2 right-2 z-10 w-6 h-6 flex items-center justify-center rounded-full bg-black/10 hover:bg-black/20 dark:bg-black/80 dark:hover:bg-black transition-colors"
-          >
-            <X className="h-3 w-3 text-foreground dark:text-white" />
-          </button>
+          <Button variant="ghost" size="icon-sm" onClick={handleDismiss}>
+<X className="h-3 w-3 text-foreground dark:text-white" />
+          
+</Button>
 
           <div 
             className={`p-4 bg-muted/50 dark:bg-[#161618] ${statusUrl ? 'cursor-pointer hover:bg-muted dark:hover:bg-[#1a1a1c]' : ''} transition-colors`}
@@ -136,13 +135,10 @@ export function AlertBanner({
                   </div>
                 )}
                 {statusUrl && (
-                  <button
-                    onClick={handleStatusClick}
-                    className="flex items-center gap-1 mt-2 text-xs font-medium text-foreground dark:text-white hover:opacity-80 transition-opacity"
-                  >
-                    {statusLabel}
+                  <Button variant="ghost" size="icon-xs" onClick={handleStatusClick}>
+{statusLabel}
                     <ExternalLink className="h-3 w-3" />
-                  </button>
+</Button>
                 )}
               </div>
             </div>

@@ -20,6 +20,7 @@ import { toast } from '@/lib/toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
+import { PageSearchBar } from '@/components/ui/page-search-bar';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -443,28 +444,12 @@ export function RunningServicesPanel() {
       <div className="container mx-auto max-w-7xl px-3 sm:px-4">
         {/* Search + filter + actions bar */}
         <div className="flex items-center justify-between gap-2 sm:gap-4 pb-3 sm:pb-4 pt-2 sm:pt-3 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both delay-75">
-          <div className="flex-1 max-w-md">
-            <div className="relative group">
-              <input
-                type="text"
-                placeholder="Search services..." autoComplete="off"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-11 w-full rounded-2xl border border-input bg-card px-10 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-              />
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors">
-                <Search className="h-4 w-4" />
-              </div>
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-md p-0.5 transition-colors cursor-pointer"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
+          <PageSearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search services..."
+            className="max-w-md"
+          />
 
           {/* Filter segmented control */}
           <FilterBar className="hidden sm:inline-flex">
@@ -484,8 +469,7 @@ export function RunningServicesPanel() {
           {/* Actions */}
           <div className="flex items-center gap-1.5">
             <Button
-              variant="outline" size="sm"
-              className="px-3 rounded-xl gap-1.5 "
+              variant="outline" size="default"
               disabled={pendingGlobal !== null}
               onClick={() => setRestartDialogOpen(true)}
             >
@@ -493,8 +477,7 @@ export function RunningServicesPanel() {
               <span className="hidden xs:inline">Restart</span>
             </Button>
             <Button
-              variant="default" size="sm"
-              className="px-3 sm:px-4 rounded-xl gap-1.5 "
+              variant="default" size="default"
               onClick={() => setIsRegisterOpen(true)}
             >
               <Plus className="h-4 w-4" />

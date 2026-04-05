@@ -435,7 +435,7 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
                  <Button
                   onClick={handleSave}
                   disabled={updateMutation.isPending}
-                  className="w-full cursor-pointer rounded-xl"
+                  className="w-full cursor-pointer "
                 >
                   <Save className="h-4 w-4 mr-2" />
                   {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
@@ -446,7 +446,7 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
                 variant="outline"
                 onClick={handleRun}
                 disabled={runMutation.isPending}
-                className="w-full cursor-pointer rounded-xl"
+                className="w-full cursor-pointer "
               >
                 <Play className="h-4 w-4 mr-2" />
                 {runMutation.isPending ? 'Running...' : 'Run Now'}
@@ -457,7 +457,7 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
                 variant="outline"
                 onClick={handleToggle}
                 disabled={toggleMutation.isPending}
-                className="w-full cursor-pointer rounded-xl"
+                className="w-full cursor-pointer "
               >
                 {trigger.isActive ? (
                   <>
@@ -477,7 +477,7 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
                 variant="destructive"
                 onClick={handleDelete}
                 disabled={deleteMutation.isPending}
-                className="w-full cursor-pointer rounded-xl"
+                className="w-full cursor-pointer "
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 {deleteMutation.isPending ? 'Deleting...' : 'Delete Trigger'}

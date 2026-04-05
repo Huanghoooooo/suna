@@ -13,6 +13,7 @@ import {
 import { useSecrets } from '@/hooks/secrets/use-secrets';
 import { Button } from '@/components/ui/button';
 import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
+import { PageSearchBar } from '@/components/ui/page-search-bar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -232,24 +233,18 @@ export function DeploymentsPage() {
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
             {/* Search */}
-            <div className="relative flex-1 sm:flex-initial sm:w-64">
-              <input
-                type="text"
-                placeholder="Search deployments..." autoComplete="off"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-9 sm:h-10 w-full rounded-xl border border-input bg-background px-8 sm:px-10 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              />
-              <div className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                <Search className="h-4 w-4" />
-              </div>
-            </div>
+            <PageSearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search deployments..."
+              className="sm:max-w-64"
+            />
 
             {/* Create button */}
             <Button
               variant="default"
-              size="sm"
-              className="sm:h-10 px-3 sm:px-4 rounded-xl gap-1.5 sm:gap-2 shrink-0"
+              size="default"
+              className="shrink-0"
               onClick={handleNewDeployment}
             >
               <Plus className="h-4 w-4" />

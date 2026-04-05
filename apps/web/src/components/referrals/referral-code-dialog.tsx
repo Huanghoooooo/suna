@@ -63,7 +63,7 @@ export function ReferralCodeDialog({ open, onOpenChange, referralCode = '', onCo
             <Button
               variant="ghost"
               size="sm"
-              className="flex-1 text-[13px] text-foreground/40 hover:text-foreground/70 rounded-xl"
+              className="flex-1 text-[13px] text-foreground/40 hover:text-foreground/70 "
               onClick={() => onOpenChange(false)}
             >
               {tCommon('cancel')}
@@ -71,7 +71,7 @@ export function ReferralCodeDialog({ open, onOpenChange, referralCode = '', onCo
             <Button
               variant="default"
               size="sm"
-              className="flex-1 text-[13px] rounded-xl shadow-none"
+              className="flex-1 text-[13px] shadow-none"
               onClick={handleSave}
             >
               {tCommon('save')}

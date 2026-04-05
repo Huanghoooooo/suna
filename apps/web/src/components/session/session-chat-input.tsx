@@ -1004,8 +1004,8 @@ function SlashCommandPopover({
 
   return (
     <div
-      className="fixed z-[9999] bg-popover border border-border rounded-xl overflow-hidden"
-      style={{ bottom: window.innerHeight - r.top + 4, left: r.left, width: r.width }}
+      className="fixed z-[9999] bg-popover border border-border/60 rounded-lg shadow-lg overflow-hidden"
+      style={{ bottom: window.innerHeight - r.top + 4, left: r.left, width: Math.min(r.width, 480) }}
     >
       <div ref={scrollRef} className="max-h-64 overflow-y-auto py-1">
         {filtered.map((cmd, i) => (
@@ -1016,13 +1016,13 @@ function SlashCommandPopover({
               onSelect(cmd);
             }}
             className={cn(
-              'w-full flex flex-col gap-0.5 px-3 py-2 text-left transition-colors cursor-pointer rounded-lg mx-0',
-              i === selectedIndex ? 'bg-muted' : 'hover:bg-muted',
+              'w-full flex flex-col gap-0.5 px-3 py-2 text-left transition-colors cursor-pointer',
+              i === selectedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted',
             )}
           >
             <span className="font-mono text-sm text-foreground">/{cmd.name}</span>
             {cmd.description && (
-              <span className="text-xs text-muted-foreground line-clamp-2">{cmd.description}</span>
+              <span className="text-xs text-muted-foreground/40 line-clamp-2">{cmd.description}</span>
             )}
           </button>
         ))}
@@ -2298,8 +2298,6 @@ export function SessionChatInput({
                 <TooltipContent side="top"><p>Attach files</p></TooltipContent>
               </Tooltip>
 
-              <div className="w-px h-4 bg-border mx-1" />
-
               {agents.length > 0 && onAgentChange && (
                 <AgentSelector
                   agents={agents}
@@ -2326,7 +2324,7 @@ export function SessionChatInput({
               {/* AutoContinue — commented out
               {commands.length > 0 && onCommand && !isOnboarding && (
                 <>
-                  <div className="w-px h-4 bg-border mx-1" />
+
                   <AutoContinueSelector
                     selected={autocontinueMode}
                     onSelect={setAutocontinueMode}
@@ -2354,9 +2352,7 @@ export function SessionChatInput({
                       className="absolute bottom-full right-1/2 translate-x-1/2 mb-2 pointer-events-none animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-150"
                     >
                       <div className="bg-primary text-primary-foreground rounded-2xl px-3 py-1.5 text-xs whitespace-nowrap flex items-center gap-1.5">
-                        <kbd className="bg-background/20 text-primary-foreground inline-flex h-5 min-w-5 items-center justify-center rounded-sm px-1 font-sans text-[11px] font-medium select-none">
-                          ESC
-                        </kbd>
+                        <kbd className="bg-background/20 text-primary-foreground inline-flex h-5 min-w-5 items-center justify-center rounded-sm px-1 font-sans text-[11px] font-medium">ESC</kbd>
                         <span>{escCount === 1 ? '×2 to stop' : '×1 to stop'}</span>
                       </div>
                       {/* Arrow matching TooltipContent */}

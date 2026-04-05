@@ -240,7 +240,7 @@ export function NewInstanceModal({ open, onOpenChange, returnUrl, title }: NewIn
             </div>
             <p className="text-[11px] text-muted-foreground/60 mt-0.5">Cancel anytime</p>
           </div>
-          <Button className="h-11 px-7 text-sm rounded-xl font-semibold" disabled={isLoading || !selected} onClick={handleCta}>
+          <Button className="h-11 px-7 text-sm font-semibold" disabled={isLoading || !selected} onClick={handleCta}>
             {isLoading ? <Loader2 className="size-4 animate-spin" /> : <>Get Your Kortix<ArrowRight className="size-3.5 ml-1.5" /></>}
           </Button>
         </div>

@@ -190,7 +190,7 @@ function DeviceAuthorize() {
 
             {/* Connection name */}
             <div className="mb-5">
-              <input
+              <input type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={info.machineHostname || 'Connection name'}

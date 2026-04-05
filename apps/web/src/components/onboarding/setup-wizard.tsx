@@ -431,8 +431,9 @@ function ProvidersPane({ onNext, onBack }: { onNext: () => void; onBack: () => v
         <Button
           onClick={onNext}
           variant={hasLLM ? 'default' : 'ghost'}
+          size="lg"
           className={cn(
-            'w-full h-11 text-sm rounded-xl shadow-none gap-2',
+            'w-full shadow-none',
             !hasLLM && 'text-muted-foreground/60',
           )}
         >
