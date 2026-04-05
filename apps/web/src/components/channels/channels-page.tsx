@@ -10,6 +10,7 @@ import {
   PowerOff,
   Trash2,
   RefreshCw,
+  Settings,
 } from 'lucide-react';
 import { SpotlightCard } from '@/components/ui/spotlight-card';
 import { Ripple } from '@/components/ui/ripple';
@@ -21,6 +22,7 @@ import { toast } from 'sonner';
 import { useServerStore, getActiveOpenCodeUrl } from '@/stores/server-store';
 import { authenticatedFetch } from '@/lib/auth-token';
 import { ChannelConfigDialog } from './channel-config-dialog';
+import { ChannelSettingsDialog } from './channel-settings-dialog';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -32,6 +34,7 @@ interface Channel {
   bot_username: string | null;
   default_agent: string;
   default_model: string;
+  instructions?: string;
   webhook_path: string;
   created_by: string | null;
   created_at: string;
@@ -57,11 +60,13 @@ function ChannelCard({
   index,
   onToggle,
   onRemove,
+  onSettings,
 }: {
   channel: Channel;
   index: number;
   onToggle: (id: string, enabled: boolean) => void;
   onRemove: (id: string) => void;
+  onSettings: (channel: Channel) => void;
 }) {
   const Icon = channel.platform === 'telegram' ? TelegramIcon : SlackIcon;
 
@@ -74,7 +79,7 @@ function ChannelCard({
       transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.6) }}
     >
       <SpotlightCard className="bg-card border border-border/50">
-        <div className="p-4 sm:p-5 flex flex-col h-full">
+        <div className="p-4 sm:p-5 flex flex-col h-full cursor-pointer group" onClick={() => onSettings(channel)}>
           <div className="flex items-center gap-3 mb-3">
             <div className="flex items-center justify-center w-9 h-9 rounded-[10px] bg-muted border border-border/50 shrink-0">
               <Icon className="h-4.5 w-4.5 text-foreground" />
@@ -91,10 +96,14 @@ function ChannelCard({
           <p className="text-xs text-muted-foreground mb-1">
             {channel.platform === 'telegram' ? 'Telegram' : 'Slack'} · @{channel.bot_username || '?'}
           </p>
-          <p className="text-xs text-muted-foreground/60 mb-3">
-            {channel.default_agent}{channel.created_by ? ` · by ${channel.created_by}` : ''}
-          </p>
-          <div className="mt-auto flex items-center gap-1.5 justify-end">
+          <div className="text-[11px] text-muted-foreground/60 mb-3 space-y-0.5">
+            <p>{channel.default_agent} · {channel.default_model ? channel.default_model.split('/').pop() : 'default model'}</p>
+            {channel.instructions && <p className="truncate italic">"{channel.instructions.slice(0, 60)}{channel.instructions.length > 60 ? '…' : ''}"</p>}
+          </div>
+          <div className="mt-auto flex items-center gap-1.5 justify-end" onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="sm" className="px-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => onSettings(channel)}>
+              <Settings className="h-3.5 w-3.5" />
+            </Button>
             <Button variant="ghost" size="sm" className="px-2" onClick={() => onToggle(channel.id, !channel.enabled)}>
               {channel.enabled ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
             </Button>
@@ -116,6 +125,8 @@ export function ChannelsPage() {
   const [loaded, setLoaded] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [configDialogPlatform, setConfigDialogPlatform] = useState<'telegram' | 'slack' | undefined>(undefined);
+  const [settingsChannel, setSettingsChannel] = useState<Channel | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Subscribe to server URL changes so we re-fetch when it becomes available
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
@@ -252,7 +263,7 @@ export function ChannelsPage() {
             <AnimatePresence mode="popLayout">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {channels.map((ch, i) => (
-                  <ChannelCard key={ch.id} channel={ch} index={i} onToggle={handleToggle} onRemove={handleRemove} />
+                  <ChannelCard key={ch.id} channel={ch} index={i} onToggle={handleToggle} onRemove={handleRemove} onSettings={(ch) => { setSettingsChannel(ch); setSettingsOpen(true); }} />
                 ))}
               </div>
             </AnimatePresence>
@@ -265,6 +276,13 @@ export function ChannelsPage() {
         onOpenChange={setConfigDialogOpen}
         onCreated={handleChannelCreated}
         initialPlatform={configDialogPlatform}
+      />
+
+      <ChannelSettingsDialog
+        channel={settingsChannel}
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        onUpdated={load}
       />
     </div>
   );
