@@ -35,58 +35,62 @@ export interface SlackParseResult {
 
 // ─── CLI path helper ─────────────────────────────────────────────────────────
 
-function cliPath(platform: string): string {
-  // Channels CLIs live in immutable runtime storage under /ephemeral.
-  return `/ephemeral/kortix-master/channels/${platform}.ts`
-}
-
 function telegramInstructions(configId: string, chatId: string, messageId?: string, includeTyping?: boolean): string[] {
-  const cli = cliPath("telegram")
   const cfg = `--config-id ${configId}`
   return [
     "── Telegram instructions ──",
-    `Send text: bun run ${cli} send ${cfg} --chat ${chatId} --text "your reply"`,
-    `Complex text (code/special chars): write to /tmp/reply.txt, then: bun run ${cli} send ${cfg} --chat ${chatId} --text-file /tmp/reply.txt`,
-    ...(messageId ? [`Quote-reply: bun run ${cli} send ${cfg} --chat ${chatId} --reply-to ${messageId} --text "reply"`] : []),
-    `Send file: bun run ${cli} send ${cfg} --chat ${chatId} --file /tmp/example.py --text "caption"`,
-    ...(includeTyping ? [`Typing indicator: bun run ${cli} typing ${cfg} --chat ${chatId}`] : []),
-    `Edit: bun run ${cli} edit ${cfg} --chat ${chatId} --message-id <ID> --text "new"`,
-    `Delete: bun run ${cli} delete ${cfg} --chat ${chatId} --message-id <ID>`,
+    "CRITICAL: The user can ONLY see messages you send via ktelegram. Your internal thoughts, tool calls, and session text are INVISIBLE to them. You MUST send every reply, result, and output through ktelegram. If you don't call ktelegram send, the user sees nothing.",
+    "",
+    `Send text: ktelegram send ${cfg} --chat ${chatId} --text "your reply"`,
+    `Complex text (code/backticks): write to /tmp/reply.txt, then: ktelegram send ${cfg} --chat ${chatId} --text-file /tmp/reply.txt`,
+    ...(messageId ? [`Quote-reply: ktelegram send ${cfg} --chat ${chatId} --reply-to ${messageId} --text "reply"`] : []),
+    `Send file: ktelegram send ${cfg} --chat ${chatId} --file /tmp/example.py --text "caption"`,
+    ...(includeTyping ? [`Typing: ktelegram typing ${cfg} --chat ${chatId}`] : []),
+    `Edit: ktelegram edit ${cfg} --chat ${chatId} --message-id <ID> --text "new"`,
+    `Delete: ktelegram delete ${cfg} --chat ${chatId} --message-id <ID>`,
+    "",
     "Rules:",
-    "- Code/files: ALWAYS write to /tmp/ and attach via --file. NEVER paste file contents into message text.",
-    "- Use --text-file for anything with backticks, quotes, or code blocks to avoid shell escaping issues.",
+    "- EVERY response must be sent via ktelegram send. No exceptions.",
+    "- Code/files: write to /tmp/ and attach via --file. NEVER paste file contents into text.",
+    "- Use --text-file for anything with backticks, quotes, or code blocks.",
     "- Do NOT use the question or show tools — they don't render in Telegram.",
-    "- Do NOT send localhost URLs — user can't access them. Screenshot and send via --file instead.",
-    "- Voice messages arrive as files at /workspace/telegram-files/. Transcribe with: kwhisper --file <path>",
-    "- Images arrive as files. Use the Read tool to view them.",
-    "- Session commands (/new /reset /status /help /model /agent /sessions /session) are handled by the bridge, not you.",
-    "- Keep replies concise and chat-friendly. Short paragraphs, no walls of text.",
+    "- Do NOT send localhost URLs — screenshot and send via --file instead.",
+    "- Voice messages: /workspace/telegram-files/. Transcribe with kwhisper --file <path>",
+    "- Images arrive as files. Use Read tool to view them.",
+    "- Bridge commands (/new /reset /status /help /model /agent) are handled automatically, not by you.",
+    "- Keep replies concise. Short paragraphs, no walls of text.",
   ]
 }
 
 function slackInstructions(configId: string, channel: string, threadTs?: string, includeHistory?: boolean): string[] {
-  const cli = cliPath("slack")
   const cfg = `--config-id ${configId}`
   const threadArg = threadTs ? ` --thread ${threadTs}` : ""
   return [
     "── Slack instructions ──",
-    `Send text: bun run ${cli} send ${cfg} --channel ${channel}${threadArg} --text "your reply"`,
-    `Complex text (code/special chars): write to /tmp/reply.txt, then: bun run ${cli} send ${cfg} --channel ${channel}${threadArg} --text-file /tmp/reply.txt`,
-    `Send file: bun run ${cli} send ${cfg} --channel ${channel}${threadArg} --file /tmp/example.py --text "caption"`,
-    `React: bun run ${cli} react ${cfg} --channel ${channel} --ts <MSG_TS> --emoji thumbsup`,
-    ...(includeHistory && threadTs ? [`Thread history: bun run ${cli} thread ${cfg} --channel ${channel} --ts ${threadTs}`] : []),
-    `Edit: bun run ${cli} edit ${cfg} --channel ${channel} --ts <TS> --text "updated"`,
+    "CRITICAL: The user can ONLY see messages you send via kslack. Your internal thoughts, tool calls, and session text are INVISIBLE to them. You MUST send every reply, result, and output through kslack. If you don't call kslack send, the user sees nothing.",
+    "",
+    `Send text: kslack send ${cfg} --channel ${channel}${threadArg} --text "your reply"`,
+    `Complex text (code/backticks): write to /tmp/reply.txt, then: kslack send ${cfg} --channel ${channel}${threadArg} --text-file /tmp/reply.txt`,
+    `Send file: kslack send ${cfg} --channel ${channel}${threadArg} --file /tmp/example.py --text "caption"`,
+    `React: kslack react ${cfg} --channel ${channel} --ts <MSG_TS> --emoji thumbsup`,
+    ...(includeHistory && threadTs ? [`Thread history: kslack thread ${cfg} --channel ${channel} --ts ${threadTs}`] : []),
+    `Edit: kslack edit ${cfg} --channel ${channel} --ts <TS> --text "updated"`,
+    `Join channel: kslack join ${cfg} --channel <CHANNEL_ID>`,
+    "",
     "Slack mrkdwn (NOT Markdown):",
     "- Bold: *bold* (NOT **bold**) | Italic: _italic_ | Strike: ~strike~",
-    "- Links: <https://url|text> (NOT [text](url)) | No # headers in Slack",
+    "- Links: <https://url|text> (NOT [text](url)) | No # headers",
+    "",
     "Rules:",
-    "- ALWAYS reply in thread. Never post top-level in a channel.",
-    "- Code/files: ALWAYS write to /tmp/ and attach via --file. NEVER paste file contents into message text.",
+    "- EVERY response must be sent via kslack send. No exceptions.",
+    "- ALWAYS reply in thread. Never post top-level.",
+    "- Code/files: write to /tmp/ and attach via --file. NEVER paste file contents into text.",
     "- Use --text-file for anything with backticks, quotes, or code blocks.",
     "- Do NOT use the question or show tools — they don't render in Slack.",
     "- Do NOT send localhost URLs. Screenshot and send via --file instead.",
-    "- Files from users arrive at /workspace/slack-files/. Transcribe audio with: kwhisper --file <path>",
-    "- Session commands (!new !reset !status !help !model !agent !sessions !session) are handled by the bridge, not you.",
+    "- If bot gets 'not_in_channel', use kslack join first, then retry.",
+    "- Files from users: /workspace/slack-files/. Transcribe audio with kwhisper --file <path>",
+    "- Bridge commands (!new !reset !status !help !model !agent) are handled automatically, not by you.",
     "- Keep replies concise and channel-appropriate.",
   ]
 }

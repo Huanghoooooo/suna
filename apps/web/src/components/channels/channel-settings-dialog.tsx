@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
@@ -12,13 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Save } from 'lucide-react';
 import { SlackIcon } from '@/components/ui/icons/slack';
@@ -26,6 +18,9 @@ import { TelegramIcon } from '@/components/ui/icons/telegram';
 import { toast } from 'sonner';
 import { getActiveOpenCodeUrl } from '@/stores/server-store';
 import { authenticatedFetch } from '@/lib/auth-token';
+import { AgentSelector, flattenModels } from '@/components/session/session-chat-input';
+import { ModelSelector } from '@/components/session/model-selector';
+import { useOpenCodeAgents, useOpenCodeProviders } from '@/hooks/opencode/use-opencode-sessions';
 
 interface Channel {
   id: string;
@@ -48,31 +43,34 @@ interface ChannelSettingsDialogProps {
   onUpdated: () => void;
 }
 
-const COMMON_MODELS = [
-  'anthropic/claude-sonnet-4-20250514',
-  'anthropic/claude-opus-4-6',
-  'openai/gpt-4o',
-  'openai/o3-mini',
-  'google/gemini-2.5-pro',
-  'google/gemini-2.5-flash',
-  'minimax',
-];
-
 export function ChannelSettingsDialog({ channel, open, onOpenChange, onUpdated }: ChannelSettingsDialogProps) {
   const [name, setName] = useState('');
-  const [agent, setAgent] = useState('');
-  const [model, setModel] = useState('');
+  const [agentName, setAgentName] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<{ providerID: string; modelID: string } | null>(null);
   const [instructions, setInstructions] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const { data: agents = [], isLoading: agentsLoading } = useOpenCodeAgents();
+  const { data: providers, isLoading: modelsLoading } = useOpenCodeProviders();
+  const models = useMemo(() => flattenModels(providers), [providers]);
+
   useEffect(() => {
     if (channel) {
       setName(channel.name);
-      setAgent(channel.default_agent || 'kortix');
-      setModel(channel.default_model || '');
+      setAgentName(channel.default_agent || 'kortix');
       setInstructions(channel.instructions || '');
       setEnabled(channel.enabled);
+
+      // Parse "provider/model" string into the selector format
+      if (channel.default_model && channel.default_model.includes('/')) {
+        const [providerID, ...rest] = channel.default_model.split('/');
+        setSelectedModel({ providerID, modelID: rest.join('/') });
+      } else if (channel.default_model) {
+        setSelectedModel({ providerID: 'kortix', modelID: channel.default_model });
+      } else {
+        setSelectedModel(null);
+      }
     }
   }, [channel]);
 
@@ -82,13 +80,19 @@ export function ChannelSettingsDialog({ channel, open, onOpenChange, onUpdated }
     try {
       const url = getActiveOpenCodeUrl();
       if (!url) throw new Error('No sandbox');
+
+      // Build model string from selector
+      const modelStr = selectedModel
+        ? `${selectedModel.providerID}/${selectedModel.modelID}`
+        : '';
+
       const res = await authenticatedFetch(`${url}/kortix/channels/${channel.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim() || undefined,
-          default_agent: agent.trim() || undefined,
-          default_model: model.trim() || undefined,
+          default_agent: agentName || undefined,
+          default_model: modelStr || undefined,
           instructions: instructions.trim(),
           enabled,
         }),
@@ -145,37 +149,38 @@ export function ChannelSettingsDialog({ channel, open, onOpenChange, onUpdated }
 
           {/* Agent */}
           <div className="space-y-1.5">
-            <Label className="text-xs">Default Agent</Label>
-            <Input value={agent} onChange={(e) => setAgent(e.target.value)} placeholder="kortix" />
+            <Label className="text-xs">Agent</Label>
+            {agentsLoading ? (
+              <div className="flex items-center gap-2 h-9 px-3 text-sm text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> Loading agents...
+              </div>
+            ) : (
+              <div className="rounded-xl border bg-card px-2 py-1">
+                <AgentSelector
+                  agents={agents}
+                  selectedAgent={agentName}
+                  onSelect={(next) => setAgentName(next)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Model */}
           <div className="space-y-1.5">
-            <Label className="text-xs">Default Model</Label>
-            <div className="flex gap-2">
-              <Input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="anthropic/claude-sonnet-4-20250514"
-                className="flex-1"
-              />
-            </div>
-            <div className="flex flex-wrap gap-1 pt-1">
-              {COMMON_MODELS.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setModel(m)}
-                  className={`px-2 py-0.5 rounded-md text-[11px] border transition-colors cursor-pointer ${
-                    model === m
-                      ? 'bg-primary/10 border-primary/30 text-primary'
-                      : 'bg-muted/50 border-border/50 text-muted-foreground hover:text-foreground hover:border-border'
-                  }`}
-                >
-                  {m.split('/').pop()}
-                </button>
-              ))}
-            </div>
+            <Label className="text-xs">Model</Label>
+            {modelsLoading ? (
+              <div className="flex items-center gap-2 h-9 px-3 text-sm text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> Loading models...
+              </div>
+            ) : (
+              <div className="rounded-xl border bg-card px-2 py-1">
+                <ModelSelector
+                  models={models}
+                  selectedModel={selectedModel}
+                  onSelect={(next) => setSelectedModel(next)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Instructions */}
@@ -189,7 +194,7 @@ export function ChannelSettingsDialog({ channel, open, onOpenChange, onUpdated }
               className="text-sm resize-none"
             />
             <p className="text-[11px] text-muted-foreground">
-              These are prepended to every agent session started from this channel.
+              Prepended to every session started from this channel.
             </p>
           </div>
 
