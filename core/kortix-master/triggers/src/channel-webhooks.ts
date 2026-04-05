@@ -308,8 +308,13 @@ export function parseSlackEvent(payload: any, configId: string, botUserId: strin
   const eventId = payload.event_id
   const cli = cliPath("slack")
 
-  // ── Bot's own messages → skip ──
+  // ── Bot's own messages → skip (prevents feedback loops) ──
   if (event.bot_id || event.bot_profile) {
+    return { is_challenge: false }
+  }
+  // file_shared and some other events use user_id instead of bot_id
+  const eventUserId = event.user_id || event.user || ""
+  if (botUserId && eventUserId === botUserId) {
     return { is_challenge: false }
   }
 
