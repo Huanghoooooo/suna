@@ -863,7 +863,7 @@ export function SessionList({ projectId }: SessionListProps = {}) {
               Enter a new name for this session.
             </DialogDescription>
           </DialogHeader>
-          <Input
+          <Input type="text"
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
             onKeyDown={(e) => {

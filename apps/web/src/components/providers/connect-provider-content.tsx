@@ -479,8 +479,8 @@ export function ConnectProviderContent({
           {/* Search */}
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60" />
-            <Input
-              placeholder="Search providers..."
+            <Input type="text"
+              placeholder="Search providers..." autoComplete="off"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-9 rounded-xl border-border/50 bg-muted/20 pl-9 text-sm shadow-none focus-visible:ring-1 focus-visible:ring-ring/40"
@@ -622,15 +622,15 @@ export function ConnectProviderContent({
             <div className="space-y-4 rounded-2xl border border-border/50 bg-muted/20 p-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Provider ID</label>
-               <Input placeholder="my-provider" value={customForm.providerID} onChange={(e) => setCustomForm((f) => ({ ...f, providerID: e.target.value }))} className="h-9 rounded-xl border-border/50 bg-background text-sm" autoFocus />
+               <Input type="text" placeholder="my-provider" value={customForm.providerID} onChange={(e) => setCustomForm((f) => ({ ...f, providerID: e.target.value }))} className="h-9 rounded-xl border-border/50 bg-background text-sm" autoFocus />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Display Name</label>
-               <Input placeholder="My Provider" value={customForm.name} onChange={(e) => setCustomForm((f) => ({ ...f, name: e.target.value }))} className="h-9 rounded-xl border-border/50 bg-background text-sm" />
+               <Input type="text" placeholder="My Provider" value={customForm.name} onChange={(e) => setCustomForm((f) => ({ ...f, name: e.target.value }))} className="h-9 rounded-xl border-border/50 bg-background text-sm" />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Base URL</label>
-               <Input placeholder="https://api.example.com/v1" value={customForm.baseURL} onChange={(e) => setCustomForm((f) => ({ ...f, baseURL: e.target.value }))} className="h-9 rounded-xl border-border/50 bg-background text-sm" />
+               <Input type="text" placeholder="https://api.example.com/v1" value={customForm.baseURL} onChange={(e) => setCustomForm((f) => ({ ...f, baseURL: e.target.value }))} className="h-9 rounded-xl border-border/50 bg-background text-sm" />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">API Key <span className="font-normal text-muted-foreground/50">(optional)</span></label>
@@ -640,8 +640,8 @@ export function ConnectProviderContent({
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Model</label>
               <div className="flex gap-2">
-                 <Input placeholder="Model ID" value={customForm.modelId} onChange={(e) => setCustomForm((f) => ({ ...f, modelId: e.target.value }))} className="h-9 flex-1 rounded-xl border-border/50 bg-background text-sm" />
-                 <Input placeholder="Display Name" value={customForm.modelName} onChange={(e) => setCustomForm((f) => ({ ...f, modelName: e.target.value }))} className="h-9 flex-1 rounded-xl border-border/50 bg-background text-sm" />
+                 <Input type="text" placeholder="Model ID" value={customForm.modelId} onChange={(e) => setCustomForm((f) => ({ ...f, modelId: e.target.value }))} className="h-9 flex-1 rounded-xl border-border/50 bg-background text-sm" />
+                 <Input type="text" placeholder="Display Name" value={customForm.modelName} onChange={(e) => setCustomForm((f) => ({ ...f, modelName: e.target.value }))} className="h-9 flex-1 rounded-xl border-border/50 bg-background text-sm" />
               </div>
             </div>
           </div>

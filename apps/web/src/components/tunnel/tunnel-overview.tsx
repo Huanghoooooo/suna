@@ -345,7 +345,7 @@ export function TunnelOverview() {
             <div className="relative group">
               <input
                 type="text"
-                placeholder="Search connections..."
+                placeholder="Search connections..." autoComplete="off"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-11 w-full rounded-2xl border border-input bg-card px-10 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"

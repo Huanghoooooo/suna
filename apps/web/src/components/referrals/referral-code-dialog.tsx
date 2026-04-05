@@ -48,7 +48,7 @@ export function ReferralCodeDialog({ open, onOpenChange, referralCode = '', onCo
           </div>
 
           {/* Code Input */}
-          <Input
+          <Input type="text"
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             placeholder={t('enterCode')}

@@ -159,7 +159,7 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
           <motion.div key="step1" {...STEP_ANIMATION} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="slack-bot-name">Bot Name</Label>
-              <Input
+              <Input type="text"
                 id="slack-bot-name"
                 placeholder="Kortix Agent"
                 value={botName}

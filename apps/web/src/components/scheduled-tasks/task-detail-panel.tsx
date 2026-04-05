@@ -277,7 +277,7 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
             {/* Name */}
             <div className="space-y-2">
               <Label htmlFor="edit-name">Name</Label>
-              <Input
+              <Input type="text"
                 id="edit-name"
                 value={name}
                 onChange={(e) => { setName(e.target.value); markDirty(); }}
@@ -314,7 +314,7 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
               <div className="space-y-3">
                 <div className="space-y-2">
                   <Label>Webhook Path</Label>
-                  <Input value={webhookPath} onChange={(e) => { setWebhookPath(e.target.value); markDirty(); }} placeholder="/hooks/my-endpoint" className="rounded-xl" />
+                  <Input type="text" value={webhookPath} onChange={(e) => { setWebhookPath(e.target.value); markDirty(); }} placeholder="/hooks/my-endpoint" className="rounded-xl" />
                 </div>
 
                 {/* Full external URL + curl example */}

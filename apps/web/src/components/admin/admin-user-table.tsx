@@ -164,9 +164,9 @@ export function AdminUserTable({ onUserSelect }: AdminUserTableProps) {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-3">
-        <Input
+        <Input type="text"
           id="search-email"
-          placeholder="Search by email..."
+          placeholder="Search by email..." autoComplete="off"
           value={searchEmail}
           onChange={(e) => setSearchEmail(e.target.value)}
           className="flex-1"

@@ -519,7 +519,7 @@ export const SpreadsheetApp = memo(function SpreadsheetApp({
           <Search className="w-4 h-4 text-zinc-400" />
           <input
             type="text"
-            placeholder="Search spreadsheets..."
+            placeholder="Search spreadsheets..." autoComplete="off"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1 bg-transparent border-none focus:outline-none text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400"

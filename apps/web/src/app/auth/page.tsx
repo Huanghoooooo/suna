@@ -116,7 +116,7 @@ function AccessRequestForm({ email, onSubmitted, onBack }: { email: string; onSu
       </div>
 
       <form className="space-y-3.5">
-        <Input
+        <Input type="text"
           name="company"
           placeholder="Company (optional)"
           className="h-12 text-[15px] rounded-xl bg-foreground/[0.04] border-foreground/[0.08]"

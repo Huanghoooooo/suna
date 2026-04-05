@@ -458,7 +458,7 @@ export default function APIKeysPage() {
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="share-port" className="text-xs text-muted-foreground">Port</Label>
-                    <Input
+                    <Input type="text"
                       id="share-port"
                       inputMode="numeric"
                       value={shareForm.port}
@@ -481,7 +481,7 @@ export default function APIKeysPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="share-label" className="text-xs text-muted-foreground">Label <span className="font-normal">(optional)</span></Label>
-                    <Input
+                    <Input type="text"
                       id="share-label"
                       value={shareForm.label}
                       onChange={(e) => setShareForm((prev) => ({ ...prev, label: e.target.value }))}
@@ -511,7 +511,7 @@ export default function APIKeysPage() {
                 </div>
                 <CopyButton value={publicUrlResult.url} label="Copy" />
               </div>
-              <Input value={publicUrlResult.url} readOnly className="font-mono text-xs" />
+              <Input type="text" value={publicUrlResult.url} readOnly className="font-mono text-xs" />
               {publicUrlResult.expiresAt && (
                 <p className="text-[11px] text-muted-foreground">Expires {formatDateFull(publicUrlResult.expiresAt)}</p>
               )}
@@ -604,7 +604,7 @@ export default function APIKeysPage() {
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="title" className="text-xs text-muted-foreground">Name</Label>
-                    <Input
+                    <Input type="text"
                       id="title"
                       placeholder="e.g. CI/CD Pipeline"
                       value={newKeyData.title}
@@ -617,7 +617,7 @@ export default function APIKeysPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="description" className="text-xs text-muted-foreground">Description <span className="font-normal">(optional)</span></Label>
-                    <Input
+                    <Input type="text"
                       id="description"
                       placeholder="What is this key for?"
                       value={newKeyData.description}
@@ -835,7 +835,7 @@ export default function APIKeysPage() {
               <div className="space-y-2">
                 <Label>{createdApiKey.type === 'sandbox' ? 'Sandbox Token' : 'Secret Key'}</Label>
                 <div className="flex gap-2">
-                  <Input
+                  <Input type="text"
                     value={createdKeyDisplayValue}
                     readOnly
                     className="font-mono text-sm"

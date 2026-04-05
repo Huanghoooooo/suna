@@ -122,7 +122,7 @@ export function SkillEditor() {
             <Label htmlFor="skill-name">Name</Label>
             {isCreate ? (
               <>
-                <Input
+                <Input type="text"
                   id="skill-name"
                   placeholder="my-skill-name"
                   value={name}
@@ -141,7 +141,7 @@ export function SkillEditor() {
                 )}
               </>
             ) : (
-              <Input
+              <Input type="text"
                 id="skill-name"
                 value={name}
                 disabled

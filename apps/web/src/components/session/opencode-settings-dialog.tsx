@@ -666,7 +666,7 @@ function McpServersSection() {
             </p>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Localhost Redirect URL</label>
-              <Input
+              <Input type="text"
                 placeholder="Paste http://localhost:.../callback?..."
                 value={authCode}
                 onChange={(e) => setAuthCode(e.target.value)}
@@ -734,7 +734,7 @@ function McpServersSection() {
           {/* Name */}
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">Server Name</label>
-            <Input
+            <Input type="text"
               placeholder="my-server"
               value={addForm.name}
               onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
@@ -771,7 +771,7 @@ function McpServersSection() {
           {addForm.transportType === 'stdio' ? (
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Command</label>
-              <Input
+              <Input type="text"
                 placeholder="npx -y @modelcontextprotocol/server-github"
                 value={addForm.command}
                 onChange={(e) => setAddForm((f) => ({ ...f, command: e.target.value }))}
@@ -783,7 +783,7 @@ function McpServersSection() {
           ) : (
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">URL</label>
-              <Input
+              <Input type="text"
                 placeholder="https://mcp.example.com/sse"
                 value={addForm.url}
                 onChange={(e) => setAddForm((f) => ({ ...f, url: e.target.value }))}
@@ -809,13 +809,13 @@ function McpServersSection() {
               <div className="space-y-2">
                 {addForm.envPairs.map((pair, i) => (
                   <div key={i} className="flex gap-2 items-center">
-                    <Input
+                    <Input type="text"
                       placeholder="KEY"
                       value={pair.key}
                       onChange={(e) => updateEnvPair(i, 'key', e.target.value)}
                       className="flex-1 font-mono text-xs"
                     />
-                    <Input
+                    <Input type="text"
                       placeholder="value"
                       value={pair.value}
                       onChange={(e) => updateEnvPair(i, 'value', e.target.value)}

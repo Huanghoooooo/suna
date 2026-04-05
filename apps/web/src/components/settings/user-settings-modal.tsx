@@ -550,7 +550,7 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
 
                 <div className="space-y-2">
                     <Label htmlFor="name">{t('name')}</Label>
-                    <Input
+                    <Input type="text"
                         id="name"
                         value={userName}
                         onChange={(e) => setUserName(e.target.value)}
@@ -563,7 +563,7 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                     <Label htmlFor="email">{t('email')}</Label>
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <Input
+                            <Input type="text"
                                 id="email"
                                 value={userEmail}
                                 disabled
@@ -725,7 +725,7 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                                     <Label htmlFor="delete-confirm" className="text-sm">
                                         {t('deleteAccount.confirmText')}
                                     </Label>
-                                    <Input
+                                    <Input type="text"
                                         id="delete-confirm"
                                         value={deleteConfirmText}
                                         onChange={(e) => setDeleteConfirmText(e.target.value)}

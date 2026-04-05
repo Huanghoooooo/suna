@@ -88,7 +88,7 @@ export const CustomModelDialog: React.FC<CustomModelDialogProps> = ({
                         <Label htmlFor="modelId" className="text-right">
                             Model ID
                         </Label>
-                        <Input
+                        <Input type="text"
                             id="modelId"
                             placeholder="e.g. openrouter/meta-llama/llama-4-maverick"
                             value={formData.id}

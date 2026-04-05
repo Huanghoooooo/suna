@@ -235,7 +235,7 @@ export function DeploymentsPage() {
             <div className="relative flex-1 sm:flex-initial sm:w-64">
               <input
                 type="text"
-                placeholder="Search deployments..."
+                placeholder="Search deployments..." autoComplete="off"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-9 sm:h-10 w-full rounded-xl border border-input bg-background px-8 sm:px-10 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"

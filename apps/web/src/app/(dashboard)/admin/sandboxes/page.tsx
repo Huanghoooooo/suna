@@ -159,9 +159,9 @@ function SandboxesTab() {
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-          <Input
+          <Input type="text"
             className="pl-8 h-8 text-sm"
-            placeholder="Search by sandbox ID, name, account, email..."
+            placeholder="Search by sandbox ID, name, account, email..." autoComplete="off"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />

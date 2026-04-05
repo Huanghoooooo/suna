@@ -1158,14 +1158,14 @@ export default function BrandPage() {
                     <div className="space-y-4 max-w-sm">
                       <div className="space-y-2">
                         <Label htmlFor="demo-input">Label</Label>
-                        <Input
+                        <Input type="text"
                           id="demo-input"
                           placeholder="Default input"
                         />
                       </div>
-                      <Input placeholder="With placeholder" />
+                      <Input type="text" placeholder="With placeholder" />
                       <Input type="password" placeholder="Password input" />
-                      <Input disabled placeholder="Disabled" />
+                      <Input type="text" disabled placeholder="Disabled" />
                     </div>
                   </DemoContainer>
                 </div>

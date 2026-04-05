@@ -847,8 +847,8 @@ export function SqliteRenderer({ filePath, fileName, className }: SqliteRenderer
           <div className="p-2 border-b">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/50" />
-              <Input
-                placeholder="Filter tables…"
+              <Input type="text"
+                placeholder="Filter tables…" autoComplete="off"
                 value={tableSearch}
                 onChange={(e) => setTableSearch(e.target.value)}
                 className="h-7 pl-7 pr-7 text-xs"
@@ -948,8 +948,8 @@ export function SqliteRenderer({ filePath, fileName, className }: SqliteRenderer
                   {/* Quick search */}
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/40" />
-                    <Input
-                      placeholder="Filter…"
+                    <Input type="text"
+                      placeholder="Filter…" autoComplete="off"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="h-7 pl-7 pr-7 text-xs w-40"

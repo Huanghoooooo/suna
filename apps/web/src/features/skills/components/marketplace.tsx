@@ -451,7 +451,7 @@ export function Marketplace() {
 							<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
 							<input
 								type="text"
-								placeholder="Search components..."
+								placeholder="Search components..." autoComplete="off"
 								value={search}
 								onChange={(e) => setSearch(e.target.value)}
 								className="h-9 w-full rounded-lg border border-input bg-card pl-9 pr-8 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"

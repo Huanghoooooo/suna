@@ -447,7 +447,7 @@ export function RunningServicesPanel() {
             <div className="relative group">
               <input
                 type="text"
-                placeholder="Search services..."
+                placeholder="Search services..." autoComplete="off"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-11 w-full rounded-2xl border border-input bg-card px-10 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
@@ -587,19 +587,19 @@ export function RunningServicesPanel() {
           <form className="space-y-4" onSubmit={handleRegister}>
             <label className="space-y-2 text-sm font-medium">
               <span>Service ID</span>
-              <Input value={form.id} onChange={(e) => setForm((c) => ({ ...c, id: e.target.value }))} placeholder="my-web-app" />
+              <Input type="text" value={form.id} onChange={(e) => setForm((c) => ({ ...c, id: e.target.value }))} placeholder="my-web-app" />
             </label>
             <label className="space-y-2 text-sm font-medium">
               <span>Source path</span>
-              <Input value={form.sourcePath} onChange={(e) => setForm((c) => ({ ...c, sourcePath: e.target.value }))} placeholder="/workspace/my-app" />
+              <Input type="text" value={form.sourcePath} onChange={(e) => setForm((c) => ({ ...c, sourcePath: e.target.value }))} placeholder="/workspace/my-app" />
             </label>
             <label className="space-y-2 text-sm font-medium">
               <span>Start command</span>
-              <Input value={form.startCommand} onChange={(e) => setForm((c) => ({ ...c, startCommand: e.target.value }))} placeholder="bun server.js" />
+              <Input type="text" value={form.startCommand} onChange={(e) => setForm((c) => ({ ...c, startCommand: e.target.value }))} placeholder="bun server.js" />
             </label>
             <label className="space-y-2 text-sm font-medium">
               <span>Port <span className="text-muted-foreground font-normal">(optional — auto-assigned if empty)</span></span>
-              <Input value={form.port} onChange={(e) => setForm((c) => ({ ...c, port: e.target.value }))} placeholder="3000" inputMode="numeric" />
+              <Input type="text" value={form.port} onChange={(e) => setForm((c) => ({ ...c, port: e.target.value }))} placeholder="3000" inputMode="numeric" />
             </label>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsRegisterOpen(false)}>Cancel</Button>

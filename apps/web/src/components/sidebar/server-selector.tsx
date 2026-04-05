@@ -979,7 +979,7 @@ export function InstanceManagerDialog({
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50 pointer-events-none" />
                   <input
-                    placeholder="Search instances..."
+                    placeholder="Search instances..." autoComplete="off"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="w-full h-8 text-xs pl-8 pr-3 rounded-lg bg-muted/40 border border-border/40 outline-none placeholder:text-muted-foreground/40 focus:border-primary/30 focus:bg-muted/60 transition-colors"

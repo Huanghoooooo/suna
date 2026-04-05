@@ -120,8 +120,8 @@ export function SkillList() {
                 {/* Search bar */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-                  <Input
-                    placeholder="Search skills by name, description, or path..."
+                  <Input type="text"
+                    placeholder="Search skills by name, description, or path..." autoComplete="off"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="pl-9 h-9 text-sm rounded-lg"

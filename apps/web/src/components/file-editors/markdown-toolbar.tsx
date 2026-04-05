@@ -884,7 +884,7 @@ export function MarkdownToolbar({
           <TabsContent value="url" className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label htmlFor="image-url">Image URL</Label>
-              <Input
+              <Input type="text"
                 id="image-url"
                 placeholder="https://example.com/image.png"
                 value={imageUrl}

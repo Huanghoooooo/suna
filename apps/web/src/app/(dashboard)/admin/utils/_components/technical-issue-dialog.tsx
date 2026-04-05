@@ -124,7 +124,7 @@ export function TechnicalIssueDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="message">Message</Label>
-                <Input
+                <Input type="text"
                   id="message"
                   placeholder="e.g., We're experiencing high demand"
                   value={message}
@@ -171,7 +171,7 @@ export function TechnicalIssueDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="resolution">Est. Resolution</Label>
-                  <Input
+                  <Input type="text"
                     id="resolution"
                     placeholder="e.g., ~2 hours"
                     value={resolution}
@@ -180,7 +180,7 @@ export function TechnicalIssueDialog({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="status-url">Status URL</Label>
-                  <Input
+                  <Input type="text"
                     id="status-url"
                     placeholder="/status"
                     value={statusUrl}

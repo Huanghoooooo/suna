@@ -253,7 +253,7 @@ export function TaskConfigDialog({ open, onOpenChange, onCreated }: TaskConfigDi
                 <div className="space-y-3 pt-2">
                   <div className="space-y-2">
                     <Label>Path</Label>
-                    <Input value={webhookPath} onChange={(e) => setWebhookPath(e.target.value)} placeholder="/hooks/my-endpoint" className="rounded-xl" />
+                    <Input type="text" value={webhookPath} onChange={(e) => setWebhookPath(e.target.value)} placeholder="/hooks/my-endpoint" className="rounded-xl" />
                   </div>
 
                    {/* Full URL preview */}
@@ -331,7 +331,7 @@ export function TaskConfigDialog({ open, onOpenChange, onCreated }: TaskConfigDi
             <div className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="task-name">Name</Label>
-                <Input id="task-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Daily Report" className="rounded-xl" />
+                <Input type="text" id="task-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Daily Report" className="rounded-xl" />
               </div>
 
               {actionType === 'prompt' && (
@@ -402,16 +402,16 @@ export function TaskConfigDialog({ open, onOpenChange, onCreated }: TaskConfigDi
                 <>
                   <div className="space-y-2">
                     <Label>Command</Label>
-                    <Input value={command} onChange={(e) => setCommand(e.target.value)} placeholder="bash" className="rounded-xl" />
+                    <Input type="text" value={command} onChange={(e) => setCommand(e.target.value)} placeholder="bash" className="rounded-xl" />
                   </div>
                   <div className="space-y-2">
                     <Label>Arguments</Label>
-                    <Input value={commandArgs} onChange={(e) => setCommandArgs(e.target.value)} placeholder='["-c", "./scripts/backup.sh"]' className="rounded-xl" />
+                    <Input type="text" value={commandArgs} onChange={(e) => setCommandArgs(e.target.value)} placeholder='["-c", "./scripts/backup.sh"]' className="rounded-xl" />
                     <p className="text-xs text-muted-foreground">JSON array or space-separated</p>
                   </div>
                   <div className="space-y-2">
                     <Label>Working Directory (optional)</Label>
-                    <Input value={workdir} onChange={(e) => setWorkdir(e.target.value)} placeholder="/workspace" className="rounded-xl" />
+                    <Input type="text" value={workdir} onChange={(e) => setWorkdir(e.target.value)} placeholder="/workspace" className="rounded-xl" />
                   </div>
                 </>
               )}
@@ -420,7 +420,7 @@ export function TaskConfigDialog({ open, onOpenChange, onCreated }: TaskConfigDi
                 <>
                   <div className="space-y-2">
                     <Label>URL</Label>
-                    <Input value={httpUrl} onChange={(e) => setHttpUrl(e.target.value)} placeholder="https://hooks.slack.com/services/XXX" className="rounded-xl" />
+                    <Input type="text" value={httpUrl} onChange={(e) => setHttpUrl(e.target.value)} placeholder="https://hooks.slack.com/services/XXX" className="rounded-xl" />
                   </div>
                   <div className="space-y-2">
                     <Label>Method</Label>

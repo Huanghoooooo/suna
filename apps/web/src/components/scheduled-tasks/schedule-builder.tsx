@@ -208,7 +208,7 @@ export function ScheduleBuilder({ value, onChange, disabled }: ScheduleBuilderPr
     return (
       <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
         <p className="text-sm text-muted-foreground">Custom cron expression</p>
-        <Input
+        <Input type="text"
           value={rawCron}
           onChange={(e) => onRawCronEdit(e.target.value)}
           className="font-mono text-sm h-9"
@@ -406,7 +406,7 @@ export function ScheduleBuilder({ value, onChange, disabled }: ScheduleBuilderPr
         </Button>
         {showCron && (
           <div className="mt-2 space-y-1">
-            <Input
+            <Input type="text"
               value={rawCron}
               onChange={(e) => onRawCronEdit(e.target.value)}
               className="font-mono text-xs h-8"

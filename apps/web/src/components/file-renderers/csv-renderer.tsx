@@ -174,8 +174,8 @@ export function CsvRenderer({
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search all columns…"
+          <Input type="text"
+            placeholder="Search all columns…" autoComplete="off"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="h-7 pl-8 pr-8 text-xs"
