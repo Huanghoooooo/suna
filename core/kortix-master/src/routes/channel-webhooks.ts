@@ -242,45 +242,25 @@ async function dispatchToOpenCode(
       })()
     : undefined
 
-  // Reuse existing session if available AND not busy
+  // Reuse existing session — always send to the same session for continuity
   if (existingSessionId) {
     try {
-      // Check if session is busy (last assistant message still pending)
-      const msgsRes = await fetch(`${OPENCODE_URL}/session/${existingSessionId}/message`, {
-        signal: AbortSignal.timeout(5_000),
+      const res = await fetch(`${OPENCODE_URL}/session/${existingSessionId}/prompt_async`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parts: [{ type: 'text', text: event.prompt }],
+          agent: channel.default_agent || undefined,
+          ...(modelOverride ? { model: modelOverride } : {}),
+        }),
+        signal: AbortSignal.timeout(30_000),
       })
-      let sessionBusy = false
-      if (msgsRes.ok) {
-        const msgs = await msgsRes.json() as Array<{ info: { role: string; time?: { completed?: number } } }>
-        if (msgs.length > 0) {
-          const last = msgs[msgs.length - 1]
-          if (last.info.role === 'assistant' && !last.info.time?.completed) {
-            sessionBusy = true
-          }
-        }
+      if (res.ok) {
+        rememberSession(event.session_key, existingSessionId)
+        return { sessionId: existingSessionId }
       }
-
-      if (sessionBusy) {
-        // Session is processing — create a new one so the user isn't blocked
-        console.log(`[Channel Webhook] Session ${existingSessionId} is busy, creating new session`)
-        sessionMap.delete(event.session_key)
-      } else {
-        const res = await fetch(`${OPENCODE_URL}/session/${existingSessionId}/prompt_async`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            parts: [{ type: 'text', text: event.prompt }],
-            agent: channel.default_agent || undefined,
-            ...(modelOverride ? { model: modelOverride } : {}),
-          }),
-          signal: AbortSignal.timeout(30_000),
-        })
-        if (res.ok) {
-          rememberSession(event.session_key, existingSessionId)
-          return { sessionId: existingSessionId }
-        }
-        sessionMap.delete(event.session_key)
-      }
+      // Session might be gone — fall through to create new one
+      sessionMap.delete(event.session_key)
     } catch {
       sessionMap.delete(event.session_key)
     }
