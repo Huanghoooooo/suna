@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import {
@@ -49,12 +50,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from '@/components/ui/popover';
-
-import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -90,7 +85,7 @@ import { toast } from '@/lib/toast';
 // ============================================================================
 // Floating Mobile Menu Button
 // ============================================================================
-// Collapsed Icon Button with optional hover flyout
+// Collapsed Icon Button — tooltip for simple buttons, hover flyout for lists
 // ============================================================================
 
 interface CollapsedIconButtonProps {
@@ -103,70 +98,103 @@ interface CollapsedIconButtonProps {
 }
 
 function CollapsedIconButton({ icon, label, onClick, flyoutContent, disabled, isActive }: CollapsedIconButtonProps) {
-  const [open, setOpen] = useState(false);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [flyoutOpen, setFlyoutOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const flyoutRef = useRef<HTMLDivElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scheduleClose = useCallback(() => {
-    if (closeTimer.current) clearTimeout(closeTimer.current);
-    closeTimer.current = setTimeout(() => setOpen(false), 150);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setFlyoutOpen(false), 180);
   }, []);
 
   const cancelClose = useCallback(() => {
-    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
   }, []);
 
-  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
-  const buttonEl = (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        'flex items-center justify-center w-full py-2 rounded-lg cursor-pointer',
-        'transition-colors duration-150 ease-out',
-        isActive
-          ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-          : 'text-sidebar-foreground hover:bg-sidebar-accent',
-        disabled && 'opacity-50 cursor-not-allowed',
-      )}
-    >
-      {icon}
-    </button>
+  // Position flyout to the right of the button
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  useLayoutEffect(() => {
+    if (flyoutOpen && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.top, left: r.right + 8 });
+    }
+  }, [flyoutOpen]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!flyoutOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFlyoutOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [flyoutOpen]);
+
+  // Close on click outside
+  useEffect(() => {
+    if (!flyoutOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (btnRef.current?.contains(e.target as Node) || flyoutRef.current?.contains(e.target as Node)) return;
+      setFlyoutOpen(false);
+    };
+    window.addEventListener('pointerdown', onDown, true);
+    return () => window.removeEventListener('pointerdown', onDown, true);
+  }, [flyoutOpen]);
+
+  // The button — styled ONLY via CSS :hover and isActive prop.
+  // flyoutOpen never touches the className. This is the whole point.
+  const btnClass = cn(
+    'flex items-center justify-center w-full py-2 rounded-lg cursor-pointer',
+    'transition-colors duration-150 ease-out',
+    isActive
+      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+      : 'text-sidebar-foreground hover:bg-sidebar-accent',
+    disabled && 'opacity-50 cursor-not-allowed',
   );
 
-  // Flyout buttons: use Radix Popover (portal-based, no overflow issues)
+  // --- Flyout variant: NO tooltip, the flyout panel IS the expanded label ---
   if (flyoutContent) {
     return (
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
+      <>
+        <button
+          ref={btnRef}
+          onClick={onClick}
+          disabled={disabled}
+          className={btnClass}
+          onMouseEnter={() => { cancelClose(); setFlyoutOpen(true); }}
+          onMouseLeave={scheduleClose}
+        >
+          {icon}
+        </button>
+        {flyoutOpen && typeof document !== 'undefined' && createPortal(
           <div
-            onMouseEnter={() => { cancelClose(); setOpen(true); }}
+            ref={flyoutRef}
+            style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 10001 }}
+            className="w-[260px] max-h-[60vh] overflow-hidden flex flex-col rounded-xl border bg-popover text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-[0.98] slide-in-from-left-1 duration-100"
+            onMouseEnter={cancelClose}
             onMouseLeave={scheduleClose}
           >
-            {buttonEl}
-          </div>
-        </PopoverTrigger>
-        <PopoverContent
-          side="right"
-          align="start"
-          sideOffset={12}
-          className="w-[280px] max-h-[75vh] p-0 overflow-hidden"
-          onMouseEnter={cancelClose}
-          onMouseLeave={scheduleClose}
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          onCloseAutoFocus={(e) => e.preventDefault()}
-        >
-          {flyoutContent}
-        </PopoverContent>
-      </Popover>
+            {flyoutContent}
+          </div>,
+          document.body,
+        )}
+      </>
     );
   }
 
-  // Non-flyout buttons: keep tooltip
+  // --- Simple variant (tooltip only) ---
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        {buttonEl}
+        <button
+          ref={btnRef}
+          onClick={onClick}
+          disabled={disabled}
+          className={btnClass}
+        >
+          {icon}
+        </button>
       </TooltipTrigger>
       <TooltipContent side="right" sideOffset={12} className="text-xs">
         {label}
@@ -176,11 +204,10 @@ function CollapsedIconButton({ icon, label, onClick, flyoutContent, disabled, is
 }
 
 // ============================================================================
-// Sessions Flyout
+// Sessions Flyout Content
 // ============================================================================
 
 function SessionsFlyout() {
-  const router = useRouter();
   const pathname = normalizeAppPathname(usePathname());
   const { data: sessions } = useOpenCodeSessions();
   const permissions = useOpenCodePendingStore((s) => s.permissions);
@@ -193,58 +220,43 @@ function SessionsFlyout() {
       .sort((a, b) => b.time.updated - a.time.updated);
   }, [sessions]);
 
-  const getPendingCount = (sessionId: string) => {
-    const permCount = Object.values(permissions).filter((p) => p.sessionID === sessionId).length;
-    const qCount = Object.values(questions).filter((q) => q.sessionID === sessionId).length;
-    return permCount + qCount;
-  };
-
-  const handleClick = (sessionId: string) => {
-    const session = rootSessions.find((s) => s.id === sessionId);
-    openTabAndNavigate({
-      id: sessionId,
-      title: session?.title || 'Session',
-      type: 'session',
-      href: `/sessions/${sessionId}`,
-      serverId: useServerStore.getState().activeServerId,
-    });
-
+  const getPendingCount = (id: string) => {
+    return Object.values(permissions).filter((p) => p.sessionID === id).length
+      + Object.values(questions).filter((q) => q.sessionID === id).length;
   };
 
   return (
-    <div className="overflow-y-auto flex-1 py-1.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+    <div className="overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
       {rootSessions.length === 0 ? (
-        <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-          No sessions yet
-        </div>
+        <div className="px-3 py-8 text-center text-xs text-muted-foreground">No sessions yet</div>
       ) : (
         rootSessions.map((session) => {
-          const isActive = pathname?.includes(session.id);
-          const pendingCount = getPendingCount(session.id);
+          const active = pathname === `/sessions/${session.id}`;
+          const pending = getPendingCount(session.id);
           return (
             <button
               key={session.id}
-              onClick={() => handleClick(session.id)}
+              onClick={() => {
+                openTabAndNavigate({
+                  id: session.id,
+                  title: session.title || 'Session',
+                  type: 'session',
+                  href: `/sessions/${session.id}`,
+                  serverId: useServerStore.getState().activeServerId,
+                });
+              }}
               className={cn(
-                'flex items-center gap-3 w-full px-3 py-2 text-sm cursor-pointer',
-                'transition-colors duration-150',
-                isActive
+                'flex items-center gap-2.5 w-full px-3 py-1.5 text-[13px] cursor-pointer transition-colors duration-100',
+                active
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
                   : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground',
               )}
             >
-              <ThreadIcon
-                iconName={(session as any).icon}
-                className={cn(
-                  'flex-shrink-0',
-                  isActive ? 'text-sidebar-accent-foreground' : 'text-muted-foreground',
-                )}
-                size={16}
-              />
+              <ThreadIcon iconName={(session as any).icon} className="flex-shrink-0" size={14} />
               <span className="flex-1 truncate text-left">{session.title || 'Untitled'}</span>
-              {pendingCount > 0 && (
-                <span className="flex-shrink-0 h-[18px] min-w-[18px] px-1 rounded-full bg-amber-500/15 text-amber-500 text-[10px] font-semibold flex items-center justify-center">
-                  {pendingCount}
+              {pending > 0 && (
+                <span className="flex-shrink-0 h-4 min-w-4 px-1 rounded-full bg-amber-500/15 text-amber-500 text-[10px] font-semibold flex items-center justify-center">
+                  {pending}
                 </span>
               )}
             </button>
@@ -256,50 +268,38 @@ function SessionsFlyout() {
 }
 
 // ============================================================================
-// Projects Flyout
+// Projects Flyout Content
 // ============================================================================
 
 function ProjectsFlyout() {
   const { data: projects } = useKortixProjects();
 
-  const sortedProjects = React.useMemo(() => {
+  const sorted = React.useMemo(() => {
     if (!projects || !Array.isArray(projects)) return [];
-    return [...projects].sort((a, b) => {
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
+    return [...projects].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [projects]);
 
-  const handleClick = (project: KortixProject) => {
-    openTabAndNavigate({
-      id: `project:${project.id}`,
-      title: project.name,
-      type: 'project',
-      href: `/projects/${encodeURIComponent(project.id)}`,
-    });
-  };
-
   return (
-    <div className="overflow-y-auto flex-1 py-1.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-      {sortedProjects.length === 0 ? (
-        <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-          No projects yet
-        </div>
+    <div className="overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      {sorted.length === 0 ? (
+        <div className="px-3 py-8 text-center text-xs text-muted-foreground">No projects yet</div>
       ) : (
-        sortedProjects.map((project) => (
+        sorted.map((project) => (
           <button
             key={project.id}
-            onClick={() => handleClick(project)}
-            className={cn(
-              'flex items-center gap-3 w-full px-3 py-2 text-sm cursor-pointer',
-              'transition-colors duration-150',
-              'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground',
-            )}
+            onClick={() => {
+              openTabAndNavigate({
+                id: `project:${project.id}`,
+                title: project.name,
+                type: 'project',
+                href: `/projects/${encodeURIComponent(project.id)}`,
+              });
+            }}
+            className="flex items-center gap-2.5 w-full px-3 py-1.5 text-[13px] cursor-pointer transition-colors duration-100 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
           >
             <span className="flex-1 truncate text-left">{project.name}</span>
             {(project.sessionCount ?? 0) > 0 && (
-              <span className="text-[10px] text-muted-foreground/40 tabular-nums">
-                {project.sessionCount}
-              </span>
+              <span className="text-[10px] text-muted-foreground/40 tabular-nums">{project.sessionCount}</span>
             )}
           </button>
         ))
@@ -965,9 +965,9 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
 
       {/* ====== CONTENT ====== */}
       <SidebarContent className="[&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] relative overflow-visible">
-        {/* --- Collapsed: 3 icon buttons — New Chat, Projects, Sessions --- */}
+        {/* --- Collapsed: icon buttons --- */}
         <div className={cn(
-          'absolute inset-0 px-2 pt-2 space-y-0.5 flex flex-col items-center overflow-visible',
+          'absolute inset-0 px-2 pt-2 space-y-0.5 flex flex-col items-center',
           effectiveState === 'collapsed' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         )}>
           <CollapsedIconButton
@@ -1007,14 +1007,14 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
             }}
           />
           <CollapsedIconButton
-            icon={<ListTree className="h-4 w-4" />}
-            label="Sessions"
-            flyoutContent={<SessionsFlyout />}
-          />
-          <CollapsedIconButton
             icon={<FolderKanban className="h-4 w-4" />}
             label="Projects"
             flyoutContent={<ProjectsFlyout />}
+          />
+          <CollapsedIconButton
+            icon={<ListTree className="h-4 w-4" />}
+            label="Sessions"
+            flyoutContent={<SessionsFlyout />}
           />
         </div>
 
