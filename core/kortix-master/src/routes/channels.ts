@@ -105,14 +105,15 @@ channelsRouter.post('/setup/telegram', async (c) => {
 
     // 3. Register default Telegram bot commands so the slash menu works immediately
     const commands = [
-      { command: 'new', description: 'Start a new session' },
-      { command: 'sessions', description: 'List your sessions' },
+      { command: 'status', description: 'Current config & session' },
+      { command: 'model', description: 'Set model (provider/model)' },
+      { command: 'agent', description: 'Set agent' },
+      { command: 'name', description: 'Rename this channel' },
+      { command: 'instructions', description: 'Set system prompt' },
+      { command: 'new', description: 'Start fresh session' },
+      { command: 'sessions', description: 'List recent sessions' },
       { command: 'session', description: 'Switch session' },
-      { command: 'status', description: 'Current status' },
       { command: 'help', description: 'All commands' },
-      { command: 'agent', description: 'Talk to agent' },
-      { command: 'model', description: 'Switch model' },
-      { command: 'reset', description: 'Reset conversation' },
     ]
     const cmdRes = await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
       method: 'POST',

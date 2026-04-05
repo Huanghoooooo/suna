@@ -85,91 +85,140 @@ async function handleChannelCommand(
   const command = (rawName || '').replace(/@.+$/, '').toLowerCase()
   const arg = rest.join(' ').trim()
 
+  const p = isTelegram ? '/' : '!'
+
   switch (command) {
     case 'new':
     case 'reset': {
       clearSession(event.session_key)
-      return { handled: true, text: 'Started a fresh session for this chat.' }
+      return { handled: true, text: 'Session reset. Next message starts fresh.' }
     }
-    case 'status': {
+
+    case 'status':
+    case 'info': {
       const currentSession = sessionMap.get(event.session_key) || null
       return {
         handled: true,
         text: [
-          `Channel: ${channel.name} (${channel.platform})`,
+          `${channel.name} (${channel.platform})`,
           `Bot: @${channel.bot_username || '?'}`,
           `Agent: ${channel.default_agent || 'kortix'}`,
-          `Model: ${channel.default_model || 'not set'}`,
+          `Model: ${channel.default_model || '(default)'}`,
           `Session: ${currentSession || 'none'}`,
           `Enabled: ${channel.enabled ? 'yes' : 'no'}`,
-        ].join('\n'),
+          channel.instructions ? `Instructions: ${channel.instructions.slice(0, 100)}${channel.instructions.length > 100 ? '…' : ''}` : '',
+        ].filter(Boolean).join('\n'),
       }
     }
+
     case 'agent': {
       if (!arg) {
-        return { handled: true, text: `Current agent: ${channel.default_agent || 'kortix'}\nUse /agent <name> to change it.` }
+        return { handled: true, text: `Current agent: ${channel.default_agent || 'kortix'}\nUsage: ${p}agent <name>` }
       }
       const updated = updateChannel(channel.id, { default_agent: arg })
-      return { handled: true, text: `Agent updated to: ${updated?.default_agent || arg}` }
+      clearSession(event.session_key)
+      return { handled: true, text: `Agent: ${updated?.default_agent || arg}\nSession reset.` }
     }
+
     case 'model': {
       if (!arg) {
         const models = await fetchAvailableModels()
-        const preview = models.slice(0, 12)
-        return {
-          handled: true,
-          text: [
-            `Current model: ${channel.default_model || 'not set'}`,
-            models.length > 0 ? `Available models:\n${preview.join('\n')}${models.length > preview.length ? '\n…' : ''}` : 'No model list available right now.',
-            'Use /model <provider/model> to change it.',
-          ].join('\n\n'),
+        const lines = [`Current: ${channel.default_model || '(default)'}`]
+        if (models.length > 0) {
+          lines.push('', 'Available:')
+          models.slice(0, 15).forEach(m => lines.push(`  ${m}`))
+          if (models.length > 15) lines.push(`  … and ${models.length - 15} more`)
         }
+        lines.push('', `Usage: ${p}model <provider/model>`)
+        return { handled: true, text: lines.join('\n') }
       }
       const updated = updateChannel(channel.id, { default_model: arg })
       clearSession(event.session_key)
-      return {
-        handled: true,
-        text: `Model updated to: ${updated?.default_model || arg}\nStarted a fresh session so the new model takes effect.`,
-      }
+      return { handled: true, text: `Model: ${updated?.default_model || arg}\nSession reset.` }
     }
+
+    case 'name': {
+      if (!arg) {
+        return { handled: true, text: `Current name: ${channel.name}\nUsage: ${p}name <new name>` }
+      }
+      const updated = updateChannel(channel.id, { name: arg })
+      return { handled: true, text: `Channel renamed to: ${updated?.name || arg}` }
+    }
+
+    case 'instructions':
+    case 'prompt': {
+      if (!arg) {
+        return {
+          handled: true,
+          text: channel.instructions
+            ? `Current instructions:\n${channel.instructions}\n\nUsage: ${p}instructions <text> or ${p}instructions clear`
+            : `No custom instructions set.\nUsage: ${p}instructions <text>`,
+        }
+      }
+      if (arg === 'clear' || arg === 'reset' || arg === 'none') {
+        updateChannel(channel.id, { instructions: '' as any })
+        clearSession(event.session_key)
+        return { handled: true, text: 'Instructions cleared. Session reset.' }
+      }
+      updateChannel(channel.id, { instructions: arg } as any)
+      clearSession(event.session_key)
+      return { handled: true, text: `Instructions updated. Session reset.` }
+    }
+
+    case 'enable': {
+      updateChannel(channel.id, { enabled: true })
+      return { handled: true, text: 'Channel enabled.' }
+    }
+
+    case 'disable': {
+      updateChannel(channel.id, { enabled: false })
+      return { handled: true, text: 'Channel disabled. Messages will be ignored until re-enabled.' }
+    }
+
     case 'sessions': {
       const history = sessionHistoryMap.get(event.session_key) || []
       return {
         handled: true,
         text: history.length
-          ? `Recent sessions for this chat:\n${history.map((id, i) => `${i + 1}. ${id}`).join('\n')}`
-          : 'No sessions yet for this chat.',
+          ? `Recent sessions:\n${history.map((id, i) => `${i + 1}. ${id}`).join('\n')}`
+          : 'No sessions yet.',
       }
     }
+
     case 'session': {
       if (!arg) {
         const currentSession = sessionMap.get(event.session_key) || 'none'
-        return { handled: true, text: `Current session: ${currentSession}\nUse /session <id> to switch.` }
+        return { handled: true, text: `Current: ${currentSession}\nUsage: ${p}session <id>` }
       }
       const history = sessionHistoryMap.get(event.session_key) || []
       if (!history.includes(arg)) {
-        return { handled: true, text: `Unknown session for this chat: ${arg}` }
+        return { handled: true, text: `Unknown session: ${arg}` }
       }
       sessionMap.set(event.session_key, arg)
-      return { handled: true, text: `Switched to session: ${arg}` }
+      return { handled: true, text: `Switched to: ${arg}` }
     }
+
     case 'help': {
-      const prefix = isTelegram ? '/' : '!'
       return {
         handled: true,
         text: [
-          'Available commands:',
-          `${prefix}new - Start a fresh session`,
-          `${prefix}sessions - List recent sessions for this chat`,
-          `${prefix}session <id> - Switch to a recent session`,
-          `${prefix}status - Show current channel/agent/model/session`,
-          `${prefix}agent <name> - Change default agent for this channel`,
-          `${prefix}model <provider/model> - Change default model for this channel`,
-          `${prefix}reset - Reset the current chat session`,
-          `${prefix}help - Show this help`,
+          'Commands:',
+          `${p}status — Current config & session`,
+          `${p}model <provider/model> — Set model`,
+          `${p}agent <name> — Set agent`,
+          `${p}name <name> — Rename this channel`,
+          `${p}instructions <text> — Set system prompt`,
+          `${p}instructions clear — Clear system prompt`,
+          `${p}new — Start fresh session`,
+          `${p}reset — Same as ${p}new`,
+          `${p}sessions — List recent sessions`,
+          `${p}session <id> — Switch session`,
+          `${p}enable / ${p}disable — Toggle channel`,
+          `${p}help — This message`,
         ].join('\n'),
       }
     }
+
     default:
       return { handled: false }
   }
@@ -249,13 +298,9 @@ channelWebhooksRouter.post('/hooks/telegram/:channelId', async (c) => {
   const webhookPath = `/hooks/telegram/${channelId}`
 
   // Look up channel
-  const channel = getChannelByPath(webhookPath)
+  let channel = getChannelByPath(webhookPath)
   if (!channel) {
     return c.json({ ok: false, error: 'not_found' }, 404)
-  }
-
-  if (!channel.enabled) {
-    return c.json({ ok: false, error: 'channel_disabled' }, 403)
   }
 
   // Verify Telegram secret token
@@ -275,14 +320,21 @@ channelWebhooksRouter.post('/hooks/telegram/:channelId', async (c) => {
 
   const event = parseTelegramUpdate(body, channelId)
   if (!event) {
-    // Unrecognized update type — acknowledge so Telegram doesn't retry
     return c.json({ ok: true, skipped: true })
   }
 
+  // Handle commands BEFORE the enabled check — so /enable works on disabled channels
   const command = await handleChannelCommand(channel, event)
   if (command.handled) {
     if (command.text) await sendTelegramText(channel, event.chat_id, command.text)
+    // Re-read channel in case the command changed it (e.g. /enable, /disable)
+    channel = getChannelByPath(webhookPath)!
     return c.json({ ok: true, command: true })
+  }
+
+  // Non-command messages require the channel to be enabled
+  if (!channel.enabled) {
+    return c.json({ ok: false, error: 'channel_disabled' }, 403)
   }
 
   // Dispatch to OpenCode
@@ -303,7 +355,7 @@ channelWebhooksRouter.post('/hooks/slack/:channelId', async (c) => {
   const webhookPath = `/hooks/slack/${channelId}`
 
   // Look up channel
-  const channel = getChannelByPath(webhookPath)
+  let channel = getChannelByPath(webhookPath)
   if (!channel) {
     return c.json({ ok: false, error: 'not_found' }, 404)
   }
@@ -317,14 +369,27 @@ channelWebhooksRouter.post('/hooks/slack/:channelId', async (c) => {
     return c.json({ ok: false, error: 'invalid_json' }, 400)
   }
 
-  // Handle Slack URL verification challenge FIRST — even for disabled channels.
-  // Slack sends this during app setup, before the channel has credentials.
+  // Handle Slack URL verification challenge — even for disabled/unconfigured channels
   const preParseResult = parseSlackEvent(body, channelId, channel.bot_id || '')
   if (preParseResult.is_challenge && preParseResult.challenge) {
     return c.json({ challenge: preParseResult.challenge })
   }
 
-  // Now check enabled
+  if (!preParseResult.dispatch_event) {
+    return c.json({ ok: true, skipped: true })
+  }
+
+  // Handle commands BEFORE enabled check — so !enable works on disabled channels
+  const command = await handleChannelCommand(channel, preParseResult.dispatch_event)
+  if (command.handled) {
+    if (command.text) {
+      await sendSlackText(channel, preParseResult.dispatch_event.chat_id, command.text, preParseResult.dispatch_event.thread_ts || preParseResult.dispatch_event.message_id)
+    }
+    channel = getChannelByPath(webhookPath)!
+    return c.json({ ok: true, command: true })
+  }
+
+  // Non-command messages require the channel to be enabled
   if (!channel.enabled) {
     return c.json({ ok: false, error: 'channel_disabled' }, 403)
   }
@@ -337,21 +402,6 @@ channelWebhooksRouter.post('/hooks/slack/:channelId', async (c) => {
       console.warn(`[Channel Webhook] Slack signature mismatch for ${channel.name} (${channelId})`)
       return c.json({ ok: false, error: 'unauthorized' }, 401)
     }
-  }
-
-  const result = preParseResult
-
-  if (!result.dispatch_event) {
-    // Unrecognized or filtered event (e.g. bot message) — acknowledge
-    return c.json({ ok: true, skipped: true })
-  }
-
-  const command = await handleChannelCommand(channel, result.dispatch_event)
-  if (command.handled) {
-    if (command.text) {
-      await sendSlackText(channel, result.dispatch_event.chat_id, command.text, result.dispatch_event.thread_ts || result.dispatch_event.message_id)
-    }
-    return c.json({ ok: true, command: true })
   }
 
   // Dispatch to OpenCode
