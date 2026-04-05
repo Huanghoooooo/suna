@@ -126,7 +126,12 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
         defaultAgent: agentName || undefined,
         defaultModel: modelStr,
       });
-      toast.success(result.message || 'Slack bot connected!');
+      const webhookUrl = result.channel?.webhookUrl;
+      if (webhookUrl) {
+        toast.success(`Connected! Webhook: ${webhookUrl}`, { duration: 8000 });
+      } else {
+        toast.success(result.message || 'Slack bot connected!');
+      }
       onCreated();
     } catch (err: any) {
       toast.error(err.message || 'Setup failed');
@@ -267,16 +272,23 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
                     {manifestCopied ? 'Copied' : 'Copy JSON'}
                   </Button>
                 </div>
-                <pre className="rounded-lg border bg-muted/50 px-2.5 py-2 text-[11px] text-muted-foreground overflow-x-auto max-h-24 overflow-y-auto leading-tight">
+                <pre className="rounded-lg border bg-muted/50 px-2.5 py-2 text-[11px] text-muted-foreground max-h-24 overflow-y-auto leading-tight whitespace-pre-wrap break-all">
                   {JSON.stringify(manifest, null, 2)}
                 </pre>
               </div>
             )}
 
             {webhookUrl && (
-              <p className="text-[11px] text-muted-foreground">
-                Webhook: <code className="px-1 py-0.5 rounded bg-muted text-foreground text-[11px]">{webhookUrl}</code>
-              </p>
+              <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 space-y-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-medium text-foreground">Event Subscriptions URL</p>
+                  <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] gap-1" onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success('Copied'); }}>
+                    <Copy className="h-2.5 w-2.5" /> Copy
+                  </Button>
+                </div>
+                <code className="block text-[11px] text-muted-foreground break-all">{webhookUrl}</code>
+                <p className="text-[10px] text-muted-foreground">This URL is already in the manifest. Slack will verify it automatically.</p>
+              </div>
             )}
 
             <div className="flex items-center justify-between pt-1">

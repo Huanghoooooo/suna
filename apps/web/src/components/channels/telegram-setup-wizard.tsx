@@ -72,7 +72,12 @@ export function TelegramSetupWizard({ onCreated, onBack }: TelegramSetupWizardPr
         defaultAgent: agentName || undefined,
         defaultModel: modelStr,
       });
-      toast.success(result.message || 'Telegram bot connected!');
+      const webhookUrl = result.channel?.webhookUrl;
+      if (webhookUrl) {
+        toast.success(`Connected! Webhook: ${webhookUrl}`, { duration: 8000 });
+      } else {
+        toast.success(result.message || 'Telegram bot connected!');
+      }
       onCreated();
     } catch (err: any) {
       toast.error(err.message || 'Setup failed');

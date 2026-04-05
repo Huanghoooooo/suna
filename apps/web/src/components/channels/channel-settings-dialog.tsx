@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Copy, Check, ExternalLink } from 'lucide-react';
 import { SlackIcon } from '@/components/ui/icons/slack';
 import { TelegramIcon } from '@/components/ui/icons/telegram';
 import { toast } from 'sonner';
@@ -32,6 +32,7 @@ interface Channel {
   default_model: string;
   instructions?: string;
   webhook_path: string;
+  webhook_url?: string | null;
   created_by: string | null;
   created_at: string;
 }
@@ -41,6 +42,21 @@ interface ChannelSettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdated: () => void;
+}
+
+function WebhookCopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = React.useState(false);
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <Button variant="ghost" size="sm" onClick={handleCopy} className="h-6 px-2 text-[11px] gap-1">
+      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+      {copied ? 'Copied' : 'Copy'}
+    </Button>
+  );
 }
 
 export function ChannelSettingsDialog({ channel, open, onOpenChange, onUpdated }: ChannelSettingsDialogProps) {
@@ -198,10 +214,28 @@ export function ChannelSettingsDialog({ channel, open, onOpenChange, onUpdated }
             </p>
           </div>
 
-          {/* Webhook path (read-only) */}
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Webhook Path</Label>
-            <Input value={channel.webhook_path} readOnly className="font-mono text-xs text-muted-foreground" />
+          {/* Webhook URL */}
+          <div className="rounded-xl border bg-muted/30 px-4 py-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                <Label className="text-xs font-medium">Webhook URL</Label>
+              </div>
+              {channel.webhook_url && <WebhookCopyButton value={channel.webhook_url} />}
+            </div>
+            {channel.webhook_url ? (
+              <Input value={channel.webhook_url} readOnly className="font-mono text-xs" />
+            ) : (
+              <>
+                <Input value={channel.webhook_path} readOnly className="font-mono text-xs text-muted-foreground" />
+                <p className="text-[11px] text-amber-600">Public URL not resolved. Set PUBLIC_BASE_URL or configure the share system.</p>
+              </>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              {channel.platform === 'telegram'
+                ? 'Telegram sends webhook events to this URL. It was set during bot setup.'
+                : 'Set this as the Request URL in your Slack app → Event Subscriptions.'}
+            </p>
           </div>
 
           {/* Save */}

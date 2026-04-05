@@ -116,7 +116,7 @@ function SessionRow({
         className={cn(
           'flex items-center gap-2 rounded-lg cursor-pointer transition-colors duration-150',
           'pr-1.5',
-          isChild ? 'py-[3px] pl-3' : 'py-1 pl-3',
+          isChild ? 'py-1 pl-3' : 'py-1.5 pl-3',
           isActive
             ? 'bg-sidebar-accent text-sidebar-accent-foreground'
             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground',

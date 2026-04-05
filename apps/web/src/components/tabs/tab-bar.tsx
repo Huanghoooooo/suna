@@ -22,6 +22,8 @@ import {
   Activity,
   ChevronLeft,
   ChevronRight,
+  Menu,
+  PanelRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTabStore, type Tab, type TabType, DASHBOARD_TAB_ID } from '@/stores/tab-store';
@@ -48,6 +50,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { useSidebar } from '@/components/ui/sidebar';
+import { useRightSidebarSafe } from '@/components/ui/sidebar-right-provider';
 
 const DEPLOYMENTS_ENABLED = process.env.NEXT_PUBLIC_KORTIX_DEPLOYMENTS_ENABLED === 'true';
 
@@ -467,7 +471,7 @@ function TabItem({
         'h-full',
         isDashboard
           ? 'w-9 justify-center px-0'
-          : 'gap-2 px-3 max-w-[200px] min-w-[80px]',
+          : 'gap-1.5 px-2 md:gap-2 md:px-3 max-w-[200px] min-w-[48px] md:min-w-[80px]',
         isActive
           ? 'text-foreground'
           : 'text-muted-foreground hover:text-foreground',
@@ -527,7 +531,7 @@ function TabItem({
 
       {/* Pin indicator — hidden for dashboard (it's always pinned but we don't show the icon) */}
       {tab.pinned && !isDashboard && (
-        <Pin className="flex-shrink-0 h-2 w-2 text-muted-foreground/40 -rotate-[20deg]" />
+        <Pin className="flex-shrink-0 h-2 w-2 text-muted-foreground/40 -rotate-[20deg] hidden md:block" />
       )}
 
       {/* Close button — never shown for dashboard */}
@@ -537,9 +541,10 @@ function TabItem({
           className={cn(
             'flex-shrink-0 p-0.5 rounded-sm transition-colors duration-100 cursor-pointer',
             'hover:bg-foreground/10',
+            'hidden md:block',
             isActive
-              ? 'opacity-40 hover:opacity-80'
-              : 'opacity-0 group-hover:opacity-40 group-hover:hover:opacity-80',
+              ? 'md:opacity-40 md:hover:opacity-80'
+              : 'md:opacity-0 md:group-hover:opacity-40 md:group-hover:hover:opacity-80',
           )}
           aria-label={`Close ${tab.title}`}
         >
@@ -566,6 +571,8 @@ export function TabBar() {
   const currentInstanceId = getCurrentInstanceIdFromPathname(rawPathname) || getActiveInstanceIdFromCookie();
   const scrollRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const sidebar = useSidebar();
+  const rightSidebar = useRightSidebarSafe();
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -1080,18 +1087,35 @@ export function TabBar() {
 
   // Always render the bar so the bg-sidebar strip above the content curve is consistent
   if (orderedTabs.length === 0) {
-    return <div className="flex-shrink-0 bg-sidebar h-[38px]" />;
+    return <div className="flex-shrink-0 bg-sidebar h-[44px] md:h-[38px]" />;
   }
 
   return (
     <>
       <div
         ref={tabBarRef}
-        className="flex-shrink-0 flex items-stretch bg-sidebar h-[38px] relative overflow-hidden"
+        className="flex-shrink-0 flex items-stretch bg-sidebar h-[44px] md:h-[38px] relative overflow-hidden"
         role="tablist"
       >
-        {/* Back/Forward navigation */}
-        <div className="flex-shrink-0 flex items-center gap-0 pl-2 pr-1">
+        {/* Mobile: sidebar toggles */}
+        <div className="flex-shrink-0 flex items-center gap-0 pl-2 pr-1 md:hidden">
+          <button
+            onClick={() => { sidebar.setOpenMobile(true); }}
+            className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => { rightSidebar?.setOpenMobile(true); }}
+            className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+            aria-label="Quick actions"
+          >
+            <PanelRight className="h-4 w-4" />
+          </button>
+        </div>
+        {/* Desktop: Back/Forward navigation */}
+        <div className="flex-shrink-0 flex items-center gap-0 pl-2 pr-1 hidden md:flex">
           <Tooltip>
             <TooltipTrigger asChild>
               <button

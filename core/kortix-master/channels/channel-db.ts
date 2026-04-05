@@ -40,9 +40,9 @@ export function getDb(): Database {
     CREATE TABLE IF NOT EXISTS channels (
       id TEXT PRIMARY KEY,
       platform TEXT NOT NULL,
-      name TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
       enabled INTEGER DEFAULT 1,
-      bot_token TEXT NOT NULL,
+      bot_token TEXT NOT NULL DEFAULT '',
       signing_secret TEXT,
       webhook_secret TEXT NOT NULL,
       webhook_path TEXT NOT NULL UNIQUE,
@@ -56,6 +56,39 @@ export function getDb(): Database {
       updated_at TEXT NOT NULL
     );
   `)
+
+  // Migration: remove UNIQUE constraint on name column.
+  // The old schema had `name TEXT NOT NULL UNIQUE` which crashes when random names collide.
+  // Only id and webhook_path need to be unique.
+  try {
+    const tableInfo = _db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='channels'").get() as { sql: string } | null
+    if (tableInfo?.sql?.includes('name TEXT NOT NULL UNIQUE')) {
+      _db.exec(`
+        CREATE TABLE IF NOT EXISTS channels_new (
+          id TEXT PRIMARY KEY,
+          platform TEXT NOT NULL,
+          name TEXT NOT NULL,
+          enabled INTEGER DEFAULT 1,
+          bot_token TEXT NOT NULL DEFAULT '',
+          signing_secret TEXT,
+          webhook_secret TEXT NOT NULL,
+          webhook_path TEXT NOT NULL UNIQUE,
+          bot_id TEXT,
+          bot_username TEXT,
+          default_agent TEXT DEFAULT 'kortix',
+          default_model TEXT DEFAULT '',
+          instructions TEXT,
+          created_by TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        INSERT INTO channels_new SELECT * FROM channels;
+        DROP TABLE channels;
+        ALTER TABLE channels_new RENAME TO channels;
+      `)
+    }
+  } catch {}
+
   return _db
 }
 

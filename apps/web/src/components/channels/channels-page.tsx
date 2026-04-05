@@ -36,6 +36,7 @@ interface Channel {
   default_model: string;
   instructions?: string;
   webhook_path: string;
+  webhook_url?: string | null;
   created_by: string | null;
   created_at: string;
 }

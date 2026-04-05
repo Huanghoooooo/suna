@@ -13,6 +13,8 @@ type RightSidebarContextProps = {
   state: 'expanded' | 'collapsed';
   open: boolean;
   setOpen: (open: boolean) => void;
+  openMobile: boolean;
+  setOpenMobile: (open: boolean) => void;
   isMobile: boolean;
   toggleSidebar: () => void;
 };
@@ -45,6 +47,7 @@ export function RightSidebarProvider({
   const isMobile = useIsMobile();
   const { isOpen: isDocumentModalOpen } = useDocumentModalStore();
   const [open, _setOpen] = React.useState(defaultOpen);
+  const [openMobile, setOpenMobile] = React.useState(false);
 
   const setOpen = React.useCallback((value: boolean) => {
     _setOpen(value);
@@ -100,10 +103,12 @@ export function RightSidebarProvider({
       state,
       open,
       setOpen,
+      openMobile,
+      setOpenMobile,
       isMobile,
       toggleSidebar,
     }),
-    [state, open, setOpen, isMobile, toggleSidebar],
+    [state, open, setOpen, openMobile, setOpenMobile, isMobile, toggleSidebar],
   );
 
   return (

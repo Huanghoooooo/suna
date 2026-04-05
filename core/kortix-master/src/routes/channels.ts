@@ -37,6 +37,7 @@ channelsRouter.get('/', async (c) => {
     const { listChannels } = await loadDb()
     const platform = c.req.query('platform')
     const channels = listChannels(platform || undefined)
+    const publicBase = getMasterPublicBaseUrl()
     return c.json({
       ok: true,
       channels: channels.map(ch => ({
@@ -47,7 +48,9 @@ channelsRouter.get('/', async (c) => {
         bot_username: ch.bot_username,
         default_agent: ch.default_agent,
         default_model: ch.default_model,
+        instructions: ch.instructions || '',
         webhook_path: ch.webhook_path,
+        webhook_url: publicBase ? joinPublicBaseUrl(publicBase, ch.webhook_path) : null,
         created_by: ch.created_by,
         created_at: ch.created_at,
         updated_at: ch.updated_at,
@@ -329,6 +332,7 @@ channelsRouter.get('/:id', async (c) => {
     const { getChannel } = await loadDb()
     const ch = getChannel(c.req.param('id'))
     if (!ch) return c.json({ ok: false, error: 'Not found' }, 404)
+    const publicBase = getMasterPublicBaseUrl()
     return c.json({
       ok: true,
       channel: {
@@ -341,6 +345,7 @@ channelsRouter.get('/:id', async (c) => {
         default_model: ch.default_model,
         instructions: ch.instructions,
         webhook_path: ch.webhook_path,
+        webhook_url: publicBase ? joinPublicBaseUrl(publicBase, ch.webhook_path) : null,
         created_by: ch.created_by,
         created_at: ch.created_at,
         updated_at: ch.updated_at,
@@ -385,7 +390,8 @@ channelsRouter.delete('/:id', async (c) => {
     }
 
     // Best-effort provider-side cleanup before deleting local secrets/tokens.
-    if (ch.platform === 'telegram') {
+    // Skip provider cleanup if there's no real token (e.g. Slack placeholder from manifest step).
+    if (ch.platform === 'telegram' && ch.bot_token) {
       const providerResults: Record<string, unknown> = {}
 
       // Remove webhook so Telegram stops delivering events to this bot/channel bridge.
@@ -421,7 +427,7 @@ channelsRouter.delete('/:id', async (c) => {
       }
 
       cleanup.provider = providerResults
-    } else if (ch.platform === 'slack') {
+    } else if (ch.platform === 'slack' && ch.bot_token) {
       // Slack does not provide a simple one-call equivalent for removing Event Subscriptions
       // from a bot token at runtime. We can still remove all local secrets/tokens and connector state.
       cleanup.provider = {

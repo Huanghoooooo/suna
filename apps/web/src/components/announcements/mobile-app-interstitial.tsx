@@ -56,6 +56,8 @@ function GooglePlayLogo({ className }: { className?: string }) {
 }
 
 export function MobileAppInterstitial() {
+  // Mobile app interstitial disabled — mobile users go through normal auth flow
+  return null;
   const [isVisible, setIsVisible] = useState(false);
   const [platform, setPlatform] = useState<Platform | null>(null);
 

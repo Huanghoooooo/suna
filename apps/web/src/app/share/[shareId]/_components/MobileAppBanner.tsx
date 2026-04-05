@@ -29,6 +29,8 @@ interface MobileAppBannerProps {
 }
 
 export function MobileAppBanner({ shareId }: MobileAppBannerProps) {
+  // Mobile app banner disabled — mobile users go through normal auth flow
+  return null;
   const [isMobile, setIsMobile] = useState(false);
   const [platform, setPlatform] = useState<'ios' | 'android' | null>(null);
   const [isDismissed, setIsDismissed] = useState(false);

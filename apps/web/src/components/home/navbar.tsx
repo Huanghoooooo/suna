@@ -13,7 +13,6 @@ import { KortixLogo } from '@/components/sidebar/kortix-logo';
 import { useTranslations } from 'next-intl';
 import { trackCtaSignup } from '@/lib/analytics/gtm';
 import { AppDownloadQR } from '@/components/common/app-download-qr';
-import { isMobileDevice } from '@/lib/utils/is-mobile-device';
 import { Button } from '@/components/ui/button';
 import { useGitHubStars } from '@/hooks/utils/use-github-stars';
 import {
@@ -152,7 +151,6 @@ export function Navbar({ isAbsolute = false }: NavbarProps) {
   const [hasScrolled, setHasScrolled] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('hero');
-  const [isMobile, setIsMobile] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -162,14 +160,7 @@ export function Navbar({ isAbsolute = false }: NavbarProps) {
   const filteredNavLinks = siteConfig.nav.links;
   const { formattedStars, loading: starsLoading } = useGitHubStars('kortix-ai', 'kortix');
 
-  // Detect if user is on an actual mobile device (iOS/Android)
-  // Mobile users clicking "Try Free" will be redirected to /app which then redirects to app stores
-  useEffect(() => {
-    setIsMobile(isMobileDevice());
-  }, []);
-
-  // Get the appropriate CTA link based on device type
-  const ctaLink = isMobile ? '/app' : '/auth';
+  const ctaLink = '/auth';
 
   // Single unified scroll handler with hysteresis
   const handleScroll = useCallback(() => {
