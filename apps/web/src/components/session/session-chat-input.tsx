@@ -2063,7 +2063,7 @@ export function SessionChatInput({
   }, [text, mentions]);
 
   return (
-    <div className="mx-auto w-full max-w-4xl relative shrink-0 px-2 sm:px-4 pb-6">
+    <div className="mx-auto w-full max-w-[52rem] relative shrink-0 px-2 sm:px-4 pb-6">
       {/* Todo panel removed — now inline inside the card as TodoChip */}
       <div
         ref={cardRef}

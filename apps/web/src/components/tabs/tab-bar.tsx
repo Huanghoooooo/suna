@@ -1148,12 +1148,8 @@ export function TabBar() {
           {orderedTabs.map((tab, index) => {
             const pending = tab.type === 'session' ? getPendingCount(tab.id) : 0;
             const busy = tab.type === 'session' && pending === 0 && statuses[tab.id]?.type === 'busy';
-            const showSep = index > 0 && tab.id !== activeTabId && orderedTabs[index - 1]?.id !== activeTabId;
             return (
               <div key={tab.id} data-tab-id={tab.id} className="flex items-stretch relative">
-                {showSep && (
-                  <div className="absolute left-0 top-[10px] bottom-[10px] w-px bg-border/40" />
-                )}
                 <TabItem
                   tab={tab}
                   index={index}
