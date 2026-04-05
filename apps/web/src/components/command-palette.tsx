@@ -49,6 +49,7 @@ import {
 } from '@/hooks/opencode/use-opencode-sessions';
 import { toast } from '@/lib/toast';
 import { useServerStore } from '@/stores/server-store';
+import { authenticatedFetch } from '@/lib/auth-token';
 
 import { useCreateOpenCodeSession } from '@/hooks/opencode/use-opencode-sessions';
 import { openTabAndNavigate } from '@/stores/tab-store';
@@ -781,19 +782,25 @@ export function CommandPalette() {
   const handleRestartConfig = useCallback(() => {
     close();
     const serverUrl = useServerStore.getState().getActiveServerUrl();
-    fetch(`${serverUrl}/kortix/services/system/reload`, {
+    authenticatedFetch(`${serverUrl}/kortix/services/system/reload`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode: 'dispose-only' }),
-    }).then(() => toast.success('Config reloaded')).catch(() => toast.error('Restart failed'));
+    }).then((res) => {
+      if (res.ok) toast.success('Config reloaded');
+      else toast.error('Restart failed');
+    }).catch(() => toast.error('Restart failed'));
   }, [close]);
 
   const handleRestartFull = useCallback(() => {
     close();
     const serverUrl = useServerStore.getState().getActiveServerUrl();
-    fetch(`${serverUrl}/kortix/services/system/reload`, {
+    authenticatedFetch(`${serverUrl}/kortix/services/system/reload`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode: 'full' }),
-    }).then(() => toast.success('Full restart initiated')).catch(() => toast.error('Restart failed'));
+    }).then((res) => {
+      if (res.ok) toast.success('Full restart initiated');
+      else toast.error('Restart failed');
+    }).catch(() => toast.error('Restart failed'));
   }, [close]);
 
   const actionHandlers: Record<string, () => void> = useMemo(() => ({
