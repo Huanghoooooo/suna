@@ -92,6 +92,25 @@ async function sendSlackText(channel: ChannelConfig, targetChannel: string, text
   })
 }
 
+interface OpenCodeSession {
+  id: string
+  title?: string
+  time?: { created?: string }
+}
+
+async function fetchSessions(limit: number = 10): Promise<OpenCodeSession[]> {
+  try {
+    const res = await fetch(`${OPENCODE_URL}/session`, {
+      signal: AbortSignal.timeout(5_000),
+    })
+    if (!res.ok) return []
+    const sessions = await res.json() as OpenCodeSession[]
+    return sessions.slice(0, limit)
+  } catch {
+    return []
+  }
+}
+
 async function fetchAvailableModels(): Promise<string[]> {
   try {
     const res = await fetch('http://localhost:8000/kortix/preferences/models', {
@@ -214,26 +233,32 @@ async function handleChannelCommand(
     }
 
     case 'sessions': {
-      const sessState = getSessionState(event.session_key)
-      return {
-        handled: true,
-        text: sessState.history.length
-          ? `Recent sessions:\n${sessState.history.map((id, i) => `${i + 1}. ${id}`).join('\n')}`
-          : 'No sessions yet.',
+      const current = getSessionState(event.session_key)
+      const sessions = await fetchSessions(15)
+      if (sessions.length === 0) {
+        return { handled: true, text: 'No sessions yet.' }
       }
+      const lines = sessions.map((s) => {
+        const marker = s.id === current.currentId ? ' ← current' : ''
+        const title = (s.title || '(untitled)').slice(0, 50)
+        return `${s.id.slice(0, 16)}… ${title}${marker}`
+      })
+      return { handled: true, text: `Sessions:\n${lines.join('\n')}` }
     }
 
     case 'session': {
       if (!arg) {
-        const sessState2 = getSessionState(event.session_key)
-        return { handled: true, text: `Current: ${sessState2.currentId || 'none'}\nUsage: ${p}session <id>` }
+        const current = getSessionState(event.session_key)
+        return { handled: true, text: `Current: ${current.currentId || 'none'}\nUsage: ${p}session <id or partial>` }
       }
-      const sessState3 = getSessionState(event.session_key)
-      if (!sessState3.history.includes(arg)) {
-        return { handled: true, text: `Unknown session: ${arg}` }
+      // Allow partial ID matching
+      const sessions = await fetchSessions(100)
+      const match = sessions.find(s => s.id === arg || s.id.startsWith(arg))
+      if (!match) {
+        return { handled: true, text: `No session found matching: ${arg}` }
       }
-      rememberSession(event.session_key, arg)
-      return { handled: true, text: `Switched to: ${arg}` }
+      rememberSession(event.session_key, match.id)
+      return { handled: true, text: `Switched to: ${match.id}\n${match.title || '(untitled)'}` }
     }
 
     case 'help': {
