@@ -19,18 +19,56 @@ const channelWebhooksRouter = new Hono()
 
 const OPENCODE_URL = 'http://localhost:4096'
 
-// ── Session reuse map — keyed by session_key from the normalized event ─────
-const sessionMap = new Map<string, string>()
-const sessionHistoryMap = new Map<string, string[]>()
+// ── Persistent session store — survives restarts via SQLite ─────────────────
+
+import { getDb } from '../../channels/channel-db'
+
+function ensureSessionTable(): void {
+  const db = getDb()
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS channel_sessions (
+      session_key TEXT PRIMARY KEY,
+      current_session_id TEXT NOT NULL,
+      history TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL
+    );
+  `)
+}
+
+// Run on module load
+try { ensureSessionTable() } catch {}
+
+function getSessionState(sessionKey: string): { currentId: string | null; history: string[] } {
+  try {
+    const db = getDb()
+    const row = db.prepare('SELECT current_session_id, history FROM channel_sessions WHERE session_key = ?').get(sessionKey) as { current_session_id: string; history: string } | null
+    if (!row) return { currentId: null, history: [] }
+    return { currentId: row.current_session_id, history: JSON.parse(row.history || '[]') }
+  } catch {
+    return { currentId: null, history: [] }
+  }
+}
 
 function rememberSession(sessionKey: string, sessionId: string): void {
-  const history = sessionHistoryMap.get(sessionKey) || []
-  const next = [sessionId, ...history.filter(id => id !== sessionId)].slice(0, 10)
-  sessionHistoryMap.set(sessionKey, next)
+  try {
+    const db = getDb()
+    const existing = getSessionState(sessionKey)
+    const history = [sessionId, ...existing.history.filter(id => id !== sessionId)].slice(0, 10)
+    const now = new Date().toISOString()
+    db.prepare(`
+      INSERT INTO channel_sessions (session_key, current_session_id, history, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(session_key) DO UPDATE SET current_session_id = excluded.current_session_id, history = excluded.history, updated_at = excluded.updated_at
+    `).run(sessionKey, sessionId, JSON.stringify(history), now)
+  } catch {}
 }
 
 function clearSession(sessionKey: string): void {
-  sessionMap.delete(sessionKey)
+  try {
+    const db = getDb()
+    db.prepare('UPDATE channel_sessions SET current_session_id = \'\', updated_at = ? WHERE session_key = ?')
+      .run(new Date().toISOString(), sessionKey)
+  } catch {}
 }
 
 async function sendTelegramText(channel: ChannelConfig, chatId: string, text: string): Promise<void> {
@@ -96,7 +134,7 @@ async function handleChannelCommand(
 
     case 'status':
     case 'info': {
-      const currentSession = sessionMap.get(event.session_key) || null
+      const state = getSessionState(event.session_key)
       return {
         handled: true,
         text: [
@@ -104,7 +142,7 @@ async function handleChannelCommand(
           `Bot: @${channel.bot_username || '?'}`,
           `Agent: ${channel.default_agent || 'kortix'}`,
           `Model: ${channel.default_model || '(default)'}`,
-          `Session: ${currentSession || 'none'}`,
+          `Session: ${state.currentId || 'none'}`,
           `Enabled: ${channel.enabled ? 'yes' : 'no'}`,
           channel.instructions ? `Instructions: ${channel.instructions.slice(0, 100)}${channel.instructions.length > 100 ? '…' : ''}` : '',
         ].filter(Boolean).join('\n'),
@@ -176,25 +214,25 @@ async function handleChannelCommand(
     }
 
     case 'sessions': {
-      const history = sessionHistoryMap.get(event.session_key) || []
+      const sessState = getSessionState(event.session_key)
       return {
         handled: true,
-        text: history.length
-          ? `Recent sessions:\n${history.map((id, i) => `${i + 1}. ${id}`).join('\n')}`
+        text: sessState.history.length
+          ? `Recent sessions:\n${sessState.history.map((id, i) => `${i + 1}. ${id}`).join('\n')}`
           : 'No sessions yet.',
       }
     }
 
     case 'session': {
       if (!arg) {
-        const currentSession = sessionMap.get(event.session_key) || 'none'
-        return { handled: true, text: `Current: ${currentSession}\nUsage: ${p}session <id>` }
+        const sessState2 = getSessionState(event.session_key)
+        return { handled: true, text: `Current: ${sessState2.currentId || 'none'}\nUsage: ${p}session <id>` }
       }
-      const history = sessionHistoryMap.get(event.session_key) || []
-      if (!history.includes(arg)) {
+      const sessState3 = getSessionState(event.session_key)
+      if (!sessState3.history.includes(arg)) {
         return { handled: true, text: `Unknown session: ${arg}` }
       }
-      sessionMap.set(event.session_key, arg)
+      rememberSession(event.session_key, arg)
       return { handled: true, text: `Switched to: ${arg}` }
     }
 
@@ -230,7 +268,7 @@ async function dispatchToOpenCode(
   channel: ChannelConfig,
   event: NormalizedChannelEvent,
 ): Promise<{ sessionId: string }> {
-  const existingSessionId = sessionMap.get(event.session_key)
+  const existingSessionId = getSessionState(event.session_key).currentId || null
 
   // Parse "provider/model" into the format OpenCode expects
   const modelOverride = channel.default_model
@@ -260,9 +298,9 @@ async function dispatchToOpenCode(
         return { sessionId: existingSessionId }
       }
       // Session might be gone — fall through to create new one
-      sessionMap.delete(event.session_key)
+      clearSession(event.session_key)
     } catch {
-      sessionMap.delete(event.session_key)
+      clearSession(event.session_key)
     }
   }
 
@@ -295,8 +333,8 @@ async function dispatchToOpenCode(
     throw new Error(`Failed to send prompt: ${promptRes.status}`)
   }
 
-  // Cache session for reuse
-  sessionMap.set(event.session_key, session.id)
+  // Cache session for reuse (persisted in SQLite)
+  rememberSession(event.session_key, session.id)
   rememberSession(event.session_key, session.id)
 
   return { sessionId: session.id }
