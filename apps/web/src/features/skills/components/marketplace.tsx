@@ -436,7 +436,7 @@ export function Marketplace() {
 		<>
 			<div className="flex-1 overflow-y-auto">
 				{/* Page header */}
-				<div className="container mx-auto max-w-7xl px-3 sm:px-4 py-4 sm:py-8 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both">
+				<div className="container mx-auto max-w-7xl px-3 sm:px-4 py-3 sm:py-4 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both">
 					<PageHeader icon={Sparkles}>
 						<div className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
 							<span className="text-primary">Marketplace</span>
