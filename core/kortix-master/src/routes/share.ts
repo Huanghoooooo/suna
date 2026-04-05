@@ -22,6 +22,7 @@
 import { Hono } from 'hono'
 import { describeRoute, resolver } from 'hono-openapi'
 import { z } from 'zod'
+import { getEnv } from '../../opencode/tools/lib/get-env.js'
 import { config } from '../config'
 import {
   createShare,
@@ -57,7 +58,7 @@ const ShareErrorResponse = z.object({
  * Build the public base URL that reaches port 8000 (kortix-master) from outside.
  * This is where /s/{token}/* lives.
  */
-function getMasterPublicBaseUrl(): string {
+export function getMasterPublicBaseUrl(): string {
   const envMode = process.env.ENV_MODE || 'local'
   const slug = process.env.JUSTAVPS_SLUG || ''
   const proxyToken = process.env.JUSTAVPS_PROXY_TOKEN || ''
@@ -73,6 +74,11 @@ function getMasterPublicBaseUrl(): string {
   const kortixApiUrl = (process.env.KORTIX_API_URL || '').replace(/\/v1\/router\/?$/, '')
   if (envMode === 'cloud' && sandboxId && kortixApiUrl) {
     return `${kortixApiUrl}/v1/p/${sandboxId}/8000`
+  }
+
+  const explicitPublicBase = getEnv('PUBLIC_BASE_URL') || process.env.PUBLIC_BASE_URL || ''
+  if (explicitPublicBase) {
+    return explicitPublicBase.replace(/\/+$/, '')
   }
 
   // Local: host port mapping for port 8000, or direct

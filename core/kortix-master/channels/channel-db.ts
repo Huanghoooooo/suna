@@ -117,6 +117,7 @@ export function createChannel(opts: {
   default_model?: string
   instructions?: string
   created_by?: string
+  enabled?: boolean
 }): ChannelConfig {
   const db = getDb()
   const id = crypto.randomUUID()
@@ -124,13 +125,14 @@ export function createChannel(opts: {
   const webhookSecret = crypto.randomUUID().replace(/-/g, "")
   const webhookPath = `/hooks/${opts.platform}/${id}`
   const now = new Date().toISOString()
+  const enabled = opts.enabled === false ? 0 : 1
 
   db.prepare(`
     INSERT INTO channels (id, platform, name, enabled, bot_token, signing_secret, webhook_secret, webhook_path,
       bot_id, bot_username, default_agent, default_model, instructions, created_by, created_at, updated_at)
-    VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, opts.platform, name, opts.bot_token, opts.signing_secret || null,
+    id, opts.platform, name, enabled, opts.bot_token, opts.signing_secret || null,
     webhookSecret, webhookPath,
     opts.bot_id || null, opts.bot_username || null,
     opts.default_agent || "kortix", opts.default_model || "anthropic/claude-sonnet-4-20250514",
@@ -152,6 +154,58 @@ export function getChannelByPath(webhookPath: string): ChannelConfig | null {
   const row = db.query("SELECT * FROM channels WHERE webhook_path = ?").get(webhookPath) as any
   if (!row) return null
   return { ...row, enabled: !!row.enabled }
+}
+
+export function listChannelsByBot(platform: "telegram" | "slack", botId: string, botUsername?: string): ChannelConfig[] {
+  const db = getDb()
+  const rows = botUsername
+    ? db.query(
+        "SELECT * FROM channels WHERE platform = ? AND (bot_id = ? OR bot_username = ?) ORDER BY created_at DESC",
+      ).all(platform, botId, botUsername) as any[]
+    : db.query(
+        "SELECT * FROM channels WHERE platform = ? AND bot_id = ? ORDER BY created_at DESC",
+      ).all(platform, botId) as any[]
+  return rows.map(r => ({ ...r, enabled: !!r.enabled }))
+}
+
+export function upsertChannelByBot(opts: {
+  platform: "telegram" | "slack"
+  name?: string
+  bot_token: string
+  signing_secret?: string
+  bot_id?: string
+  bot_username?: string
+  default_agent?: string
+  default_model?: string
+  instructions?: string
+  created_by?: string
+}): { channel: ChannelConfig; created: boolean; deduped: number } {
+  const botId = opts.bot_id || ""
+  const matches = botId ? listChannelsByBot(opts.platform, botId, opts.bot_username) : []
+
+  if (matches.length === 0) {
+    return { channel: createChannel(opts), created: true, deduped: 0 }
+  }
+
+  const keeper = matches[0]!
+  const updated = updateChannel(keeper.id, {
+    name: opts.name ?? keeper.name,
+    enabled: true,
+    bot_token: opts.bot_token,
+    signing_secret: opts.signing_secret ?? keeper.signing_secret ?? undefined,
+    default_agent: opts.default_agent ?? keeper.default_agent,
+    default_model: opts.default_model ?? keeper.default_model,
+    instructions: opts.instructions ?? keeper.instructions ?? undefined,
+    bot_id: opts.bot_id ?? keeper.bot_id ?? undefined,
+    bot_username: opts.bot_username ?? keeper.bot_username ?? undefined,
+  })!
+
+  let deduped = 0
+  for (const dupe of matches.slice(1)) {
+    if (deleteChannel(dupe.id)) deduped += 1
+  }
+
+  return { channel: updated, created: false, deduped }
 }
 
 export function listChannels(platform?: string): ChannelConfig[] {
@@ -206,11 +260,10 @@ export function disableChannel(id: string): ChannelConfig | null {
   return updateChannel(id, { enabled: false })
 }
 
-// ─── Connector auto-registration ─────────────────────────────────────────────
+// ─── Legacy cleanup: remove old auto-generated connector shadow rows ─────────
 
-export function registerConnector(channel: ChannelConfig): void {
+export function cleanupLegacyChannelConnectors(): number {
   const db = getDb()
-  // Ensure connectors table exists (normally created by connectors plugin, but we may run standalone)
   db.exec(`
     CREATE TABLE IF NOT EXISTS connectors (
       id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, description TEXT, source TEXT,
@@ -218,13 +271,12 @@ export function registerConnector(channel: ChannelConfig): void {
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
   `)
-  const connectorName = `${channel.platform}-${channel.name.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-")}`
-  const description = `${channel.platform === "telegram" ? "Telegram" : "Slack"} bot @${channel.bot_username || "?"} — ${channel.name}`
-  const now = new Date().toISOString()
-
-  db.prepare(`
-    INSERT INTO connectors (id, name, description, source, notes, auto_generated, created_at, updated_at)
-    VALUES (?, ?, ?, 'channel', ?, 1, ?, ?)
-    ON CONFLICT(name) DO UPDATE SET description = excluded.description, updated_at = excluded.updated_at
-  `).run(crypto.randomUUID(), connectorName, description, `Channel ID: ${channel.id}`, now, now)
+  const result = db.prepare(`
+    DELETE FROM connectors
+    WHERE source = 'channel'
+       OR (auto_generated = 1 AND notes LIKE 'Channel ID: %')
+  `).run()
+  return result.changes
 }
+
+cleanupLegacyChannelConnectors()

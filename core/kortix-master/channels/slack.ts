@@ -46,6 +46,14 @@ function slackApiBase(): string {
   return (getEnv("SLACK_API_URL") || "https://slack.com/api").replace(/\/$/, "")
 }
 
+function joinPublicBaseUrl(baseUrl: string, path: string): string {
+  const url = new URL(baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`)
+  const basePath = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname
+  const suffix = path.startsWith('/') ? path : `/${path}`
+  url.pathname = `${basePath}${suffix}`
+  return url.toString()
+}
+
 // ─── API helpers ─────────────────────────────────────────────────────────────
 
 async function apiPost(method: string, body: Record<string, unknown>): Promise<any> {
@@ -267,6 +275,21 @@ function out(data: unknown): void {
 async function main(): Promise<void> {
   const { command, flags } = parseArgs(process.argv)
 
+  if (flags["config-id"]) {
+    const { getChannel } = await import("./channel-db")
+    const channel = getChannel(flags["config-id"])
+    if (!channel) {
+      out({ ok: false, error: `Channel not found: ${flags["config-id"]}` })
+      process.exit(1)
+    }
+    if (channel.platform !== "slack") {
+      out({ ok: false, error: `Channel ${flags["config-id"]} is not a Slack channel` })
+      process.exit(1)
+    }
+    process.env.SLACK_BOT_TOKEN = channel.bot_token
+    if (channel.signing_secret) process.env.SLACK_SIGNING_SECRET = channel.signing_secret
+  }
+
   switch (command) {
     case "send": {
       if (!flags.channel) { out({ ok: false, error: "--channel required" }); process.exit(1) }
@@ -369,7 +392,7 @@ async function main(): Promise<void> {
         process.exit(1)
       }
 
-      const { createChannel, registerConnector } = await import("./channel-db")
+      const { createChannel } = await import("./channel-db")
       const channel = createChannel({
         platform: "slack",
         name: flags.name,
@@ -382,12 +405,11 @@ async function main(): Promise<void> {
         created_by: flags["created-by"],
       })
 
-      registerConnector(channel)
       process.env.SLACK_BOT_TOKEN = origToken
 
       // Generate manifest if URL provided
       const publicUrl = flags.url || getEnv("PUBLIC_URL") || ""
-      const webhookUrl = publicUrl ? `${publicUrl}${channel.webhook_path}` : null
+      const webhookUrl = publicUrl ? joinPublicBaseUrl(publicUrl, channel.webhook_path) : null
 
       out({
         ok: true,
@@ -411,9 +433,9 @@ async function main(): Promise<void> {
       const publicUrl = flags.url || getEnv("PUBLIC_URL") || ""
       if (!publicUrl) { out({ ok: false, error: "--url required (your public URL for webhooks)" }); process.exit(1) }
       const channelId = flags["channel-id"] || "new"
-      const webhookUrl = `${publicUrl}/hooks/slack/${channelId}`
+      const webhookUrl = joinPublicBaseUrl(publicUrl, `/hooks/slack/${channelId}`)
       const manifest = {
-        display_information: { name: flags.name || "Kortix Agent", description: "AI agent powered by Kortix", background_color: "#1a1a2e" },
+        display_information: { name: flags.name || `Kortix ${["Atlas","Nova","Sage","Echo","Bolt","Iris","Dash","Cleo","Finn","Luna","Juno","Axel","Niko","Zara","Milo","Ruby","Hugo","Aria","Leo","Ivy"][Math.floor(Math.random()*20)]}`, description: "Kortix AI instance", background_color: "#1a1a2e" },
         features: { bot_user: { display_name: flags.name || "Kortix", always_online: true } },
         oauth_config: { scopes: { bot: [
           "app_mentions:read", "channels:history", "channels:read", "channels:join",
@@ -441,13 +463,13 @@ Slack Web API CLI
 Commands:
   setup         Set up new Slack bot (--token, [--signing-secret], [--name], [--url], [--created-by])
   manifest      Generate Slack app manifest (--url, [--name], [--channel-id])
-  send          Send message/file (--channel, --text, [--thread], [--file], [--text-file])
-  edit          Edit a message (--channel, --ts, --text/--text-file)
-  delete        Delete a message (--channel, --ts)
-  react         Add reaction (--channel, --ts, --emoji)
-  typing        Typing indicator (--channel)
-  history       Channel history (--channel, [--limit])
-  thread        Thread replies (--channel, --ts, [--limit])
+  send          Send message/file (--channel, --text, [--thread], [--file], [--text-file], [--config-id])
+  edit          Edit a message (--channel, --ts, --text/--text-file, [--config-id])
+  delete        Delete a message (--channel, --ts, [--config-id])
+  react         Add reaction (--channel, --ts, --emoji, [--config-id])
+  typing        Typing indicator (--channel, [--config-id])
+  history       Channel history (--channel, [--limit], [--config-id])
+  thread        Thread replies (--channel, --ts, [--limit], [--config-id])
   channels      List channels ([--limit])
   channel-info  Get channel info (--channel)
   join          Join channel (--channel)
@@ -458,7 +480,7 @@ Commands:
   file-info     Get file info (--file <file_id>)
   download      Download file (--url <url_private> --out <path>)
 
-Auth: SLACK_BOT_TOKEN env var
+Auth: SLACK_BOT_TOKEN env var or --config-id <channel-id>
 `)
       break
   }

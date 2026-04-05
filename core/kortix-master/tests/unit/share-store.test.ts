@@ -148,6 +148,12 @@ describe('Share Store', () => {
       expect(entry.label).toBe('my-website')
     })
 
+    it('reuses an active share for the same port+label', () => {
+      const a = createShare(3000, DEFAULT_TTL_MS, 'channels-master')
+      const b = createShare(3000, DEFAULT_TTL_MS, 'channels-master')
+      expect(a.token).toBe(b.token)
+    })
+
     it('expired share returns null', () => {
       // Create a share with 1ms TTL — it will expire immediately
       const entry = createShare(3000, 1)

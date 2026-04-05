@@ -474,6 +474,9 @@ The `.kortix/research/` and `.kortix/handoffs/` directories are standard locatio
 
 Connectors track what external services are connected and how (OAuth, API key, CLI, custom).
 
+**Important:** Connectors do **not** represent Telegram/Slack channels anymore.
+Messaging channels live in the separate `channels` system and must be checked via `kchannel` or `/kortix/channels` — never via `connector_list`.
+
 **Tools (orchestrator):**
 
 | Tool | Purpose |
@@ -656,6 +659,14 @@ ktelegram send --chat 123 --text "Here's your site (link valid for 1 hour): $URL
 
 Channel CLIs let you manage and communicate via Telegram and Slack bots.
 
+**Source of truth:** Channels are stored in the `channels` SQLite table and exposed via `kchannel` / `/kortix/channels`.
+Do **not** use `connector_list` to answer channel questions. Old connector shadow rows may exist transiently during migration, but they are not authoritative.
+
+**If a user asks whether they have channels configured:**
+1. Check with `kchannel list` (worker/bash) or `GET /kortix/channels`
+2. Report Telegram/Slack channels only from that data
+3. Do not infer channel state from connectors
+
 **Management:**
 ```bash
 kchannel list                          # List all connected channels
@@ -668,27 +679,35 @@ kchannel set <id> --agent X --model Y  # Update settings
 **Telegram:**
 ```bash
 ktelegram setup --token <BOT_TOKEN> --url <PUBLIC_URL> --created-by <name>  # Set up new bot
-ktelegram send --chat <id> --text "msg"             # Send message
-ktelegram send --chat <id> --text-file /tmp/msg.txt  # Send complex message
-ktelegram send --chat <id> --file /tmp/img.png       # Send file
-ktelegram typing --chat <id>                         # Typing indicator
-ktelegram me                                         # Bot info
+ktelegram send --config-id <CHANNEL_ID> --chat <id> --text "msg"              # Send message
+ktelegram send --config-id <CHANNEL_ID> --chat <id> --text-file /tmp/msg.txt   # Send complex message
+ktelegram send --config-id <CHANNEL_ID> --chat <id> --file /tmp/img.png        # Send file
+ktelegram typing --config-id <CHANNEL_ID> --chat <id>                          # Typing indicator
+ktelegram me --config-id <CHANNEL_ID>                                          # Bot info
 ```
 
 **Slack:**
 ```bash
 kslack setup --token <xoxb-TOKEN> --signing-secret <SECRET> --url <PUBLIC_URL>  # Set up new bot
-kslack send --channel <id> --text "msg" --thread <ts>   # Send in thread
-kslack send --channel <id> --text-file /tmp/msg.txt      # Send complex message
-kslack send --channel <id> --file /tmp/report.csv        # Send file
-kslack history --channel <id>                             # Read channel history
-kslack channels                                           # List channels
-kslack users                                              # List users
-kslack react --channel <id> --ts <ts> --emoji thumbsup   # Add reaction
-kslack manifest --url <PUBLIC_URL>                        # Generate Slack app manifest
+kslack send --config-id <CHANNEL_ID> --channel <id> --text "msg" --thread <ts>   # Send in thread
+kslack send --config-id <CHANNEL_ID> --channel <id> --text-file /tmp/msg.txt       # Send complex message
+kslack send --config-id <CHANNEL_ID> --channel <id> --file /tmp/report.csv         # Send file
+kslack history --config-id <CHANNEL_ID> --channel <id>                              # Read channel history
+kslack channels --config-id <CHANNEL_ID>                                            # List channels
+kslack users --config-id <CHANNEL_ID>                                               # List users
+kslack react --config-id <CHANNEL_ID> --channel <id> --ts <ts> --emoji thumbsup    # Add reaction
+kslack manifest --url <PUBLIC_URL>                                                  # Generate Slack app manifest
 ```
 
-**Skills:** Load `telegram-channel` or `slack-channel` skill for full CLI reference when communicating via these platforms.
+**Channel replies:** Telegram and Slack runtime instructions are provided inline in the inbound message prompt.
+
+**Channel control commands:** `Telegram /...` and `Slack !...` control commands are handled by the channel bridge before messages reach the agent for these commands:
+- new / reset
+- status
+- help
+- sessions / session <id>
+- agent <name>
+- model <provider/model>
 
 **API:** `GET /kortix/channels` returns all configured channels from SQLite.
 

@@ -8,7 +8,7 @@
  *   - agent_spawn:   Launch a sub-agent (sync or background)
  *   - agent_message:  Send follow-up to a running/stopped agent
  *   - agent_stop:     Kill a running agent
- *   - agent_status:   List agents in the current project
+
  */
 
 import { Database } from "bun:sqlite"
@@ -377,16 +377,56 @@ export function agentTools(client: any, db: Database, mgr: ProjectManager) {
 		}),
 
 		agent_status: tool({
-			description: "List all agents in the current project with their status.",
+			description: "Check on your workers — shows status, elapsed time, and what running workers are currently doing.",
 			args: {},
 			async execute(_args: {}, ctx: ToolContext): Promise<string> {
 				const pid = getProjectId(ctx)
 				if (!pid) return "Error: no project selected."
-				const agents = db.prepare("SELECT * FROM agents WHERE project_id=$pid ORDER BY created_at DESC LIMIT 20")
-					.all({ $pid: pid }) as AgentRow[]
-				if (!agents.length) return "No agents spawned in this project."
-				const icon = (s: string) => s === "completed" ? "✓" : s === "running" ? "→" : s === "failed" ? "✗" : s === "stopped" ? "⊘" : "○"
-				const lines = agents.map(a => `${icon(a.status)} **${a.id}** [${a.agent_type}] ${a.description} — ${a.status}`)
+				const agents = db.prepare("SELECT * FROM agents WHERE parent_session_id=$psid ORDER BY created_at DESC LIMIT 20")
+					.all({ $psid: ctx.sessionID }) as AgentRow[]
+				if (!agents.length) return "No workers spawned in this session."
+				const icon = (s: string) => s === "completed" ? "✓" : s === "running" ? "⟳" : s === "failed" ? "✗" : s === "stopped" ? "⊘" : "○"
+				const lines: string[] = []
+				for (const a of agents) {
+					const elapsed = Date.now() - new Date(a.created_at).getTime()
+					const elapsedStr = elapsed < 60_000 ? `${Math.round(elapsed / 1000)}s` : `${Math.round(elapsed / 60_000)}m`
+					let line = `${icon(a.status)} **${a.id}** ${a.description} — ${a.status} (${elapsedStr})`
+
+					if (a.status === "running") {
+						// Peek at what the worker is currently doing
+						try {
+							const msgs = await client.session.messages({ path: { id: a.session_id } })
+							const lastAssistant = (msgs.data ?? [])
+								.filter((m: any) => m.info?.role === "assistant")
+								.pop()
+							if (lastAssistant) {
+								// Check for active tool calls
+								const toolParts = (lastAssistant.parts ?? [])
+									.filter((p: any) => p.type === "tool-invocation")
+								const lastTool = toolParts.pop()
+								if (lastTool) {
+									const toolName = lastTool.toolInvocation?.toolName || lastTool.state?.tool || "unknown"
+									const toolState = lastTool.toolInvocation?.state || lastTool.state?.status || ""
+									line += `\n    └─ ${toolState === "running" ? "executing" : "last"}: ${toolName}`
+								} else {
+									// Last text snippet
+									const snippet = (lastAssistant.parts ?? [])
+										.filter((p: any) => p.type === "text")
+										.map((p: any) => p.text)
+										.join(" ")
+										.slice(0, 150)
+									if (snippet) line += `\n    └─ ${snippet.trim()}…`
+								}
+							}
+						} catch {}
+					} else if (a.status === "completed" && a.result) {
+						// Show a snippet of the result
+						const snippet = a.result.slice(0, 150).replace(/\n/g, " ").trim()
+						if (snippet) line += `\n    └─ ${snippet}…`
+					}
+
+					lines.push(line)
+				}
 				return lines.join("\n")
 			},
 		}),
@@ -477,7 +517,7 @@ export async function handleAgentSessionEvent(
 				`Error: ${errorMsg.slice(0, 2000)}`,
 				`</${tag}>`,
 				'',
-				`The worker ${finalStatus}. Check agent_status() for details, or review the worker's session ${agent.session_id}.`,
+				`The worker ${finalStatus}. Review the worker's session ${agent.session_id} if needed.`,
 			].join('\n')
 
 			await client.session.promptAsync({

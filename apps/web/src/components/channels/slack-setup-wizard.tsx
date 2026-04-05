@@ -48,6 +48,7 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
   const [botName, setBotName] = useState(() => randomBotName());
   const [manifest, setManifest] = useState<Record<string, unknown> | null>(null);
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [manifestChannelId, setManifestChannelId] = useState('');
   const [manifestCopied, setManifestCopied] = useState(false);
   const [botToken, setBotToken] = useState('');
   const [signingSecret, setSigningSecret] = useState('');
@@ -73,6 +74,7 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
       if (data.ok && data.manifest) {
         setManifest(data.manifest);
         setWebhookUrl(data.webhookUrl || '');
+        setManifestChannelId(data.channelId || '');
         toast.success('Manifest generated');
         setStep(2);
       } else {
@@ -110,6 +112,7 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
         signingSecret: signingSecret.trim() || undefined,
         publicUrl: '',
         name: botName.trim() || undefined,
+        channelId: manifestChannelId || undefined,
       });
       toast.success(result.message || 'Slack bot connected!');
       onCreated();

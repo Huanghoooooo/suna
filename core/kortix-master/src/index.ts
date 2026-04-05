@@ -390,7 +390,14 @@ app.route('/kortix/connectors', connectorsRouter)
 // Pipedream integration proxy — forwards to kortix-api
 app.route('/api/pipedream', pipedreamRouter)
 
-// Webhook trigger proxy — forwards /hooks/* to the triggers webhook server (port 8099).
+// [channels v2] Channel webhooks — handles /hooks/telegram/<id> and /hooks/slack/<id>
+// directly in kortix-master. These are looked up in the channels SQLite DB,
+// verified, parsed, and dispatched to OpenCode sessions.
+// Must be mounted BEFORE the generic /hooks/* proxy to port 8099.
+import channelWebhooksRouter from './routes/channel-webhooks'
+app.route('', channelWebhooksRouter)
+
+// Webhook trigger proxy — forwards remaining /hooks/* to the triggers webhook server (port 8099).
 // Auth is skipped (see auth middleware) — per-trigger secret via X-Kortix-Trigger-Secret header.
 app.all('/hooks/*', async (c) => {
   const pathname = new URL(c.req.url).pathname
@@ -464,7 +471,7 @@ app.route('/legacy', legacyMigrateRouter)
 
 // [channels v2] The old channels proxy to port 3456 has been removed.
 // Channel CLIs (telegram.ts, slack.ts) are standalone scripts.
-// Channel webhooks use the existing trigger system at /hooks/*.
+// Channel webhooks are handled directly by channel-webhooks.ts (mounted above /hooks/* proxy).
 
 // Proxy all other requests to OpenCode
 app.all('*',

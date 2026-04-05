@@ -36,8 +36,59 @@ export interface SlackParseResult {
 // ─── CLI path helper ─────────────────────────────────────────────────────────
 
 function cliPath(platform: string): string {
-  // Channels CLIs live at a known path relative to the trigger system
-  return `channels/${platform}.ts`
+  // Channels CLIs live in immutable runtime storage under /ephemeral.
+  return `/ephemeral/kortix-master/channels/${platform}.ts`
+}
+
+function telegramInstructions(configId: string, chatId: string, messageId?: string, includeTyping?: boolean): string[] {
+  const cli = cliPath("telegram")
+  const cfg = `--config-id ${configId}`
+  return [
+    "── Telegram instructions ──",
+    `Send text: bun run ${cli} send ${cfg} --chat ${chatId} --text "your reply"`,
+    `Complex text (code/special chars): write to /tmp/reply.txt, then: bun run ${cli} send ${cfg} --chat ${chatId} --text-file /tmp/reply.txt`,
+    ...(messageId ? [`Quote-reply: bun run ${cli} send ${cfg} --chat ${chatId} --reply-to ${messageId} --text "reply"`] : []),
+    `Send file: bun run ${cli} send ${cfg} --chat ${chatId} --file /tmp/example.py --text "caption"`,
+    ...(includeTyping ? [`Typing indicator: bun run ${cli} typing ${cfg} --chat ${chatId}`] : []),
+    `Edit: bun run ${cli} edit ${cfg} --chat ${chatId} --message-id <ID> --text "new"`,
+    `Delete: bun run ${cli} delete ${cfg} --chat ${chatId} --message-id <ID>`,
+    "Rules:",
+    "- Code/files: ALWAYS write to /tmp/ and attach via --file. NEVER paste file contents into message text.",
+    "- Use --text-file for anything with backticks, quotes, or code blocks to avoid shell escaping issues.",
+    "- Do NOT use the question or show tools — they don't render in Telegram.",
+    "- Do NOT send localhost URLs — user can't access them. Screenshot and send via --file instead.",
+    "- Voice messages arrive as files at /workspace/telegram-files/. Transcribe with: kwhisper --file <path>",
+    "- Images arrive as files. Use the Read tool to view them.",
+    "- Session commands (/new /reset /status /help /model /agent /sessions /session) are handled by the bridge, not you.",
+    "- Keep replies concise and chat-friendly. Short paragraphs, no walls of text.",
+  ]
+}
+
+function slackInstructions(configId: string, channel: string, threadTs?: string, includeHistory?: boolean): string[] {
+  const cli = cliPath("slack")
+  const cfg = `--config-id ${configId}`
+  const threadArg = threadTs ? ` --thread ${threadTs}` : ""
+  return [
+    "── Slack instructions ──",
+    `Send text: bun run ${cli} send ${cfg} --channel ${channel}${threadArg} --text "your reply"`,
+    `Complex text (code/special chars): write to /tmp/reply.txt, then: bun run ${cli} send ${cfg} --channel ${channel}${threadArg} --text-file /tmp/reply.txt`,
+    `Send file: bun run ${cli} send ${cfg} --channel ${channel}${threadArg} --file /tmp/example.py --text "caption"`,
+    `React: bun run ${cli} react ${cfg} --channel ${channel} --ts <MSG_TS> --emoji thumbsup`,
+    ...(includeHistory && threadTs ? [`Thread history: bun run ${cli} thread ${cfg} --channel ${channel} --ts ${threadTs}`] : []),
+    `Edit: bun run ${cli} edit ${cfg} --channel ${channel} --ts <TS> --text "updated"`,
+    "Slack mrkdwn (NOT Markdown):",
+    "- Bold: *bold* (NOT **bold**) | Italic: _italic_ | Strike: ~strike~",
+    "- Links: <https://url|text> (NOT [text](url)) | No # headers in Slack",
+    "Rules:",
+    "- ALWAYS reply in thread. Never post top-level in a channel.",
+    "- Code/files: ALWAYS write to /tmp/ and attach via --file. NEVER paste file contents into message text.",
+    "- Use --text-file for anything with backticks, quotes, or code blocks.",
+    "- Do NOT use the question or show tools — they don't render in Slack.",
+    "- Do NOT send localhost URLs. Screenshot and send via --file instead.",
+    "- Files from users arrive at /workspace/slack-files/. Transcribe audio with: kwhisper --file <path>",
+    "- Session commands (!new !reset !status !help !model !agent !sessions !session) are handled by the bridge, not you.",
+    "- Keep replies concise and channel-appropriate.",
+  ]
 }
 
 // ─── Telegram ────────────────────────────────────────────────────────────────
@@ -66,7 +117,7 @@ export function parseTelegramUpdate(update: any, configId: string): NormalizedCh
       ? `telegram:${configId}:user:${userId}`
       : `telegram:${configId}:chat:${chatId}`
 
-    const prompt = buildTelegramPrompt("message", from, chat, chatId, text, String(msg.message_id), isDm)
+    const prompt = buildTelegramPrompt("message", from, chat, chatId, text, String(msg.message_id), isDm, configId)
 
     return {
       platform: "telegram",
@@ -98,7 +149,7 @@ export function parseTelegramUpdate(update: any, configId: string): NormalizedCh
       ? `telegram:${configId}:user:${userId}`
       : `telegram:${configId}:chat:${chatId}`
 
-    const prompt = buildTelegramPrompt("edited_message", from, chat, chatId, text, String(msg.message_id), isDm)
+    const prompt = buildTelegramPrompt("edited_message", from, chat, chatId, text, String(msg.message_id), isDm, configId)
 
     return {
       platform: "telegram",
@@ -131,7 +182,7 @@ export function parseTelegramUpdate(update: any, configId: string): NormalizedCh
       ? `telegram:${configId}:user:${userId}`
       : `telegram:${configId}:chat:${chatId}`
 
-    const prompt = buildTelegramPrompt("message_reaction", user, chat, chatId, text, String(r.message_id), isDm)
+    const prompt = buildTelegramPrompt("message_reaction", user, chat, chatId, text, String(r.message_id), isDm, configId)
 
     return {
       platform: "telegram",
@@ -163,7 +214,7 @@ export function parseTelegramUpdate(update: any, configId: string): NormalizedCh
       ? `telegram:${configId}:user:${userId}`
       : `telegram:${configId}:chat:${chatId}`
 
-    const prompt = buildTelegramPrompt("callback_query", from, chat, chatId, text, String(cb.message?.message_id ?? ""), isDm)
+    const prompt = buildTelegramPrompt("callback_query", from, chat, chatId, text, String(cb.message?.message_id ?? ""), isDm, configId)
 
     return {
       platform: "telegram",
@@ -196,7 +247,7 @@ export function parseTelegramUpdate(update: any, configId: string): NormalizedCh
       ? `telegram:${configId}:user:${userId}`
       : `telegram:${configId}:chat:${chatId}`
 
-    const prompt = buildTelegramPrompt("my_chat_member", from, chat, chatId, text, "", isDm)
+    const prompt = buildTelegramPrompt("my_chat_member", from, chat, chatId, text, "", isDm, configId)
 
     return {
       platform: "telegram",
@@ -220,24 +271,18 @@ export function parseTelegramUpdate(update: any, configId: string): NormalizedCh
 
 function buildTelegramPrompt(
   eventType: string, from: any, chat: any, chatId: string,
-  text: string, messageId: string, isDm: boolean,
+  text: string, messageId: string, isDm: boolean, configId: string,
 ): string {
   const userName = from.first_name ?? "Unknown"
   const handle = from.username ? ` (@${from.username})` : ""
   const chatLabel = isDm ? "DM" : (chat.title ?? `chat ${chatId}`)
-  const cli = cliPath("telegram")
-
   const lines = [
     `[Telegram · ${chatLabel} · ${eventType} from ${userName}${handle}]`,
     text,
     "",
     `Chat ID: ${chatId}${messageId ? ` | Message ID: ${messageId}` : ""}`,
-    `Reply: bun run ${cli} send --chat ${chatId} --text "your reply"`,
+    ...telegramInstructions(configId, chatId, messageId, !isDm),
   ]
-
-  if (!isDm) {
-    lines.push(`Typing: bun run ${cli} typing --chat ${chatId}`)
-  }
 
   return lines.join("\n")
 }
@@ -285,8 +330,7 @@ export function parseSlackEvent(payload: any, configId: string, botUserId: strin
       `Message: ${text}`,
       "",
       `Channel: ${channel} | Thread: ${threadTs}`,
-      `Reply: bun run ${cli} send --channel ${channel} --thread ${threadTs} --text "your reply"`,
-      `Thread history: bun run ${cli} thread --channel ${channel} --ts ${threadTs}`,
+      ...slackInstructions(configId, channel, threadTs, true),
     ].join("\n")
 
     return {
@@ -397,20 +441,20 @@ export function parseSlackEvent(payload: any, configId: string, botUserId: strin
       ? `slack:${configId}:dm:${userId}`
       : `slack:${configId}:thread:${channel}:${threadTs}`
 
-    const prompt = isDm
+      const prompt = isDm
       ? [
           `[Slack · DM from ${userId}]`,
           `Message: ${text}`,
           "",
           `Channel: ${channel}`,
-          `Reply: bun run ${cli} send --channel ${channel} --text "your reply"`,
+          ...slackInstructions(configId, channel),
         ].join("\n")
       : [
           `[Slack · channel message from ${userId}]`,
           `Message: ${text}`,
           "",
           `Channel: ${channel} | Thread: ${threadTs}`,
-          `Reply: bun run ${cli} send --channel ${channel} --thread ${threadTs} --text "your reply"`,
+          ...slackInstructions(configId, channel, threadTs),
         ].join("\n")
 
     return {

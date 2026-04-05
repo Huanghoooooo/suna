@@ -15,7 +15,7 @@ import type { Plugin } from "@opencode-ai/plugin"
 
 import { initProjectsDb, ProjectManager, projectTools, projectGateHook, projectStatusTransform } from "./projects"
 import { taskTools, ensureTasksTable } from "./tasks"
-import { agentTools, ensureAgentsTable, getAgentSystemPrompt } from "./agent"
+import { agentTools, ensureAgentsTable, getAgentSystemPrompt, handleAgentSessionEvent } from "./agent"
 import { resolveKortixWorkspaceRoot, ensureKortixDir } from "./lib/paths"
 
 const KortixSystemPlugin: Plugin = async (ctx) => {
@@ -102,6 +102,15 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 			if (autowork?.event) await autowork.event(payload).catch(() => {})
 			if (todoEnforcer?.event) await todoEnforcer.event(payload).catch(() => {})
 			if (worktreeModule?.event) await worktreeModule.event(payload).catch(() => {})
+
+			// Agent async completion — runs last so autowork has already updated its active set
+			if (sid && (
+				payload.event.type === "session.idle" ||
+				payload.event.type === "session.error" ||
+				payload.event.type === "session.aborted"
+			)) {
+				handleAgentSessionEvent(sid, payload.event.type, client, db).catch(() => {})
+			}
 		},
 
 		// Compaction: inject active tasks

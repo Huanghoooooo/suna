@@ -149,15 +149,32 @@ describe('channel-db', () => {
     expect(ch1.webhook_path).not.toBe(ch2.webhook_path)
   })
 
-  it('registers connectors on create', async () => {
-    const { createChannel, registerConnector, getDb } = await loadDb()
-    const ch = createChannel({ platform: 'telegram', bot_token: 'tok', bot_username: 'mybot', created_by: 'Tester' })
-    registerConnector(ch)
-
+  it('cleans up legacy channel shadow connectors', async () => {
+    const { getDb, cleanupLegacyChannelConnectors } = await loadDb()
     const db = getDb()
-    const connectors = db.query("SELECT * FROM connectors WHERE source = 'channel'").all() as any[]
-    expect(connectors.length).toBeGreaterThanOrEqual(1)
-    const conn = connectors.find(c => c.description?.includes('mybot'))
-    expect(conn).toBeTruthy()
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS connectors (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        description TEXT,
+        source TEXT,
+        pipedream_slug TEXT,
+        env_keys TEXT,
+        notes TEXT,
+        auto_generated INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `)
+    db.prepare(`
+      INSERT INTO connectors (id, name, description, source, notes, auto_generated, created_at, updated_at)
+      VALUES ('1', 'telegram-kortix-old', 'old shadow row', 'channel', 'Channel ID: abc', 1, 'now', 'now')
+    `).run()
+
+    const removed = cleanupLegacyChannelConnectors()
+    expect(removed).toBeGreaterThanOrEqual(1)
+
+    const remaining = db.query("SELECT * FROM connectors WHERE source = 'channel'").all() as any[]
+    expect(remaining).toHaveLength(0)
   })
 })

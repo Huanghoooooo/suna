@@ -41,6 +41,14 @@ function apiBase(): string {
   return getEnv("TELEGRAM_API_BASE_URL") || "https://api.telegram.org"
 }
 
+function joinPublicBaseUrl(baseUrl: string, path: string): string {
+  const url = new URL(baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`)
+  const basePath = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname
+  const suffix = path.startsWith('/') ? path : `/${path}`
+  url.pathname = `${basePath}${suffix}`
+  return url.toString()
+}
+
 // ─── API helper ──────────────────────────────────────────────────────────────
 
 async function api(method: string, body?: Record<string, unknown>): Promise<any> {
@@ -175,6 +183,23 @@ export async function telegramWebhookInfo(): Promise<any> {
   return { ok: true, webhook: data.result }
 }
 
+const DEFAULT_TELEGRAM_COMMANDS = [
+  { command: "new", description: "Start a new session" },
+  { command: "sessions", description: "List your sessions" },
+  { command: "session", description: "Switch session" },
+  { command: "status", description: "Current status" },
+  { command: "help", description: "All commands" },
+  { command: "agent", description: "Talk to agent" },
+  { command: "model", description: "Switch model" },
+  { command: "reset", description: "Reset conversation" },
+] as const
+
+export async function telegramSetCommands(commands: ReadonlyArray<{ command: string; description: string }> = DEFAULT_TELEGRAM_COMMANDS): Promise<any> {
+  const data = await api("setMyCommands", { commands })
+  if (!data.ok) return { ok: false, error: data.description ?? data.error ?? "setMyCommands failed" }
+  return { ok: true, commands: commands.length }
+}
+
 export async function telegramGetFile(opts: { fileId: string }): Promise<any> {
   const data = await api("getFile", { file_id: opts.fileId })
   if (!data.ok) return { ok: false, error: data.description ?? "getFile failed" }
@@ -206,6 +231,20 @@ function out(data: unknown): void {
 
 async function main(): Promise<void> {
   const { command, flags } = parseArgs(process.argv)
+
+  if (flags["config-id"]) {
+    const { getChannel } = await import("./channel-db")
+    const channel = getChannel(flags["config-id"])
+    if (!channel) {
+      out({ ok: false, error: `Channel not found: ${flags["config-id"]}` })
+      process.exit(1)
+    }
+    if (channel.platform !== "telegram") {
+      out({ ok: false, error: `Channel ${flags["config-id"]} is not a Telegram channel` })
+      process.exit(1)
+    }
+    process.env.TELEGRAM_BOT_TOKEN = channel.bot_token
+  }
 
   switch (command) {
     case "send": {
@@ -320,9 +359,9 @@ async function main(): Promise<void> {
         process.exit(1)
       }
 
-      // Create channel in DB
-      const { createChannel, registerConnector } = await import("./channel-db")
-      const channel = createChannel({
+      // Create or update channel in DB (one Telegram bot => one channel row)
+      const { upsertChannelByBot } = await import("./channel-db")
+      const { channel, created, deduped } = upsertChannelByBot({
         platform: "telegram",
         name: flags.name,
         bot_token: flags.token,
@@ -336,12 +375,12 @@ async function main(): Promise<void> {
       // Register webhook
       const publicUrl = flags.url || getEnv("PUBLIC_URL") || ""
       if (publicUrl) {
-        const webhookUrl = `${publicUrl}${channel.webhook_path}`
+        const webhookUrl = joinPublicBaseUrl(publicUrl, channel.webhook_path)
         await telegramSetWebhook({ url: webhookUrl, secretToken: channel.webhook_secret })
       }
 
-      // Register connector
-      registerConnector(channel)
+      // Register default bot commands so slash menu works out of the box
+      const commandsResult = await telegramSetCommands()
 
       // Restore original token
       process.env.TELEGRAM_BOT_TOKEN = origToken
@@ -353,9 +392,11 @@ async function main(): Promise<void> {
           name: channel.name,
           bot: `@${channel.bot_username}`,
           webhook_path: channel.webhook_path,
-          webhook_url: publicUrl ? `${publicUrl}${channel.webhook_path}` : "not set — provide --url",
+          webhook_url: publicUrl ? joinPublicBaseUrl(publicUrl, channel.webhook_path) : "not set — provide --url",
+          commands_configured: commandsResult.ok,
+          deduped,
         },
-        message: `Telegram bot @${channel.bot_username} set up as "${channel.name}"`,
+        message: `Telegram bot @${channel.bot_username} ${created ? "set up" : "updated"} as "${channel.name}"`,
       })
       break
     }
@@ -367,18 +408,19 @@ Telegram Bot API CLI
 
 Commands:
   setup         Set up new Telegram bot (--token, [--name], [--url], [--created-by])
-  send          Send message/file (--chat, --text/--text-file, [--reply-to], [--file])
-  edit          Edit a message (--chat, --message-id, --text/--text-file)
-  delete        Delete a message (--chat, --message-id)
-  typing        Send typing indicator (--chat)
+  send          Send message/file (--chat, --text/--text-file, [--reply-to], [--file], [--config-id])
+  edit          Edit a message (--chat, --message-id, --text/--text-file, [--config-id])
+  delete        Delete a message (--chat, --message-id, [--config-id])
+  typing        Send typing indicator (--chat, [--config-id])
   me            Get bot info
-  get-chat      Get chat info (--chat)
-  set-webhook   Register webhook (--url, [--secret])
+  get-chat      Get chat info (--chat, [--config-id])
+  set-webhook   Register webhook (--url, [--secret], [--config-id])
   delete-webhook Remove webhook
   webhook-info  Get webhook status
-  file          Get file info (--file-id)
+  set-commands  Register default Telegram slash commands
+  file          Get file info (--file-id, [--config-id])
 
-Auth: TELEGRAM_BOT_TOKEN env var
+Auth: TELEGRAM_BOT_TOKEN env var or --config-id <channel-id>
 `)
       break
   }

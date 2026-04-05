@@ -189,6 +189,13 @@ if [ ! -e /ephemeral/kortix-master ]; then
   echo "[startup] WARNING: /ephemeral/kortix-master not found! Rebuild the Docker image."
 fi
 
+# ── Install stable channel CLI wrappers ─────────────────────────────────────
+# Runtime-facing commands (ktelegram/kslack/kchannel) should always resolve
+# from immutable /ephemeral code, never /workspace.
+if [ -x /ephemeral/kortix-master/scripts/install-channel-clis.sh ]; then
+  /ephemeral/kortix-master/scripts/install-channel-clis.sh || echo "[startup] WARNING: channel CLI install failed"
+fi
+
 echo "[startup] Starting s6-overlay via PID namespace..."
 
 if unshare --pid --fork true >/dev/null 2>&1; then

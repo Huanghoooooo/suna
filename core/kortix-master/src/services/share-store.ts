@@ -104,6 +104,16 @@ function isExpired(entry: ShareEntry): boolean {
  */
 export function createShare(port: number, ttlMs: number = DEFAULT_TTL_MS, label?: string): ShareEntry {
   const clamped = clampTTL(ttlMs)
+
+  // Reuse an existing active share for the same port+label.
+  // This keeps long-lived system links (e.g. channels webhooks) stable instead of minting duplicates.
+  if (label) {
+    const existing = Array.from(shares.values())
+      .filter(entry => entry.port === port && entry.label === label && !isExpired(entry))
+      .sort((a, b) => new Date(b.expiresAt).getTime() - new Date(a.expiresAt).getTime())[0]
+    if (existing) return existing
+  }
+
   const now = new Date()
   const entry: ShareEntry = {
     token: generateToken(),

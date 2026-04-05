@@ -2,6 +2,10 @@
  * Channel management routes — thin wrapper over SQLite channel DB.
  *
  * GET    /kortix/channels              — list all channels
+ * POST   /kortix/channels/verify-telegram  — verify a Telegram bot token
+ * POST   /kortix/channels/setup/telegram   — full Telegram bot setup
+ * POST   /kortix/channels/setup/slack      — full Slack bot setup
+ * POST   /kortix/channels/slack-manifest   — generate Slack app manifest
  * GET    /kortix/channels/:id          — get channel details
  * POST   /kortix/channels/:id/enable   — enable channel
  * POST   /kortix/channels/:id/disable  — disable channel
@@ -10,8 +14,17 @@
  */
 
 import { Hono } from 'hono'
+import { getMasterPublicBaseUrl } from './share'
 
 const channelsRouter = new Hono()
+
+function joinPublicBaseUrl(baseUrl: string, path: string): string {
+  const url = new URL(baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`)
+  const basePath = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname
+  const suffix = path.startsWith('/') ? path : `/${path}`
+  url.pathname = `${basePath}${suffix}`
+  return url.toString()
+}
 
 // Dynamic import to avoid loading bun:sqlite at module scope in test environments
 async function loadDb() {
@@ -44,6 +57,267 @@ channelsRouter.get('/', async (c) => {
     return c.json({ ok: false, error: String(e) }, 500)
   }
 })
+
+// ─── Setup / Wizard endpoints ────────────────────────────────────────────────
+
+channelsRouter.post('/verify-telegram', async (c) => {
+  const { botToken } = await c.req.json()
+  if (!botToken) return c.json({ ok: false, error: 'botToken required' }, 400)
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/getMe`, {
+      signal: AbortSignal.timeout(10_000),
+    })
+    const data = await res.json() as any
+    if (data.ok && data.result) {
+      return c.json({ ok: true, bot: { id: data.result.id, username: data.result.username, firstName: data.result.first_name } })
+    }
+    return c.json({ ok: false, error: data.description || 'Invalid token' })
+  } catch {
+    return c.json({ ok: false, error: 'Failed to reach Telegram API' }, 500)
+  }
+})
+
+channelsRouter.post('/setup/telegram', async (c) => {
+  try {
+    const { botToken, publicUrl, createdBy } = await c.req.json()
+    if (!botToken) return c.json({ ok: false, error: 'botToken required' }, 400)
+
+    // 1. Verify token via Telegram getMe
+    const meRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`, {
+      signal: AbortSignal.timeout(10_000),
+    })
+    const meData = await meRes.json() as any
+    if (!meData.ok || !meData.result) {
+      return c.json({ ok: false, error: meData.description || 'Invalid bot token' })
+    }
+    const bot = meData.result
+
+    // 2. Create or update channel in SQLite (one Telegram bot => one channel row)
+    const { upsertChannelByBot } = await loadDb()
+    const { channel, created, deduped } = upsertChannelByBot({
+      platform: 'telegram',
+      bot_token: botToken,
+      bot_id: String(bot.id),
+      bot_username: bot.username,
+      created_by: createdBy,
+    })
+
+    // 3. Register default Telegram bot commands so the slash menu works immediately
+    const commands = [
+      { command: 'new', description: 'Start a new session' },
+      { command: 'sessions', description: 'List your sessions' },
+      { command: 'session', description: 'Switch session' },
+      { command: 'status', description: 'Current status' },
+      { command: 'help', description: 'All commands' },
+      { command: 'agent', description: 'Talk to agent' },
+      { command: 'model', description: 'Switch model' },
+      { command: 'reset', description: 'Reset conversation' },
+    ]
+    const cmdRes = await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commands }),
+      signal: AbortSignal.timeout(10_000),
+    })
+    const cmdData = await cmdRes.json() as any
+
+    // 4. Set Telegram webhook — auto-resolve public URL if not provided
+    const resolvedPublicUrl = publicUrl || getMasterPublicBaseUrl() || ''
+    let webhookUrl: string | null = null
+    if (resolvedPublicUrl) {
+      webhookUrl = joinPublicBaseUrl(resolvedPublicUrl, channel.webhook_path)
+      const whRes = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: webhookUrl, secret_token: channel.webhook_secret }),
+        signal: AbortSignal.timeout(10_000),
+      })
+      const whData = await whRes.json() as any
+      if (!whData.ok) {
+        // Channel was created but webhook failed — return partial success
+        return c.json({
+          ok: true,
+          channel: {
+            id: channel.id,
+            name: channel.name,
+            bot: `@${bot.username}`,
+            webhookPath: channel.webhook_path,
+            webhookUrl: null,
+            commandsConfigured: Boolean(cmdData?.ok),
+          },
+          message: `Telegram bot @${bot.username} set up as "${channel.name}" but webhook failed: ${whData.description || 'unknown error'}`,
+        })
+      }
+    }
+
+    return c.json({
+      ok: true,
+      channel: {
+        id: channel.id,
+        name: channel.name,
+        bot: `@${bot.username}`,
+        webhookPath: channel.webhook_path,
+        webhookUrl: webhookUrl || null,
+        commandsConfigured: Boolean(cmdData?.ok),
+      },
+      message: `Telegram bot @${bot.username} ${created ? 'set up' : 'updated'} as "${channel.name}"${webhookUrl ? '' : ' — provide publicUrl to register webhook'}`,
+      deduped,
+    })
+  } catch (e) {
+    return c.json({ ok: false, error: String(e) }, 500)
+  }
+})
+
+// ── Random bot name generation ────────────────────────────────────────────────
+const FIRST_NAMES = [
+  'Atlas', 'Nova', 'Sage', 'Echo', 'Bolt', 'Iris', 'Dash', 'Cleo',
+  'Finn', 'Luna', 'Juno', 'Axel', 'Niko', 'Zara', 'Milo', 'Ruby',
+  'Hugo', 'Aria', 'Leo', 'Ivy', 'Rex', 'Mae', 'Kai', 'Pia',
+  'Max', 'Vera', 'Otto', 'Lyra', 'Remy', 'Tess',
+]
+
+function generateBotName(): string {
+  const name = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)]
+  return `Kortix ${name}`
+}
+
+function buildSlackManifest(displayName: string, webhookUrl: string) {
+  return {
+    display_information: {
+      name: displayName,
+      description: 'Kortix AI instance',
+      background_color: '#1a1a2e',
+    },
+    features: {
+      bot_user: { display_name: displayName, always_online: true },
+    },
+    oauth_config: {
+      scopes: {
+        bot: [
+          'app_mentions:read', 'channels:history', 'channels:read', 'channels:join',
+          'chat:write', 'chat:write.public', 'files:read', 'files:write',
+          'groups:history', 'groups:read', 'im:history', 'im:read', 'im:write',
+          'mpim:history', 'mpim:read', 'reactions:read', 'reactions:write', 'users:read',
+        ],
+      },
+    },
+    settings: {
+      event_subscriptions: {
+        request_url: webhookUrl,
+        bot_events: [
+          'app_mention', 'message.im', 'message.channels', 'message.groups', 'message.mpim',
+          'reaction_added', 'reaction_removed', 'member_joined_channel', 'file_shared',
+        ],
+      },
+      org_deploy_enabled: false,
+      socket_mode_enabled: false,
+      token_rotation_enabled: false,
+    },
+  }
+}
+
+// ── Slack setup ──────────────────────────────────────────────────────────────
+//
+// The Slack flow is:
+//   1. POST /slack-manifest { botName } → creates channel row, returns manifest with correct webhook URL + channelId
+//   2. User creates Slack app from manifest, installs to workspace
+//   3. POST /setup/slack { botToken, signingSecret, channelId } → updates the SAME channel row with real credentials
+//
+// One channel. One ID. One webhook URL. No duplicates.
+
+channelsRouter.post('/slack-manifest', async (c) => {
+  try {
+    const { publicUrl, botName } = await c.req.json()
+    const resolvedUrl = publicUrl || getMasterPublicBaseUrl() || ''
+    if (!resolvedUrl) return c.json({ ok: false, error: 'Could not resolve public URL. Set PUBLIC_BASE_URL or provide publicUrl.' }, 400)
+
+    const displayName = botName || generateBotName()
+
+    // Create the channel row NOW so the manifest gets a real webhook URL.
+    const { createChannel } = await loadDb()
+    const channel = createChannel({
+      platform: 'slack',
+      name: displayName,
+      bot_token: '',
+      enabled: false, // disabled until /setup/slack provides real credentials
+    })
+
+    const webhookUrl = joinPublicBaseUrl(resolvedUrl, channel.webhook_path)
+    const manifest = buildSlackManifest(displayName, webhookUrl)
+
+    return c.json({ ok: true, manifest, webhookUrl, channelId: channel.id })
+  } catch (e) {
+    return c.json({ ok: false, error: String(e) }, 500)
+  }
+})
+
+channelsRouter.post('/setup/slack', async (c) => {
+  try {
+    const { botToken, signingSecret, publicUrl, name, createdBy, channelId } = await c.req.json()
+    if (!botToken) return c.json({ ok: false, error: 'botToken required' }, 400)
+
+    // 1. Verify token
+    const authRes = await fetch('https://slack.com/api/auth.test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${botToken}` },
+      body: JSON.stringify({}),
+      signal: AbortSignal.timeout(10_000),
+    })
+    const authData = await authRes.json() as any
+    if (!authData.ok) {
+      return c.json({ ok: false, error: authData.error || 'Invalid bot token' })
+    }
+
+    // 2. Update the channel created by /slack-manifest, or create new if channelId missing
+    const { getChannel, updateChannel, createChannel } = await loadDb()
+    let channel
+    if (channelId) {
+      const existing = getChannel(channelId)
+      if (existing && existing.platform === 'slack') {
+        channel = updateChannel(channelId, {
+          bot_token: botToken,
+          signing_secret: signingSecret || undefined,
+          bot_id: authData.user_id,
+          bot_username: authData.user,
+          name: name || existing.name,
+          enabled: true,
+        })!
+      }
+    }
+    if (!channel) {
+      channel = createChannel({
+        platform: 'slack',
+        name: name || generateBotName(),
+        bot_token: botToken,
+        signing_secret: signingSecret,
+        bot_id: authData.user_id,
+        bot_username: authData.user,
+        created_by: createdBy,
+      })
+    }
+
+    const resolvedSlackUrl = publicUrl || getMasterPublicBaseUrl() || ''
+    const webhookUrl = resolvedSlackUrl ? joinPublicBaseUrl(resolvedSlackUrl, channel.webhook_path) : null
+
+    return c.json({
+      ok: true,
+      channel: {
+        id: channel.id,
+        name: channel.name,
+        bot: `@${authData.user}`,
+        team: authData.team,
+        webhookPath: channel.webhook_path,
+        webhookUrl,
+      },
+      message: `Slack bot @${authData.user} (${authData.team}) set up as "${channel.name}"`,
+    })
+  } catch (e) {
+    return c.json({ ok: false, error: String(e) }, 500)
+  }
+})
+
+// ─── Per-channel CRUD ────────────────────────────────────────────────────────
 
 channelsRouter.get('/:id', async (c) => {
   try {
@@ -99,8 +373,64 @@ channelsRouter.delete('/:id', async (c) => {
     const { deleteChannel, getChannel } = await loadDb()
     const ch = getChannel(c.req.param('id'))
     if (!ch) return c.json({ ok: false, error: 'Not found' }, 404)
-    deleteChannel(c.req.param('id'))
-    return c.json({ ok: true, message: `${ch.name} removed` })
+
+    const cleanup: Record<string, unknown> = {
+      provider: null,
+      rowRemoved: false,
+    }
+
+    // Best-effort provider-side cleanup before deleting local secrets/tokens.
+    if (ch.platform === 'telegram') {
+      const providerResults: Record<string, unknown> = {}
+
+      // Remove webhook so Telegram stops delivering events to this bot/channel bridge.
+      try {
+        const whRes = await fetch(`https://api.telegram.org/bot${ch.bot_token}/deleteWebhook`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ drop_pending_updates: true }),
+          signal: AbortSignal.timeout(10_000),
+        })
+        const whData = await whRes.json() as any
+        providerResults.webhookDeleted = Boolean(whData?.ok)
+        if (!whData?.ok) providerResults.webhookError = whData?.description || 'deleteWebhook failed'
+      } catch (e) {
+        providerResults.webhookDeleted = false
+        providerResults.webhookError = String(e)
+      }
+
+      // Clear slash commands so the bot is de-provisioned cleanly.
+      try {
+        const cmdRes = await fetch(`https://api.telegram.org/bot${ch.bot_token}/setMyCommands`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commands: [] }),
+          signal: AbortSignal.timeout(10_000),
+        })
+        const cmdData = await cmdRes.json() as any
+        providerResults.commandsCleared = Boolean(cmdData?.ok)
+        if (!cmdData?.ok) providerResults.commandsError = cmdData?.description || 'setMyCommands failed'
+      } catch (e) {
+        providerResults.commandsCleared = false
+        providerResults.commandsError = String(e)
+      }
+
+      cleanup.provider = providerResults
+    } else if (ch.platform === 'slack') {
+      // Slack does not provide a simple one-call equivalent for removing Event Subscriptions
+      // from a bot token at runtime. We can still remove all local secrets/tokens and connector state.
+      cleanup.provider = {
+        note: 'Slack local config removed. Event Subscriptions URL in Slack app should be removed manually if desired.',
+      }
+    }
+
+    cleanup.rowRemoved = deleteChannel(c.req.param('id'))
+
+    return c.json({
+      ok: true,
+      message: `${ch.name} removed`,
+      cleanup,
+    })
   } catch (e) {
     return c.json({ ok: false, error: String(e) }, 500)
   }
