@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UnifiedMarkdown } from "@/components/markdown/unified-markdown";
-import { ImagePreview } from "@/components/session/image-preview";
+import { SandboxImage } from "@/components/session/sandbox-image";
 
 import { ConnectProviderDialog } from "@/components/session/model-selector";
 import {
@@ -1603,17 +1603,12 @@ function UserMessageRow({
 								className="rounded-lg overflow-hidden border border-border/50"
 							>
 								{file.mime?.startsWith("image/") && file.url ? (
-									<ImagePreview
+									<SandboxImage
 										src={file.url}
 										alt={file.filename ?? "Attachment"}
-									>
-										{/* eslint-disable-next-line @next/next/no-img-element */}
-										<img
-											src={file.url}
-											alt={file.filename ?? "Attachment"}
-											className="max-h-32 max-w-48 object-cover"
-										/>
-									</ImagePreview>
+										className="max-h-32 max-w-48 object-cover"
+										preview
+									/>
 								) : file.mime === "application/pdf" ? (
 									<div className="flex items-center gap-2 px-3 py-2 bg-muted/30">
 										<FileText className="size-4 text-muted-foreground" />
@@ -3119,16 +3114,33 @@ export function SessionChat({
 	// We send the message from here (not the dashboard) so that SSE listeners and polling
 	// are already active when the response starts streaming back.
 	// Retries up to 3 times on failure (e.g. "Unable to connect" errors).
+	// Uses a retry loop (up to 5 attempts, 50ms apart) when reading sessionStorage
+	// to handle the race condition where the effect fires before the dashboard
+	// has written the pending prompt.
 	useEffect(() => {
 		if (pendingPromptHandled.current) return;
-		const pendingPrompt = sessionStorage.getItem(
-			`opencode_pending_prompt:${sessionId}`,
-		);
-		console.log("[session-chat] pending prompt check", { sessionId, hasPending: !!pendingPrompt });
-		if (pendingPrompt) {
+		let cancelled = false;
+		let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+		const attemptSend = (attempt: number) => {
+			if (cancelled) return;
+			const pendingPrompt = sessionStorage.getItem(
+				`opencode_pending_prompt:${sessionId}`,
+			);
+			console.log("[session-chat] pending prompt check", { sessionId, hasPending: !!pendingPrompt, attempt });
+			if (!pendingPrompt) {
+				// Retry up to 5 times with 50ms delay to handle race condition
+				if (attempt < 5) {
+					retryTimer = setTimeout(() => attemptSend(attempt + 1), 50);
+					return;
+				}
+				// Exhausted retries — no pending prompt
+				return;
+			}
 			pendingPromptHandled.current = true;
 			setPollingActive(true);
 			setPendingSendInFlight(true);
+			useSyncStore.getState().setStatus(sessionId, { type: "busy" });
 			sessionStorage.removeItem(`opencode_pending_prompt:${sessionId}`);
 			sessionStorage.removeItem(`opencode_pending_send_failed:${sessionId}`);
 
@@ -3175,7 +3187,20 @@ export function SessionChat({
 
 			// Fire-and-forget via promptAsync. Don't send messageID — let the
 			// server generate it with its own clock to avoid clock-skew issues.
-			const client = getClient();
+			let client: ReturnType<typeof getClient>;
+			try {
+				client = getClient();
+			} catch {
+				// SDK client failed to initialize — restore sessionStorage so the
+				// user can retry (e.g. by refreshing). Reset all pending state.
+				sessionStorage.setItem(`opencode_pending_prompt:${sessionId}`, pendingPrompt);
+				pendingPromptHandled.current = false;
+				setPollingActive(false);
+				setPendingSendInFlight(false);
+				useSyncStore.getState().setStatus(sessionId, { type: "idle" });
+				removeOptimisticUserMessage(messageID);
+				return;
+			}
 			const handlePromptError = () => {
 				setIsRetrying(false);
 				setPendingSendInFlight(false);
@@ -3282,7 +3307,14 @@ export function SessionChat({
 					console.error("[session-chat] promptAsync rejected", { sessionId, err });
 					handlePromptError();
 				});
-		}
+		};
+
+		attemptSend(0);
+
+		return () => {
+			cancelled = true;
+			if (retryTimer) clearTimeout(retryTimer);
+		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [sessionId, addOptimisticUserMessage, removeOptimisticUserMessage]);
 

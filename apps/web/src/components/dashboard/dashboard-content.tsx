@@ -73,20 +73,10 @@ export function DashboardContent() {
         await fadeDelay;
         createdSessionId = session.id;
 
-        // Step 2: Open tab and navigate immediately (optimistic)
-        openTabAndNavigate({
-          id: session.id,
-          title: 'New session',
-          type: 'session',
-          href: `/sessions/${session.id}`,
-          serverId: useServerStore.getState().activeServerId,
-        });
-
-        // Store the prompt text so the session page can send it and display it
-        // optimistically. Use session-specific keys so multiple sessions don't conflict.
-        // The session page will handle actually sending the message — this avoids a
-        // race condition where the send fires before the session page mounts its
-        // SSE listeners and polling, causing missed responses.
+        // Store the prompt text BEFORE navigating so the session page can
+        // read it immediately when its useEffect fires. Placing this after
+        // openTabAndNavigate caused a race where sessionStorage was empty
+        // when the session page's pending-prompt useEffect ran.
         sessionStorage.setItem(`opencode_pending_prompt:${session.id}`, text);
         // Files can't go through sessionStorage (they're File objects/blobs).
         // Store them in a Zustand store that survives the navigation hop.
@@ -96,6 +86,15 @@ export function DashboardContent() {
         if (Object.keys(options).length > 0) {
           sessionStorage.setItem(`opencode_pending_options:${session.id}`, JSON.stringify(options));
         }
+
+        // Step 2: Open tab and navigate (optimistic) — AFTER sessionStorage is set
+        openTabAndNavigate({
+          id: session.id,
+          title: 'New session',
+          type: 'session',
+          href: `/sessions/${session.id}`,
+          serverId: useServerStore.getState().activeServerId,
+        });
         // Reset submitting since the dashboard stays mounted (hidden) with pushState
         setIsSubmitting(false);
         // Reset fade state after navigation so returning to the dashboard
