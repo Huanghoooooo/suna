@@ -10,7 +10,6 @@ export interface VerifyTokenResult {
 
 /**
  * Verify a Telegram bot token by calling the Telegram API directly from the browser.
- * No sandbox/backend involved — just a simple HTTPS call to api.telegram.org.
  */
 export function useTelegramVerifyToken() {
   return useMutation({
@@ -46,15 +45,19 @@ export function useTelegramVerifyToken() {
 export function useTelegramConnect() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ botToken, publicUrl, createdBy }: {
-      botToken: string; publicUrl: string; createdBy?: string;
+    mutationFn: async ({ botToken, publicUrl, createdBy, defaultAgent, defaultModel }: {
+      botToken: string;
+      publicUrl: string;
+      createdBy?: string;
+      defaultAgent?: string;
+      defaultModel?: string;
     }) => {
       const baseUrl = getActiveOpenCodeUrl();
       if (!baseUrl) throw new Error('No active instance');
       const res = await authenticatedFetch(`${baseUrl}/kortix/channels/setup/telegram`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ botToken, publicUrl, createdBy }),
+        body: JSON.stringify({ botToken, publicUrl, createdBy, defaultAgent, defaultModel }),
       });
       const data = await res.json() as any;
       if (!data.ok) throw new Error(data.error || 'Setup failed');

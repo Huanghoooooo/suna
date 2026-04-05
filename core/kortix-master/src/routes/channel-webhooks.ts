@@ -232,6 +232,16 @@ async function dispatchToOpenCode(
 ): Promise<{ sessionId: string }> {
   const existingSessionId = sessionMap.get(event.session_key)
 
+  // Parse "provider/model" into the format OpenCode expects
+  const modelOverride = channel.default_model
+    ? (() => {
+        const parts = channel.default_model.split('/')
+        return parts.length >= 2
+          ? { providerID: parts[0], modelID: parts.slice(1).join('/') }
+          : { providerID: 'kortix', modelID: channel.default_model }
+      })()
+    : undefined
+
   // Reuse existing session if available
   if (existingSessionId) {
     try {
@@ -241,6 +251,7 @@ async function dispatchToOpenCode(
         body: JSON.stringify({
           parts: [{ type: 'text', text: event.prompt }],
           agent: channel.default_agent || undefined,
+          ...(modelOverride ? { model: modelOverride } : {}),
         }),
         signal: AbortSignal.timeout(30_000),
       })

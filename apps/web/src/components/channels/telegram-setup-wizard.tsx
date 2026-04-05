@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +14,9 @@ import {
 import { TelegramIcon } from '@/components/ui/icons/telegram';
 import { toast } from 'sonner';
 import { useTelegramVerifyToken, useTelegramConnect } from '@/hooks/channels/use-telegram-wizard';
+import { AgentSelector, flattenModels } from '@/components/session/session-chat-input';
+import { ModelSelector } from '@/components/session/model-selector';
+import { useOpenCodeAgents, useOpenCodeProviders } from '@/hooks/opencode/use-opencode-sessions';
 
 interface TelegramSetupWizardProps {
   onCreated: () => void;
@@ -24,9 +26,15 @@ interface TelegramSetupWizardProps {
 export function TelegramSetupWizard({ onCreated, onBack }: TelegramSetupWizardProps) {
   const [botToken, setBotToken] = useState('');
   const [botInfo, setBotInfo] = useState<{ id: number; username: string; firstName: string } | null>(null);
+  const [agentName, setAgentName] = useState<string | null>('kortix');
+  const [selectedModel, setSelectedModel] = useState<{ providerID: string; modelID: string } | null>(null);
 
   const verifyToken = useTelegramVerifyToken();
   const connect = useTelegramConnect();
+
+  const { data: agents = [], isLoading: agentsLoading } = useOpenCodeAgents();
+  const { data: providers, isLoading: modelsLoading } = useOpenCodeProviders();
+  const models = useMemo(() => flattenModels(providers), [providers]);
 
   const handleVerify = async () => {
     const trimmed = botToken.trim();
@@ -44,7 +52,6 @@ export function TelegramSetupWizard({ onCreated, onBack }: TelegramSetupWizardPr
     const trimmed = botToken.trim();
     if (!trimmed) return;
 
-    // If not verified yet, verify first
     if (!botInfo) {
       const result = await verifyToken.mutateAsync({ botToken: trimmed });
       if (!result.ok || !result.bot) {
@@ -54,11 +61,16 @@ export function TelegramSetupWizard({ onCreated, onBack }: TelegramSetupWizardPr
       setBotInfo(result.bot);
     }
 
+    const modelStr = selectedModel
+      ? `${selectedModel.providerID}/${selectedModel.modelID}`
+      : undefined;
+
     try {
-      // publicUrl is empty — backend auto-resolves via getMasterPublicBaseUrl()
       const result = await connect.mutateAsync({
         botToken: trimmed,
         publicUrl: '',
+        defaultAgent: agentName || undefined,
+        defaultModel: modelStr,
       });
       toast.success(result.message || 'Telegram bot connected!');
       onCreated();
@@ -115,7 +127,7 @@ export function TelegramSetupWizard({ onCreated, onBack }: TelegramSetupWizardPr
             placeholder="123456789:ABCdefGhIJKlmnOPQRstUVWxyz..."
             value={botToken}
             onChange={(e) => setBotToken(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && (botInfo ? handleConnect() : handleVerify())}
+            onKeyDown={(e) => e.key === 'Enter' && !botInfo && handleVerify()}
           />
         </div>
 
@@ -128,6 +140,45 @@ export function TelegramSetupWizard({ onCreated, onBack }: TelegramSetupWizardPr
               <p className="text-[11px] text-muted-foreground">{botInfo.firstName}</p>
             </div>
             <Badge variant="highlight" className="text-[11px]">Verified</Badge>
+          </div>
+        )}
+
+        {/* Agent & Model — shown after token is verified */}
+        {botInfo && (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Agent</Label>
+              {agentsLoading ? (
+                <div className="flex items-center gap-2 h-9 px-3 text-sm text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Loading...
+                </div>
+              ) : (
+                <div className="rounded-xl border bg-card px-2 py-1">
+                  <AgentSelector
+                    agents={agents}
+                    selectedAgent={agentName}
+                    onSelect={(next) => setAgentName(next)}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Model</Label>
+              {modelsLoading ? (
+                <div className="flex items-center gap-2 h-9 px-3 text-sm text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Loading...
+                </div>
+              ) : (
+                <div className="rounded-xl border bg-card px-2 py-1">
+                  <ModelSelector
+                    models={models}
+                    selectedModel={selectedModel}
+                    onSelect={(next) => setSelectedModel(next)}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         )}
 

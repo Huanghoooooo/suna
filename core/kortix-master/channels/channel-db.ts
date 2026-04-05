@@ -49,7 +49,7 @@ export function getDb(): Database {
       bot_id TEXT,
       bot_username TEXT,
       default_agent TEXT DEFAULT 'kortix',
-      default_model TEXT DEFAULT 'anthropic/claude-sonnet-4-20250514',
+      default_model TEXT DEFAULT '',
       instructions TEXT,
       created_by TEXT,
       created_at TEXT NOT NULL,
@@ -135,7 +135,7 @@ export function createChannel(opts: {
     id, opts.platform, name, enabled, opts.bot_token, opts.signing_secret || null,
     webhookSecret, webhookPath,
     opts.bot_id || null, opts.bot_username || null,
-    opts.default_agent || "kortix", opts.default_model || "anthropic/claude-sonnet-4-20250514",
+    opts.default_agent || "kortix", opts.default_model || "",
     opts.instructions || null, opts.created_by || null, now, now,
   )
 

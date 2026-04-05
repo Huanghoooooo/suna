@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import {
   ArrowLeft,
   ArrowRight,
@@ -17,9 +16,12 @@ import {
 } from 'lucide-react';
 import { SlackIcon } from '@/components/ui/icons/slack';
 import { toast } from 'sonner';
-import { useGenerateManifest, useSlackConnect } from '@/hooks/channels/use-slack-wizard';
+import { useSlackConnect } from '@/hooks/channels/use-slack-wizard';
 import { getActiveOpenCodeUrl } from '@/stores/server-store';
 import { authenticatedFetch } from '@/lib/auth-token';
+import { AgentSelector, flattenModels } from '@/components/session/session-chat-input';
+import { ModelSelector } from '@/components/session/model-selector';
+import { useOpenCodeAgents, useOpenCodeProviders } from '@/hooks/opencode/use-opencode-sessions';
 
 interface SlackSetupWizardProps {
   onCreated: () => void;
@@ -46,6 +48,8 @@ function randomBotName(): string {
 export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
   const [step, setStep] = useState(1);
   const [botName, setBotName] = useState(() => randomBotName());
+  const [agentName, setAgentName] = useState<string | null>('kortix');
+  const [selectedModel, setSelectedModel] = useState<{ providerID: string; modelID: string } | null>(null);
   const [manifest, setManifest] = useState<Record<string, unknown> | null>(null);
   const [webhookUrl, setWebhookUrl] = useState('');
   const [manifestChannelId, setManifestChannelId] = useState('');
@@ -55,8 +59,10 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const slackConnect = useSlackConnect();
+  const { data: agents = [], isLoading: agentsLoading } = useOpenCodeAgents();
+  const { data: providers, isLoading: modelsLoading } = useOpenCodeProviders();
+  const models = useMemo(() => flattenModels(providers), [providers]);
 
-  // Auto-generate manifest on mount — backend resolves public URL internally
   const handleGenerateManifest = async () => {
     setIsGenerating(true);
     try {
@@ -105,14 +111,20 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
       toast.error('Enter a bot token');
       return;
     }
+
+    const modelStr = selectedModel
+      ? `${selectedModel.providerID}/${selectedModel.modelID}`
+      : undefined;
+
     try {
-      // publicUrl empty — backend auto-resolves
       const result = await slackConnect.mutateAsync({
         botToken: trimmedToken,
         signingSecret: signingSecret.trim() || undefined,
         publicUrl: '',
         name: botName.trim() || undefined,
         channelId: manifestChannelId || undefined,
+        defaultAgent: agentName || undefined,
+        defaultModel: modelStr,
       });
       toast.success(result.message || 'Slack bot connected!');
       onCreated();
@@ -120,6 +132,8 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
       toast.error(err.message || 'Setup failed');
     }
   };
+
+  const stepLabels = ['Configure', 'Create App', 'Connect'];
 
   return (
     <div className="space-y-4">
@@ -139,39 +153,76 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
 
       {/* Step indicators */}
       <div className="flex items-center gap-2">
-        {[1, 2, 3].map((s) => (
-          <div key={s} className="flex items-center gap-2">
-            <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium transition-colors ${
-              s < step ? 'bg-primary text-primary-foreground' :
-              s === step ? 'bg-primary text-primary-foreground' :
-              'bg-muted text-muted-foreground'
-            }`}>
-              {s < step ? <CheckCircle2 className="h-3.5 w-3.5" /> : s}
+        {stepLabels.map((label, i) => {
+          const s = i + 1;
+          return (
+            <div key={s} className="flex items-center gap-2">
+              <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium transition-colors ${
+                s < step ? 'bg-primary text-primary-foreground' :
+                s === step ? 'bg-primary text-primary-foreground' :
+                'bg-muted text-muted-foreground'
+              }`}>
+                {s < step ? <CheckCircle2 className="h-3.5 w-3.5" /> : s}
+              </div>
+              <span className={`text-xs ${s === step ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                {label}
+              </span>
+              {s < stepLabels.length && <div className="w-6 h-px bg-border" />}
             </div>
-            <span className={`text-xs ${s === step ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-              {s === 1 ? 'Bot Name' : s === 2 ? 'Create App' : 'Connect'}
-            </span>
-            {s < 3 && <div className="w-6 h-px bg-border" />}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Steps */}
       <AnimatePresence mode="wait">
         {step === 1 && (
           <motion.div key="step1" {...STEP_ANIMATION} className="space-y-4">
+            {/* Bot Name */}
             <div className="space-y-2">
               <Label htmlFor="slack-bot-name">Bot Name</Label>
-              <Input type="text"
+              <Input
                 id="slack-bot-name"
                 placeholder="Kortix Agent"
                 value={botName}
                 onChange={(e) => setBotName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleGenerateManifest()}
               />
-              <p className="text-[11px] text-muted-foreground">
-                This will be the display name of your bot in Slack.
-              </p>
+              <p className="text-[11px] text-muted-foreground">Display name in Slack.</p>
+            </div>
+
+            {/* Agent */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Agent</Label>
+              {agentsLoading ? (
+                <div className="flex items-center gap-2 h-9 px-3 text-sm text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Loading...
+                </div>
+              ) : (
+                <div className="rounded-xl border bg-card px-2 py-1">
+                  <AgentSelector
+                    agents={agents}
+                    selectedAgent={agentName}
+                    onSelect={(next) => setAgentName(next)}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Model */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Model</Label>
+              {modelsLoading ? (
+                <div className="flex items-center gap-2 h-9 px-3 text-sm text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Loading...
+                </div>
+              ) : (
+                <div className="rounded-xl border bg-card px-2 py-1">
+                  <ModelSelector
+                    models={models}
+                    selectedModel={selectedModel}
+                    onSelect={(next) => setSelectedModel(next)}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end">

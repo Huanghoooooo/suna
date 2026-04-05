@@ -80,7 +80,7 @@ channelsRouter.post('/verify-telegram', async (c) => {
 
 channelsRouter.post('/setup/telegram', async (c) => {
   try {
-    const { botToken, publicUrl, createdBy } = await c.req.json()
+    const { botToken, publicUrl, createdBy, defaultAgent, defaultModel } = await c.req.json()
     if (!botToken) return c.json({ ok: false, error: 'botToken required' }, 400)
 
     // 1. Verify token via Telegram getMe
@@ -101,6 +101,8 @@ channelsRouter.post('/setup/telegram', async (c) => {
       bot_id: String(bot.id),
       bot_username: bot.username,
       created_by: createdBy,
+      default_agent: defaultAgent || undefined,
+      default_model: defaultModel || undefined,
     })
 
     // 3. Register default Telegram bot commands so the slash menu works immediately
@@ -255,7 +257,7 @@ channelsRouter.post('/slack-manifest', async (c) => {
 
 channelsRouter.post('/setup/slack', async (c) => {
   try {
-    const { botToken, signingSecret, publicUrl, name, createdBy, channelId } = await c.req.json()
+    const { botToken, signingSecret, publicUrl, name, createdBy, channelId, defaultAgent, defaultModel } = await c.req.json()
     if (!botToken) return c.json({ ok: false, error: 'botToken required' }, 400)
 
     // 1. Verify token
@@ -282,6 +284,8 @@ channelsRouter.post('/setup/slack', async (c) => {
           bot_id: authData.user_id,
           bot_username: authData.user,
           name: name || existing.name,
+          default_agent: defaultAgent || existing.default_agent,
+          default_model: defaultModel || existing.default_model,
           enabled: true,
         })!
       }
