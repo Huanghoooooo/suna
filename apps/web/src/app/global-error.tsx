@@ -84,44 +84,17 @@ export default function GlobalError({
             textAlign: 'center',
           }}
         >
-          {/* ASCII fault indicator */}
-          <pre
-            style={{
-              margin: 0,
-              fontSize: '11px',
-              lineHeight: 1.4,
-              color: 'rgba(255,255,255,0.06)',
-              letterSpacing: '0.05em',
-              userSelect: 'none',
-            }}
+          {/* Kortix symbol — inline SVG */}
+          <svg
+            width="40"
+            height="33"
+            viewBox="0 0 30 25"
+            fill="white"
+            fillOpacity="1"
+            xmlns="http://www.w3.org/2000/svg"
           >
-{`
- ┌─────────────────────────┐
- │  KORTIX SYSTEM FAULT    │
- │  ████████░░░░░ 58%      │
- │  recovery in progress   │
- └─────────────────────────┘
-`}
-          </pre>
-
-          {/* K logo mark — pure CSS */}
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: '10px',
-              border: '1.5px solid rgba(255,255,255,0.12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '18px',
-              fontWeight: 700,
-              color: 'rgba(255,255,255,0.5)',
-              letterSpacing: '-0.02em',
-            }}
-          >
-            K
-          </div>
+            <path d="M25.5614 24.916H29.8268C29.8268 19.6306 26.9378 15.0039 22.6171 12.4587C26.9377 9.91355 29.8267 5.28685 29.8267 0.00146484H25.5613C25.5613 5.00287 21.8906 9.18692 17.0654 10.1679V0.00146484H12.8005V10.1679C7.9526 9.20401 4.3046 5.0186 4.3046 0.00146484H0.0391572C0.0391572 5.28685 2.92822 9.91355 7.24884 12.4587C2.92818 15.0039 0.0390625 19.6306 0.0390625 24.916H4.30451C4.30451 19.8989 7.95259 15.7135 12.8005 14.7496V24.9206H17.0654V14.7496C21.9133 15.7134 25.5614 19.8989 25.5614 24.916Z" />
+          </svg>
 
           {/* Title */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -147,7 +120,7 @@ export default function GlobalError({
               }}
             >
               A critical error occurred that prevented the application from loading.
-              This has been logged automatically.
+              Our team has been notified automatically.
             </p>
           </div>
 
@@ -198,58 +171,85 @@ export default function GlobalError({
             )}
           </div>
 
-          {/* Status */}
+          {/* Support contact */}
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 16px',
-              borderRadius: '999px',
-              border: '1px solid rgba(255,255,255,0.08)',
-              backgroundColor: 'rgba(255,255,255,0.02)',
+              fontSize: '12px',
+              color: 'rgba(255,255,255,0.3)',
+              textAlign: 'center',
             }}
           >
-            <div
+            If this persists, contact{' '}
+            <a
+              href="mailto:support@kortix.ai"
               style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                backgroundColor: '#d97706',
-                animation: 'kortix-fault-pulse 2s ease-in-out infinite',
+                color: 'rgba(255,255,255,0.5)',
+                textDecoration: 'underline',
+                textDecorationColor: 'rgba(255,255,255,0.2)',
               }}
-            />
-            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>
-              system fault detected
-            </span>
+            >
+              support@kortix.ai
+            </a>
           </div>
 
-          {/* Reload button */}
-          <button
-            onClick={() => window.location.reload()}
-            style={{
-              width: '100%',
-              padding: '14px 24px',
-              borderRadius: '999px',
-              border: 'none',
-              backgroundColor: 'rgba(255,255,255,0.9)',
-              color: '#111',
-              fontSize: '14px',
-              fontWeight: 500,
-              fontFamily:
-                '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-              cursor: 'pointer',
-              transition: 'background-color 0.15s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,1)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.9)';
-            }}
-          >
-            Reload Application
-          </button>
+          {/* Action buttons — stacked */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+            <a
+              href="/"
+              style={{
+                padding: '14px 24px',
+                borderRadius: '999px',
+                border: 'none',
+                backgroundColor: 'rgba(255,255,255,0.9)',
+                color: '#111',
+                fontSize: '14px',
+                fontWeight: 500,
+                fontFamily:
+                  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                cursor: 'pointer',
+                transition: 'background-color 0.15s ease',
+                textDecoration: 'none',
+                textAlign: 'center',
+                display: 'block',
+                boxSizing: 'border-box',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.9)';
+              }}
+            >
+              Return Home
+            </a>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                padding: '14px 24px',
+                borderRadius: '999px',
+                border: '1px solid rgba(255,255,255,0.12)',
+                backgroundColor: 'transparent',
+                color: 'rgba(255,255,255,0.6)',
+                fontSize: '14px',
+                fontWeight: 500,
+                fontFamily:
+                  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                cursor: 'pointer',
+                transition: 'border-color 0.15s ease, color 0.15s ease',
+                boxSizing: 'border-box',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)';
+                e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
+                e.currentTarget.style.color = 'rgba(255,255,255,0.6)';
+              }}
+            >
+              Reload
+            </button>
+          </div>
 
           {/* Timestamp */}
           <div
@@ -263,17 +263,7 @@ export default function GlobalError({
           </div>
         </div>
 
-        {/* Inline keyframes — self-contained, no external CSS */}
-        <style
-          dangerouslySetInnerHTML={{
-            __html: `
-              @keyframes kortix-fault-pulse {
-                0%, 100% { opacity: 1; }
-                50% { opacity: 0.3; }
-              }
-            `,
-          }}
-        />
+
       </body>
     </html>
   );
