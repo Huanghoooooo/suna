@@ -1,8 +1,8 @@
 name: Release Version
 
-# Manual trigger — promotes current dev state to production.
-# Re-tags dev Docker images as versioned, multi-arch rebuilds for self-hosted,
-# deploys to prod VPS, fast-forwards production branch (Vercel), creates GitHub Release.
+# Manual trigger — promotes current dev images to production.
+# Re-tags dev-latest multi-arch manifests as versioned (no rebuild).
+# Deploys to prod VPS, fast-forwards production branch (Vercel), creates GitHub Release.
 
 on:
   workflow_dispatch:
@@ -33,38 +33,11 @@ env:
   TITLE: ${{ inputs.title }}
 
 jobs:
-  # ── Build multi-arch images with version tags ──────────────────────────────
-  build-images:
-    name: Build multi-arch images (${{ inputs.version }})
+  # ── Re-tag dev images as versioned (no rebuild) ────────────────────────────
+  retag-images:
+    name: Re-tag dev → v${{ inputs.version }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: false
-
-      - name: Sync submodules
-        run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive --remote
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install pnpm
-        run: corepack enable pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build frontend (Next.js standalone)
-        run: pnpm --filter ./apps/web build
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -74,53 +47,35 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push API (multi-arch)
+      - name: Re-tag all images
         run: |
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            --file apps/api/Dockerfile \
-            --build-arg SERVICE=apps/api \
-            --tag "kortix/kortix-api:${{ env.VERSION }}" \
-            --tag "kortix/kortix-api:latest" \
-            --push \
-            .
+          for IMAGE in kortix/kortix-api kortix/kortix-frontend kortix/computer; do
+            echo "Re-tagging $IMAGE:dev-latest → $IMAGE:${{ env.VERSION }} + $IMAGE:latest"
 
-      - name: Build and push Frontend (multi-arch)
-        run: |
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            --file apps/web/Dockerfile \
-            --tag "kortix/kortix-frontend:${{ env.VERSION }}" \
-            --tag "kortix/kortix-frontend:latest" \
-            --push \
-            .
+            # Use buildx imagetools to create new tags from existing multi-arch manifest
+            docker buildx imagetools create \
+              --tag "$IMAGE:${{ env.VERSION }}" \
+              --tag "$IMAGE:latest" \
+              "$IMAGE:dev-latest"
 
-      - name: Build and push Computer (multi-arch)
-        run: |
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            --file core/docker/Dockerfile \
-            --tag "kortix/computer:${{ env.VERSION }}" \
-            --tag "kortix/computer:latest" \
-            --push \
-            .
+            echo "✓ $IMAGE:${{ env.VERSION }}"
+          done
 
       - name: Summary
         run: |
-          echo "### Multi-arch images built for v${{ env.VERSION }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- \`kortix/kortix-api:${{ env.VERSION }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- \`kortix/kortix-frontend:${{ env.VERSION }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- \`kortix/computer:${{ env.VERSION }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Re-tagged dev-latest → v${{ env.VERSION }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`kortix/kortix-api:${{ env.VERSION }}\` (multi-arch)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`kortix/kortix-frontend:${{ env.VERSION }}\` (multi-arch)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`kortix/computer:${{ env.VERSION }}\` (multi-arch)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "_Zero rebuilds — re-tagged from dev-latest manifests._" >> "$GITHUB_STEP_SUMMARY"
 
   # ── Deploy API to prod VPS ─────────────────────────────────────────────────
   deploy-prod:
     name: Deploy API to prod
-    needs: build-images
+    needs: retag-images
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (for deploy script)
-        uses: actions/checkout@v4
-
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
@@ -148,7 +103,7 @@ jobs:
   # ── Fast-forward production branch (Vercel) ────────────────────────────────
   update-production-branch:
     name: Update production branch (Vercel)
-    needs: build-images
+    needs: retag-images
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -177,16 +132,13 @@ jobs:
           fetch-depth: 0
 
       - name: Generate changelog from commits
-        id: changelog
         run: |
-          # Get commits since last release tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
             COMMITS=$(git log "${PREV_TAG}..HEAD" --pretty=format:"- %s" --no-merges | head -50)
           else
             COMMITS=$(git log --pretty=format:"- %s" --no-merges -20)
           fi
-          # Write to file for the release body
           {
             echo "## v${{ env.VERSION }} — ${{ env.TITLE }}"
             echo ""
@@ -222,14 +174,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Summary
-        run: |
-          echo "### GitHub Release created: v${{ env.VERSION }}" >> "$GITHUB_STEP_SUMMARY"
-
   # ── Async: Build prod JustAVPS snapshot ────────────────────────────────────
   build-prod-snapshot:
     name: Build prod snapshot (async)
-    needs: build-images
+    needs: retag-images
     uses: ./.github/workflows/build-snapshot.yml
     with:
       version: ${{ inputs.version }}

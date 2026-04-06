@@ -194,12 +194,18 @@ function VersionEntryCard({ entry, isCurrent, isLatestInChannel, onInstall, isIn
 
 type FilterOption = 'all' | 'stable' | 'dev';
 
-function FilterTabs({ value, onChange }: { value: FilterOption; onChange: (v: FilterOption) => void }) {
-  const options: { key: FilterOption; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'stable', label: 'Stable' },
-    { key: 'dev', label: 'Dev' },
-  ];
+function FilterTabs({ value, onChange, showDev }: { value: FilterOption; onChange: (v: FilterOption) => void; showDev: boolean }) {
+  const options: { key: FilterOption; label: string }[] = showDev
+    ? [
+        { key: 'all', label: 'All' },
+        { key: 'stable', label: 'Stable' },
+        { key: 'dev', label: 'Dev' },
+      ]
+    : [
+        { key: 'stable', label: 'Stable' },
+      ];
+
+  if (!showDev) return null;
 
   return (
     <FilterBar>
@@ -223,8 +229,25 @@ export default function ChangelogPage() {
   const currentChannel = detectChannel(currentVersion);
   const { updateAvailable, latestVersion, isUpdating } = useGlobalSandboxUpdate();
 
-  // Default filter: show dev builds if the running instance is a dev build, otherwise show all
-  const [filter, setFilter] = useState<FilterOption>(currentChannel === 'dev' ? 'all' : 'all');
+  // Dev mode: hidden by default, persisted in localStorage
+  const [showDev, setShowDev] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    // Auto-enable if running a dev build
+    if (currentChannel === 'dev') return true;
+    return localStorage.getItem('changelog-show-dev') === 'true';
+  });
+
+  const toggleDev = useCallback(() => {
+    setShowDev((prev) => {
+      const next = !prev;
+      localStorage.setItem('changelog-show-dev', String(next));
+      // Reset filter to stable when hiding dev
+      if (!next) setFilter('stable');
+      return next;
+    });
+  }, []);
+
+  const [filter, setFilter] = useState<FilterOption>('stable');
   const [installingVersion, setInstallingVersion] = useState<string | null>(null);
 
   // Get the active sandbox for triggering updates
@@ -291,44 +314,56 @@ export default function ChangelogPage() {
       <div className="max-w-2xl mx-auto px-6 py-10">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-foreground mb-2">Changelog</h1>
-          <p className="text-sm text-muted-foreground">
-            {currentVersion ? (
-              <>
-                Running{' '}
-                <span className="font-mono font-medium text-foreground">
-                  {currentVersion.startsWith('dev-') ? currentVersion : `v${currentVersion}`}
-                </span>
-                {currentChannel === 'dev' && (
-                  <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                    dev
-                  </span>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold text-foreground mb-2">Changelog</h1>
+              <p className="text-sm text-muted-foreground">
+                {currentVersion ? (
+                  <>
+                    Running{' '}
+                    <span className="font-mono font-medium text-foreground">
+                      {currentVersion.startsWith('dev-') ? currentVersion : `v${currentVersion}`}
+                    </span>
+                    {currentChannel === 'dev' && (
+                      <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                        dev
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  'Version history for Kortix Computer'
                 )}
-              </>
-            ) : (
-              'Version history for Kortix Computer'
-            )}
-            {latestVersion && currentVersion && latestVersion !== currentVersion && (
-              <> &middot; Latest: <span className="font-mono font-medium text-primary">
-                {latestVersion.startsWith('dev-') ? latestVersion : `v${latestVersion}`}
-              </span></>
-            )}
-          </p>
+                {latestVersion && currentVersion && latestVersion !== currentVersion && (
+                  <> &middot; Latest: <span className="font-mono font-medium text-primary">
+                    {latestVersion.startsWith('dev-') ? latestVersion : `v${latestVersion}`}
+                  </span></>
+                )}
+              </p>
 
-          {/* Update button */}
-          {updateAvailable && !isUpdating && (
-            <div className="mt-4">
-              <Button onClick={handleUpdate}>
-                <ArrowDownToLine className="h-4 w-4" />
-                Update to {latestVersion?.startsWith('dev-') ? latestVersion : `v${latestVersion}`}
-              </Button>
+              {/* Update button */}
+              {updateAvailable && !isUpdating && (
+                <div className="mt-4">
+                  <Button onClick={handleUpdate}>
+                    <ArrowDownToLine className="h-4 w-4" />
+                    Update to {latestVersion?.startsWith('dev-') ? latestVersion : `v${latestVersion}`}
+                  </Button>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Dev toggle */}
+            <button
+              onClick={toggleDev}
+              className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground transition-colors mt-1.5"
+            >
+              {showDev ? 'Hide dev builds' : 'Dev builds'}
+            </button>
+          </div>
         </div>
 
-        {/* Filter tabs */}
+        {/* Filter tabs (only visible when dev mode is on) */}
         <div className="mb-6">
-          <FilterTabs value={filter} onChange={setFilter} />
+          <FilterTabs value={filter} onChange={setFilter} showDev={showDev} />
         </div>
 
         {/* Loading */}
