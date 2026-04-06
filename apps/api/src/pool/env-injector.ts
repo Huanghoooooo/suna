@@ -23,10 +23,10 @@ function buildHeaders(metadata: Record<string, unknown>): Record<string, string>
   return headers;
 }
 
-function buildEnvPayload(serviceKey: string): Record<string, string> {
+function buildEnvPayload(serviceKey: string, metadata?: Record<string, unknown>): Record<string, string> {
   const sandboxApiBase = config.KORTIX_URL.replace(/\/v1\/router\/?$/, '');
   const routerBase = `${sandboxApiBase}/v1/router`;
-  return {
+  const payload: Record<string, string> = {
     KORTIX_API_URL: sandboxApiBase,
     ENV_MODE: 'cloud',
     INTERNAL_SERVICE_KEY: serviceKey,
@@ -39,6 +39,19 @@ function buildEnvPayload(serviceKey: string): Record<string, string> {
     TUNNEL_API_URL: sandboxApiBase,
     TUNNEL_TOKEN: serviceKey,
   };
+
+  // Compute PUBLIC_BASE_URL from JustAVPS metadata so getMasterPublicBaseUrl()
+  // returns a real public URL instead of localhost inside the sandbox.
+  if (metadata) {
+    const slug = metadata.justavpsSlug as string | undefined;
+    const proxyToken = metadata.justavpsProxyToken as string | undefined;
+    const proxyDomain = config.JUSTAVPS_PROXY_DOMAIN || 'kortix.cloud';
+    if (slug && proxyToken) {
+      payload.PUBLIC_BASE_URL = `https://8000--${slug}.${proxyDomain}?__proxy_token=${proxyToken}`;
+    }
+  }
+
+  return payload;
 }
 
 /**
@@ -51,7 +64,7 @@ export async function inject(poolSandbox: PoolSandbox, serviceKey: string): Prom
   const meta = (poolSandbox.metadata as Record<string, unknown>) ?? {};
   const url = buildKortixMasterUrl(poolSandbox.baseUrl);
   const headers = buildHeaders(meta);
-  const keys = buildEnvPayload(serviceKey);
+  const keys = buildEnvPayload(serviceKey, meta);
 
   // Step 1: Inject into the running container
   const res = await fetch(url, {

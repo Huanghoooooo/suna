@@ -15,7 +15,6 @@
 
 import { Hono } from 'hono'
 import { getMasterPublicBaseUrl } from './share'
-import { createShare } from '../services/share-store'
 
 const channelsRouter = new Hono()
 
@@ -29,27 +28,12 @@ function joinPublicBaseUrl(baseUrl: string, path: string): string {
 
 /**
  * Get a usable public base URL for channel webhooks.
- * For cloud: returns the proxy URL directly.
- * For local: if getMasterPublicBaseUrl returns a real public URL, use it.
- * Otherwise, create a long-lived share link so the webhook URL is stable.
+ * In cloud/production, PUBLIC_BASE_URL (or CLOUD_PROXY_BASE_URL) provides a
+ * real public URL. Locally this will be localhost — webhooks won't work
+ * externally unless PUBLIC_BASE_URL is set to a tunnel/ngrok URL.
  */
 function getChannelPublicBaseUrl(): string {
-  const base = getMasterPublicBaseUrl()
-
-  // If it's already a real public URL (not localhost), use it directly
-  if (base && !base.includes('localhost') && !base.includes('127.0.0.1')) {
-    return base
-  }
-
-  // Local mode: create/reuse a share link that fronts port 8000
-  // The share system will use PUBLIC_BASE_URL or localhost as its base
-  const share = createShare(8000, 365 * 24 * 60 * 60 * 1000, 'channels-webhook')
-  if (share.url && !share.url.includes('localhost')) {
-    return share.url.replace(/\/+$/, '')
-  }
-
-  // Last resort: return whatever we have (might be localhost — webhook won't work externally)
-  return base
+  return getMasterPublicBaseUrl()
 }
 
 // Dynamic import to avoid loading bun:sqlite at module scope in test environments
