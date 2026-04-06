@@ -176,7 +176,6 @@ const envSchema = z.object({
   // ── Version / GitHub (optional) ───────────────────────────────────────────
   SANDBOX_VERSION:             optStr,  // dev override: skip npm registry lookup for latest version
   GITHUB_TOKEN:                optStr,  // optional: authenticated GitHub API calls for changelog
-  DEPLOYMENT_CHANNEL:          z.enum(['stable', 'dev']).optional().default('stable'),  // injected by deploy workflows
 
   // ── Mailtrap (optional — provisioning email notifications) ────────────────
   MAILTRAP_API_TOKEN:          optStr,
@@ -503,8 +502,6 @@ export const config = {
   /** Dev override: force a specific sandbox version (skips release.json). */
   SANDBOX_VERSION_OVERRIDE: env.SANDBOX_VERSION,
   GITHUB_TOKEN: env.GITHUB_TOKEN,
-  /** Deployment channel: 'stable' for prod releases, 'dev' for dev builds. */
-  DEPLOYMENT_CHANNEL: env.DEPLOYMENT_CHANNEL as 'stable' | 'dev',
 
   // ─── Mailtrap (Email Notifications) ────────────────────────────────────────
   MAILTRAP_API_TOKEN: env.MAILTRAP_API_TOKEN,
