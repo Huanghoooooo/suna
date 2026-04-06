@@ -1,0 +1,237 @@
+name: Release Version
+
+# Manual trigger — promotes current dev state to production.
+# Re-tags dev Docker images as versioned, multi-arch rebuilds for self-hosted,
+# deploys to prod VPS, fast-forwards production branch (Vercel), creates GitHub Release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g. 0.8.29)'
+        required: true
+        type: string
+      title:
+        description: 'Release title (e.g. "Streaming fixes, new onboarding")'
+        required: true
+        type: string
+      description:
+        description: 'Release description (optional, multi-line)'
+        required: false
+        type: string
+
+concurrency:
+  group: release-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  VERSION: ${{ inputs.version }}
+  TITLE: ${{ inputs.title }}
+
+jobs:
+  # ── Build multi-arch images with version tags ──────────────────────────────
+  build-images:
+    name: Build multi-arch images (${{ inputs.version }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Sync submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive --remote
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: corepack enable pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend (Next.js standalone)
+        run: pnpm --filter ./apps/web build
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push API (multi-arch)
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file apps/api/Dockerfile \
+            --build-arg SERVICE=apps/api \
+            --tag "kortix/kortix-api:${{ env.VERSION }}" \
+            --tag "kortix/kortix-api:latest" \
+            --push \
+            .
+
+      - name: Build and push Frontend (multi-arch)
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file apps/web/Dockerfile \
+            --tag "kortix/kortix-frontend:${{ env.VERSION }}" \
+            --tag "kortix/kortix-frontend:latest" \
+            --push \
+            .
+
+      - name: Build and push Computer (multi-arch)
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file core/docker/Dockerfile \
+            --tag "kortix/computer:${{ env.VERSION }}" \
+            --tag "kortix/computer:latest" \
+            --push \
+            .
+
+      - name: Summary
+        run: |
+          echo "### Multi-arch images built for v${{ env.VERSION }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`kortix/kortix-api:${{ env.VERSION }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`kortix/kortix-frontend:${{ env.VERSION }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`kortix/computer:${{ env.VERSION }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Deploy API to prod VPS ─────────────────────────────────────────────────
+  deploy-prod:
+    name: Deploy API to prod
+    needs: build-images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (for deploy script)
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USERNAME }}
+          key: ${{ secrets.PROD_KEY }}
+          port: 22
+          timeout: 600s
+          script: |
+            set -e
+            if [ ! -d ~/suna ]; then
+              git clone https://github.com/kortix-ai/suna.git ~/suna
+            fi
+            cd ~/suna
+            git -c fetch.recurseSubmodules=false fetch origin main
+            git reset --hard origin/main
+            git submodule sync --recursive
+            git submodule update --init --recursive --remote
+            PREBUILT_IMAGE="kortix/kortix-api:${{ env.VERSION }}" bash scripts/deploy-zero-downtime.sh
+
+      - name: Summary
+        run: |
+          echo "### Deployed API v${{ env.VERSION }} → **prod**" >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Fast-forward production branch (Vercel) ────────────────────────────────
+  update-production-branch:
+    name: Update production branch (Vercel)
+    needs: build-images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fast-forward production branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout production
+          git merge --ff-only origin/main
+          git push origin production
+          echo "### Production branch fast-forwarded → Vercel deploys kortix.com" >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Create Git tag + GitHub Release ────────────────────────────────────────
+  create-release:
+    name: Create GitHub Release
+    needs: [deploy-prod, update-production-branch]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog from commits
+        id: changelog
+        run: |
+          # Get commits since last release tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            COMMITS=$(git log "${PREV_TAG}..HEAD" --pretty=format:"- %s" --no-merges | head -50)
+          else
+            COMMITS=$(git log --pretty=format:"- %s" --no-merges -20)
+          fi
+          # Write to file for the release body
+          {
+            echo "## v${{ env.VERSION }} — ${{ env.TITLE }}"
+            echo ""
+            if [ -n "${{ inputs.description }}" ]; then
+              echo "${{ inputs.description }}"
+              echo ""
+            fi
+            echo "### Changes"
+            echo ""
+            echo "$COMMITS"
+            echo ""
+            echo "### Docker Images"
+            echo ""
+            echo "- \`kortix/computer:${{ env.VERSION }}\`"
+            echo "- \`kortix/kortix-api:${{ env.VERSION }}\`"
+            echo "- \`kortix/kortix-frontend:${{ env.VERSION }}\`"
+          } > /tmp/release-notes.md
+          cat /tmp/release-notes.md
+
+      - name: Create tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ env.VERSION }}" -m "Release v${{ env.VERSION }} — ${{ env.TITLE }}"
+          git push origin "v${{ env.VERSION }}"
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "v${{ env.VERSION }}" \
+            --title "v${{ env.VERSION }} — ${{ env.TITLE }}" \
+            --notes-file /tmp/release-notes.md \
+            --repo kortix-ai/suna
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "### GitHub Release created: v${{ env.VERSION }}" >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Async: Build prod JustAVPS snapshot ────────────────────────────────────
+  build-prod-snapshot:
+    name: Build prod snapshot (async)
+    needs: build-images
+    uses: ./.github/workflows/build-snapshot.yml
+    with:
+      version: ${{ inputs.version }}
+      target: prod
+    secrets: inherit
