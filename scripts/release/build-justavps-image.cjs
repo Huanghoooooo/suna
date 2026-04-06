@@ -384,7 +384,7 @@ async function mainForTarget(target) {
 
   const version = getVersion()
   const dockerImage = `kortix/computer:${version}`
-  const buildServerType = process.env.JUSTAVPS_IMAGE_BUILD_SERVER_TYPE || process.env.JUSTAVPS_DEFAULT_SERVER_TYPE || 'cpx31'
+  const buildServerType = process.env.JUSTAVPS_IMAGE_BUILD_SERVER_TYPE || process.env.JUSTAVPS_DEFAULT_SERVER_TYPE || 'cpx32'
   const buildRegion = process.env.JUSTAVPS_IMAGE_BUILD_LOCATION || 'nbg1'
   const previousImageId = process.env.JUSTAVPS_IMAGE_ID || ''
   const machineTimeoutMs = Number(process.env.JUSTAVPS_IMAGE_BUILD_TIMEOUT_MS || 20 * 60 * 1000)
