@@ -1,5 +1,19 @@
 [
   {
+    "version": "0.8.28",
+    "date": "2026-04-06",
+    "title": "Webhook URL fixes, file rendering improvements, and tighter worker safety",
+    "description": "Polishes the post-0.8.27 sandbox and UI experience with public webhook URL fixes, safer worker orchestration defaults, improved image/PDF handling, and a few shipping/runtime fixes needed for the next Docker release.",
+    "changes": [
+      { "type": "fix", "text": "Public webhook URLs now receive PUBLIC_BASE_URL in the sandbox env, and joinPublicBaseUrl preserves query params correctly so Slack/Telegram and other callback URLs stop breaking" },
+      { "type": "fix", "text": "Lock down worker agent_spawn vectors and disable native OpenCode task/todo tools to reduce unintended execution paths" },
+      { "type": "feature", "text": "Add HEIC/HEIF image rendering support and fix PDF navigation/rendering issues in the web app" },
+      { "type": "improvement", "text": "Refactor the Kortix orchestrator/worker prompts toward a hands-on lead model with async-first worker coordination" },
+      { "type": "fix", "text": "Default JustAVPS image builds to the EU cpx32 SKU and use a safer SANDBOX_VERSION fallback during Docker image builds" },
+      { "type": "improvement", "text": "Sidebar, changelog UI, and tab-bar polish including a saved alternate pill-style tab bar variant for future reference" }
+    ]
+  },
+  {
     "version": "0.8.27",
     "date": "2026-04-05",
     "title": "Channels v2, unified plugin system, design system overhaul, and file preview refresh",

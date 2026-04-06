@@ -66,7 +66,7 @@ dots_ok()   { printf "${GREEN}✓${NC}\n"; }
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 INSTALL_DIR="${KORTIX_HOME:-$HOME/.kortix}"
-DEFAULT_KORTIX_VERSION="0.8.27"
+DEFAULT_KORTIX_VERSION="0.8.28"
 
 # Resolve the latest version dynamically. Falls back to the hardcoded default
 # if network is unavailable. The hardcoded default is kept in sync by ship.cjs
