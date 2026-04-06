@@ -13,7 +13,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Platform } from 'react-native';
+import { View, Platform, TouchableOpacity } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useColorScheme } from 'nativewind';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -102,7 +102,7 @@ interface InstanceOnboardingProps {
 
 // ─── BIOS Phase ──────────────────────────────────────────────────────────────
 
-function BiosPhase({ onDone }: { onDone: () => void }) {
+function BiosPhase({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
   const insets = useSafeAreaInsets();
   const [visibleCount, setVisibleCount] = useState(0);
 
@@ -134,13 +134,23 @@ function BiosPhase({ onDone }: { onDone: () => void }) {
           </Text>
         </Animated.View>
       ))}
+      <TouchableOpacity
+        onPress={onSkip}
+        style={{ position: 'absolute', bottom: insets.bottom + 24, alignSelf: 'center', left: 0, right: 0, alignItems: 'center' }}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: 'rgba(248,248,248,0.4)' }}>
+          Skip onboarding
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 // ─── Logo Phase ──────────────────────────────────────────────────────────────
 
-function LogoPhase({ onDone }: { onDone: () => void }) {
+function LogoPhase({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
+  const insets = useSafeAreaInsets();
   const progressWidth = useSharedValue(0);
 
   useEffect(() => {
@@ -162,6 +172,15 @@ function LogoPhase({ onDone }: { onDone: () => void }) {
       <View style={{ width: 120, height: 3, borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 28, overflow: 'hidden' }}>
         <Animated.View style={[{ height: 3, borderRadius: 1.5, backgroundColor: '#FFFFFF' }, barStyle]} />
       </View>
+      <TouchableOpacity
+        onPress={onSkip}
+        style={{ position: 'absolute', bottom: insets.bottom + 24 }}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: 'rgba(248,248,248,0.4)' }}>
+          Skip onboarding
+        </Text>
+      </TouchableOpacity>
     </Animated.View>
   );
 }
@@ -284,11 +303,11 @@ export function InstanceOnboarding({ onComplete }: InstanceOnboardingProps) {
   // ── Render ──
 
   if (phase === 'bios') {
-    return <BiosPhase onDone={handleBiosDone} />;
+    return <BiosPhase onDone={handleBiosDone} onSkip={handleSkip} />;
   }
 
   if (phase === 'logo') {
-    return <LogoPhase onDone={handleLogoDone} />;
+    return <LogoPhase onDone={handleLogoDone} onSkip={handleSkip} />;
   }
 
   // Session phase
@@ -310,6 +329,7 @@ export function InstanceOnboarding({ onComplete }: InstanceOnboardingProps) {
         sessionId={onboardingSessionId}
         onBack={handleSkip}
         onboardingMode
+        onSkipOnboarding={handleSkip}
       />
     </View>
   );

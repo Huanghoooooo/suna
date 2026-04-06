@@ -63,9 +63,11 @@ interface SessionPageProps {
   onOpenRightDrawer?: () => void;
   /** Hides drawer buttons, model/variant selectors — used for onboarding */
   onboardingMode?: boolean;
+  /** Skip callback shown in header during onboarding */
+  onSkipOnboarding?: () => void;
 }
 
-export function SessionPage({ sessionId, onBack, onOpenDrawer, onOpenRightDrawer, onboardingMode }: SessionPageProps) {
+export function SessionPage({ sessionId, onBack, onOpenDrawer, onOpenRightDrawer, onboardingMode, onSkipOnboarding }: SessionPageProps) {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
@@ -703,6 +705,17 @@ export function SessionPage({ sessionId, onBack, onOpenDrawer, onOpenRightDrawer
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Ionicons name="apps-outline" size={20} color={isDark ? '#F8F8F8' : '#121215'} />
+            </TouchableOpacity>
+          )}
+          {onboardingMode && onSkipOnboarding && (
+            <TouchableOpacity
+              onPress={onSkipOnboarding}
+              className="ml-3 py-1 px-3"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: isDark ? 'rgba(248,248,248,0.5)' : 'rgba(18,18,21,0.4)' }}>
+                Skip
+              </Text>
             </TouchableOpacity>
           )}
         </View>
