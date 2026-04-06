@@ -70,7 +70,7 @@ import GrokIcon from '@/assets/images/models/Grok.svg';
 import MoonshotIcon from '@/assets/images/models/Moonshot.svg';
 import type { SvgProps } from 'react-native-svg';
 import { useSandboxContext } from '@/contexts/SandboxContext';
-import { useOpenCodeProviders, flattenModels, type FlatModel } from '@/lib/opencode/hooks/use-opencode-data';
+import { useOpenCodeProviders, flattenModels, filterToLatestModels, type FlatModel } from '@/lib/opencode/hooks/use-opencode-data';
 import { useLocalConfigStore } from '@/lib/opencode/hooks/use-local-config';
 import { useThemeColors } from '@/lib/theme-colors';
 import { getAuthToken } from '@/api/config';
@@ -817,6 +817,7 @@ function DefaultModelStep({ onContinue, onBack, isDark, themeColors }: StepProps
   const { sandboxUrl } = useSandboxContext();
   const { data: providersData, isLoading } = useOpenCodeProviders(sandboxUrl);
   const allModels = useMemo(() => (providersData ? flattenModels(providersData) : []), [providersData]);
+  const visibleModels = useMemo(() => filterToLatestModels(allModels), [allModels]);
   const store = useLocalConfigStore();
   const colors = useStepColors(isDark);
 
@@ -827,7 +828,7 @@ function DefaultModelStep({ onContinue, onBack, isDark, themeColors }: StepProps
   // Group visible models by provider
   const grouped = useMemo(() => {
     const groups = new Map<string, FlatModel[]>();
-    for (const m of allModels) {
+    for (const m of visibleModels) {
       const list = groups.get(m.providerID) || [];
       list.push(m);
       groups.set(m.providerID, list);
@@ -837,7 +838,7 @@ function DefaultModelStep({ onContinue, onBack, isDark, themeColors }: StepProps
       const lb = PROVIDER_LABELS[b[0]] || b[0];
       return la.localeCompare(lb);
     });
-  }, [allModels]);
+  }, [visibleModels]);
 
   const handleSelect = useCallback((model: FlatModel) => {
     const key = { providerID: model.providerID, modelID: model.modelID };
@@ -859,20 +860,20 @@ function DefaultModelStep({ onContinue, onBack, isDark, themeColors }: StepProps
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-        {/* Header */}
-        <View style={{ alignItems: 'center', marginBottom: 24 }}>
-          <View style={{ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(248,248,248,0.06)' : 'rgba(18,18,21,0.04)', marginBottom: 16 }}>
-            <Bot size={22} color={colors.muted} strokeWidth={1.8} />
-          </View>
-          <Text style={{ fontSize: 18, fontFamily: 'Roobert-SemiBold', color: colors.fg, marginBottom: 6 }}>Default Model</Text>
-          <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: colors.muted, textAlign: 'center', lineHeight: 18, maxWidth: 280 }}>
-            {hasModels
-              ? 'Choose which model your agent uses by default. You can switch models anytime in chat.'
-              : 'Connect a provider first to see available models.'}
-          </Text>
+      {/* Header — fixed above scrollable list */}
+      <View style={{ alignItems: 'center', marginBottom: 24 }}>
+        <View style={{ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(248,248,248,0.06)' : 'rgba(18,18,21,0.04)', marginBottom: 16 }}>
+          <Bot size={22} color={colors.muted} strokeWidth={1.8} />
         </View>
+        <Text style={{ fontSize: 18, fontFamily: 'Roobert-SemiBold', color: colors.fg, marginBottom: 6 }}>Default Model</Text>
+        <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: colors.muted, textAlign: 'center', lineHeight: 18, maxWidth: 280 }}>
+          {hasModels
+            ? 'Choose which model your agent uses by default. You can switch models anytime in chat.'
+            : 'Connect a provider first to see available models.'}
+        </Text>
+      </View>
 
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }} style={{ flex: 1 }}>
         {/* Model list grouped by provider */}
         {hasModels && grouped.map(([providerID, models]) => (
           <View key={providerID} style={{ marginBottom: 16 }}>
@@ -888,9 +889,9 @@ function DefaultModelStep({ onContinue, onBack, isDark, themeColors }: StepProps
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
-                    paddingHorizontal: 14,
-                    paddingVertical: 12,
-                    borderRadius: 14,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    borderRadius: 12,
                     borderWidth: 1,
                     borderColor: isSelected
                       ? (isDark ? 'rgba(248,248,248,0.2)' : 'rgba(18,18,21,0.2)')
@@ -902,10 +903,10 @@ function DefaultModelStep({ onContinue, onBack, isDark, themeColors }: StepProps
                   }}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: isDark ? 'rgba(248,248,248,0.8)' : 'rgba(18,18,21,0.8)' }} numberOfLines={1}>
+                    <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: isDark ? 'rgba(248,248,248,0.8)' : 'rgba(18,18,21,0.8)' }} numberOfLines={1}>
                       {model.modelName}
                     </Text>
-                    <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: isDark ? 'rgba(248,248,248,0.3)' : 'rgba(18,18,21,0.3)', marginTop: 1 }} numberOfLines={1}>
+                    <Text style={{ fontSize: 10, fontFamily: 'Roobert', color: isDark ? 'rgba(248,248,248,0.3)' : 'rgba(18,18,21,0.3)', marginTop: 1 }} numberOfLines={1}>
                       {model.modelID}
                     </Text>
                   </View>
@@ -917,8 +918,8 @@ function DefaultModelStep({ onContinue, onBack, isDark, themeColors }: StepProps
         ))}
       </ScrollView>
 
-      {/* Sticky bottom buttons */}
-      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, gap: 10 }}>
+      {/* Bottom buttons — sits below scroll area */}
+      <View style={{ gap: 10, paddingTop: 10 }}>
         <Pressable
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onContinue(); }}
           style={{
