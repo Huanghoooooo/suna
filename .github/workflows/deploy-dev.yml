@@ -139,7 +139,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build frontend (Next.js standalone)
-        run: pnpm --filter Kortix-Computer-Frontend build
+        run: pnpm --filter ./apps/web build
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -258,14 +258,3 @@ jobs:
           echo "### Deployed API → **dev**" >> "$GITHUB_STEP_SUMMARY"
           echo "Image: \`${{ needs.build-api.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "Commit: \`${GITHUB_SHA::8}\`" >> "$GITHUB_STEP_SUMMARY"
-
-  # ── Build dev snapshot (async, non-blocking) ───────────────────────────────
-  build-dev-snapshot:
-    name: Build dev snapshot
-    needs: build-computer
-    if: needs.build-computer.result == 'success'
-    uses: ./.github/workflows/build-snapshot.yml
-    with:
-      version: ${{ needs.build-computer.outputs.tag }}
-      target: dev
-    secrets: inherit
