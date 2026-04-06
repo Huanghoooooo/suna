@@ -189,6 +189,50 @@ jobs:
             "$API_URL/machines/${{ steps.machine.outputs.id }}" || true
           echo "Builder machine deleted"
 
+      - name: Cleanup old snapshots (keep last 3)
+        if: steps.snapshot.outputs.id && success()
+        run: |
+          # Keep the 3 newest snapshots for the target channel, delete the rest.
+          # Prevents the JustAVPS org from accumulating orphan snapshots from
+          # every deploy-dev run.
+          TARGET="${{ inputs.target || 'dev' }}"
+          if [ "$TARGET" = "dev" ]; then
+            PREFIX="kortix-computer-vdev-"
+          else
+            PREFIX="kortix-computer-v"
+          fi
+
+          # Fetch all images, filter by prefix, sort newest first, skip first 3, delete rest
+          IMAGES_JSON=$(curl -sf -H "Authorization: Bearer $API_KEY" "$API_URL/images")
+          TO_DELETE=$(echo "$IMAGES_JSON" | jq -r --arg prefix "$PREFIX" --arg target "$TARGET" '
+            .images
+            | map(select(.name | startswith($prefix)))
+            # For stable, exclude dev-prefixed names that overlap
+            | map(select(
+                if $target == "prod"
+                then (.name | startswith("kortix-computer-vdev-") | not)
+                else true
+                end
+            ))
+            | sort_by(.created_at)
+            | reverse
+            | .[3:]
+            | .[]
+            | "\(.id) \(.name)"
+          ')
+
+          if [ -z "$TO_DELETE" ]; then
+            echo "No old snapshots to clean up"
+            exit 0
+          fi
+
+          echo "$TO_DELETE" | while read ID NAME; do
+            [ -z "$ID" ] && continue
+            echo "Deleting $ID ($NAME)"
+            curl -sf -X DELETE -H "Authorization: Bearer $API_KEY" \
+              "$API_URL/images/$ID" || echo "  failed to delete $ID (continuing)"
+          done
+
       - name: Summary
         if: always()
         run: |
