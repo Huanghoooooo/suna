@@ -64,10 +64,12 @@ jobs:
       - name: Create builder machine
         id: machine
         run: |
-          CLOUD_INIT=$(cat <<'SCRIPT'
-          curl -fsSL https://raw.githubusercontent.com/kortix-ai/suna/main/scripts/start-sandbox.sh -o /usr/local/bin/kortix-start-sandbox.sh
-          chmod +x /usr/local/bin/kortix-start-sandbox.sh
-          /usr/local/bin/kortix-start-sandbox.sh '${{ steps.v.outputs.image }}'
+          STARTUP=$(cat <<'SCRIPT'
+          #!/bin/bash
+          set -e
+          curl -fsSL https://raw.githubusercontent.com/kortix-ai/suna/main/scripts/start-sandbox.sh -o /tmp/start-sandbox.sh
+          chmod +x /tmp/start-sandbox.sh
+          /tmp/start-sandbox.sh '${{ steps.v.outputs.image }}'
           SCRIPT
           )
 
@@ -76,13 +78,17 @@ jobs:
             -H "Content-Type: application/json" \
             "$API_URL/machines" \
             -d "$(jq -n \
-              --arg st "cx23" \
+              --arg st "starter" \
               --arg rg "nbg1" \
-              --arg ci "$CLOUD_INIT" \
+              --arg ci "$STARTUP" \
               --arg nm "snapshot-builder-$(date +%s)" \
-              '{server_type: $st, region: $rg, cloud_init_script: $ci, name: $nm, image_id: null}')")
+              '{server_type: $st, region: $rg, startup_script: $ci, name: $nm}')")
 
           MACHINE_ID=$(echo "$RESP" | jq -r '.id')
+          if [ -z "$MACHINE_ID" ] || [ "$MACHINE_ID" = "null" ]; then
+            echo "Failed to create machine: $RESP"
+            exit 1
+          fi
           echo "id=$MACHINE_ID" >> "$GITHUB_OUTPUT"
           echo "Machine: $MACHINE_ID"
 
@@ -107,8 +113,40 @@ jobs:
           echo "Timeout waiting for machine"
           exit 1
 
-      - name: Wait for cloud-init + docker pull
-        run: sleep 90
+      - name: Wait for Docker pull to complete
+        run: |
+          # The startup_script pulls the Docker image and starts the container.
+          # Machine "ready" only means the JustAVPS daemon is up — the Docker pull
+          # may still be running. Poll the machine health until disk usage stabilizes
+          # (image downloaded) or fall back to a generous fixed wait.
+          echo "Waiting for Docker image pull to complete..."
+          PREV_DISK=""
+          STABLE_COUNT=0
+          DEADLINE=$((SECONDS + 480))
+          while [ $SECONDS -lt $DEADLINE ]; do
+            DISK=$(curl -sf -H "Authorization: Bearer $API_KEY" \
+              "$API_URL/machines/${{ steps.machine.outputs.id }}" \
+              | jq -r '.health.disk // empty')
+
+            if [ -n "$DISK" ] && [ "$DISK" = "$PREV_DISK" ]; then
+              STABLE_COUNT=$((STABLE_COUNT + 1))
+            else
+              STABLE_COUNT=0
+            fi
+            PREV_DISK="$DISK"
+
+            echo "Disk: $DISK (stable for ${STABLE_COUNT} checks, ${SECONDS}s)"
+
+            # Disk usage stable for 6 consecutive checks (60s) means pull is done
+            if [ "$STABLE_COUNT" -ge 6 ]; then
+              echo "Disk stable — Docker pull complete (${SECONDS}s)"
+              # Extra 30s buffer for container startup + health check
+              sleep 30
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Warning: timed out waiting for stable disk, proceeding anyway"
 
       - name: Create snapshot
         id: snapshot
@@ -120,6 +158,10 @@ jobs:
             -d '{"name": "${{ steps.v.outputs.snapshot }}"}')
 
           IMAGE_ID=$(echo "$RESP" | jq -r '.id')
+          if [ -z "$IMAGE_ID" ] || [ "$IMAGE_ID" = "null" ]; then
+            echo "Failed to create snapshot: $RESP"
+            exit 1
+          fi
           echo "id=$IMAGE_ID" >> "$GITHUB_OUTPUT"
           echo "Snapshot ID: $IMAGE_ID"
 
@@ -131,6 +173,12 @@ jobs:
             if [ "$STATUS" = "ready" ]; then
               echo "Snapshot ready (${SECONDS}s)"
               exit 0
+            fi
+            if [ "$STATUS" = "failed" ]; then
+              DESC=$(curl -sf -H "Authorization: Bearer $API_KEY" \
+                "$API_URL/images/$IMAGE_ID" | jq -r '.description // "unknown"')
+              echo "Snapshot failed: $DESC"
+              exit 1
             fi
             echo "Snapshot: $STATUS (${SECONDS}s)"
             sleep 10
