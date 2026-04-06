@@ -35,6 +35,10 @@ const GITHUB_API_BASE = 'https://api.github.com';
 const RELEASE_GITHUB_URL = 'https://raw.githubusercontent.com/kortix-ai/suna/main/core/release.json';
 const CHANGELOG_GITHUB_URL = 'https://raw.githubusercontent.com/kortix-ai/suna/main/core/CHANGELOG.json';
 
+// Docker Hub API — source of truth for installable dev images
+const DOCKERHUB_REPO = 'kortix/computer';
+const DOCKERHUB_TAGS_URL = `https://hub.docker.com/v2/repositories/${DOCKERHUB_REPO}/tags`;
+
 // Local CHANGELOG.json lookup paths (checked as fallback)
 const LOCAL_CHANGELOG_PATHS = [
   resolve('/app/CHANGELOG.json'),
@@ -180,40 +184,57 @@ async function getLatestStableFallback(): Promise<LatestVersionResult> {
   }
 }
 
-// ─── Latest Dev (GitHub Commits API) ────────────────────────────────────────
+// ─── Docker Hub Dev Tags ────────────────────────────────────────────────────
+
+interface DockerHubTag {
+  name: string;
+  last_updated: string;
+  full_size: number;
+}
+
+async function fetchDockerHubDevTags(limit = 20): Promise<DockerHubTag[]> {
+  try {
+    const res = await fetch(`${DOCKERHUB_TAGS_URL}/?page_size=100&ordering=last_updated`, {
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) throw new Error(`Docker Hub API returned ${res.status}`);
+    const data = await res.json() as { results: DockerHubTag[] };
+    return (data.results || [])
+      .filter((tag) => tag.name.startsWith('dev-') && tag.name !== 'dev-latest')
+      .slice(0, limit);
+  } catch (err) {
+    console.warn('[version] Failed to fetch Docker Hub dev tags:', err);
+    return [];
+  }
+}
+
+// ─── Latest Dev (Docker Hub Tags API) ───────────────────────────────────────
 
 async function getLatestDev(): Promise<LatestVersionResult> {
   if (isCacheValid(cache.latestDev)) return cache.latestDev.data;
 
-  try {
-    interface GHCommit {
-      sha: string;
-      commit: {
-        message: string;
-        committer: { date: string };
-      };
-    }
-    const commit = await githubFetch<GHCommit>(`/repos/${GITHUB_REPO}/commits/main`);
-    const sha8 = commit.sha.substring(0, 8);
+  const tags = await fetchDockerHubDevTags(1);
+  if (tags.length > 0) {
+    const tag = tags[0];
+    const sha8 = tag.name.replace('dev-', '');
     const result: LatestVersionResult = {
-      version: `dev-${sha8}`,
+      version: tag.name,
       channel: 'dev',
-      date: commit.commit.committer.date?.split('T')[0],
-      title: commit.commit.message.split('\n')[0].substring(0, 120),
-      sha: commit.sha,
+      date: tag.last_updated?.split('T')[0],
+      title: `Dev build ${sha8}`,
+      sha: sha8,
     };
     cache.latestDev = { data: result, cachedAt: Date.now() };
     return result;
-  } catch (err) {
-    console.warn('[version] Failed to fetch latest dev commit from GitHub:', err);
-    // For dev fallback, use the running version if it's a dev build
-    const running = getRunningVersion();
-    return {
-      version: running.startsWith('dev-') ? running : 'dev-unknown',
-      channel: 'dev',
-      title: 'Latest dev build',
-    };
   }
+
+  // Fallback: use running version if it's a dev build
+  const running = getRunningVersion();
+  return {
+    version: running.startsWith('dev-') ? running : 'dev-unknown',
+    channel: 'dev',
+    title: 'Latest dev build',
+  };
 }
 
 // ─── All Versions ───────────────────────────────────────────────────────────
@@ -251,30 +272,18 @@ async function getAllVersions(): Promise<VersionEntry[]> {
     console.warn('[version] Failed to fetch releases from GitHub:', err);
   }
 
-  // Fetch recent dev commits (GitHub Commits API)
-  try {
-    interface GHCommitEntry {
-      sha: string;
-      commit: {
-        message: string;
-        committer: { date: string };
-      };
-    }
-    const commits = await githubFetch<GHCommitEntry[]>(`/repos/${GITHUB_REPO}/commits?sha=main&per_page=20`);
-    for (const commit of commits) {
-      const sha8 = commit.sha.substring(0, 8);
-      const devVersion = `dev-${sha8}`;
-      versions.push({
-        version: devVersion,
-        channel: 'dev',
-        date: commit.commit.committer.date?.split('T')[0] ?? '',
-        title: commit.commit.message.split('\n')[0].substring(0, 120),
-        sha: commit.sha,
-        current: devVersion === runningVersion,
-      });
-    }
-  } catch (err) {
-    console.warn('[version] Failed to fetch dev commits from GitHub:', err);
+  // Fetch dev builds from Docker Hub (only tags with actual images)
+  const devTags = await fetchDockerHubDevTags(20);
+  for (const tag of devTags) {
+    const sha8 = tag.name.replace('dev-', '');
+    versions.push({
+      version: tag.name,
+      channel: 'dev',
+      date: tag.last_updated?.split('T')[0] ?? '',
+      title: `Dev build ${sha8}`,
+      sha: sha8,
+      current: tag.name === runningVersion,
+    });
   }
 
   // Sort by date descending
