@@ -883,7 +883,97 @@ function ExecutionRow({ execution, isDark, onOpenSession }: { execution: Executi
   );
 }
 
-// ─── Create Task Sheet ───────────────────────────────────────────────────────
+// ─── Schedule Builder Constants ─────────────────────────────────────────────
+
+type Frequency = 'minutes' | 'hourly' | 'daily' | 'weekly' | 'monthly';
+
+const FREQUENCY_TABS: { value: Frequency; label: string }[] = [
+  { value: 'minutes', label: 'Minutes' },
+  { value: 'hourly', label: 'Hourly' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+];
+
+const WEEKDAY_BUTTONS = [
+  { value: 1, label: 'Mo' },
+  { value: 2, label: 'Tu' },
+  { value: 3, label: 'We' },
+  { value: 4, label: 'Th' },
+  { value: 5, label: 'Fr' },
+  { value: 6, label: 'Sa' },
+  { value: 0, label: 'Su' },
+];
+
+const MINUTE_INTERVALS = [1, 5, 10, 15, 30, 45];
+const HOUR_INTERVALS = [1, 2, 3, 4, 6, 8, 12];
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+
+const TIMEZONES = [
+  'UTC',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'Asia/Tokyo',
+  'Asia/Shanghai',
+  'Asia/Kolkata',
+  'Australia/Sydney',
+];
+
+function buildCronFromState(frequency: Frequency, interval: number, hour: number, minute: number, weekdays: number[], monthDay: number): string {
+  switch (frequency) {
+    case 'minutes':
+      return `0 */${interval} * * * *`;
+    case 'hourly':
+      return `0 ${minute} */${interval} * * *`;
+    case 'daily':
+      return `0 ${minute} ${hour} * * *`;
+    case 'weekly': {
+      const days = weekdays.length > 0 ? [...weekdays].sort().join(',') : '*';
+      return `0 ${minute} ${hour} * * ${days}`;
+    }
+    case 'monthly':
+      return `0 ${minute} ${hour} ${monthDay} * *`;
+    default:
+      return `0 ${minute} ${hour} * * *`;
+  }
+}
+
+function describeScheduleState(frequency: Frequency, interval: number, hour: number, minute: number, weekdays: number[], monthDay: number): string {
+  const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  switch (frequency) {
+    case 'minutes':
+      return `Runs every ${interval} minute${interval === 1 ? '' : 's'}`;
+    case 'hourly':
+      return interval === 1
+        ? `Runs every hour at :${String(minute).padStart(2, '0')}`
+        : `Runs every ${interval} hours at :${String(minute).padStart(2, '0')}`;
+    case 'daily':
+      return `Runs every day at ${time}`;
+    case 'weekly': {
+      if (weekdays.length === 0) return 'No days selected';
+      if (weekdays.length === 7) return `Runs every day at ${time}`;
+      const sorted = [...weekdays].sort();
+      if (sorted.join(',') === '1,2,3,4,5') return `Runs weekdays at ${time}`;
+      if (sorted.join(',') === '0,6') return `Runs weekends at ${time}`;
+      return `Runs ${sorted.map(d => dayNames[d]).join(', ')} at ${time}`;
+    }
+    case 'monthly': {
+      const sfx = monthDay >= 11 && monthDay <= 13 ? 'th' : monthDay % 10 === 1 ? 'st' : monthDay % 10 === 2 ? 'nd' : monthDay % 10 === 3 ? 'rd' : 'th';
+      return `Runs on the ${monthDay}${sfx} of each month at ${time}`;
+    }
+    default:
+      return '';
+  }
+}
+
+// ─── Create Task Sheet ──────────────────────────────────────────────────────
 
 function CreateTaskSheet({
   sheetRef,
@@ -903,52 +993,78 @@ function CreateTaskSheet({
   const muted = isDark ? 'rgba(248,248,248,0.5)' : 'rgba(18,18,21,0.5)';
   const inputBg = isDark ? 'rgba(248,248,248,0.06)' : 'rgba(18,18,21,0.04)';
   const borderColor = isDark ? 'rgba(248,248,248,0.1)' : 'rgba(18,18,21,0.08)';
+  const chipBg = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
+  const chipActiveBg = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)';
 
+  // Source type
+  const [sourceType, setSourceType] = useState<'cron' | 'webhook'>('cron');
+
+  // Cron state
   const [name, setName] = useState('');
   const [prompt, setPrompt] = useState('');
-  const [frequency, setFrequency] = useState<'hourly' | 'daily' | 'weekly'>('daily');
+  const [frequency, setFrequency] = useState<Frequency>('daily');
+  const [interval, setInterval] = useState(15);
   const [hour, setHour] = useState(9);
   const [minute, setMinute] = useState(0);
+  const [weekdays, setWeekdays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [monthDay, setMonthDay] = useState(1);
+  const [timezone, setTimezone] = useState(() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return 'UTC'; }
+  });
+  const [showTimezones, setShowTimezones] = useState(false);
+
+  // Webhook state
+  const [webhookPath, setWebhookPath] = useState('/hooks/');
+  const [webhookSecret, setWebhookSecret] = useState('');
 
   const reset = () => {
+    setSourceType('cron');
     setName('');
     setPrompt('');
     setFrequency('daily');
+    setInterval(15);
     setHour(9);
     setMinute(0);
+    setWeekdays([1, 2, 3, 4, 5]);
+    setMonthDay(1);
+    setShowTimezones(false);
+    setWebhookPath('/hooks/');
+    setWebhookSecret('');
   };
 
-  const buildCron = (): string => {
-    switch (frequency) {
-      case 'hourly':
-        return `0 ${minute} * * * *`;
-      case 'daily':
-        return `0 ${minute} ${hour} * * *`;
-      case 'weekly':
-        return `0 ${minute} ${hour} * * 1`;
-      default:
-        return `0 ${minute} ${hour} * * *`;
-    }
+  const toggleWeekday = (day: number) => {
+    setWeekdays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]);
   };
+
+  const cronExpr = buildCronFromState(frequency, interval, hour, minute, weekdays, monthDay);
+  const scheduleDesc = describeScheduleState(frequency, interval, hour, minute, weekdays, monthDay);
+
+  const isValid = useMemo(() => {
+    if (!name.trim() || !prompt.trim()) return false;
+    if (sourceType === 'webhook' && !webhookPath.trim()) return false;
+    return true;
+  }, [name, prompt, sourceType, webhookPath]);
 
   const handleCreate = async () => {
-    if (!name.trim() || !prompt.trim()) {
-      Alert.alert('Missing Fields', 'Name and prompt are required.');
-      return;
-    }
+    if (!isValid) return;
     Keyboard.dismiss();
     try {
       await createTask.mutateAsync({
         name: name.trim(),
-        prompt: prompt.trim(),
-        cron_expr: buildCron(),
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        source: sourceType === 'cron'
+          ? { type: 'cron', cron_expr: cronExpr, timezone }
+          : { type: 'webhook', path: webhookPath.trim(), method: 'POST', ...(webhookSecret ? { secret: webhookSecret } : {}) },
+        action: {
+          type: 'prompt',
+          prompt: prompt.trim(),
+          session_mode: 'new',
+        },
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       sheetRef.current?.dismiss();
       reset();
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to create task');
+      Alert.alert('Error', err?.message || 'Failed to create trigger');
     }
   };
 
@@ -964,10 +1080,17 @@ function CreateTaskSheet({
     color: fg,
   };
 
+  const tzLabel = useMemo(() => {
+    // Short label: "UTC", "EST", or last part of IANA name
+    if (timezone === 'UTC') return 'UTC';
+    const parts = timezone.split('/');
+    return parts[parts.length - 1].replace(/_/g, ' ');
+  }, [timezone]);
+
   return (
     <BottomSheetModal
       ref={sheetRef}
-      enableDynamicSizing
+      snapPoints={['85%']}
       enablePanDownToClose
       backdropComponent={renderBackdrop}
       keyboardBehavior="interactive"
@@ -986,12 +1109,13 @@ function CreateTaskSheet({
         borderRadius: 3,
       }}
     >
-      <BottomSheetView
-        style={{
+      <BottomSheetScrollView
+        contentContainerStyle={{
           paddingHorizontal: 24,
           paddingTop: 8,
           paddingBottom: Math.max(insets.bottom, 20) + 16,
         }}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
@@ -1000,7 +1124,7 @@ function CreateTaskSheet({
               width: 40,
               height: 40,
               borderRadius: 12,
-              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+              backgroundColor: chipBg,
               alignItems: 'center',
               justifyContent: 'center',
               marginRight: 12,
@@ -1010,12 +1134,61 @@ function CreateTaskSheet({
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 18, fontFamily: 'Roobert-Semibold', color: fg }}>
-              New Scheduled Task
+              Create Trigger
             </Text>
             <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginTop: 2 }}>
-              Run a prompt on a recurring schedule
+              Choose when this trigger should fire.
             </Text>
           </View>
+        </View>
+
+        {/* Trigger Source */}
+        <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 8 }}>Trigger Source</Text>
+        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+          <Pressable
+            onPress={() => { setSourceType('cron'); Haptics.selectionAsync(); }}
+            style={{
+              flex: 1,
+              paddingVertical: 14,
+              paddingHorizontal: 14,
+              borderRadius: 14,
+              borderWidth: 2,
+              borderColor: sourceType === 'cron' ? theme.primary : borderColor,
+              backgroundColor: sourceType === 'cron' ? (isDark ? 'rgba(190,24,93,0.06)' : 'rgba(190,24,93,0.04)') : 'transparent',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Timer size={20} color={sourceType === 'cron' ? theme.primary : muted} />
+            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: sourceType === 'cron' ? fg : muted }}>
+              Cron Schedule
+            </Text>
+            <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted, textAlign: 'center' }}>
+              Runs on a time-based schedule
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => { setSourceType('webhook'); Haptics.selectionAsync(); }}
+            style={{
+              flex: 1,
+              paddingVertical: 14,
+              paddingHorizontal: 14,
+              borderRadius: 14,
+              borderWidth: 2,
+              borderColor: sourceType === 'webhook' ? theme.primary : borderColor,
+              backgroundColor: sourceType === 'webhook' ? (isDark ? 'rgba(190,24,93,0.06)' : 'rgba(190,24,93,0.04)') : 'transparent',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Webhook size={20} color={sourceType === 'webhook' ? theme.primary : muted} />
+            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: sourceType === 'webhook' ? fg : muted }}>
+              Webhook
+            </Text>
+            <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted, textAlign: 'center' }}>
+              Fires when an HTTP request is received
+            </Text>
+          </Pressable>
         </View>
 
         {/* Name */}
@@ -1028,70 +1201,293 @@ function CreateTaskSheet({
           style={{ ...inputStyle, marginBottom: 16 }}
         />
 
-        {/* Schedule */}
-        <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Schedule</Text>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-          {(['hourly', 'daily', 'weekly'] as const).map((f) => (
+        {/* Cron: Schedule — Frequency Tabs */}
+        {sourceType === 'cron' && (<>
+        <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 8 }}>Schedule</Text>
+        <View style={{ flexDirection: 'row', borderRadius: 10, backgroundColor: chipBg, padding: 3, marginBottom: 12 }}>
+          {FREQUENCY_TABS.map((tab) => (
             <Pressable
-              key={f}
-              onPress={() => setFrequency(f)}
+              key={tab.value}
+              onPress={() => { setFrequency(tab.value); Haptics.selectionAsync(); }}
               style={{
                 flex: 1,
-                paddingVertical: 8,
+                paddingVertical: 7,
                 alignItems: 'center',
-                borderRadius: 10,
-                backgroundColor: frequency === f ? theme.primary : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                borderRadius: 8,
+                backgroundColor: frequency === tab.value ? (isDark ? '#f8f8f8' : '#121215') : 'transparent',
               }}
             >
               <Text
                 style={{
-                  fontSize: 13,
-                  fontFamily: frequency === f ? 'Roobert-Medium' : 'Roobert',
-                  color: frequency === f ? theme.primaryForeground : muted,
-                  textTransform: 'capitalize',
+                  fontSize: 12,
+                  fontFamily: frequency === tab.value ? 'Roobert-Medium' : 'Roobert',
+                  color: frequency === tab.value ? (isDark ? '#121215' : '#f8f8f8') : muted,
                 }}
               >
-                {f}
+                {tab.label}
               </Text>
             </Pressable>
           ))}
         </View>
 
-        {/* Time picker for daily/weekly */}
-        {frequency !== 'hourly' && (
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginBottom: 4 }}>Hour</Text>
-              <BottomSheetTextInput
-                value={String(hour)}
-                onChangeText={(t) => { const n = parseInt(t, 10); if (!isNaN(n) && n >= 0 && n <= 23) setHour(n); }}
-                keyboardType="number-pad"
-                style={inputStyle}
-              />
+        {/* Frequency-specific controls */}
+        <View style={{ borderRadius: 12, backgroundColor: chipBg, padding: 14, marginBottom: 12 }}>
+          {/* Minutes: interval picker */}
+          {frequency === 'minutes' && (
+            <View>
+              <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginBottom: 8 }}>Every</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {MINUTE_INTERVALS.map((v) => (
+                  <Pressable
+                    key={v}
+                    onPress={() => setInterval(v)}
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 7,
+                      borderRadius: 8,
+                      backgroundColor: interval === v ? chipActiveBg : 'transparent',
+                      borderWidth: 1,
+                      borderColor: interval === v ? (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)') : 'transparent',
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontFamily: interval === v ? 'Roobert-Medium' : 'Roobert', color: interval === v ? fg : muted }}>
+                      {v} min
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginBottom: 4 }}>Minute</Text>
-              <BottomSheetTextInput
-                value={String(minute)}
-                onChangeText={(t) => { const n = parseInt(t, 10); if (!isNaN(n) && n >= 0 && n <= 59) setMinute(n); }}
-                keyboardType="number-pad"
-                style={inputStyle}
-              />
+          )}
+
+          {/* Hourly: interval + minute */}
+          {frequency === 'hourly' && (
+            <View>
+              <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginBottom: 8 }}>Every</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {HOUR_INTERVALS.map((v) => (
+                  <Pressable
+                    key={v}
+                    onPress={() => setInterval(v)}
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 7,
+                      borderRadius: 8,
+                      backgroundColor: interval === v ? chipActiveBg : 'transparent',
+                      borderWidth: 1,
+                      borderColor: interval === v ? (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)') : 'transparent',
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontFamily: interval === v ? 'Roobert-Medium' : 'Roobert', color: interval === v ? fg : muted }}>
+                      {v}h
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginBottom: 6 }}>At minute</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {[0, 15, 30, 45].map((m) => (
+                  <Pressable
+                    key={m}
+                    onPress={() => setMinute(m)}
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 7,
+                      borderRadius: 8,
+                      backgroundColor: minute === m ? chipActiveBg : 'transparent',
+                      borderWidth: 1,
+                      borderColor: minute === m ? (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)') : 'transparent',
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontFamily: minute === m ? 'Roobert-Medium' : 'Roobert', color: minute === m ? fg : muted }}>
+                      :{String(m).padStart(2, '0')}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
+          )}
+
+          {/* Daily: hour + minute */}
+          {frequency === 'daily' && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Clock size={16} color={muted} />
+              <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted }}>at</Text>
+              <Pressable
+                style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
+                onPress={() => setHour((h) => (h + 1) % 24)}
+              >
+                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(hour).padStart(2, '0')}</Text>
+              </Pressable>
+              <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: muted }}>:</Text>
+              <Pressable
+                style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
+                onPress={() => setMinute((m) => { const idx = MINUTES.indexOf(m); return MINUTES[(idx + 1) % MINUTES.length]; })}
+              >
+                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(minute).padStart(2, '0')}</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Weekly: weekday picker + time */}
+          {frequency === 'weekly' && (
+            <View>
+              <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
+                {WEEKDAY_BUTTONS.map((day) => {
+                  const active = weekdays.includes(day.value);
+                  return (
+                    <Pressable
+                      key={day.value}
+                      onPress={() => toggleWeekday(day.value)}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 8,
+                        alignItems: 'center',
+                        borderRadius: 8,
+                        backgroundColor: active ? (isDark ? '#f8f8f8' : '#121215') : 'transparent',
+                        borderWidth: 1,
+                        borderColor: active ? 'transparent' : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'),
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontFamily: active ? 'Roobert-Medium' : 'Roobert', color: active ? (isDark ? '#121215' : '#f8f8f8') : muted }}>
+                        {day.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Clock size={16} color={muted} />
+                <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted }}>at</Text>
+                <Pressable
+                  style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
+                  onPress={() => setHour((h) => (h + 1) % 24)}
+                >
+                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(hour).padStart(2, '0')}</Text>
+                </Pressable>
+                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: muted }}>:</Text>
+                <Pressable
+                  style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
+                  onPress={() => setMinute((m) => { const idx = MINUTES.indexOf(m); return MINUTES[(idx + 1) % MINUTES.length]; })}
+                >
+                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(minute).padStart(2, '0')}</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+
+          {/* Monthly: day picker + time */}
+          {frequency === 'monthly' && (
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted }}>On day</Text>
+                <Pressable
+                  style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
+                  onPress={() => setMonthDay((d) => (d % 31) + 1)}
+                >
+                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{monthDay}</Text>
+                </Pressable>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Clock size={16} color={muted} />
+                <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted }}>at</Text>
+                <Pressable
+                  style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
+                  onPress={() => setHour((h) => (h + 1) % 24)}
+                >
+                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(hour).padStart(2, '0')}</Text>
+                </Pressable>
+                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: muted }}>:</Text>
+                <Pressable
+                  style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
+                  onPress={() => setMinute((m) => { const idx = MINUTES.indexOf(m); return MINUTES[(idx + 1) % MINUTES.length]; })}
+                >
+                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(minute).padStart(2, '0')}</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+
+          {/* Schedule description */}
+          <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginTop: 10 }}>
+            {scheduleDesc}
+          </Text>
+        </View>
+
+        {/* Timezone */}
+        <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Timezone</Text>
+        <Pressable
+          onPress={() => setShowTimezones(!showTimezones)}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            borderRadius: 10,
+            backgroundColor: chipBg,
+            alignSelf: 'flex-start',
+            marginBottom: showTimezones ? 8 : 16,
+          }}
+        >
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: fg }}>{tzLabel}</Text>
+          <ChevronRight size={14} color={muted} style={{ transform: [{ rotate: showTimezones ? '90deg' : '0deg' }] }} />
+        </Pressable>
+        {showTimezones && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+            {TIMEZONES.map((tz) => {
+              const active = timezone === tz;
+              const label = tz === 'UTC' ? 'UTC' : tz.split('/').pop()!.replace(/_/g, ' ');
+              return (
+                <Pressable
+                  key={tz}
+                  onPress={() => { setTimezone(tz); setShowTimezones(false); Haptics.selectionAsync(); }}
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    backgroundColor: active ? (isDark ? '#f8f8f8' : '#121215') : chipBg,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontFamily: active ? 'Roobert-Medium' : 'Roobert', color: active ? (isDark ? '#121215' : '#f8f8f8') : muted }}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         )}
 
-        {frequency === 'hourly' && (
-          <View style={{ marginBottom: 16 }}>
-            <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginBottom: 4 }}>At minute</Text>
-            <BottomSheetTextInput
-              value={String(minute)}
-              onChangeText={(t) => { const n = parseInt(t, 10); if (!isNaN(n) && n >= 0 && n <= 59) setMinute(n); }}
-              keyboardType="number-pad"
-              style={inputStyle}
-            />
-          </View>
-        )}
+        </>)}
+
+        {/* Webhook config */}
+        {sourceType === 'webhook' && (<>
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Webhook Path</Text>
+          <BottomSheetTextInput
+            value={webhookPath}
+            onChangeText={setWebhookPath}
+            placeholder="/hooks/my-endpoint"
+            placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={{ ...inputStyle, marginBottom: 12 }}
+          />
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>
+            Secret <Text style={{ fontFamily: 'Roobert', color: muted }}>(optional)</Text>
+          </Text>
+          <BottomSheetTextInput
+            value={webhookSecret}
+            onChangeText={setWebhookSecret}
+            placeholder="shared-secret"
+            placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+            style={{ ...inputStyle, marginBottom: 8 }}
+          />
+          <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted, lineHeight: 16, marginBottom: 16 }}>
+            If set, requests must include the header{'\n'}X-Kortix-Trigger-Secret with this value.
+          </Text>
+        </>)}
 
         {/* Prompt */}
         <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Prompt</Text>
@@ -1108,25 +1504,28 @@ function CreateTaskSheet({
         {/* Create button */}
         <Pressable
           onPress={handleCreate}
-          disabled={!name.trim() || !prompt.trim() || createTask.isPending}
+          disabled={!isValid || createTask.isPending}
           style={{
             alignItems: 'center',
             justifyContent: 'center',
             paddingVertical: 14,
             borderRadius: 14,
-            backgroundColor: (!name.trim() || !prompt.trim()) ? (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)') : theme.primary,
-            opacity: (!name.trim() || !prompt.trim()) ? 0.5 : 1,
+            backgroundColor: isValid ? theme.primary : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'),
           }}
         >
           {createTask.isPending ? (
-            <ActivityIndicator size="small" color={theme.primaryForeground} />
+            <ActivityIndicator size="small" color={isValid ? theme.primaryForeground : muted} />
           ) : (
-            <Text style={{ fontSize: 16, fontFamily: 'Roobert-Medium', color: theme.primaryForeground }}>
-              Create Task
+            <Text style={{
+              fontSize: 16,
+              fontFamily: 'Roobert-Medium',
+              color: isValid ? theme.primaryForeground : (isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.25)'),
+            }}>
+              Create Trigger
             </Text>
           )}
         </Pressable>
-      </BottomSheetView>
+      </BottomSheetScrollView>
     </BottomSheetModal>
   );
 }
