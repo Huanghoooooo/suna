@@ -1,16 +1,11 @@
 name: Build Snapshot
 
 # Single workflow that builds JustAVPS snapshots for either the dev or prod org.
-# Triggered three ways:
-#   1. Manual dispatch — pick version + target (dev/prod)
-#   2. workflow_call — called by release.yml with target=prod
-#   3. Push to core/** — auto-builds dev snapshot (if AUTO_SNAPSHOT_DEV=true)
+# Triggered two ways:
+#   1. workflow_dispatch — manual, pick version + target (dev/prod)
+#   2. workflow_call     — called automatically by deploy-dev.yml (dev) and release.yml (prod)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'core/**'
   workflow_dispatch:
     inputs:
       version:
@@ -42,18 +37,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  gate:
-    name: Check auto-snapshot
-    runs-on: ubuntu-latest
-    # Push: only run if AUTO_SNAPSHOT_DEV=true. Manual/call: always run.
-    if: github.event_name != 'push' || vars.AUTO_SNAPSHOT_DEV == 'true'
-    steps:
-      - name: Proceeding
-        run: echo "trigger=${{ github.event_name }} target=${{ inputs.target || 'dev' }}"
-
   build-snapshot:
     name: Build snapshot (${{ inputs.target || 'dev' }})
-    needs: gate
     runs-on: ubuntu-latest
     environment: ${{ inputs.target || 'dev' }}
     timeout-minutes: 30

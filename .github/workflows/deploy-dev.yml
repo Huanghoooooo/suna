@@ -321,10 +321,14 @@ jobs:
   # Uses gh workflow run (workflow_dispatch) to trigger a standalone
   # snapshot-build.yml run. This job completes in ~1 second — the snapshot
   # builds independently in its own run, not blocking deploy-dev.
+  #
+  # Fires on every deploy-dev run by default. Disable by setting the repo
+  # variable AUTO_SNAPSHOT_DEV to 'false'.
   trigger-dev-snapshot:
     name: Trigger dev snapshot (async)
     needs: merge-computer
     runs-on: ubuntu-latest
+    if: vars.AUTO_SNAPSHOT_DEV != 'false'
     steps:
       - name: Dispatch snapshot-build workflow
         env:
