@@ -41,12 +41,7 @@ if (!API_KEY) {
   process.exit(1);
 }
 
-// Read version from release.json as fallback
-let defaultVersion = 'latest';
-try {
-  const releaseJson = JSON.parse(readFileSync(resolve(import.meta.dir, '../../../core/release.json'), 'utf-8'));
-  defaultVersion = releaseJson.version || 'latest';
-} catch { /* not available in CI without full checkout */ }
+const defaultVersion = 'latest';
 
 const { values } = parseArgs({
   options: {

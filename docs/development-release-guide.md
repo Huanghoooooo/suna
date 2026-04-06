@@ -1,6 +1,6 @@
 # Development & Release Guide
 
-> How the Suna project is developed, built, and deployed.
+> How Suna is developed, built, and released.
 
 ---
 
@@ -12,8 +12,10 @@
 4. [CI/CD: Dev Line](#cicd-dev-line)
 5. [CI/CD: Prod Line (Release)](#cicd-prod-line-release)
 6. [Docker Hub Tags](#docker-hub-tags)
-7. [Ports Reference](#ports-reference)
-8. [Quick Reference Cheatsheet](#quick-reference-cheatsheet)
+7. [Version Sources](#version-sources)
+8. [Snapshots](#snapshots)
+9. [Ports Reference](#ports-reference)
+10. [Quick Reference](#quick-reference)
 
 ---
 
@@ -23,43 +25,41 @@
 
 | Component | Image | Source | What it does |
 |---|---|---|---|
-| **API** | `kortix/kortix-api` | `apps/api/` | Backend API server (Bun + Hono) |
+| **API** | `kortix/kortix-api` | `apps/api/` | Backend API (Bun + Hono) |
 | **Frontend** | `kortix/kortix-frontend` | `apps/web/` | Next.js web app |
-| **Computer** | `kortix/computer` | `core/` | Sandbox container (Alpine, s6-overlay, browser, tools) |
+| **Computer** | `kortix/computer` | `core/` | Sandbox container (Alpine, s6, browser, tools) |
 
 ### Two environments
 
-| Environment | API | Frontend | Computer |
-|---|---|---|---|
-| **Dev** | `dev.kortix.com` | Vercel preview | JustAVPS (dev snapshot) |
-| **Prod** | `kortix.com` | Vercel production | JustAVPS (prod snapshot) |
+| Environment | URL | API | Frontend | Computer |
+|---|---|---|---|---|
+| **Dev** | `dev.kortix.com` | `dev-api.kortix.com` (VPS) | Vercel (main branch) | JustAVPS (dev org) |
+| **Prod** | `kortix.com` | `new-api.kortix.com` (VPS) | Vercel (production branch) | JustAVPS (prod org) |
 
 ### Single registry
 
-All Docker images live on **Docker Hub** under the `kortix/` namespace. No GHCR.
+All Docker images live on **Docker Hub** in the `kortix/` namespace.
 
 ---
 
 ## Local Development
 
-### Quick Start
-
 ```bash
-# 1. Start Supabase (auth + DB)
+# 1. Start Supabase
 supabase start
 supabase status -o env  # copy values into apps/api/.env and apps/web/.env.local
 
 # 2. Start dev servers (frontend + API)
 pnpm dev
 
-# 3. Start sandbox (optional — only if you need it)
+# 3. Start sandbox (optional — only when you need it)
 pnpm dev:sandbox
 ```
 
 ### Individual services
 
 ```bash
-pnpm dev:frontend   # Next.js dev server on http://localhost:3000
+pnpm dev:frontend   # Next.js on http://localhost:3000
 pnpm dev:api        # kortix-api on http://localhost:8008
 pnpm dev            # Both at once
 pnpm dev:sandbox    # Sandbox container with bind mounts
@@ -71,7 +71,7 @@ pnpm dev:sandbox    # Sandbox container with bind mounts
 
 ### Bind mounts (dev mode)
 
-`docker-compose.dev.yml` mounts local source over the prebaked image:
+`docker-compose.dev.yml` overlays local source on the prebaked image:
 
 | Local path | Container path |
 |---|---|
@@ -88,8 +88,8 @@ You **do not** need to rebuild for:
 
 You **do** need `pnpm dev:sandbox --build` when:
 - `Dockerfile` changes
-- `core/package.json` changes (new/removed dep)
-- `kortix-master/package.json` or `bun.lock` changes
+- `core/package.json` or `kortix-master/package.json` changes
+- `bun.lock` in a sandbox package changes
 
 ### Restarting services inside the container
 
@@ -109,66 +109,124 @@ curl http://127.0.0.1:14000/kortix/health
 ## CI/CD: Dev Line
 
 **Workflow:** `.github/workflows/deploy-dev.yml`
-**Trigger:** Push to `main` (path-filtered) or manual dispatch
+
+### Triggers
+
+- **Push to `main`** — gated by the repo variable `AUTO_DEPLOY_DEV`
+  - Set to `true` to auto-deploy on every push
+  - Set to `false` (default) to skip push-triggered deploys
+- **Manual dispatch** — always runs, builds all 3 components regardless of `AUTO_DEPLOY_DEV`
 
 ### How it works
 
 ```
-push to main
+push to main (if AUTO_DEPLOY_DEV=true) OR manual dispatch
   │
-  ├─► detect-changes (dorny/paths-filter)
-  │     outputs: api_changed, frontend_changed, computer_changed
+  ├─► detect-changes (path filter)
+  │     API:      apps/api/**, packages/**, pnpm-lock.yaml
+  │     Frontend: apps/web/**, packages/shared/**
+  │     Computer: core/**
   │
-  ├─► build-api (if api changed)
-  │     Build kortix/kortix-api:dev-{sha8} + dev-latest → Docker Hub
-  │     └─► deploy-api → SSH into dev VPS → zero-downtime deploy
-  │
-  ├─► build-frontend (if frontend changed)
-  │     Host build (pnpm build) → Docker build → Docker Hub
-  │
-  └─► build-computer (if core/ changed)
-        Build kortix/computer:dev-{sha8} + dev-latest → Docker Hub
-        └─► build-dev-snapshot → JustAVPS snapshot (async)
+  ├─► build-api-amd64   (ubuntu-latest)      │
+  ├─► build-api-arm64   (ubuntu-24.04-arm)   │  parallel native builds
+  ├─► build-frontend-amd64                   │  (NO QEMU)
+  ├─► build-frontend-arm64                   │
+  ├─► build-computer-amd64                   │
+  └─► build-computer-arm64                   ┘
+        │
+        ├─► merge-api       → kortix/kortix-api:dev-{sha8} + :dev-latest (multi-arch)
+        ├─► merge-frontend  → kortix/kortix-frontend:dev-{sha8} + :dev-latest
+        └─► merge-computer  → kortix/computer:dev-{sha8} + :dev-latest
+              │
+              └─► deploy-api → SSH to dev VPS → blue/green deploy
 ```
 
-### What triggers what
+### Managing the auto-deploy gate
 
-| Path changed | Build triggered | Deploy triggered |
-|---|---|---|
-| `apps/api/**`, `packages/**`, `pnpm-lock.yaml` | API image | API → dev VPS |
-| `apps/web/**`, `packages/shared/**` | Frontend image | — (Vercel handles frontend) |
-| `core/**` | Computer image | JustAVPS snapshot |
+```bash
+# Enable auto-deploy on push to main
+gh variable set AUTO_DEPLOY_DEV --repo kortix-ai/suna --body true
 
-### Deploy script
+# Disable
+gh variable set AUTO_DEPLOY_DEV --repo kortix-ai/suna --body false
 
-The dev VPS deploy uses `scripts/deploy-zero-downtime.sh` — a blue/green deployment with nginx port swapping. The CI passes `PREBUILT_IMAGE=kortix/kortix-api:dev-{sha8}` so the VPS pulls the pre-built image instead of building locally.
+# Check current value
+gh variable list --repo kortix-ai/suna
+```
+
+### Trigger a dev deploy manually
+
+```bash
+gh workflow run deploy-dev.yml --repo kortix-ai/suna
+```
+
+### Dev snapshot
+
+When the Computer image changes, trigger a dev JustAVPS snapshot separately:
+
+```bash
+gh workflow run snapshot-dev.yml --repo kortix-ai/suna -f version=dev-latest
+```
+
+The snapshot workflow (`snapshot-dev.yml`) is decoupled from `deploy-dev.yml` so it doesn't block the main pipeline.
 
 ---
 
 ## CI/CD: Prod Line (Release)
 
-> **Not yet implemented.** This section describes the planned approach.
+**Workflow:** `.github/workflows/release.yml`
 
-The prod release workflow will:
-1. Be triggered manually via GitHub Actions
-2. Re-tag `dev-latest` images to the release version (e.g., `0.8.28`)
-3. Deploy to the production VPS
-4. Create a GitHub Release with changelog
+### Trigger
+
+Manual only. Go to GitHub Actions → "Release Version" → Run workflow.
+
+**Inputs:**
+- `version` — e.g. `0.8.30`
+- `title` — release title, e.g. `"Streaming fixes, new onboarding"`
+- `description` — optional multi-line description
+
+### How it works
+
+```
+Run workflow (version=0.8.30)
+  │
+  ├─► retag-images (30 sec — NO REBUILD)
+  │     docker buildx imagetools create \
+  │       kortix/kortix-api:0.8.30 ← kortix/kortix-api:dev-latest
+  │     (same for frontend + computer)
+  │     Also tags as :latest
+  │
+  ├─► deploy-prod → SSH to prod VPS → blue/green deploy
+  ├─► update-production-branch → fast-forward production branch → Vercel deploys kortix.com
+  ├─► create-release → git tag + GitHub Release with auto-changelog
+  └─► build-prod-snapshot → async JustAVPS snapshot (non-blocking)
+```
+
+### Key insight: no rebuild
+
+Prod promotion re-tags the multi-arch manifests that were already built on the dev line. **No code is rebuilt.** The exact bytes that were tested on dev go to prod.
+
+### Required secrets
+
+- `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` — Docker Hub push
+- `PROD_HOST`, `PROD_USERNAME`, `PROD_KEY` — SSH to prod VPS
+- `GH_RELEASE_PAT` — PAT with `workflow` scope (needed to push workflow files to the `production` branch; `GITHUB_TOKEN` alone cannot)
+- `prod` environment: `JUSTAVPS_API_KEY` — for prod snapshot builds
 
 ---
 
 ## Docker Hub Tags
 
-All images are in the `kortix/` Docker Hub namespace.
+All images live in the `kortix/` Docker Hub namespace.
 
 ### Tag convention
 
-| Tag | Meaning | Example |
-|---|---|---|
-| `dev-{sha8}` | Specific dev build from a commit | `kortix/kortix-api:dev-a1b2c3d4` |
-| `dev-latest` | Current state on the dev environment | `kortix/kortix-api:dev-latest` |
-| `0.8.28` | Pinned prod release | `kortix/kortix-api:0.8.28` |
-| `latest` | Latest prod release | `kortix/kortix-api:latest` |
+| Tag | Meaning |
+|---|---|
+| `dev-{sha8}` | Specific dev build from commit `{sha8}` (multi-arch) |
+| `dev-latest` | Points to the current dev line state |
+| `0.8.30` | A released version (multi-arch) |
+| `latest` | Latest released version |
 
 ### Images
 
@@ -177,6 +235,69 @@ All images are in the `kortix/` Docker Hub namespace.
 | `kortix/kortix-api` | Backend API |
 | `kortix/kortix-frontend` | Next.js frontend |
 | `kortix/computer` | Sandbox container |
+
+All images are **multi-arch (amd64 + arm64)**. Works on x86 servers and Apple Silicon / ARM machines.
+
+---
+
+## Version Sources
+
+Single source of truth per component:
+
+| Component | How version is set | Where it's read |
+|---|---|---|
+| **API** (`kortix-api`) | `SANDBOX_VERSION` env var injected by `deploy-zero-downtime.sh` from image tag | `config.SANDBOX_VERSION`, `/health` endpoint, `/v1/platform/sandbox/version` |
+| **Computer** (`kortix/computer`) | `SANDBOX_VERSION` env var injected by `justavps.ts`/`local-docker.ts` from image tag | `kortix-master` `/kortix/health` endpoint, falls back to `/ephemeral/metadata/.version` baked at build time |
+| **Frontend** | Not tracked (Vercel deployment hashes) | — |
+
+### Version endpoints
+
+```bash
+# Current running API version
+GET /v1/platform/sandbox/version
+
+# Latest available version (channel: stable|dev)
+GET /v1/platform/sandbox/version/latest?channel=stable
+GET /v1/platform/sandbox/version/latest?channel=dev
+
+# All installable versions (both channels)
+GET /v1/platform/sandbox/version/all
+
+# Unified changelog
+GET /v1/platform/sandbox/version/changelog
+```
+
+**Stable versions** come from the GitHub Releases API.
+**Dev versions** come from the Docker Hub Tags API (only shows tags that actually exist as images).
+
+No JSON files, no manual changelog entries.
+
+### Changelog page
+
+`/changelog` in the web app shows all versions. Users can click "Install" on any version to update their sandbox. Dev builds are hidden behind a subtle toggle by default.
+
+---
+
+## Snapshots
+
+JustAVPS snapshots are VPS images that speed up provisioning of new machines. The sandbox Docker image is pre-pulled into the snapshot.
+
+| Workflow | Triggered by | Target org |
+|---|---|---|
+| `snapshot-dev.yml` | Push to `core/**` (if enabled) or manual | dev org |
+| `build-snapshot.yml` (called by `release.yml`) | Prod promotion | prod org |
+
+Snapshots use the `dev` or `prod` GitHub Environment to select the correct `JUSTAVPS_API_KEY` secret (different org per environment).
+
+### Provisioning logic (`justavps.ts`)
+
+When a new machine is needed, the API:
+1. Explicit `JUSTAVPS_IMAGE_ID` override? Use it.
+2. Dev snapshots (`kortix-computer-vdev-*`) ready? Use the newest one.
+3. Stable snapshots (`kortix-computer-v0.8.*`) ready? Use the highest semver.
+4. Nothing found? Provision without an image_id (bare machine, slower).
+
+Machine provisioning is always available — it never blocks on the latest snapshot being ready.
 
 ---
 
@@ -198,48 +319,49 @@ All ports are on `127.0.0.1` in dev (no public exposure).
 
 ---
 
-## Quick Reference Cheatsheet
+## Quick Reference
 
-### Start dev
+### Local dev
 
 ```bash
 supabase start
 pnpm dev                  # frontend + API
 pnpm dev:sandbox          # sandbox (separate terminal)
+pnpm dev:sandbox --build  # force rebuild after dep change
 ```
 
-### Check health
+### Health checks
 
 ```bash
-curl http://127.0.0.1:14000/kortix/health
+curl http://127.0.0.1:14000/kortix/health         # local sandbox
+curl https://dev-api.kortix.com/v1/platform/sandbox/version   # dev API
+curl https://new-api.kortix.com/v1/platform/sandbox/version   # prod API
 ```
 
-### Restart kortix-master inside sandbox
+### CI/CD operations
+
+```bash
+# Trigger a dev deploy manually (builds all 3 components)
+gh workflow run deploy-dev.yml --repo kortix-ai/suna
+
+# Build a dev JustAVPS snapshot
+gh workflow run snapshot-dev.yml --repo kortix-ai/suna -f version=dev-latest
+
+# Enable/disable auto-deploy on push to main
+gh variable set AUTO_DEPLOY_DEV --repo kortix-ai/suna --body true
+gh variable set AUTO_DEPLOY_DEV --repo kortix-ai/suna --body false
+
+# Promote to production
+gh workflow run release.yml --repo kortix-ai/suna \
+  -f version="0.8.30" \
+  -f title="Your release title" \
+  -f description="Optional longer description"
+```
+
+### Sandbox container operations
 
 ```bash
 docker exec kortix-sandbox s6-svc -r /run/service/svc-kortix-master
-```
-
-### Shell into sandbox
-
-```bash
 docker exec -it kortix-sandbox bash
-```
-
-### Force rebuild after dep change
-
-```bash
-pnpm dev:sandbox --build
-```
-
-### Build sandbox image manually
-
-```bash
 docker compose -f core/docker/docker-compose.yml build
-```
-
-### Trigger a dev deploy manually
-
-```bash
-gh workflow run deploy-dev.yml --repo kortix-ai/suna
 ```

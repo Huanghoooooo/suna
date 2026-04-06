@@ -97,18 +97,10 @@ if (config.INTERNAL_KORTIX_ENV === 'dev') {
 
 // === Top-Level Health Check (no auth) ===
 
-// Read version from release.json (baked into Docker image by Dockerfile).
-// Falls back to 'dev' for local development where the file path differs.
-const API_VERSION = (() => {
-  try {
-    // Docker image path
-    const fs = require('fs');
-    for (const p of ['/app/release.json', require('path').resolve(__dirname, '../../../core/release.json')]) {
-      if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8')).version;
-    }
-  } catch {}
-  return 'dev';
-})();
+// API version is injected at container start by deploy-zero-downtime.sh,
+// which extracts it from the Docker image tag (e.g. kortix/kortix-api:0.8.29 → 0.8.29).
+// Falls back to 'dev' for local development.
+const API_VERSION = process.env.SANDBOX_VERSION || 'dev';
 
 app.get('/health', (c) => {
   return c.json({

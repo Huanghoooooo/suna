@@ -1,36 +1,31 @@
 import { Hono } from 'hono';
-import { describeRoute, resolver } from 'hono-openapi';
-import { ErrorResponse, UpdateResponse, UpdateStatusResponse } from '../schemas/common';
+import { describeRoute } from 'hono-openapi';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const VERSION_FILE = '/ephemeral/metadata/.version';
-const CHANGELOG_FILE = '/ephemeral/metadata/CHANGELOG.json';
 const KORTIX_DATA_DIR = '/workspace/.kortix';
 const UPDATE_STATUS_FILE = KORTIX_DATA_DIR + '/update-status.json';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+/**
+ * Read the running sandbox version.
+ * Priority:
+ *   1. SANDBOX_VERSION env var (injected at provision from the Docker image tag)
+ *   2. /ephemeral/metadata/.version (baked into the image at build time)
+ *   3. 'unknown'
+ */
 async function readLocalVersion(): Promise<string> {
+  if (process.env.SANDBOX_VERSION) return process.env.SANDBOX_VERSION;
   try {
     const file = Bun.file(VERSION_FILE);
     if (await file.exists()) {
       const data = await file.json();
-      return data.version || '0.0.0';
+      return data.version || 'unknown';
     }
   } catch {}
-  return '0.0.0';
-}
-
-async function getChangelog(version: string) {
-  try {
-    const file = Bun.file(CHANGELOG_FILE);
-    if (await file.exists()) {
-      const entries = await file.json();
-      return entries.find((e: any) => e.version === version) ?? null;
-    }
-  } catch {}
-  return null;
+  return 'unknown';
 }
 
 interface UpdateStatus {
@@ -115,7 +110,6 @@ updateRoutes.post(
       message: `Update to ${targetVersion} acknowledged. Container recreate will be triggered by kortix-api.`,
       currentVersion,
       targetVersion,
-      // Tell the caller (usually kortix-api) to pull the new image and recreate the container
       action: 'recreate',
     });
   },
@@ -134,13 +128,7 @@ updateRoutes.get(
   async (c) => {
     const status = await getStatus();
     const currentVersion = await readLocalVersion();
-    const changelog = status.targetVersion ? await getChangelog(status.targetVersion) : null;
-
-    return c.json({
-      ...status,
-      currentVersion,
-      changelog,
-    });
+    return c.json({ ...status, currentVersion });
   },
 );
 
@@ -156,14 +144,7 @@ updateRoutes.get(
   }),
   async (c) => {
     const version = await readLocalVersion();
-    const sandboxVersion = process.env.SANDBOX_VERSION || version;
-    const changelog = await getChangelog(version);
-
-    return c.json({
-      version,
-      imageVersion: sandboxVersion,
-      changelog,
-    });
+    return c.json({ version, imageVersion: version });
   },
 );
 

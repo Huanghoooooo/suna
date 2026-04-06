@@ -1,7 +1,13 @@
 import { z } from 'zod';
-import { releaseManifest, SANDBOX_VERSION } from './release';
 
-export { SANDBOX_VERSION } from './release';
+/**
+ * Running sandbox version.
+ *
+ * Source of truth: SANDBOX_VERSION env var, injected at container start
+ * by deploy-zero-downtime.sh (extracted from the Docker image tag).
+ * Falls back to 'unknown' only if the env var is missing.
+ */
+export const SANDBOX_VERSION = process.env.SANDBOX_VERSION || 'unknown';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -402,7 +408,7 @@ export const config = {
   DAYTONA_API_KEY: env.DAYTONA_API_KEY,
   DAYTONA_SERVER_URL: env.DAYTONA_SERVER_URL,
   DAYTONA_TARGET: env.DAYTONA_TARGET,
-  DAYTONA_SNAPSHOT: env.DAYTONA_SNAPSHOT || releaseManifest.snapshots.daytona,
+  DAYTONA_SNAPSHOT: env.DAYTONA_SNAPSHOT || `kortix-sandbox-v${SANDBOX_VERSION}`,
 
   // ─── JustAVPS (VPS Sandbox provisioning via JustAVPS) ────────────────────
   JUSTAVPS_API_URL: env.JUSTAVPS_API_URL,
@@ -421,7 +427,7 @@ export const config = {
   // ─── Sandbox Provisioning (Platform) ──────────────────────────────────────
   KORTIX_URL: env.KORTIX_URL,
   ALLOWED_SANDBOX_PROVIDERS: allowedProviders,
-  SANDBOX_IMAGE: env.SANDBOX_IMAGE || releaseManifest.images.sandbox,
+  SANDBOX_IMAGE: env.SANDBOX_IMAGE || 'kortix/computer:latest',
   KORTIX_LOCAL_IMAGES: env.KORTIX_LOCAL_IMAGES,
   DOCKER_HOST: env.DOCKER_HOST,
   SANDBOX_NETWORK: env.SANDBOX_NETWORK,
@@ -499,7 +505,7 @@ export const config = {
   TUNNEL_MAX_WS_MESSAGE_SIZE: env.TUNNEL_MAX_WS_MESSAGE_SIZE,
 
   // ─── Version / GitHub ──────────────────────────────────────────────────────
-  /** Dev override: force a specific sandbox version (skips release.json). */
+  /** Dev override: force a specific sandbox version via env var. */
   SANDBOX_VERSION_OVERRIDE: env.SANDBOX_VERSION,
   GITHUB_TOKEN: env.GITHUB_TOKEN,
 

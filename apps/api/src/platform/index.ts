@@ -10,7 +10,7 @@ import { backupRouter } from './routes/sandbox-backups';
 
 const platformApp = new Hono();
 
-// Sandbox version (from release.json)
+// Sandbox version (from GitHub Releases + Docker Hub Tags API)
 // Full path: /v1/platform/sandbox/version
 platformApp.route('/sandbox/version', versionRouter);
 

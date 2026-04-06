@@ -40,18 +40,13 @@ jobs:
       API_URL: ${{ secrets.JUSTAVPS_API_URL || 'https://justavps.com/api/v1' }}
       API_KEY: ${{ secrets.JUSTAVPS_API_KEY }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          sparse-checkout: core/release.json
-
       - name: Resolve version
         id: v
         run: |
-          if [ -n "${{ inputs.version }}" ]; then
-            V="${{ inputs.version }}"
-          else
-            V=$(python3 -c "import json; print(json.load(open('core/release.json'))['version'])")
+          V="${{ inputs.version }}"
+          if [ -z "$V" ]; then
+            echo "::error::version input is required"
+            exit 1
           fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "image=kortix/computer:$V" >> "$GITHUB_OUTPUT"
