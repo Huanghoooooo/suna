@@ -1,9 +1,13 @@
 /**
  * useSandboxUpdate — checks for sandbox updates and lets the user trigger them.
  *
+ * Supports both stable and dev channels:
+ *   - If running a dev build (version starts with "dev-"), compares against latest dev
+ *   - If running a stable build, compares against latest stable
+ *
  * Docker image-based update flow:
  *   - `currentVersion` is provided by the caller (from /kortix/health)
- *   - `latestVersion` is fetched from the platform API
+ *   - `latestVersion` is fetched from the platform API (channel-aware)
  *   - Frontend compares them → `updateAvailable`
  *   - `update()` POSTs to kortix-api which pulls new image + recreates container
  *   - Polls GET /platform/sandbox/update/status every 2s → live phase + progress
@@ -13,7 +17,7 @@
 'use client';
 
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   getLatestSandboxVersion,
   triggerSandboxUpdate,
@@ -21,6 +25,7 @@ import {
   resetSandboxUpdateStatus,
   type SandboxUpdateStatus,
   type UpdatePhase,
+  type VersionChannel,
 } from '@/lib/platform-client';
 import { setSandboxVersion } from '@/stores/sandbox-connection-store';
 import { useServerStore } from '@/stores/server-store';
@@ -62,6 +67,15 @@ export const PHASE_PROGRESS: Record<UpdatePhase, number> = {
 };
 
 /**
+ * Detect the channel from a version string.
+ * dev-{sha8} → 'dev', anything else → 'stable'
+ */
+export function detectChannel(version: string | null): VersionChannel {
+  if (!version) return 'stable';
+  return version.startsWith('dev-') ? 'dev' : 'stable';
+}
+
+/**
  * Compare two semver-like version strings (e.g. "0.4.11" vs "0.4.12").
  * Returns true when `latest` is strictly greater than `current`.
  */
@@ -76,6 +90,16 @@ function isNewerVersion(current: string, latest: string): boolean {
     if (lv < cv) return false;
   }
   return false;
+}
+
+/**
+ * Compare dev versions: dev-{sha8} strings are different if they differ.
+ * We can't do semantic ordering, so any difference = update available.
+ */
+function isNewerDevVersion(current: string, latest: string): boolean {
+  if (!current || !latest) return false;
+  // Different dev versions → update available
+  return current !== latest;
 }
 
 const POLL_INTERVAL_MS = 2_000;
@@ -100,10 +124,13 @@ export function useSandboxUpdate(currentVersion: string | null) {
       }
     : null;
 
-  // ── Latest version from platform ────────────────────────────────────────
+  // Detect which channel the running instance belongs to
+  const currentChannel = useMemo(() => detectChannel(currentVersion), [currentVersion]);
+
+  // ── Latest version from platform (channel-aware) ────────────────────────
   const latestQuery = useQuery({
-    queryKey: ['sandbox', 'latest-version'],
-    queryFn: getLatestSandboxVersion,
+    queryKey: ['sandbox', 'latest-version', currentChannel],
+    queryFn: () => getLatestSandboxVersion(currentChannel),
     enabled: !!sandbox,
     staleTime: 5 * 60 * 1000,        // re-fetch from GitHub at most every 5 min
     refetchInterval: 10 * 60 * 1000, // background poll every 10 min
@@ -111,9 +138,15 @@ export function useSandboxUpdate(currentVersion: string | null) {
   });
 
   const latestVersion = latestQuery.data?.version ?? null;
-  const updateAvailable = !!(
-    currentVersion && latestVersion && isNewerVersion(currentVersion, latestVersion)
-  );
+  const latestChannel = (latestQuery.data?.channel as VersionChannel) ?? currentChannel;
+
+  const updateAvailable = useMemo(() => {
+    if (!currentVersion || !latestVersion) return false;
+    if (currentChannel === 'dev') {
+      return isNewerDevVersion(currentVersion, latestVersion);
+    }
+    return isNewerVersion(currentVersion, latestVersion);
+  }, [currentVersion, latestVersion, currentChannel]);
 
   // ── Live update status (polled while in-progress) ────────────────────────
   const [liveStatus, setLiveStatus] = useState<SandboxUpdateStatus | null>(null);
@@ -213,8 +246,12 @@ export function useSandboxUpdate(currentVersion: string | null) {
     updateAvailable,
     /** Current version running on the sandbox */
     currentVersion,
-    /** Latest version available */
+    /** Latest version available (in the same channel) */
     latestVersion,
+    /** Channel of the currently running version */
+    currentChannel,
+    /** Channel of the latest available version */
+    latestChannel,
     /** Changelog for the latest available version */
     changelog: latestQuery.data?.changelog ?? null,
     /** Trigger the update */

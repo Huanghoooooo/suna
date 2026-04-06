@@ -542,11 +542,37 @@ export interface ChangelogEntry {
   description: string;
   changes: ChangelogChange[];
   artifacts?: ChangelogArtifact[];
+  /** Present on dev changelog entries */
+  channel?: 'stable' | 'dev';
+  sha?: string;
+  author?: string;
+}
+
+export type VersionChannel = 'stable' | 'dev';
+
+export interface VersionEntry {
+  version: string;
+  channel: VersionChannel;
+  date: string;
+  title: string;
+  body?: string;
+  sha?: string;
+  current: boolean;
+}
+
+export interface AllVersionsResponse {
+  versions: VersionEntry[];
+  current: {
+    version: string;
+    channel: VersionChannel;
+  };
 }
 
 export interface SandboxVersionInfo {
   version: string;
   channel?: string;
+  date?: string;
+  sha?: string;
   changelog: ChangelogEntry | null;
 }
 
@@ -613,12 +639,14 @@ export async function getSandboxUpdateStatus(
 }
 
 /**
- * Get the latest available sandbox version — proxied through the platform API
- * which fetches from GitHub raw release.json, so it always reflects the true
- * published version regardless of which API image the user is running.
+ * Get the latest available sandbox version — proxied through the platform API.
+ * Uses GitHub Releases API for stable, GitHub Commits API for dev.
+ *
+ * @param channel — 'stable' (default) or 'dev'
  */
-export async function getLatestSandboxVersion(): Promise<SandboxVersionInfo> {
-  const res = await fetch(`${getPlatformUrl()}/platform/sandbox/version/latest`, {
+export async function getLatestSandboxVersion(channel?: VersionChannel): Promise<SandboxVersionInfo> {
+  const params = channel ? `?channel=${channel}` : '';
+  const res = await fetch(`${getPlatformUrl()}/platform/sandbox/version/latest${params}`, {
     headers: { 'Accept': 'application/json' },
   });
   if (!res.ok) throw new Error(`Version check failed: ${res.status}`);
@@ -627,14 +655,27 @@ export async function getLatestSandboxVersion(): Promise<SandboxVersionInfo> {
 
 /**
  * Get the full changelog from the platform.
+ * Supports channel filtering: 'stable', 'dev', or 'all' (default).
  */
-export async function getFullChangelog(): Promise<ChangelogEntry[]> {
-  const res = await fetch(`${getPlatformUrl()}/platform/sandbox/version/changelog`, {
+export async function getFullChangelog(channel?: 'stable' | 'dev' | 'all'): Promise<ChangelogEntry[]> {
+  const params = channel ? `?channel=${channel}` : '';
+  const res = await fetch(`${getPlatformUrl()}/platform/sandbox/version/changelog${params}`, {
     headers: { 'Accept': 'application/json' },
   });
   if (!res.ok) throw new Error(`Changelog fetch failed: ${res.status}`);
   const data = await res.json();
   return data.changelog;
+}
+
+/**
+ * Get all available versions (both stable and dev).
+ */
+export async function getAllVersions(): Promise<AllVersionsResponse> {
+  const res = await fetch(`${getPlatformUrl()}/platform/sandbox/version/all`, {
+    headers: { 'Accept': 'application/json' },
+  });
+  if (!res.ok) throw new Error(`All versions fetch failed: ${res.status}`);
+  return res.json();
 }
 
 /**

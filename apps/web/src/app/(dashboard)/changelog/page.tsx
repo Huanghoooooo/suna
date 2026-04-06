@@ -1,9 +1,10 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDownToLine, Loader2, Sparkles, Bug, Zap, AlertTriangle, Shield, RefreshCw, Check, Package, Container, Github, Cloud } from 'lucide-react';
-import { getFullChangelog, type ChangelogEntry, type ChangelogChange, type ChangelogArtifact } from '@/lib/platform-client';
-import { useGlobalSandboxUpdate } from '@/hooks/platform/use-global-sandbox-update';
+import { ArrowDownToLine, Loader2, Sparkles, Bug, Zap, AlertTriangle, Shield, RefreshCw, Check, Package, Container, Github, Cloud, GitCommit, Tag } from 'lucide-react';
+import { getAllVersions, type VersionEntry, type VersionChannel, type ChangelogChange, type ChangelogArtifact } from '@/lib/platform-client';
+import { useGlobalSandboxUpdate, detectChannel } from '@/hooks/platform/use-global-sandbox-update';
 import { useSandboxConnectionStore } from '@/stores/sandbox-connection-store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -32,10 +33,45 @@ function ChangeItem({ change }: { change: ChangelogChange }) {
   );
 }
 
-function VersionBadge({ version, isCurrent, isLatest }: { version: string; isCurrent: boolean; isLatest: boolean }) {
+// ─── Channel badge ────────────────────────────────────────────────────────
+
+function ChannelBadge({ channel }: { channel: VersionChannel }) {
+  if (channel === 'dev') {
+    return (
+      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+        dev
+      </span>
+    );
+  }
   return (
-    <div className="flex items-center gap-2">
-      <span className="font-mono text-lg font-semibold text-foreground">v{version}</span>
+    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+      stable
+    </span>
+  );
+}
+
+// ─── Version badge ────────────────────────────────────────────────────────
+
+function VersionBadge({ version, channel, isCurrent, isLatest }: {
+  version: string;
+  channel: VersionChannel;
+  isCurrent: boolean;
+  isLatest: boolean;
+}) {
+  const isDevVersion = version.startsWith('dev-');
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-1.5">
+        {isDevVersion ? (
+          <GitCommit className="h-3.5 w-3.5 text-muted-foreground/60" />
+        ) : (
+          <Tag className="h-3.5 w-3.5 text-muted-foreground/60" />
+        )}
+        <span className="font-mono text-lg font-semibold text-foreground">
+          {isDevVersion ? version : `v${version}`}
+        </span>
+      </div>
+      <ChannelBadge channel={channel} />
       {isCurrent && (
         <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
           Current
@@ -49,6 +85,8 @@ function VersionBadge({ version, isCurrent, isLatest }: { version: string; isCur
     </div>
   );
 }
+
+// ─── Artifacts list ───────────────────────────────────────────────────────
 
 const artifactTargetConfig: Record<string, { icon: typeof Package; label: string }> = {
   npm:              { icon: Package,   label: 'npm' },
@@ -78,58 +116,149 @@ function ArtifactsList({ artifacts }: { artifacts: ChangelogArtifact[] }) {
   );
 }
 
-function ChangelogEntryCard({ entry, isCurrent, isLatest }: { entry: ChangelogEntry; isCurrent: boolean; isLatest: boolean }) {
+// ─── Version entry card ───────────────────────────────────────────────────
+
+function VersionEntryCard({ entry, isCurrent, isLatestInChannel }: {
+  entry: VersionEntry;
+  isCurrent: boolean;
+  isLatestInChannel: boolean;
+}) {
+  const isDevVersion = entry.version.startsWith('dev-');
+
   return (
     <div className={cn(
       'rounded-xl border p-5 transition-colors',
-      isLatest && !isCurrent ? 'border-primary/20 bg-primary/[0.02]' : 'border-border/50',
+      isCurrent ? 'border-emerald-500/20 bg-emerald-500/[0.02]' :
+      isLatestInChannel ? 'border-primary/20 bg-primary/[0.02]' : 'border-border/50',
     )}>
       <div className="flex items-start justify-between gap-4 mb-1">
-        <VersionBadge version={entry.version} isCurrent={isCurrent} isLatest={isLatest} />
-        <span className="text-xs text-muted-foreground/60 font-mono">{entry.date}</span>
+        <VersionBadge
+          version={entry.version}
+          channel={entry.channel}
+          isCurrent={isCurrent}
+          isLatest={isLatestInChannel}
+        />
+        <span className="text-xs text-muted-foreground/60 font-mono flex-shrink-0">{entry.date}</span>
       </div>
+
       <h3 className="text-sm font-medium text-foreground mb-1">{entry.title}</h3>
-      <p className="text-xs text-muted-foreground mb-3">{entry.description}</p>
-      <div className="space-y-0.5">
-        {entry.changes.map((change, i) => (
-          <ChangeItem key={i} change={change} />
-        ))}
-      </div>
-      {entry.artifacts && entry.artifacts.length > 0 && (
-        <ArtifactsList artifacts={entry.artifacts} />
+
+      {entry.body && (
+        <p className="text-xs text-muted-foreground mb-3 whitespace-pre-line line-clamp-6">
+          {entry.body}
+        </p>
+      )}
+
+      {/* Dev entries show the SHA as a link */}
+      {isDevVersion && entry.sha && (
+        <div className="mt-2">
+          <a
+            href={`https://github.com/kortix-ai/suna/commit/${entry.sha}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/70 hover:text-primary transition-colors"
+          >
+            <GitCommit className="h-3 w-3" />
+            <span className="font-mono">{entry.sha.substring(0, 8)}</span>
+          </a>
+        </div>
       )}
     </div>
   );
 }
 
+// ─── Filter tabs ──────────────────────────────────────────────────────────
+
+type FilterOption = 'all' | 'stable' | 'dev';
+
+function FilterTabs({ value, onChange }: { value: FilterOption; onChange: (v: FilterOption) => void }) {
+  const options: { key: FilterOption; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'stable', label: 'Stable' },
+    { key: 'dev', label: 'Dev' },
+  ];
+
+  return (
+    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-muted/50 border border-border/50 w-fit">
+      {options.map((opt) => (
+        <button
+          key={opt.key}
+          onClick={() => onChange(opt.key)}
+          className={cn(
+            'px-3 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer',
+            value === opt.key
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────
+
 export default function ChangelogPage() {
-  const { data: changelog, isLoading, error } = useQuery({
-    queryKey: ['sandbox', 'changelog'],
-    queryFn: getFullChangelog,
+  const currentVersion = useSandboxConnectionStore((s) => s.sandboxVersion);
+  const currentChannel = detectChannel(currentVersion);
+  const { updateAvailable, latestVersion, isUpdating } = useGlobalSandboxUpdate();
+
+  // Default filter: show dev builds if the running instance is a dev build, otherwise show all
+  const [filter, setFilter] = useState<FilterOption>(currentChannel === 'dev' ? 'all' : 'all');
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['sandbox', 'versions', 'all'],
+    queryFn: getAllVersions,
     staleTime: 5 * 60 * 1000,
   });
 
-  const currentVersion = useSandboxConnectionStore((s) => s.sandboxVersion);
-  const { updateAvailable, latestVersion, isUpdating } = useGlobalSandboxUpdate();
-
   const openDialog = useUpdateDialogStore((s) => s.openDialog);
-
   const handleUpdate = () => openDialog();
+
+  // Filter versions based on selected tab
+  const filteredVersions = useMemo(() => {
+    if (!data?.versions) return [];
+    if (filter === 'all') return data.versions;
+    return data.versions.filter((v) => v.channel === filter);
+  }, [data?.versions, filter]);
+
+  // Track which is the latest in each channel for badge display
+  const latestStable = useMemo(() => {
+    return data?.versions?.find((v) => v.channel === 'stable')?.version ?? null;
+  }, [data?.versions]);
+
+  const latestDev = useMemo(() => {
+    return data?.versions?.find((v) => v.channel === 'dev')?.version ?? null;
+  }, [data?.versions]);
 
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-2xl mx-auto px-6 py-10">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-2xl font-semibold text-foreground mb-2">Changelog</h1>
           <p className="text-sm text-muted-foreground">
             {currentVersion ? (
-              <>Running <span className="font-mono font-medium text-foreground">v{currentVersion}</span></>
+              <>
+                Running{' '}
+                <span className="font-mono font-medium text-foreground">
+                  {currentVersion.startsWith('dev-') ? currentVersion : `v${currentVersion}`}
+                </span>
+                {currentChannel === 'dev' && (
+                  <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                    dev
+                  </span>
+                )}
+              </>
             ) : (
               'Version history for Kortix Computer'
             )}
             {latestVersion && currentVersion && latestVersion !== currentVersion && (
-              <> &middot; Latest: <span className="font-mono font-medium text-primary">v{latestVersion}</span></>
+              <> &middot; Latest: <span className="font-mono font-medium text-primary">
+                {latestVersion.startsWith('dev-') ? latestVersion : `v${latestVersion}`}
+              </span></>
             )}
           </p>
 
@@ -138,11 +267,15 @@ export default function ChangelogPage() {
             <div className="mt-4">
               <Button onClick={handleUpdate}>
                 <ArrowDownToLine className="h-4 w-4" />
-                Update to v{latestVersion}
+                Update to {latestVersion?.startsWith('dev-') ? latestVersion : `v${latestVersion}`}
               </Button>
             </div>
           )}
+        </div>
 
+        {/* Filter tabs */}
+        <div className="mb-6">
+          <FilterTabs value={filter} onChange={setFilter} />
         </div>
 
         {/* Loading */}
@@ -155,27 +288,33 @@ export default function ChangelogPage() {
         {/* Error */}
         {error && (
           <div className="text-sm text-muted-foreground text-center py-20">
-            Could not load changelog. The platform API may be unavailable.
+            Could not load version history. The platform API may be unavailable.
           </div>
         )}
 
-        {/* Changelog entries */}
-        {changelog && changelog.length > 0 && (
+        {/* Version entries */}
+        {filteredVersions.length > 0 && (
           <div className="space-y-4">
-            {changelog.map((entry, i) => (
-              <ChangelogEntryCard
-                key={entry.version}
-                entry={entry}
-                isCurrent={currentVersion === entry.version}
-                isLatest={i === 0}
-              />
-            ))}
+            {filteredVersions.map((entry) => {
+              const isLatestInChannel =
+                (entry.channel === 'stable' && entry.version === latestStable) ||
+                (entry.channel === 'dev' && entry.version === latestDev);
+
+              return (
+                <VersionEntryCard
+                  key={entry.version}
+                  entry={entry}
+                  isCurrent={currentVersion === entry.version}
+                  isLatestInChannel={isLatestInChannel}
+                />
+              );
+            })}
           </div>
         )}
 
-        {changelog && changelog.length === 0 && (
+        {data && filteredVersions.length === 0 && (
           <div className="text-sm text-muted-foreground text-center py-20">
-            No changelog entries found.
+            No {filter === 'all' ? '' : filter} versions found.
           </div>
         )}
       </div>

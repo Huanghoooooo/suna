@@ -133,6 +133,7 @@ let cachedImageId: string | null = null;
 let cachedImageExpiry = 0;
 const IMAGE_CACHE_TTL_MS = 5 * 60 * 1000;
 const IMAGE_NAME_PREFIX = 'kortix-computer-v';
+const DEV_IMAGE_NAME_PREFIX = 'kortix-computer-vdev-';
 
 function parseSemver(version: string): number[] {
   return version.split('.').map(Number).filter((n) => !isNaN(n));
@@ -160,8 +161,23 @@ async function resolveLatestImageId(): Promise<string | null> {
 
   try {
     const data = await justavpsFetch<{ images: JustAVPSImage[] }>('/images');
-    const candidates = (data.images || [])
-      .filter((img) => img.status === 'ready' && img.name.startsWith(IMAGE_NAME_PREFIX))
+    const readyImages = (data.images || []).filter((img) => img.status === 'ready');
+
+    // 1. Prefer dev images (kortix-computer-vdev-*) — sorted by creation date, newest first
+    const devCandidates = readyImages
+      .filter((img) => img.name.startsWith(DEV_IMAGE_NAME_PREFIX))
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    if (devCandidates.length > 0) {
+      cachedImageId = devCandidates[0].id;
+      cachedImageExpiry = Date.now() + IMAGE_CACHE_TTL_MS;
+      console.log(`[JUSTAVPS] Auto-resolved dev image: ${devCandidates[0].name} → ${cachedImageId}`);
+      return cachedImageId;
+    }
+
+    // 2. Fall back to semver images (kortix-computer-v0.8.*) — sorted by version, highest first
+    const semverCandidates = readyImages
+      .filter((img) => img.name.startsWith(IMAGE_NAME_PREFIX) && !img.name.startsWith(DEV_IMAGE_NAME_PREFIX))
       .map((img) => ({
         id: img.id,
         version: parseSemver(img.name.slice(IMAGE_NAME_PREFIX.length)),
@@ -169,10 +185,10 @@ async function resolveLatestImageId(): Promise<string | null> {
       }))
       .sort((a, b) => compareSemver(b.version, a.version)); // highest first
 
-    if (candidates.length > 0) {
-      cachedImageId = candidates[0].id;
+    if (semverCandidates.length > 0) {
+      cachedImageId = semverCandidates[0].id;
       cachedImageExpiry = Date.now() + IMAGE_CACHE_TTL_MS;
-      console.log(`[JUSTAVPS] Auto-resolved image: ${candidates[0].name} → ${cachedImageId}`);
+      console.log(`[JUSTAVPS] Auto-resolved image: ${semverCandidates[0].name} → ${cachedImageId}`);
       return cachedImageId;
     }
 
