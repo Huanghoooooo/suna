@@ -689,7 +689,11 @@ export async function triggerSandboxUpdate(
   sandbox: SandboxInfo,
   version: string,
 ): Promise<SandboxUpdateResult> {
-  const res = await authenticatedFetch(`${getPlatformUrl()}/platform/sandbox/${sandbox.sandbox_id}/update`, {
+  // Use per-sandbox route for cloud sandboxes, legacy route for local_docker
+  const url = sandbox.sandbox_id
+    ? `${getPlatformUrl()}/platform/sandbox/${sandbox.sandbox_id}/update`
+    : `${getPlatformUrl()}/platform/sandbox/update`;
+  const res = await authenticatedFetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
