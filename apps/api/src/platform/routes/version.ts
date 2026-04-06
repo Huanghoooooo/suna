@@ -139,7 +139,15 @@ async function fetchDockerHubDevTags(limit = 20): Promise<DockerHubTag[]> {
     if (!res.ok) throw new Error(`Docker Hub API returned ${res.status}`);
     const data = await res.json() as { results: DockerHubTag[] };
     return (data.results || [])
-      .filter((tag) => tag.name.startsWith('dev-') && tag.name !== 'dev-latest')
+      .filter((tag) => {
+        // Only user-installable dev tags (dev-{sha8}), not internal multi-arch
+        // build artifacts (dev-{sha8}-amd64, dev-{sha8}-arm64) or the moving
+        // dev-latest pointer.
+        if (!tag.name.startsWith('dev-')) return false;
+        if (tag.name === 'dev-latest') return false;
+        if (tag.name.endsWith('-amd64') || tag.name.endsWith('-arm64')) return false;
+        return true;
+      })
       .slice(0, limit);
   } catch (err) {
     console.warn('[version] Failed to fetch Docker Hub dev tags:', err);
