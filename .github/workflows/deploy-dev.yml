@@ -77,12 +77,6 @@ jobs:
           git submodule sync --recursive
           git submodule update --init --recursive --remote
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -99,18 +93,18 @@ jobs:
 
       - name: Build and push
         run: |
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
+          docker build \
             --file apps/api/Dockerfile \
             --build-arg SERVICE=apps/api \
             --tag "${{ steps.meta.outputs.image }}" \
             --tag "kortix/kortix-api:dev-latest" \
-            --push \
             .
+          docker push "${{ steps.meta.outputs.image }}"
+          docker push "kortix/kortix-api:dev-latest"
 
       - name: Summary
         run: |
-          echo "### API Image Built (multi-arch)" >> "$GITHUB_STEP_SUMMARY"
+          echo "### API Image Built" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`${{ steps.meta.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`kortix/kortix-api:dev-latest\`" >> "$GITHUB_STEP_SUMMARY"
 
@@ -147,12 +141,6 @@ jobs:
       - name: Build frontend (Next.js standalone)
         run: pnpm --filter ./apps/web build
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -168,17 +156,17 @@ jobs:
 
       - name: Build and push
         run: |
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
+          docker build \
             --file apps/web/Dockerfile \
             --tag "${{ steps.meta.outputs.image }}" \
             --tag "kortix/kortix-frontend:dev-latest" \
-            --push \
             .
+          docker push "${{ steps.meta.outputs.image }}"
+          docker push "kortix/kortix-frontend:dev-latest"
 
       - name: Summary
         run: |
-          echo "### Frontend Image Built (multi-arch)" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Frontend Image Built" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`${{ steps.meta.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`kortix/kortix-frontend:dev-latest\`" >> "$GITHUB_STEP_SUMMARY"
 
@@ -202,12 +190,6 @@ jobs:
           git submodule sync --recursive
           git submodule update --init --recursive --remote
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -225,17 +207,17 @@ jobs:
 
       - name: Build and push
         run: |
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
+          docker build \
             --file core/docker/Dockerfile \
             --tag "${{ steps.meta.outputs.image }}" \
             --tag "kortix/computer:dev-latest" \
-            --push \
             .
+          docker push "${{ steps.meta.outputs.image }}"
+          docker push "kortix/computer:dev-latest"
 
       - name: Summary
         run: |
-          echo "### Computer Image Built (multi-arch)" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Computer Image Built" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`${{ steps.meta.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`kortix/computer:dev-latest\`" >> "$GITHUB_STEP_SUMMARY"
 
