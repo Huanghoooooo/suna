@@ -14,6 +14,7 @@ import {
   StyleSheet,
   Keyboard,
   TouchableOpacity,
+  Linking,
 } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Text as RNText } from 'react-native';
@@ -27,7 +28,9 @@ import {
   RefreshCw,
   Bot,
   AlertCircle,
+  ExternalLink,
 } from 'lucide-react-native';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useColorScheme } from 'nativewind';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,6 +40,7 @@ import { BottomSheetModal, BottomSheetView, BottomSheetTextInput, BottomSheetBac
 
 import { useThemeColors } from '@/lib/theme-colors';
 import { useSandboxContext } from '@/contexts/SandboxContext';
+import { getAuthToken, getServerUrl } from '@/api/config';
 import type { PageTab } from '@/stores/tab-store';
 import {
   useApiKeys,
@@ -51,6 +55,16 @@ import {
   type APIKeyRegenerateResponse,
   type APIKeyStatus,
 } from '@/hooks/useApiKeys';
+
+// ─── Public Links Types ─────────────────────────────────────────────────────
+
+interface PublicShareEntry {
+  url: string;
+  port: number;
+  token: string;
+  expiresAt: string;
+  label?: string;
+}
 
 // ─── Tab Page Wrapper ────────────────────────────────────────────────────────
 
@@ -101,7 +115,7 @@ function ApiKeysContent() {
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
   const theme = useThemeColors();
-  const { sandboxUuid } = useSandboxContext();
+  const { sandboxUuid, sandboxId, sandboxUrl } = useSandboxContext();
 
   const { data: allKeys, isLoading, error, refetch } = useApiKeys();
   const createKey = useCreateApiKey();
@@ -113,6 +127,49 @@ function ApiKeysContent() {
 
   const createSheetRef = useRef<BottomSheetModal>(null);
   const secretSheetRef = useRef<BottomSheetModal>(null);
+  const createLinkSheetRef = useRef<BottomSheetModal>(null);
+
+  // ── Public Links ──
+  const {
+    data: publicShares,
+    isLoading: isSharesLoading,
+    refetch: refetchShares,
+  } = useQuery({
+    queryKey: ['public-shares', sandboxUrl],
+    enabled: !!sandboxUrl,
+    queryFn: async (): Promise<PublicShareEntry[]> => {
+      const token = await getAuthToken();
+      const res = await fetch(`${sandboxUrl}/kortix/share`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) throw new Error('Failed to load public links');
+      const data = await res.json() as { shares?: PublicShareEntry[] };
+      return data.shares ?? [];
+    },
+  });
+
+  const revokeShareMutation = useMutation({
+    mutationFn: async (shareToken: string) => {
+      if (!sandboxUrl) throw new Error('No sandbox URL');
+      const token = await getAuthToken();
+      const res = await fetch(`${sandboxUrl}/kortix/share/${shareToken}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Failed to revoke public link');
+      }
+    },
+    onSuccess: () => refetchShares(),
+    onError: (err: any) => Alert.alert('Error', err?.message || 'Failed to revoke public link'),
+  });
 
   const fg = isDark ? '#f8f8f8' : '#121215';
   const muted = isDark ? 'rgba(248,248,248,0.5)' : 'rgba(18,18,21,0.5)';
@@ -205,6 +262,27 @@ function ApiKeysContent() {
     createSheetRef.current?.present();
   }, []);
 
+  const handleOpenCreateLink = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    createLinkSheetRef.current?.present();
+  }, []);
+
+  const handleRevokeShare = useCallback((share: PublicShareEntry) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert(
+      'Revoke Public Link',
+      `This will immediately disable the public link for port ${share.port}${share.label ? ` (${share.label})` : ''}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Revoke',
+          style: 'destructive',
+          onPress: () => revokeShareMutation.mutate(share.token),
+        },
+      ],
+    );
+  }, [revokeShareMutation]);
+
   const renderBackdrop = useCallback(
     (props: any) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.5} />,
     [],
@@ -213,7 +291,7 @@ function ApiKeysContent() {
   // ── List Data ──
 
   const listData = useMemo(() => {
-    const items: { type: 'sandbox' | 'header' | 'key' | 'empty' | 'hint'; data?: any }[] = [];
+    const items: { type: 'sandbox' | 'header' | 'key' | 'empty' | 'hint' | 'links-header' | 'link' | 'links-empty'; data?: any }[] = [];
 
     // Sandbox token card
     if (activeSandboxKey) {
@@ -234,14 +312,25 @@ function ApiKeysContent() {
     // Usage hint
     items.push({ type: 'hint' });
 
+    // Public Links section
+    items.push({ type: 'links-header' });
+
+    if (!publicShares || publicShares.length === 0) {
+      items.push({ type: 'links-empty' });
+    } else {
+      for (const s of publicShares) {
+        items.push({ type: 'link', data: s });
+      }
+    }
+
     return items;
-  }, [activeSandboxKey, userKeys]);
+  }, [activeSandboxKey, userKeys, publicShares]);
 
   return (
     <View style={{ flex: 1 }}>
       <FlatList
         data={listData}
-        keyExtractor={(item, i) => item.type === 'key' ? item.data.key_id : `${item.type}-${i}`}
+        keyExtractor={(item, i) => item.type === 'key' ? item.data.key_id : item.type === 'link' ? item.data.token : `${item.type}-${i}`}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 80 }}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
@@ -317,6 +406,52 @@ function ApiKeysContent() {
                   </View>
                 </View>
               );
+            case 'links-header':
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 8 }}>
+                  <Text style={{ fontSize: 11, fontFamily: 'Roobert-Medium', color: muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                    Public Links
+                  </Text>
+                  <Pressable
+                    onPress={handleOpenCreateLink}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 5,
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 8,
+                      backgroundColor: theme.primary,
+                    }}
+                  >
+                    <Plus size={13} color={theme.primaryForeground} />
+                    <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: theme.primaryForeground }}>
+                      New Link
+                    </Text>
+                  </Pressable>
+                </View>
+              );
+            case 'link':
+              return (
+                <PublicLinkRow
+                  share={item.data}
+                  isDark={isDark}
+                  onRevoke={() => handleRevokeShare(item.data)}
+                  onOpen={() => Linking.openURL(item.data.url)}
+                />
+              );
+            case 'links-empty':
+              return (
+                <View style={{ paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center', borderRadius: 14, backgroundColor: subtleBg, borderWidth: StyleSheet.hairlineWidth, borderColor }}>
+                  <ExternalLink size={22} color={muted} />
+                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg, marginTop: 10 }}>
+                    No public links
+                  </Text>
+                  <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted, textAlign: 'center', marginTop: 4, lineHeight: 18 }}>
+                    Create a link to expose a sandbox port publicly.
+                  </Text>
+                </View>
+              );
             default:
               return null;
           }
@@ -364,6 +499,16 @@ function ApiKeysContent() {
           secretSheetRef.current?.dismiss();
           setCreatedKey(null);
         }}
+      />
+
+      {/* Create Public Link Sheet */}
+      <CreatePublicLinkSheet
+        sheetRef={createLinkSheetRef}
+        isDark={isDark}
+        theme={theme}
+        renderBackdrop={renderBackdrop}
+        sandboxId={sandboxId}
+        onCreated={() => refetchShares()}
       />
     </View>
   );
@@ -763,6 +908,301 @@ function SecretKeySheet({
           }}
         >
           <Text style={{ fontSize: 16, fontFamily: 'Roobert-Medium', color: theme.primaryForeground }}>Done</Text>
+        </Pressable>
+      </BottomSheetView>
+    </BottomSheetModal>
+  );
+}
+
+// ─── Public Link Row ────────────────────────────────────────────────────────
+
+function PublicLinkRow({
+  share,
+  isDark,
+  onRevoke,
+  onOpen,
+}: {
+  share: PublicShareEntry;
+  isDark: boolean;
+  onRevoke: () => void;
+  onOpen: () => void;
+}) {
+  const fg = isDark ? '#f8f8f8' : '#121215';
+  const muted = isDark ? 'rgba(248,248,248,0.5)' : 'rgba(18,18,21,0.5)';
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    await Clipboard.setStringAsync(share.url);
+    setCopied(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setTimeout(() => setCopied(false), 2000);
+  }, [share.url]);
+
+  // Extract domain for display
+  const displayUrl = useMemo(() => {
+    try {
+      const u = new URL(share.url);
+      return u.hostname;
+    } catch {
+      return share.url;
+    }
+  }, [share.url]);
+
+  const expiresLabel = useMemo(() => {
+    try {
+      const d = new Date(share.expiresAt);
+      return `Expires ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    } catch {
+      return '';
+    }
+  }, [share.expiresAt]);
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 12,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+      }}
+    >
+      <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center' }}>
+        <ExternalLink size={14} color={muted} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }} numberOfLines={1}>
+            Port {share.port}
+          </Text>
+          {share.label ? (
+            <View style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+              <Text style={{ fontSize: 10, fontFamily: 'Roobert-Medium', color: muted }}>{share.label}</Text>
+            </View>
+          ) : null}
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+          <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }} numberOfLines={1}>
+            {displayUrl}
+          </Text>
+          {expiresLabel ? (
+            <>
+              <Text style={{ fontSize: 11, color: muted }}>·</Text>
+              <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>{expiresLabel}</Text>
+            </>
+          ) : null}
+        </View>
+      </View>
+      <Pressable onPress={handleCopy} hitSlop={8} style={{ padding: 6 }}>
+        {copied ? <Check size={15} color="#34d399" /> : <Copy size={15} color={muted} />}
+      </Pressable>
+      <Pressable onPress={onOpen} hitSlop={8} style={{ padding: 6 }}>
+        <ExternalLink size={15} color={muted} />
+      </Pressable>
+      <Pressable onPress={onRevoke} hitSlop={8} style={{ padding: 6 }}>
+        <Trash2 size={15} color={muted} />
+      </Pressable>
+    </View>
+  );
+}
+
+// ─── Create Public Link Sheet ───────────────────────────────────────────────
+
+function CreatePublicLinkSheet({
+  sheetRef,
+  isDark,
+  theme,
+  renderBackdrop,
+  sandboxId,
+  onCreated,
+}: {
+  sheetRef: React.RefObject<BottomSheetModal>;
+  isDark: boolean;
+  theme: ReturnType<typeof useThemeColors>;
+  renderBackdrop: (props: any) => React.ReactElement;
+  sandboxId?: string;
+  onCreated: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+
+  const fg = isDark ? '#f8f8f8' : '#121215';
+  const muted = isDark ? 'rgba(248,248,248,0.5)' : 'rgba(18,18,21,0.5)';
+  const inputBg = isDark ? 'rgba(248,248,248,0.06)' : 'rgba(18,18,21,0.04)';
+  const borderColor = isDark ? 'rgba(248,248,248,0.1)' : 'rgba(18,18,21,0.08)';
+
+  const [port, setPort] = useState('8000');
+  const [ttl, setTtl] = useState('1h');
+  const [label, setLabel] = useState('');
+  const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [resultCopied, setResultCopied] = useState(false);
+
+  const reset = () => { setPort('8000'); setTtl('1h'); setLabel(''); setResultUrl(null); };
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const backendBase = getServerUrl().replace(/\/+$/, '');
+      if (!sandboxId) throw new Error('No active sandbox');
+      const token = await getAuthToken();
+      if (!token) throw new Error('Not authenticated');
+      const res = await fetch(`${backendBase}/p/share`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          sandbox_id: sandboxId,
+          port: Number(port),
+          ttl,
+          label: label.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Failed to create public link');
+      return data as { url: string; expiresAt?: string; label?: string };
+    },
+    onSuccess: (data) => {
+      setResultUrl(data.url);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onCreated();
+    },
+    onError: (err: any) => Alert.alert('Error', err?.message || 'Failed to create public link'),
+  });
+
+  const handleCopyResult = useCallback(async () => {
+    if (!resultUrl) return;
+    await Clipboard.setStringAsync(resultUrl);
+    setResultCopied(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setTimeout(() => setResultCopied(false), 2000);
+  }, [resultUrl]);
+
+  const ttlOptions = [
+    { value: '1h', label: '1 hour' },
+    { value: '1d', label: '1 day' },
+    { value: '7d', label: '7 days' },
+    { value: '30d', label: '30 days' },
+    { value: '365d', label: '1 year' },
+  ];
+
+  const inputStyle = {
+    backgroundColor: inputBg,
+    borderWidth: 1,
+    borderColor,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    fontFamily: 'Roobert',
+    color: fg,
+  };
+
+  return (
+    <BottomSheetModal
+      ref={sheetRef}
+      enableDynamicSizing
+      enablePanDownToClose
+      backdropComponent={renderBackdrop}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+      android_keyboardInputMode="adjustResize"
+      onDismiss={reset}
+      backgroundStyle={{ backgroundColor: isDark ? '#161618' : '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24 }}
+      handleIndicatorStyle={{ backgroundColor: isDark ? '#3F3F46' : '#D4D4D8', width: 36, height: 5, borderRadius: 3 }}
+    >
+      <BottomSheetView style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 20) + 16 }}>
+        {/* Header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+            <ExternalLink size={20} color={fg} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 18, fontFamily: 'Roobert-Semibold', color: fg }}>Create Public Link</Text>
+            <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginTop: 2 }}>Expose a sandbox port publicly</Text>
+          </View>
+        </View>
+
+        {/* Success result */}
+        {resultUrl && (
+          <View style={{ backgroundColor: isDark ? 'rgba(52,211,153,0.08)' : 'rgba(52,211,153,0.06)', borderWidth: 1, borderColor: isDark ? 'rgba(52,211,153,0.15)' : 'rgba(52,211,153,0.12)', borderRadius: 12, padding: 12, marginBottom: 16 }}>
+            <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: '#34d399', marginBottom: 8 }}>Link created</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ flex: 1, backgroundColor: inputBg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 }}>
+                <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: fg }} numberOfLines={1} ellipsizeMode="middle">{resultUrl}</Text>
+              </View>
+              <Pressable onPress={handleCopyResult} style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center' }}>
+                {resultCopied ? <Check size={16} color={theme.primaryForeground} /> : <Copy size={16} color={theme.primaryForeground} />}
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {/* Port */}
+        <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Port</Text>
+        <BottomSheetTextInput
+          value={port}
+          onChangeText={(t) => setPort(t.replace(/[^0-9]/g, ''))}
+          placeholder="8000"
+          placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
+          keyboardType="numeric"
+          style={{ ...inputStyle, marginBottom: 16 }}
+        />
+
+        {/* TTL */}
+        <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Expires after</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          {ttlOptions.map((opt) => (
+            <Pressable
+              key={opt.value}
+              onPress={() => setTtl(opt.value)}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 10,
+                backgroundColor: ttl === opt.value ? theme.primary : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+              }}
+            >
+              <Text style={{
+                fontSize: 13,
+                fontFamily: ttl === opt.value ? 'Roobert-Medium' : 'Roobert',
+                color: ttl === opt.value ? theme.primaryForeground : muted,
+              }}>
+                {opt.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Label */}
+        <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Label <Text style={{ fontFamily: 'Roobert', color: muted }}>(optional)</Text></Text>
+        <BottomSheetTextInput
+          value={label}
+          onChangeText={setLabel}
+          placeholder="e.g. channels-master"
+          placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
+          style={{ ...inputStyle, marginBottom: 20 }}
+        />
+
+        {/* Create button */}
+        <Pressable
+          onPress={() => { Keyboard.dismiss(); createMutation.mutate(); }}
+          disabled={!sandboxId || !port || createMutation.isPending}
+          style={{
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingVertical: 14,
+            borderRadius: 14,
+            backgroundColor: (!sandboxId || !port) ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)') : theme.primary,
+          }}
+        >
+          {createMutation.isPending ? (
+            <ActivityIndicator size="small" color={theme.primaryForeground} />
+          ) : (
+            <Text style={{ fontSize: 16, fontFamily: 'Roobert-Medium', color: (!sandboxId || !port) ? muted : theme.primaryForeground }}>
+              Create Link
+            </Text>
+          )}
         </Pressable>
       </BottomSheetView>
     </BottomSheetModal>

@@ -216,6 +216,7 @@ export function RunningServicesPage({ page, onBack, onOpenDrawer, onOpenRightDra
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0 }}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8, gap: 8 }}
       >
         {(Object.keys(FILTER_LABELS) as ServiceFilter[]).map((key) => {

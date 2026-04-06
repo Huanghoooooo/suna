@@ -68,15 +68,30 @@ export interface Execution {
 export interface CreateTriggerData {
   name: string;
   description?: string;
-  cron_expr: string;
-  timezone?: string;
-  agent_name?: string;
-  model_provider_id?: string;
-  model_id?: string;
-  prompt: string;
-  session_mode?: SessionMode;
-  max_retries?: number;
-  timeout_ms?: number;
+  source: {
+    type: TriggerType;
+    cron_expr?: string;
+    timezone?: string;
+    path?: string;
+    method?: string;
+    secret?: string;
+  };
+  action: {
+    type?: 'prompt' | 'command' | 'http';
+    prompt?: string;
+    agent?: string;
+    model?: string;
+    session_mode?: SessionMode;
+    command?: string;
+    args?: string[];
+    workdir?: string;
+    timeout_ms?: number;
+    url?: string;
+    method?: string;
+    headers?: Record<string, string>;
+    body_template?: string;
+  };
+  metadata?: Record<string, unknown>;
 }
 
 export interface UpdateTriggerData {
@@ -161,7 +176,7 @@ async function fetchTrigger(sandboxUrl: string, triggerId: string): Promise<Trig
 }
 
 async function createTrigger(sandboxUrl: string, data: CreateTriggerData): Promise<Trigger> {
-  const res = await sandboxFetch<ApiSingleResponse>(sandboxUrl, '/kortix/cron/triggers', {
+  const res = await sandboxFetch<ApiSingleResponse>(sandboxUrl, '/kortix/triggers', {
     method: 'POST',
     body: JSON.stringify(data),
   });
