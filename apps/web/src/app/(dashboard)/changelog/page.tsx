@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowDownToLine, Loader2, Sparkles, Bug, Zap, AlertTriangle, Shield, RefreshCw, Check, Package, Container, Github, Cloud, GitCommit, Tag } from 'lucide-react';
-import { getAllVersions, type VersionEntry, type VersionChannel, type ChangelogChange, type ChangelogArtifact } from '@/lib/platform-client';
+import { getAllVersions, triggerSandboxUpdate, type VersionEntry, type VersionChannel, type ChangelogChange, type ChangelogArtifact, type SandboxInfo } from '@/lib/platform-client';
 import { useGlobalSandboxUpdate, detectChannel } from '@/hooks/platform/use-global-sandbox-update';
 import { useSandboxConnectionStore } from '@/stores/sandbox-connection-store';
+import { useServerStore } from '@/stores/server-store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useUpdateDialogStore } from '@/stores/update-dialog-store';
+import { toast } from 'sonner';
 
 // ─── Change type icons + colors ───────────────────────────────────────────
 
@@ -118,10 +120,12 @@ function ArtifactsList({ artifacts }: { artifacts: ChangelogArtifact[] }) {
 
 // ─── Version entry card ───────────────────────────────────────────────────
 
-function VersionEntryCard({ entry, isCurrent, isLatestInChannel }: {
+function VersionEntryCard({ entry, isCurrent, isLatestInChannel, onInstall, isInstalling }: {
   entry: VersionEntry;
   isCurrent: boolean;
   isLatestInChannel: boolean;
+  onInstall?: (version: string) => void;
+  isInstalling?: boolean;
 }) {
   const isDevVersion = entry.version.startsWith('dev-');
 
@@ -138,7 +142,25 @@ function VersionEntryCard({ entry, isCurrent, isLatestInChannel }: {
           isCurrent={isCurrent}
           isLatest={isLatestInChannel}
         />
-        <span className="text-xs text-muted-foreground/60 font-mono flex-shrink-0">{entry.date}</span>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs text-muted-foreground/60 font-mono">{entry.date}</span>
+          {!isCurrent && onInstall && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1.5"
+              disabled={isInstalling}
+              onClick={() => onInstall(entry.version)}
+            >
+              {isInstalling ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <ArrowDownToLine className="h-3 w-3" />
+              )}
+              Install
+            </Button>
+          )}
+        </div>
       </div>
 
       <h3 className="text-sm font-medium text-foreground mb-1">{entry.title}</h3>
@@ -207,6 +229,13 @@ export default function ChangelogPage() {
 
   // Default filter: show dev builds if the running instance is a dev build, otherwise show all
   const [filter, setFilter] = useState<FilterOption>(currentChannel === 'dev' ? 'all' : 'all');
+  const [installingVersion, setInstallingVersion] = useState<string | null>(null);
+
+  // Get the active sandbox for triggering updates
+  const activeServer = useServerStore((s) => {
+    const id = s.activeServerId;
+    return id ? s.servers.find((sv) => sv.id === id) : undefined;
+  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['sandbox', 'versions', 'all'],
@@ -216,6 +245,30 @@ export default function ChangelogPage() {
 
   const openDialog = useUpdateDialogStore((s) => s.openDialog);
   const handleUpdate = () => openDialog();
+
+  // Install a specific version
+  const handleInstall = useCallback(async (version: string) => {
+    if (!activeServer?.sandboxId) {
+      toast.error('No active sandbox found');
+      return;
+    }
+    setInstallingVersion(version);
+    try {
+      await triggerSandboxUpdate(
+        { sandbox_id: activeServer.sandboxId } as SandboxInfo,
+        version,
+      );
+      toast.success(`Installing ${version.startsWith('dev-') ? version : `v${version}`}...`, {
+        description: 'Your sandbox will restart with the new version.',
+      });
+    } catch (err: any) {
+      toast.error(`Failed to install ${version}`, {
+        description: err?.message || 'Unknown error',
+      });
+    } finally {
+      setInstallingVersion(null);
+    }
+  }, [activeServer?.sandboxId]);
 
   // Filter versions based on selected tab
   const filteredVersions = useMemo(() => {
@@ -306,6 +359,8 @@ export default function ChangelogPage() {
                   entry={entry}
                   isCurrent={currentVersion === entry.version}
                   isLatestInChannel={isLatestInChannel}
+                  onInstall={handleInstall}
+                  isInstalling={installingVersion === entry.version}
                 />
               );
             })}
