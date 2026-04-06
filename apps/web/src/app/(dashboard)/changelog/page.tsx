@@ -6,6 +6,7 @@ import { getFullChangelog, type ChangelogEntry, type ChangelogChange, type Chang
 import { useGlobalSandboxUpdate } from '@/hooks/platform/use-global-sandbox-update';
 import { useSandboxConnectionStore } from '@/stores/sandbox-connection-store';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { useUpdateDialogStore } from '@/stores/update-dialog-store';
 
 // ─── Change type icons + colors ───────────────────────────────────────────
@@ -135,13 +136,10 @@ export default function ChangelogPage() {
           {/* Update button */}
           {updateAvailable && !isUpdating && (
             <div className="mt-4">
-              <button
-                onClick={handleUpdate}
-                className="flex items-center gap-2 h-9 px-4 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-lg transition-colors cursor-pointer"
-              >
+              <Button onClick={handleUpdate}>
                 <ArrowDownToLine className="h-4 w-4" />
                 Update to v{latestVersion}
-              </button>
+              </Button>
             </div>
           )}
 
