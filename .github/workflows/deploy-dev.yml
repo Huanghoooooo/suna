@@ -2,7 +2,9 @@ name: Deploy Dev
 
 # Builds multi-arch Docker images using native runners (amd64 + arm64 in parallel),
 # deploys API to dev VPS. Path-filtered — only builds what changed.
-# Can also be triggered manually to force a full build.
+#
+# Auto-deploy on push is controlled by the repo variable AUTO_DEPLOY_DEV.
+# Set to 'true' to enable, anything else to disable. Manual dispatch always works.
 
 on:
   push:
@@ -21,9 +23,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── Gate: skip on push if auto-deploy is off ─────────────────────────────
+  gate:
+    name: Check auto-deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || vars.AUTO_DEPLOY_DEV == 'true'
+    steps:
+      - run: echo "Auto-deploy enabled or manual trigger"
+
   # ── Detect what changed ──────────────────────────────────────────────────
   detect-changes:
     name: Detect changes
+    needs: gate
     runs-on: ubuntu-latest
     outputs:
       api_changed: ${{ steps.filter.outputs.api }}
