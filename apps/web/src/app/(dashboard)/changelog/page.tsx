@@ -9,6 +9,7 @@ import { useSandboxConnectionStore } from '@/stores/sandbox-connection-store';
 import { useServerStore } from '@/stores/server-store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
 import { useUpdateDialogStore } from '@/stores/update-dialog-store';
 import { toast } from 'sonner';
 
@@ -201,22 +202,17 @@ function FilterTabs({ value, onChange }: { value: FilterOption; onChange: (v: Fi
   ];
 
   return (
-    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-muted/50 border border-border/50 w-fit">
+    <FilterBar>
       {options.map((opt) => (
-        <button
+        <FilterBarItem
           key={opt.key}
+          data-state={value === opt.key ? 'active' : 'inactive'}
           onClick={() => onChange(opt.key)}
-          className={cn(
-            'px-3 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer',
-            value === opt.key
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
         >
           {opt.label}
-        </button>
+        </FilterBarItem>
       ))}
-    </div>
+    </FilterBar>
   );
 }
 
