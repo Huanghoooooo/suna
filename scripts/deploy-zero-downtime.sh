@@ -89,9 +89,15 @@ fi
 echo "[3/6] Starting $STANDBY_SLOT on port $STANDBY_PORT..."
 docker rm -f "kortix-api-$STANDBY_SLOT" 2>/dev/null || true
 
+# Extract version from image tag (e.g. "kortix/kortix-api:0.8.29" → "0.8.29")
+# Falls back to git commit short SHA for dev builds
+SANDBOX_VERSION="${IMAGE_TAG##*:}"
+echo "  SANDBOX_VERSION=$SANDBOX_VERSION"
+
 docker run -d \
   --name "kortix-api-$STANDBY_SLOT" \
   --env-file apps/api/.env \
+  -e "SANDBOX_VERSION=$SANDBOX_VERSION" \
   -p "${STANDBY_PORT}:8008" \
   --restart unless-stopped \
   "$IMAGE_TAG"

@@ -110,6 +110,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Need a PAT with `workflow` scope to push workflow file changes
+          # to the production branch (GITHUB_TOKEN cannot modify .github/workflows/*)
+          token: ${{ secrets.GH_RELEASE_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Fast-forward production branch
         run: |
