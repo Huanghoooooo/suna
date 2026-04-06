@@ -1,11 +1,22 @@
-name: Build JustAVPS Snapshot
+name: Build Snapshot
+
+# Single workflow that builds JustAVPS snapshots for either the dev or prod org.
+# Triggered three ways:
+#   1. Manual dispatch — pick version + target (dev/prod)
+#   2. workflow_call — called by release.yml with target=prod
+#   3. Push to core/** — auto-builds dev snapshot (if AUTO_SNAPSHOT_DEV=true)
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'core/**'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Docker image version (e.g. 0.8.26 or dev-abc12345)'
+        description: 'Docker image version (e.g. 0.8.30 or dev-abc12345 or dev-latest)'
         required: true
+        default: dev-latest
       target:
         description: 'Target environment'
         type: choice
@@ -27,12 +38,22 @@ on:
         default: dev
 
 concurrency:
-  group: build-snapshot-${{ inputs.target || 'dev' }}
+  group: snapshot-build-${{ inputs.target || 'dev' }}
   cancel-in-progress: false
 
 jobs:
+  gate:
+    name: Check auto-snapshot
+    runs-on: ubuntu-latest
+    # Push: only run if AUTO_SNAPSHOT_DEV=true. Manual/call: always run.
+    if: github.event_name != 'push' || vars.AUTO_SNAPSHOT_DEV == 'true'
+    steps:
+      - name: Proceeding
+        run: echo "trigger=${{ github.event_name }} target=${{ inputs.target || 'dev' }}"
+
   build-snapshot:
     name: Build snapshot (${{ inputs.target || 'dev' }})
+    needs: gate
     runs-on: ubuntu-latest
     environment: ${{ inputs.target || 'dev' }}
     timeout-minutes: 30
@@ -43,11 +64,8 @@ jobs:
       - name: Resolve version
         id: v
         run: |
-          V="${{ inputs.version }}"
-          if [ -z "$V" ]; then
-            echo "::error::version input is required"
-            exit 1
-          fi
+          # Push events don't have inputs — default to dev-latest/dev
+          V="${{ inputs.version || 'dev-latest' }}"
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "image=kortix/computer:$V" >> "$GITHUB_OUTPUT"
           echo "snapshot=kortix-computer-v$V" >> "$GITHUB_OUTPUT"

@@ -162,13 +162,15 @@ gh workflow run deploy-dev.yml --repo kortix-ai/suna
 
 ### Dev snapshot
 
-When the Computer image changes, trigger a dev JustAVPS snapshot separately:
+Dev snapshots are built by the unified `snapshot-build.yml` workflow:
+- Auto on push to `core/**` if `AUTO_SNAPSHOT_DEV=true`
+- Manual dispatch any time:
 
 ```bash
-gh workflow run snapshot-dev.yml --repo kortix-ai/suna -f version=dev-latest
+gh workflow run snapshot-build.yml --repo kortix-ai/suna -f version=dev-latest -f target=dev
 ```
 
-The snapshot workflow (`snapshot-dev.yml`) is decoupled from `deploy-dev.yml` so it doesn't block the main pipeline.
+The snapshot workflow is decoupled from `deploy-dev.yml` so it doesn't block the main pipeline.
 
 ---
 
@@ -282,10 +284,13 @@ No JSON files, no manual changelog entries.
 
 JustAVPS snapshots are VPS images that speed up provisioning of new machines. The sandbox Docker image is pre-pulled into the snapshot.
 
-| Workflow | Triggered by | Target org |
-|---|---|---|
-| `snapshot-dev.yml` | Push to `core/**` (if enabled) or manual | dev org |
-| `build-snapshot.yml` (called by `release.yml`) | Prod promotion | prod org |
+One file, three triggers: `snapshot-build.yml`
+
+| Trigger | Target |
+|---|---|
+| Push to `core/**` (gated by `AUTO_SNAPSHOT_DEV` repo variable) | dev |
+| Manual dispatch — pick `version` + `target` (dev/prod) | user choice |
+| `workflow_call` from `release.yml` | prod |
 
 Snapshots use the `dev` or `prod` GitHub Environment to select the correct `JUSTAVPS_API_KEY` secret (different org per environment).
 
@@ -345,7 +350,10 @@ curl https://new-api.kortix.com/v1/platform/sandbox/version   # prod API
 gh workflow run deploy-dev.yml --repo kortix-ai/suna
 
 # Build a dev JustAVPS snapshot
-gh workflow run snapshot-dev.yml --repo kortix-ai/suna -f version=dev-latest
+gh workflow run snapshot-build.yml --repo kortix-ai/suna -f version=dev-latest -f target=dev
+
+# Build a prod JustAVPS snapshot
+gh workflow run snapshot-build.yml --repo kortix-ai/suna -f version=0.8.30 -f target=prod
 
 # Enable/disable auto-deploy on push to main
 gh variable set AUTO_DEPLOY_DEV --repo kortix-ai/suna --body true

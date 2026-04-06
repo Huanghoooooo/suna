@@ -181,7 +181,7 @@ jobs:
   build-prod-snapshot:
     name: Build prod snapshot (async)
     needs: retag-images
-    uses: ./.github/workflows/build-snapshot.yml
+    uses: ./.github/workflows/snapshot-build.yml
     with:
       version: ${{ inputs.version }}
       target: prod
