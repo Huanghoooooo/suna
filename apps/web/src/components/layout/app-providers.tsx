@@ -6,6 +6,7 @@ import { RightSidebarProvider } from '@/components/ui/sidebar-right-provider';
 import { useOnboardingModeStore } from '@/stores/onboarding-mode-store';
 import { useDeleteOperationEffects } from '@/stores/delete-operation-store';
 import { SubscriptionStoreSync } from '@/stores/subscription-store';
+import { useModelHydration } from '@/hooks/opencode/use-model-hydration';
 import { NewInstanceModal } from '@/components/billing/pricing/new-instance-modal';
 import { useNewInstanceModalStore } from '@/stores/pricing-modal-store';
 
@@ -63,6 +64,9 @@ export function AppProviders({
   sidebarContent,
   sidebarSiblings
 }: AppProvidersProps) {
+  // Hydrate global default model from server on first mount
+  useModelHydration();
+
   const obActive = useOnboardingModeStore((s) => s.active);
   const obMorphing = useOnboardingModeStore((s) => s.morphing);
   const hideSidebar = obActive && !obMorphing;

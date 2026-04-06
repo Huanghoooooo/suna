@@ -750,14 +750,20 @@ export function useForkSession() {
     mutationFn: async ({
       sessionId,
       messageId,
+      directory,
+      workspace,
     }: {
       sessionId: string;
       messageId?: string;
+      directory?: string;
+      workspace?: string;
     }) => {
       const client = getClient();
       const result = await client.session.fork({
         sessionID: sessionId,
         ...(messageId && { messageID: messageId }),
+        ...(directory && { directory }),
+        ...(workspace && { workspace }),
       });
       return unwrap(result) as Session;
     },

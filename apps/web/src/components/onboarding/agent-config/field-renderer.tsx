@@ -21,7 +21,7 @@ export const FieldRenderer = ({ field, value, onChange, index }: FieldRendererPr
     switch (field.type) {
       case 'text':
         return (
-          <Input
+          <Input type="text"
             placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}

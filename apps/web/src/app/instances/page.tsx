@@ -78,7 +78,7 @@ function InstanceCard({ sandbox, onClick, onBackups }: { sandbox: SandboxInfo; o
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left rounded-xl border border-border/50 bg-card hover:bg-muted/30 hover:border-border transition-all p-4 cursor-pointer group"
+      className="w-full text-left rounded-xl border border-border/50 bg-card hover:bg-muted/30 hover:border-border transition-colors p-4 cursor-pointer group"
     >
       <div className="flex items-start gap-3">
         <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-muted/50 flex-shrink-0 mt-0.5">
@@ -89,7 +89,7 @@ function InstanceCard({ sandbox, onClick, onBackups }: { sandbox: SandboxInfo; o
             <span className="text-sm font-semibold text-foreground truncate">
               {sandbox.name || sandbox.sandbox_id}
             </span>
-            <span className={cn('px-1.5 py-px text-[9px] font-medium rounded-full uppercase tracking-wider leading-none', provider.badgeCls)}>
+            <span className={cn('px-1.5 py-px text-[0.5625rem] font-medium rounded-full uppercase tracking-wider leading-none', provider.badgeCls)}>
               {provider.label}
             </span>
           </div>
@@ -149,7 +149,7 @@ function FallbackInstanceCard({ server, isActive, onClick }: { server: ServerEnt
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left rounded-xl border border-border/50 bg-card hover:bg-muted/30 hover:border-border transition-all p-4 cursor-pointer group"
+      className="w-full text-left rounded-xl border border-border/50 bg-card hover:bg-muted/30 hover:border-border transition-colors p-4 cursor-pointer group"
     >
       <div className="flex items-start gap-3">
         <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-muted/50 flex-shrink-0 mt-0.5">
@@ -158,11 +158,11 @@ function FallbackInstanceCard({ server, isActive, onClick }: { server: ServerEnt
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-foreground truncate">{server.label || server.instanceId || server.id}</span>
-            <span className={cn('px-1.5 py-px text-[9px] font-medium rounded-full uppercase tracking-wider leading-none', provider.badgeCls)}>
+            <span className={cn('px-1.5 py-px text-[0.5625rem] font-medium rounded-full uppercase tracking-wider leading-none', provider.badgeCls)}>
               {provider.label}
             </span>
             {isActive && (
-              <span className="px-1.5 py-px text-[9px] font-medium rounded-full uppercase tracking-wider leading-none text-primary bg-primary/10">
+              <span className="px-1.5 py-px text-[0.5625rem] font-medium rounded-full uppercase tracking-wider leading-none text-primary bg-primary/10">
                 current
               </span>
             )}

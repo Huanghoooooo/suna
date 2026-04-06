@@ -11,20 +11,11 @@ import {
   Check,
   CornerDownLeft,
   GitFork,
-  Info,
-  Infinity,
+  // Info,       // AutoContinue — commented out
+  // Infinity,   // AutoContinue — commented out
   Loader2,
   Paperclip,
   X,
-  FileText,
-  FileCode,
-  FileImage,
-  FileAudio,
-  FileVideo,
-  FileSpreadsheet,
-  File,
-  Archive,
-  Database,
   ListPlus,
   ListTodo,
   MessageSquare,
@@ -34,6 +25,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+/* AutoContinue — commented out
 import {
   Dialog,
   DialogContent,
@@ -41,6 +33,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+*/
 import {
   Tooltip,
   TooltipContent,
@@ -55,6 +48,7 @@ import type {
   Agent,
   Command,
   ProviderListResponse,
+  PromptPart,
 } from '@/hooks/opencode/use-opencode-sessions';
 import { useOpenCodeSessions, useOpenCodeSessionTodo } from '@/hooks/opencode/use-opencode-sessions';
 import { searchWorkspaceFiles } from '@/features/files';
@@ -226,7 +220,7 @@ export function AgentSelector({
             <button
               type="button"
               className={cn(
-                'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200 capitalize cursor-pointer',
+                'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors duration-200 capitalize cursor-pointer',
                 flash && 'bg-primary/10 text-foreground',
                 open && 'bg-muted text-foreground',
               )}
@@ -382,11 +376,11 @@ function VariantSelector({
   );
 }
 
+/* AutoContinue — commented out
 // ============================================================================
 // AutoContinue Mode Selector
 // ============================================================================
 
-/** Known autocontinue algorithm IDs — maps to slash command names */
 export type AutoContinueMode = 'autowork' | 'autowork1' | 'autowork2' | 'autowork3' | 'orchestrate';
 
 interface AutoContinueAlgorithm {
@@ -496,7 +490,6 @@ const AUTOCONTINUE_ALGORITHMS: AutoContinueAlgorithm[] = [
   },
 ];
 
-/** Infinity icon with a diagonal slash — visual "off" state */
 function InfinityOff({ className, strokeWidth = 2 }: { className?: string; strokeWidth?: number }) {
   return (
     <svg
@@ -509,15 +502,12 @@ function InfinityOff({ className, strokeWidth = 2 }: { className?: string; strok
       strokeLinejoin="round"
       className={className}
     >
-      {/* Infinity path (same as lucide Infinity) */}
       <path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z" />
-      {/* Diagonal slash */}
       <line x1="4" y1="4" x2="20" y2="20" />
     </svg>
   );
 }
 
-/** Default mode when user clicks "On" — Kraemer is the reliable all-rounder */
 const DEFAULT_AUTOCONTINUE_MODE: AutoContinueMode = 'autowork';
 
 function AutoContinueSelector({
@@ -556,7 +546,6 @@ function AutoContinueSelector({
     }
   }, [open]);
 
-  // When menu opens, show expanded list if already active (user is picking modes)
   useEffect(() => {
     if (open && selected !== null) {
       setExpanded(true);
@@ -577,7 +566,7 @@ function AutoContinueSelector({
               type="button"
               onClick={() => setOpen(!open)}
               className={cn(
-                'inline-flex items-center gap-1 h-8 px-2 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer',
+                'inline-flex items-center gap-1 h-8 px-2 rounded-xl text-xs font-medium transition-colors duration-200 cursor-pointer',
                 isActive
                   ? 'text-primary bg-primary/10 hover:bg-primary/15'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted',
@@ -603,15 +592,13 @@ function AutoContinueSelector({
 
         {open && (
           <div
-            className="absolute bottom-full left-0 mb-1.5 z-50 bg-popover border border-border rounded-xl overflow-hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-150"
-            style={{ width: 320 }}
+            className="absolute bottom-full left-0 mb-1.5 z-50 w-80 bg-popover border border-border rounded-xl overflow-hidden animate-in fade-in-0 slide-in-from-bottom-2 duration-150"
           >
             <div className="p-1">
               <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                 AutoContinue
               </div>
 
-              {/* Off */}
               <button
                 onClick={() => { onSelect(null); setExplicitPick(false); setExpanded(false); setOpen(false); }}
                 className={cn(
@@ -624,7 +611,6 @@ function AutoContinueSelector({
                 {!isActive && <Check className="size-3 text-foreground shrink-0" />}
               </button>
 
-              {/* On — clicking selects Kraemer default and expands the mode list */}
               <button
                 onClick={() => {
                   if (!isActive) onSelect(DEFAULT_AUTOCONTINUE_MODE);
@@ -643,9 +629,8 @@ function AutoContinueSelector({
                 {!expanded && <ChevronDown className="size-3 text-muted-foreground shrink-0" />}
               </button>
 
-              {/* Expanded algorithm list — animated reveal after clicking On */}
               <div
-                className="overflow-hidden transition-all duration-200 ease-out"
+                className="overflow-hidden transition-colors duration-200 ease-out"
                 style={{
                   maxHeight: expanded ? available.length * 40 + 16 : 0,
                   opacity: expanded ? 1 : 0,
@@ -686,7 +671,6 @@ function AutoContinueSelector({
         )}
       </div>
 
-      {/* Algorithm detail dialog */}
       <Dialog open={detailAlg !== null} onOpenChange={(v) => { if (!v) setDetailAlg(null); }}>
         <DialogContent className="max-w-lg" aria-describedby="alg-detail-desc">
           {detailAlg && (
@@ -716,7 +700,7 @@ function AutoContinueSelector({
                     <ul className="space-y-1">
                       {detailAlg.strengths.map((s, i) => (
                         <li key={i} className="text-sm text-muted-foreground flex gap-1.5">
-                          <span className="text-green-500 shrink-0 mt-0.5">+</span>
+                          <span className="text-emerald-500 shrink-0 mt-0.5">+</span>
                           <span>{s}</span>
                         </li>
                       ))}
@@ -749,6 +733,7 @@ function AutoContinueSelector({
     </>
   );
 }
+*/
 
 // ============================================================================
 // Token Progress Circle
@@ -829,64 +814,99 @@ function TokenProgress({ messages, models, selectedModel, onContextClick }: Toke
 // File Attachment Helpers
 // ============================================================================
 
-export interface AttachedFile {
-  file: File;
-  localUrl: string;
-  isImage: boolean;
-}
-
-type FileType = 'image' | 'code' | 'text' | 'markdown' | 'pdf' | 'audio' | 'video' | 'spreadsheet' | 'csv' | 'archive' | 'database' | 'other';
-
-function getFileType(filename: string): FileType {
-  const ext = filename.split('.').pop()?.toLowerCase() || '';
-  const map: Record<string, FileType> = {
-    jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', webp: 'image', svg: 'image', bmp: 'image', ico: 'image',
-    js: 'code', ts: 'code', jsx: 'code', tsx: 'code', py: 'code', rb: 'code', go: 'code', rs: 'code', java: 'code', c: 'code', cpp: 'code', h: 'code', css: 'code', html: 'code', vue: 'code', svelte: 'code',
-    txt: 'text', log: 'text',
-    md: 'markdown', mdx: 'markdown',
-    pdf: 'pdf',
-    mp3: 'audio', wav: 'audio', ogg: 'audio', flac: 'audio',
-    mp4: 'video', mov: 'video', avi: 'video', webm: 'video',
-    xls: 'spreadsheet', xlsx: 'spreadsheet',
-    csv: 'csv',
-    zip: 'archive', tar: 'archive', gz: 'archive', rar: 'archive',
-    db: 'database', sqlite: 'database', sql: 'database',
-    json: 'code', yaml: 'code', yml: 'code', toml: 'code', xml: 'code',
-  };
-  return map[ext] || 'other';
-}
-
-function getFileTypeLabel(type: FileType, ext: string): string {
-  const labels: Record<FileType, string> = {
-    image: 'Image', code: ext.toUpperCase(), text: 'Text', markdown: 'Markdown', pdf: 'PDF',
-    audio: 'Audio', video: 'Video', spreadsheet: 'Spreadsheet', csv: 'CSV',
-    archive: 'Archive', database: 'Database', other: ext.toUpperCase() || 'File',
-  };
-  return labels[type];
-}
-
-function getFileTypeIcon(type: FileType) {
-  const icons: Record<FileType, typeof File> = {
-    image: FileImage, code: FileCode, text: FileText, markdown: FileText, pdf: FileText,
-    audio: FileAudio, video: FileVideo, spreadsheet: FileSpreadsheet, csv: FileSpreadsheet,
-    archive: Archive, database: Database, other: File,
-  };
-  return icons[type];
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+export type AttachedFile =
+  | {
+      kind: 'local';
+      file: File;
+      localUrl: string;
+      isImage: boolean;
+    }
+  | {
+      kind: 'remote';
+      url: string;
+      filename: string;
+      mime: string;
+      isImage: boolean;
+    };
 
 function isImageFile(file: File): boolean {
-  return file.type.startsWith('image/');
+  if (file.type.startsWith('image/')) return true;
+  // Fallback: check extension for when MIME type is missing (e.g. pasted files)
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'heif', 'avif'].includes(ext);
 }
 
 // ============================================================================
-// Attachment Preview Strip
+// Attachment Preview Strip — grid-style file cards
 // ============================================================================
+
+/** Thumbnail for a locally attached file (not yet uploaded). */
+function AttachmentThumbnail({ af, name }: { af: AttachedFile; name: string }) {
+  const [textPreview, setTextPreview] = useState<string | null>(null);
+  const ext = name.split('.').pop()?.toLowerCase() || '';
+
+  // Check if this is an image — be generous with detection
+  const isImg = af.isImage ||
+    (af.kind === 'local' && af.file.type.startsWith('image/')) ||
+    ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'heif', 'avif'].includes(ext);
+
+  // HEIC: convert to JPEG for preview (browsers can't render HEIC natively)
+  const isHeic = ext === 'heic' || ext === 'heif';
+  const [heicUrl, setHeicUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isHeic || !isImg || af.kind !== 'local') return;
+    let cancelled = false;
+    let u: string | null = null;
+    import('@/lib/utils/heic-convert').then(({ convertHeicBlobToJpeg }) =>
+      convertHeicBlobToJpeg(af.file).then((jpeg) => {
+        if (cancelled) return;
+        u = URL.createObjectURL(jpeg);
+        setHeicUrl(u);
+      }),
+    ).catch(() => {});
+    return () => { cancelled = true; if (u) URL.revokeObjectURL(u); };
+  }, [af, isHeic, isImg]);
+
+  // For local text/code files, read first ~12 lines for preview
+  useEffect(() => {
+    if (af.kind !== 'local' || isImg) return;
+    const textExts = [
+      'js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp',
+      'css', 'scss', 'html', 'vue', 'svelte', 'json', 'yaml', 'yml', 'toml', 'xml',
+      'md', 'mdx', 'txt', 'log', 'sh', 'bash', 'zsh', 'sql', 'swift', 'kt', 'scala',
+      'lua', 'r', 'php', 'pl', 'ini', 'conf', 'env', 'gitignore', 'dockerfile',
+    ];
+    if (!textExts.includes(ext)) return;
+    const reader = new FileReader();
+    reader.onload = () => setTextPreview((reader.result as string).split('\n').slice(0, 12).join('\n'));
+    reader.readAsText(af.file.slice(0, 2048));
+  }, [af, ext, isImg]);
+
+  // Image thumbnail — HEIC uses converted URL, everything else uses original
+  if (isImg) {
+    const src = isHeic ? heicUrl : (af.kind === 'local' ? af.localUrl : af.url);
+    if (!src) return null; // HEIC still converting — show nothing briefly
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt={name} className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+    );
+  }
+
+  // Text/code thumbnail
+  if (textPreview) {
+    return (
+      <div className="absolute inset-0 p-1 overflow-hidden">
+        <pre className="m-0 p-0 text-[6px] leading-[1.4] text-muted-foreground/70 font-mono whitespace-pre overflow-hidden select-none pointer-events-none">
+          {textPreview}
+        </pre>
+        <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-muted/20 to-transparent" />
+      </div>
+    );
+  }
+
+  // Fallback: large icon
+  return getFileIcon(name, { className: 'h-10 w-10', variant: 'monochrome' });
+}
 
 function AttachmentPreview({
   files,
@@ -900,37 +920,40 @@ function AttachmentPreview({
   return (
     <div className="flex flex-wrap gap-2 px-3 pt-2">
       {files.map((af, i) => {
-        const ext = af.file.name.split('.').pop()?.toLowerCase() || '';
-        const type = getFileType(af.file.name);
-        const Icon = getFileTypeIcon(type);
+        const name = af.kind === 'local' ? af.file.name : af.filename;
+        const ext = name.split('.').pop()?.toLowerCase() || '';
 
         return (
           <div key={i} className="relative group">
-            {af.isImage ? (
-              <div className="h-[54px] w-[54px] rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-black/5 dark:bg-black/20">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={af.localUrl} alt={af.file.name} className="h-full w-full object-cover" />
+            <div className={cn(
+              'flex flex-col rounded-lg border border-border/50 overflow-hidden',
+              'w-[120px] cursor-default select-none',
+              'bg-card hover:bg-muted/30 hover:border-border transition-colors duration-150',
+            )}>
+              {/* Thumbnail area */}
+              <div className="h-[80px] relative flex items-center justify-center overflow-hidden bg-muted/20">
+                <AttachmentThumbnail af={af} name={name} />
+                {/* Extension badge */}
+                {ext && !af.isImage && (
+                  <span className="absolute bottom-1 right-1 text-[0.5rem] font-medium text-muted-foreground/50 uppercase tracking-wider bg-background/80 px-1 py-0.5 rounded z-[5]">
+                    {ext.toUpperCase()}
+                  </span>
+                )}
               </div>
-            ) : (
-              <div className="flex items-center rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-sidebar h-[54px] w-fit min-w-[200px] max-w-[300px]">
-                <div className="w-[54px] h-full flex items-center justify-center flex-shrink-0 bg-black/5 dark:bg-white/5">
-                  <Icon className="h-5 w-5 text-black/60 dark:text-white/60" />
-                </div>
-                <div className="flex-1 min-w-0 flex flex-col justify-center px-3 py-2 overflow-hidden">
-                  <div className="text-sm font-medium truncate text-foreground">{af.file.name}</div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-1">
-                    <span className="truncate">{getFileTypeLabel(type, ext)}</span>
-                    <span className="flex-shrink-0">&middot;</span>
-                    <span className="flex-shrink-0">{formatFileSize(af.file.size)}</span>
-                  </div>
+              {/* Name bar */}
+              <div className="px-2 py-1.5 border-t border-border/30 h-[32px] flex items-center">
+                <div className="flex items-center gap-1 min-w-0 w-full">
+                  {getFileIcon(name, { className: 'h-3.5 w-3.5 shrink-0', variant: 'monochrome' })}
+                  <span className="text-[11px] truncate text-foreground">{name}</span>
                 </div>
               </div>
-            )}
+            </div>
+            {/* Remove button */}
             <button
               onClick={() => onRemove(i)}
               className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black dark:bg-white border-2 border-card text-white dark:text-black flex items-center justify-center z-10 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
             >
-              <X size={10} strokeWidth={3} />
+              <X className="h-3 w-3" />
             </button>
           </div>
         );
@@ -986,8 +1009,8 @@ function SlashCommandPopover({
 
   return (
     <div
-      className="fixed z-[9999] bg-popover border border-border rounded-xl overflow-hidden"
-      style={{ bottom: window.innerHeight - r.top + 4, left: r.left, width: r.width }}
+      className="fixed z-[9999] bg-popover border border-border/60 rounded-lg shadow-lg overflow-hidden"
+      style={{ bottom: window.innerHeight - r.top + 4, left: r.left, width: Math.min(r.width, 480) }}
     >
       <div ref={scrollRef} className="max-h-64 overflow-y-auto py-1">
         {filtered.map((cmd, i) => (
@@ -998,13 +1021,13 @@ function SlashCommandPopover({
               onSelect(cmd);
             }}
             className={cn(
-              'w-full flex flex-col gap-0.5 px-3 py-2 text-left transition-colors cursor-pointer rounded-lg mx-0',
-              i === selectedIndex ? 'bg-muted' : 'hover:bg-muted',
+              'w-full flex flex-col gap-0.5 px-3 py-2 text-left transition-colors cursor-pointer',
+              i === selectedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted',
             )}
           >
             <span className="font-mono text-sm text-foreground">/{cmd.name}</span>
             {cmd.description && (
-              <span className="text-xs text-muted-foreground line-clamp-2">{cmd.description}</span>
+              <span className="text-xs text-muted-foreground/40 line-clamp-2">{cmd.description}</span>
             )}
           </button>
         ))}
@@ -1085,7 +1108,7 @@ function MentionPopover({
                     idx === selectedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted',
                   )}
                 >
-                  <span className="size-4 rounded flex items-center justify-center bg-purple-500/15 text-purple-500 text-[10px] font-bold shrink-0">@</span>
+                  <span className="size-4 rounded flex items-center justify-center bg-purple-500/15 text-purple-500 text-[10px] font-semibold shrink-0">@</span>
                   <span className="truncate font-medium capitalize">{item.label}</span>
                   {item.description && <span className="text-muted-foreground/40 truncate text-[10px]">{item.description}</span>}
                 </button>
@@ -1297,6 +1320,35 @@ export interface SessionChatInputProps {
   questionCanAct?: boolean;
   /** Called when the send button is clicked during a question and there's no text (i.e. the action is next/submit, not a custom answer). */
   onQuestionAction?: () => void;
+  /** Number of ESC presses so far (0 = none, 1 = first, 2 = second). Triple-ESC to stop. */
+  escCount?: number;
+}
+
+function forkDraftKey(sessionId: string) {
+  return `opencode_fork_prompt:${sessionId}`;
+}
+
+function parseForkDraft(parts: PromptPart[] | null | undefined) {
+  if (!parts?.length) return { text: '', files: [] as AttachedFile[] };
+  const files: AttachedFile[] = [];
+  let text = '';
+
+  for (const part of parts) {
+    if (part.type === 'text') {
+      text = part.text;
+      continue;
+    }
+    if (part.type !== 'file') continue;
+    files.push({
+      kind: 'remote',
+      url: part.url,
+      filename: part.filename || 'Attachment',
+      mime: part.mime,
+      isImage: part.mime.startsWith('image/'),
+    });
+  }
+
+  return { text, files };
 }
 
 export function SessionChatInput({
@@ -1332,6 +1384,7 @@ export function SessionChatInput({
   questionButtonLabel = null,
   questionCanAct = true,
   onQuestionAction,
+  escCount = 0,
 }: SessionChatInputProps) {
   const placeholderVariants = useMemo(
     () => [
@@ -1360,7 +1413,7 @@ export function SessionChatInput({
   const [slashIndex, setSlashIndex] = useState(0);
   const [stagedCommand, setStagedCommand] = useState<Command | null>(null);
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-  const [autocontinueMode, setAutocontinueMode] = useState<AutoContinueMode | null>(null);
+  // const [autocontinueMode, setAutocontinueMode] = useState<AutoContinueMode | null>(null); // AutoContinue — commented out
   const [isDragOver, setIsDragOver] = useState(false);
   const pathname = normalizeAppPathname(usePathname());
   const isOnboarding = pathname?.startsWith('/onboarding');
@@ -1400,6 +1453,30 @@ export function SessionChatInput({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to lockForQuestion changes
   }, [lockForQuestion]);
+
+  useEffect(() => {
+    if (!sessionId || typeof window === 'undefined') return;
+    const raw = sessionStorage.getItem(forkDraftKey(sessionId));
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as PromptPart[];
+      const next = parseForkDraft(parsed);
+      setText(next.text);
+      setAttachedFiles((prev) => {
+        for (const file of prev) {
+          if (file.kind === 'local') URL.revokeObjectURL(file.localUrl);
+        }
+        return next.files;
+      });
+      setSlashFilter(null);
+      setMentionQuery(null);
+      setMentions([]);
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    } catch {
+      // ignore malformed stored draft
+    }
+    sessionStorage.removeItem(forkDraftKey(sessionId));
+  }, [sessionId]);
 
   // ChatGPT-like behavior: if the user starts typing while the textarea is not
   // focused, redirect the keystroke into this textarea and focus it.
@@ -1511,7 +1588,7 @@ export function SessionChatInput({
     const newFiles: AttachedFile[] = [];
     for (const file of files) {
       const localUrl = URL.createObjectURL(file);
-      newFiles.push({ file, localUrl, isImage: isImageFile(file) });
+      newFiles.push({ kind: 'local', file, localUrl, isImage: isImageFile(file) });
     }
     if (newFiles.length === 0) return;
     setAttachedFiles((prev) => [...prev, ...newFiles]);
@@ -1567,7 +1644,7 @@ export function SessionChatInput({
   const removeAttachedFile = (index: number) => {
     setAttachedFiles((prev) => {
       const removed = prev[index];
-      if (removed) URL.revokeObjectURL(removed.localUrl);
+      if (removed?.kind === 'local') URL.revokeObjectURL(removed.localUrl);
       return prev.filter((_, i) => i !== index);
     });
   };
@@ -1704,6 +1781,12 @@ export function SessionChatInput({
       onCommand?.(stagedCommand, args || undefined);
       setText('');
       setStagedCommand(null);
+      setAttachedFiles((prev) => {
+        for (const file of prev) {
+          if (file.kind === 'local') URL.revokeObjectURL(file.localUrl);
+        }
+        return [];
+      });
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
       return;
     }
@@ -1729,6 +1812,7 @@ export function SessionChatInput({
     const trimmed = text.trim();
     if ((!trimmed && attachedFiles.length === 0) || disabled) return;
 
+    /* AutoContinue — commented out
     // AutoContinue intercept: when a mode is armed, route through the
     // corresponding slash command instead of a plain send. The user's
     // text becomes the command's args (= the task description).
@@ -1741,12 +1825,15 @@ export function SessionChatInput({
         setSlashFilter(null);
         setMentionQuery(null);
         setMentions([]);
-        for (const af of attachedFiles) URL.revokeObjectURL(af.localUrl);
+        for (const af of attachedFiles) {
+          if (af.kind === 'local') URL.revokeObjectURL(af.localUrl);
+        }
         setAttachedFiles([]);
         if (textareaRef.current) textareaRef.current.style.height = 'auto';
         return;
       }
     }
+    */
 
     // Snapshot files and mentions before clearing
     const filesToSend = attachedFiles.length > 0 ? [...attachedFiles] : undefined;
@@ -1759,7 +1846,9 @@ export function SessionChatInput({
     setMentions([]);
     // Don't revoke URLs for files going into the queue — they're still needed
     if (!isBusy) {
-      for (const af of attachedFiles) URL.revokeObjectURL(af.localUrl);
+      for (const af of attachedFiles) {
+        if (af.kind === 'local') URL.revokeObjectURL(af.localUrl);
+      }
     }
     setAttachedFiles([]);
     if (textareaRef.current) {
@@ -1778,7 +1867,7 @@ export function SessionChatInput({
       // Restore the text so the user can retry
       setText(trimmed);
     }
-  }, [text, isBusy, disabled, onSend, onCommand, stagedCommand, attachedFiles, mentions, sessionId, enqueue, lockForQuestion, onCustomAnswer, onQuestionAction, autocontinueMode, commands]);
+  }, [text, isBusy, disabled, onSend, onCommand, stagedCommand, attachedFiles, mentions, sessionId, enqueue, lockForQuestion, onCustomAnswer, onQuestionAction]);
 
   const handleSelectCommand = (cmd: Command) => {
     // Stage the command — show an args input instead of executing immediately
@@ -1979,7 +2068,7 @@ export function SessionChatInput({
   }, [text, mentions]);
 
   return (
-    <div className="mx-auto w-full max-w-4xl relative shrink-0 px-2 sm:px-4 pb-6">
+    <div className="mx-auto w-full max-w-[52rem] relative shrink-0 px-2 sm:px-4 pb-6">
       {/* Todo panel removed — now inline inside the card as TodoChip */}
       <div
         ref={cardRef}
@@ -2109,7 +2198,7 @@ export function SessionChatInput({
               {text.trim().length === 0 && !stagedCommand && (
                 <div
                   aria-hidden
-                  className="absolute left-0.5 top-4 h-6 w-[calc(100%-0.5rem)] text-[16px] sm:text-[15px] text-muted-foreground pointer-events-none overflow-hidden"
+                  className="absolute left-0.5 top-4 h-6 w-[calc(100%-0.5rem)] text-base sm:text-[15px] text-muted-foreground pointer-events-none overflow-hidden"
                 >
                   {lockForQuestion ? (
                     <div className="absolute inset-0">
@@ -2141,7 +2230,7 @@ export function SessionChatInput({
               {text.trim().length === 0 && stagedCommand && (
                 <div
                   aria-hidden
-                  className="absolute left-0.5 top-4 text-[16px] sm:text-[15px] text-muted-foreground/50 pointer-events-none"
+                  className="absolute left-0.5 top-4 text-base sm:text-[15px] text-muted-foreground/50 pointer-events-none"
                 >
                   Enter details and press Enter, or press Esc to cancel
                 </div>
@@ -2151,8 +2240,7 @@ export function SessionChatInput({
                 <div
                   ref={highlightRef}
                   aria-hidden
-                  className="absolute inset-0 pointer-events-none px-0.5 pb-6 pt-4 min-h-[72px] max-h-[200px] overflow-y-auto text-[16px] sm:text-[15px] whitespace-pre-wrap break-words text-foreground"
-                  style={{ wordBreak: 'break-word', lineHeight: 'normal' }}
+                  className="absolute inset-0 pointer-events-none px-0.5 pb-6 pt-4 text-base sm:text-[15px] whitespace-pre-wrap break-words leading-normal text-foreground"
                 >
                   {highlightSegments.map((seg, i) => (
                     <span
@@ -2182,7 +2270,7 @@ export function SessionChatInput({
                 rows={1}
                 disabled={disabled}
                 className={cn(
-                  'relative w-full bg-transparent border-none shadow-none focus-visible:ring-0 px-0.5 pb-6 pt-4 min-h-[72px] max-h-[200px] overflow-y-auto resize-none rounded-[24px] text-[16px] sm:text-[15px] outline-none placeholder:text-muted-foreground disabled:opacity-50',
+                  'relative w-full bg-transparent border-none shadow-none focus-visible:ring-0 px-0.5 pb-6 pt-4 min-h-[72px] max-h-[200px] overflow-y-auto resize-none rounded-[24px] text-base sm:text-[15px] outline-none placeholder:text-muted-foreground disabled:opacity-50',
                   highlightSegments && 'caret-foreground text-transparent',
                 )}
                 autoFocus={shouldAutoFocus}
@@ -2215,8 +2303,6 @@ export function SessionChatInput({
                 <TooltipContent side="top"><p>Attach files</p></TooltipContent>
               </Tooltip>
 
-              <div className="w-px h-4 bg-border mx-1" />
-
               {agents.length > 0 && onAgentChange && (
                 <AgentSelector
                   agents={agents}
@@ -2240,9 +2326,10 @@ export function SessionChatInput({
                 />
               )}
 
+              {/* AutoContinue — commented out
               {commands.length > 0 && onCommand && !isOnboarding && (
                 <>
-                  <div className="w-px h-4 bg-border mx-1" />
+
                   <AutoContinueSelector
                     selected={autocontinueMode}
                     onSelect={setAutocontinueMode}
@@ -2250,6 +2337,7 @@ export function SessionChatInput({
                   />
                 </>
               )}
+              */}
             </div>
 
             {/* RIGHT: TokenProgress + Voice + Submit/Stop */}
@@ -2262,28 +2350,47 @@ export function SessionChatInput({
               />
 
               {isBusy && onStop && !lockForQuestion && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="sm"
-                      onClick={onStop}
-                      className="flex-shrink-0 h-8 w-8 rounded-full p-0"
+                <div className="relative flex items-center">
+                  {/* ESC hint — matches Kortix tooltip styling (bg-primary rounded-2xl) */}
+                  {escCount > 0 && (
+                    <div
+                      className="absolute bottom-full right-1/2 translate-x-1/2 mb-2 pointer-events-none animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-150"
                     >
-                      <div className="w-3 h-3 rounded-[3px] bg-current" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top"><p>Stop</p></TooltipContent>
-                </Tooltip>
+                      <div className="bg-primary text-primary-foreground rounded-2xl px-3 py-1.5 text-xs whitespace-nowrap flex items-center gap-1.5">
+                        <kbd className="bg-background/20 text-primary-foreground inline-flex h-5 min-w-5 items-center justify-center rounded-sm px-1 font-sans text-[11px] font-medium">ESC</kbd>
+                        <span>{escCount === 1 ? '×2 to stop' : '×1 to stop'}</span>
+                      </div>
+                      {/* Arrow matching TooltipContent */}
+                      <div className="flex justify-center -mt-px">
+                        <div className="bg-primary size-2.5 rotate-45 rounded-[2px] -translate-y-[calc(50%_-_2px)]" />
+                      </div>
+                    </div>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        onClick={onStop}
+                        className="flex-shrink-0 h-8 w-8 rounded-full p-0"
+                      >
+                        <div className="w-3 h-3 rounded-[3px] bg-current" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>Stop <kbd className="ml-1 bg-background/20 text-primary-foreground inline-flex h-5 min-w-5 items-center justify-center rounded-sm px-1 font-sans text-[10px] font-medium">ESC</kbd> ×3</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
               )}
               {(!isBusy || lockForQuestion) && (
                 <div className="opacity-100">
-                  {lockForQuestion && questionButtonLabel && !text.trim() ? (
-                    <Button
-                      size="sm"
-                      disabled={!questionCanAct || disabled}
-                      onClick={handleSubmit}
-                      className="flex-shrink-0 h-8 rounded-full px-3.5 text-xs font-medium"
-                    >
+					{lockForQuestion && questionButtonLabel && !text.trim() ? (
+						<Button
+							size="sm"
+							disabled={!questionCanAct || disabled}
+							onClick={handleSubmit}
+							className="flex-shrink-0 h-8 rounded-full px-3.5 text-xs font-medium"
+						>
                       {questionButtonLabel}
                     </Button>
                   ) : (

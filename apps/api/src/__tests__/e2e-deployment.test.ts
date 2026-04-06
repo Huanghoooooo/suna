@@ -411,7 +411,6 @@ describe('Deployment — Sandbox Dockerfile Validation', () => {
 describe('Deployment — Sandbox Configuration Integrity', () => {
   const s6Dir = join(SANDBOX_DIR, 's6-services');
   const expectedServices = [
-    'svc-opencode-web',
     'svc-opencode-serve',
     'svc-kortix-master',
     'svc-lss-sync',
@@ -614,7 +613,7 @@ describe('Deployment — Ship Script Validation', () => {
 
   it('creates GitHub Release with changelog', () => {
     expect(shipScript).toContain('gh release create');
-    expect(shipScript).toContain('--repo kortix-ai/computer');
+    expect(shipScript).toContain('--repo kortix-ai/suna');
   });
 
   it('builds and pushes 3 Docker images with multi-arch', () => {

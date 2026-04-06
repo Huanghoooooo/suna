@@ -615,7 +615,7 @@ export function CodeEditor({
             variant="ghost"
             size="sm"
             disabled
-            className="gap-1.5 h-7 px-2 text-xs text-green-600"
+            className="gap-1.5 h-7 px-2 text-xs text-emerald-600"
           >
             <Check className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Saved</span>

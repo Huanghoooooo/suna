@@ -17,15 +17,28 @@ export interface ProjectEntry {
 export function parseProjectListOutput(output: string): ProjectEntry[] {
 	if (!output || typeof output !== 'string') return [];
 	const projects: ProjectEntry[] = [];
-	// Parse markdown table rows: | **name** | `/path` | sessions | description |
-	const lineRe = /^\|\s*\*\*([^*]+)\*\*\s*\|\s*`([^`]+)`\s*\|\s*(\d+)\s*\|\s*([^|]*?)\s*\|$/gm;
+
+	// Try 4-column format first: | **name** | `/path` | sessions | description |
+	const fourColRe = /^\|\s*\*\*([^*]+)\*\*\s*\|\s*`([^`]+)`\s*\|\s*(\d+)\s*\|\s*([^|]*?)\s*\|$/gm;
 	let m;
-	while ((m = lineRe.exec(output)) !== null) {
+	while ((m = fourColRe.exec(output)) !== null) {
 		projects.push({
 			name: m[1].trim(),
 			path: m[2].trim(),
 			sessions: parseInt(m[3], 10) || 0,
 			description: m[4].trim() || '—',
+		});
+	}
+	if (projects.length > 0) return projects;
+
+	// Fallback: 3-column format: | **name** | `/path` | description |
+	const threeColRe = /^\|\s*\*\*([^*]+)\*\*\s*\|\s*`([^`]+)`\s*\|\s*([^|]*?)\s*\|$/gm;
+	while ((m = threeColRe.exec(output)) !== null) {
+		projects.push({
+			name: m[1].trim(),
+			path: m[2].trim(),
+			sessions: 0,
+			description: m[3].trim() || '—',
 		});
 	}
 	return projects;
@@ -119,23 +132,24 @@ export function parseProjectCreateOutput(output: string): ProjectCreateData | nu
 
 export interface ConnectorEntry {
 	name: string;
-	type: string;
-	status: string;
-	secrets: string;
+	description: string;
+	source: string;
 }
 
 export function parseConnectorListOutput(output: string): ConnectorEntry[] {
 	if (!output || typeof output !== 'string') return [];
 	const connectors: ConnectorEntry[] = [];
-	// Parse markdown table: | Name | Type | Status | Secrets |
-	const lineRe = /^\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]*?)\s*\|$/gm;
+	// Parse markdown table: | Name | Description | Source |
+	const lineRe = /^\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]*?)\s*\|$/gm;
 	let m;
 	while ((m = lineRe.exec(output)) !== null) {
+		const name = m[1].trim();
+		// Skip header row and separator row
+		if (name === 'Name' || name.startsWith('---') || name.startsWith('–')) continue;
 		connectors.push({
-			name: m[1].trim(),
-			type: m[2].trim(),
-			status: m[3].trim(),
-			secrets: m[4].trim() || 'none',
+			name,
+			description: m[2].trim(),
+			source: m[3].trim(),
 		});
 	}
 	return connectors;
@@ -143,9 +157,10 @@ export function parseConnectorListOutput(output: string): ConnectorEntry[] {
 
 export interface ConnectorGetData {
 	name: string;
-	type: string;
-	status: string;
-	secrets: string;
+	description: string;
+	source: string;
+	pipedream_slug?: string;
+	env?: string;
 	notes?: string;
 }
 
@@ -153,44 +168,43 @@ export function parseConnectorGetOutput(output: string): ConnectorGetData | null
 	if (!output || typeof output !== 'string') return null;
 
 	const nameMatch = output.match(/^name:\s*(.+)$/m);
-	const typeMatch = output.match(/^type:\s*(.+)$/m);
-	const statusMatch = output.match(/^status:\s*(.+)$/m);
-	const secretsMatch = output.match(/^secrets:\s*(.+)$/m);
+	const descriptionMatch = output.match(/^description:\s*(.+)$/m);
+	const sourceMatch = output.match(/^source:\s*(.+)$/m);
+	const pipedreamSlugMatch = output.match(/^pipedream_slug:\s*(.+)$/m);
+	const envMatch = output.match(/^env:\s*(.+)$/m);
 	const notesMatch = output.match(/^notes:\s*\n([\s\S]*?)$/);
 
 	if (!nameMatch) return null;
 
 	return {
 		name: nameMatch[1].trim(),
-		type: typeMatch?.[1].trim() || 'unknown',
-		status: statusMatch?.[1].trim() || 'unknown',
-		secrets: secretsMatch?.[1].trim() || 'none',
+		description: descriptionMatch?.[1].trim() || '',
+		source: sourceMatch?.[1].trim() || 'unknown',
+		pipedream_slug: pipedreamSlugMatch?.[1].trim(),
+		env: envMatch?.[1].trim(),
 		notes: notesMatch?.[1].trim(),
 	};
 }
 
 export interface ConnectorSetupData {
 	count: number;
-	connectors: Array<{ name: string; type: string; status: string }>;
+	connectors: string[];
 	success: boolean;
 }
 
 export function parseConnectorSetupOutput(output: string): ConnectorSetupData | null {
 	if (!output || typeof output !== 'string') return null;
 
-	const countMatch = output.match(/Scaffolded\s+(\d+)\s+connectors/i);
+	// Match "Created/updated X connectors:" or legacy "Scaffolded X connectors"
+	const countMatch = output.match(/(?:Created\/updated|Scaffolded)\s+(\d+)\s+connectors/i);
 	const count = countMatch ? parseInt(countMatch[1], 10) : 0;
 
-	const connectors: Array<{ name: string; type: string; status: string }> = [];
-	// Parse: name [type] status
-	const lineRe = /^([^\s[]+)\s*\[([^\]]+)\]\s*(\S+)/gm;
+	const connectors: string[] = [];
+	// Parse: name (source)
+	const lineRe = /^([^\s(]+)\s*\(([^)]+)\)/gm;
 	let m;
 	while ((m = lineRe.exec(output)) !== null) {
-		connectors.push({
-			name: m[1].trim(),
-			type: m[2].trim(),
-			status: m[3].trim(),
-		});
+		connectors.push(`${m[1].trim()} (${m[2].trim()})`);
 	}
 
 	return {

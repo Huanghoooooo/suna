@@ -63,7 +63,7 @@ export function PromptExamples({
                 <p className="text-sm text-foreground/80 group-hover:text-foreground transition-colors leading-relaxed flex-1">
                   {prompt.text}
                 </p>
-                <ArrowUpRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-foreground/60 shrink-0 transition-all duration-150 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                <ArrowUpRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-foreground/60 shrink-0 transition-colors duration-150 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </div>
             </motion.div>
           ))}
@@ -100,11 +100,11 @@ export function PromptExamples({
               }}
             >
               <Card
-                className="flex flex-col gap-2 cursor-pointer p-2 hover:bg-accent/30 transition-all duration-200 group border border-border hover:border-border/80 rounded-xl"
+                className="flex flex-col gap-2 cursor-pointer p-2 hover:bg-accent/30 transition-colors duration-200 group border border-border hover:border-border/80 rounded-xl"
                 onClick={() => onPromptClick?.(prompt.text)}
               >
                 {/* Thumbnail - matches template thumbnail styling */}
-                <div className="relative w-full aspect-video bg-muted/30 overflow-hidden rounded-lg border border-border/50 group-hover:border-primary/30 group-hover:scale-[1.02] transition-all duration-200">
+                <div className="relative w-full aspect-video bg-muted/30 overflow-hidden rounded-lg border border-border/50 group-hover:border-primary/30 group-hover:scale-[1.02] transition-colors duration-200">
                   {prompt.thumbnail ? (
                     <Image
                       src={prompt.thumbnail}
@@ -159,7 +159,7 @@ export function PromptExamples({
             }}
           >
             <Card
-              className="p-4 cursor-pointer hover:bg-primary/5 transition-all duration-200 group border border-border rounded-xl"
+              className="p-4 cursor-pointer hover:bg-primary/5 transition-colors duration-200 group border border-border rounded-xl"
               onClick={() => onPromptClick?.(prompt.text)}
             >
               <div className="flex items-start justify-between gap-2">

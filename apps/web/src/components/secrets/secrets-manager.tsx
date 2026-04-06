@@ -109,7 +109,7 @@ export function SecretsManager() {
         <div className="px-3 py-2 flex items-center gap-2 border-b border-border/50">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
+            <Input type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Filter keys..."
@@ -118,7 +118,7 @@ export function SecretsManager() {
           </div>
           <Button
             variant="outline" size="sm"
-            className="h-8 text-xs flex-shrink-0"
+            className="text-xs flex-shrink-0"
             onClick={() => setAddingNew(true)}
           >
             <Plus className="h-3.5 w-3.5 mr-1" />
@@ -129,14 +129,14 @@ export function SecretsManager() {
         {/* Add new row */}
         {addingNew && (
           <div className="flex items-center gap-2 px-3 py-2 bg-muted/20 border-b border-border/20">
-            <Input
+            <Input type="text"
               value={newKey}
               onChange={(e) => setNewKey(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
               placeholder="KEY_NAME"
               className="h-7 text-xs font-mono w-[220px] shadow-none"
               autoFocus
             />
-            <Input
+            <Input type="text"
               value={newValue}
               onChange={(e) => setNewValue(e.target.value)}
               placeholder="value"
@@ -187,7 +187,7 @@ export function SecretsManager() {
                 {/* Value area */}
                 <div className="flex-1 min-w-0">
                   {isEditing ? (
-                    <Input
+                    <Input type="text"
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       placeholder="Enter value..."

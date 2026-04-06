@@ -77,6 +77,7 @@ describe("integration.ts end-to-end through kortix-master", () => {
   const key = "test-internal-key"
 
   beforeAll(async () => {
+    // Legacy cleanup — old trigger system stored cron state here
     rmSync("/tmp/kortix-agent-triggers/cron-state.json", { force: true })
 
     const app = new Hono()

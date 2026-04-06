@@ -10,6 +10,7 @@ import {
   FileText,
   Globe,
   Image as ImageIcon,
+  Maximize2,
   MonitorPlay,
   Music,
   RefreshCw,
@@ -34,8 +35,15 @@ import {
 import { openTabAndNavigate } from '@/stores/tab-store';
 import { enrichPreviewMetadata } from '@/lib/utils/session-context';
 import { cn } from '@/lib/utils';
-import { ShowContentRenderer, ShowCarousel } from '@/components/file-renderers/show-content-renderer';
+import { ShowContentRenderer, ShowCarousel, SHOW_HTML_EXT_RE } from '@/components/file-renderers/show-content-renderer';
 import type { ShowCarouselItem } from '@/components/file-renderers/show-content-renderer';
+import { SANDBOX_PORTS } from '@/lib/platform-client';
+
+/** Ensure a sandbox file path starts with /workspace/ for the static file server. */
+function ensureWorkspacePath(filePath: string): string {
+  if (filePath.startsWith('/workspace/')) return filePath;
+  return '/workspace/' + filePath.replace(/^\/+/, '');
+}
 
 // ── Theme border styles — theme ONLY affects the card border color ──────────
 const THEME_BORDER: Record<string, string> = {
@@ -138,22 +146,22 @@ function SidePanelIframePreview({ url, title }: { url: string; title?: string })
         <span className="text-xs text-muted-foreground font-mono truncate flex-1">{displayLabel}</span>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button type="button" onClick={handleRefresh} className="p-1 rounded hover:bg-muted/60 text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+            <Button type="button" onClick={handleRefresh} variant="ghost" size="icon-xs">
               <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
-            </button>
+            </Button>
           </TooltipTrigger>
           <TooltipContent side="top">Refresh</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button type="button" onClick={() => authenticatedUrl && window.open(authenticatedUrl, '_blank', 'noopener,noreferrer')} disabled={!isAuthReady} className="p-1 rounded hover:bg-muted/60 text-muted-foreground/50 hover:text-muted-foreground transition-colors disabled:opacity-30">
+            <Button type="button" onClick={() => authenticatedUrl && window.open(authenticatedUrl, '_blank', 'noopener,noreferrer')} disabled={!isAuthReady} variant="ghost" size="icon-xs">
               <ExternalLink className="h-3.5 w-3.5" />
-            </button>
+            </Button>
           </TooltipTrigger>
           <TooltipContent side="top">Open in browser</TooltipContent>
         </Tooltip>
         {proxy && (
-          <Button variant="default" size="sm" className="h-6 text-[10px] gap-1 px-2 rounded-md" onClick={navigateToPreviewTab}>
+          <Button variant="subtle" size="xs" onClick={navigateToPreviewTab}>
             <MonitorPlay className="h-3 w-3" />
             Open Tab
           </Button>
@@ -173,7 +181,7 @@ function SidePanelIframePreview({ url, title }: { url: string; title?: string })
           <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
             <div className="text-center text-muted-foreground">
               <p className="text-sm">Failed to load preview</p>
-              <button type="button" onClick={handleRefresh} className="text-xs text-primary hover:underline mt-1">Retry</button>
+              <Button type="button" onClick={handleRefresh} variant="link" size="sm" className="mt-1 h-auto p-0 text-xs">Retry</Button>
             </div>
           </div>
         )}
@@ -296,8 +304,14 @@ export function OcShowUserToolView({
 
   const isCarousel = !!items && items.length > 0;
 
+  // ── Track current carousel item for Open File ──
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const currentCarouselItem = isCarousel ? items![carouselIndex] || items![0] : null;
+
   const borderStyle = THEME_BORDER[theme] || THEME_BORDER.default;
-  const Icon = isCarousel ? typeIcon(items![0].type || '') : typeIcon(type);
+  const Icon = isCarousel
+    ? typeIcon(currentCarouselItem?.type || items![0].type || '')
+    : typeIcon(type);
 
   const isError = type === 'error' || toolResult?.success === false || !!toolResult?.error;
   const hasLocalhostUrl = !!parseLocalhostUrl(url) && !isAppRouteUrl(url);
@@ -392,19 +406,96 @@ export function OcShowUserToolView({
   // CAROUSEL — multiple items in a single show call
   // ═══════════════════════════════════════════════════════════════════════════
   if (isCarousel) {
+    const ciPath = currentCarouselItem?.path || '';
+    const ciUrl = currentCarouselItem?.url || '';
+    const ciType = currentCarouselItem?.type || '';
+    const ciTitle = currentCarouselItem?.title || '';
+    const ciHasLocalhostUrl = !!parseLocalhostUrl(ciUrl) && !isAppRouteUrl(ciUrl);
+    const ciIsHtmlFile = !!ciPath && SHOW_HTML_EXT_RE.test(ciPath) && (ciType === 'file' || ciType === 'html');
+    const ciCanOpen = !!(ciUrl || ciPath);
+    const ciOpenLabel = ciIsHtmlFile ? 'Open Preview' : ciHasLocalhostUrl ? 'Open in Tab' : ciUrl ? 'Open Link' : 'Open File';
+
+    const handleCarouselOpen = () => {
+      if (ciIsHtmlFile && ciPath) {
+        const staticPort = parseInt(SANDBOX_PORTS.STATIC_FILE_SERVER ?? '3211', 10);
+        const normalizedCiPath = ensureWorkspacePath(ciPath);
+        const staticUrl = `http://localhost:${staticPort}/open?path=${encodeURIComponent(normalizedCiPath)}`;
+        const proxy = proxyUrl(staticUrl);
+        if (proxy) {
+          const parsed = parseLocalhostUrl(staticUrl);
+          openTabAndNavigate({
+            id: `preview:${parsed?.port || staticPort}`,
+            title: ciTitle || ciPath.split('/').pop() || ciPath,
+            type: 'preview',
+            href: `/p/${parsed?.port || staticPort}`,
+            metadata: enrichPreviewMetadata({
+              url: proxy,
+              port: parsed?.port || staticPort,
+              originalUrl: staticUrl,
+            }),
+          });
+          return;
+        }
+      }
+      if (ciHasLocalhostUrl && ciUrl) {
+        const proxy = proxyUrl(ciUrl);
+        const parsed = parseLocalhostUrl(ciUrl);
+        if (proxy && parsed) {
+          openTabAndNavigate({
+            id: `preview:${parsed.port}`,
+            title: ciTitle || `localhost:${parsed.port}`,
+            type: 'preview',
+            href: `/p/${parsed.port}`,
+            metadata: enrichPreviewMetadata({
+              url: proxy,
+              port: parsed.port,
+              originalUrl: ciUrl,
+            }),
+          });
+          return;
+        }
+      }
+      if (ciUrl) {
+        window.open(ciUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      if (ciPath) {
+        const fileName = ciPath.split('/').pop() || ciPath;
+        openTabAndNavigate({
+          id: `file:${ciPath}`,
+          title: fileName,
+          type: 'file',
+          href: `/files/${encodeURIComponent(ciPath)}`,
+        });
+      }
+    };
+
     return (
       <Card className={cn("gap-0 flex shadow-none p-0 py-0 rounded-none flex-col h-full overflow-hidden bg-card border-0", borderStyle)}>
         <CardHeader className="h-14 backdrop-blur-sm border-b p-2 px-4 space-y-2 bg-muted/50">
           <div className="flex flex-row items-center justify-between">
             <ToolViewIconTitle icon={Icon} title={displayTitle} subtitle={description || undefined} />
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted/40 text-muted-foreground/60 font-medium flex-shrink-0">
-              {items!.length} items
-            </span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted/40 text-muted-foreground/60 font-medium">
+                {items!.length} items
+              </span>
+              {ciCanOpen && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs gap-1 px-2"
+                  onClick={handleCarouselOpen}
+                >
+                  {(ciIsHtmlFile || ciHasLocalhostUrl) ? <MonitorPlay className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+                  {ciOpenLabel}
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0 h-full flex-1 overflow-hidden">
           <ScrollArea className="h-full w-full">
-            <ShowCarousel items={items!} LocalhostPreview={SidePanelIframePreview} />
+            <ShowCarousel items={items!} LocalhostPreview={SidePanelIframePreview} onIndexChange={setCarouselIndex} />
           </ScrollArea>
         </CardContent>
         <ToolViewFooter assistantTimestamp={assistantTimestamp} toolTimestamp={toolTimestamp} isStreaming={isStreaming}>

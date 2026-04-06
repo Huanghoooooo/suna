@@ -2,63 +2,120 @@
 
 import { useMemo, useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { Loader2 } from 'lucide-react';
+import { codeToHtml } from 'shiki';
 import { cn } from '@/lib/utils';
 import { useFileContent } from '../hooks';
 import { getFileCategory, getLanguageFromExt } from './file-content-renderer';
 import { getFileIcon } from './file-icon';
 import { useSandboxProxy } from '@/hooks/use-sandbox-proxy';
 import { SANDBOX_PORTS } from '@/lib/platform-client';
+import { isHeicFile } from '@/lib/utils/heic-convert';
+import { useBinaryBlob } from '../hooks/use-binary-blob';
+import { useHeicBlob } from '@/hooks/use-heic-url';
+
+/** Ensure a sandbox file path starts with /workspace/ for the static file server. */
+function ensureWorkspacePath(filePath: string): string {
+  if (filePath.startsWith('/workspace/')) return filePath;
+  return '/workspace/' + filePath.replace(/^\/+/, '');
+}
 
 // ---------------------------------------------------------------------------
 // Image Thumbnail — loads base64 from API
 // ---------------------------------------------------------------------------
 
 function ImageThumbnail({ filePath }: { filePath: string }) {
-  const { data: fileContent } = useFileContent(filePath, { staleTime: 60_000 });
+  const fileName = filePath.split('/').pop() || '';
+  const isHeic = isHeicFile(fileName);
   const [imgError, setImgError] = useState(false);
 
-  const dataUrl = useMemo(() => {
-    if (fileContent?.encoding === 'base64' && fileContent.mimeType?.startsWith('image/')) {
+  // Non-HEIC: text/base64 API. HEIC: raw blob API + conversion.
+  const { data: fileContent } = useFileContent(filePath, { staleTime: 60_000, enabled: !isHeic });
+  const { blob: rawBlob } = useBinaryBlob(isHeic ? filePath : null);
+  const { url: heicUrl } = useHeicBlob(isHeic ? rawBlob : null, fileName);
+
+  const src = useMemo(() => {
+    if (isHeic) return heicUrl;
+    if (fileContent?.encoding === 'base64' && fileContent.mimeType?.startsWith('image/'))
       return `data:${fileContent.mimeType};base64,${fileContent.content}`;
-    }
     return null;
-  }, [fileContent]);
+  }, [fileContent, isHeic, heicUrl]);
 
-  if (!dataUrl || imgError) return null;
-
+  if (!src || imgError) return null;
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={dataUrl}
-      alt=""
-      className="absolute inset-0 w-full h-full object-cover"
-      onError={() => setImgError(true)}
-      draggable={false}
-    />
+    <img src={src} alt="" className="absolute inset-0 w-full h-full object-cover" onError={() => setImgError(true)} draggable={false} />
   );
 }
 
 // ---------------------------------------------------------------------------
-// Code / Text Thumbnail — shows first ~8 lines of content
+// Code / Text Thumbnail — shows first ~12 lines with syntax highlighting
 // ---------------------------------------------------------------------------
 
-function CodeThumbnail({ filePath }: { filePath: string }) {
+/** Dark-mode CSS variable classes for shiki dual-theme output */
+const shikiDarkModeClasses = cn(
+  '[&_.shiki]:!bg-transparent',
+  '[&_pre]:!bg-transparent',
+  '[&_pre]:!p-0',
+  '[&_pre]:!m-0',
+  '[&_code]:!p-0',
+  '[&_code]:!m-0',
+  'dark:[&_.shiki_span]:!text-[var(--shiki-dark)]',
+  'dark:[&_.shiki_span]:![font-style:var(--shiki-dark-font-style)]',
+  'dark:[&_.shiki_span]:![font-weight:var(--shiki-dark-font-weight)]',
+);
+
+function CodeThumbnail({ filePath, fileName }: { filePath: string; fileName: string }) {
   const { data: fileContent } = useFileContent(filePath, { staleTime: 60_000 });
+  const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
 
   const preview = useMemo(() => {
     if (!fileContent?.content || fileContent.type === 'binary') return null;
-    const lines = fileContent.content.split('\n').slice(0, 10);
-    return lines.join('\n');
+    return fileContent.content.split('\n').slice(0, 12).join('\n');
   }, [fileContent]);
+
+  const language = useMemo(() => {
+    return getLanguageFromExt(fileName);
+  }, [fileName]);
+
+  useEffect(() => {
+    if (!preview) return;
+    let cancelled = false;
+
+    const lang = language === 'plaintext' ? 'text' : language;
+
+    codeToHtml(preview, {
+      lang,
+      themes: {
+        light: 'github-light',
+        dark: 'github-dark',
+      },
+    }).then((html) => {
+      if (!cancelled) setHighlightedHtml(html);
+    }).catch(() => {
+      // Fallback: keep null, render plain text
+    });
+
+    return () => { cancelled = true; };
+  }, [preview, language]);
 
   if (!preview) return null;
 
   return (
     <div className="absolute inset-0 p-2 overflow-hidden">
-      <pre className="text-[7px] leading-[1.4] text-muted-foreground/70 font-mono whitespace-pre overflow-hidden select-none pointer-events-none">
-        {preview}
-      </pre>
-      {/* Fade-out gradient at bottom */}
+      {highlightedHtml ? (
+        <div
+          className={cn(
+            'text-[7px] leading-[1.4] font-mono whitespace-pre overflow-hidden select-none pointer-events-none',
+            '[&_code]:!text-[7px] [&_code]:!leading-[1.4]',
+            shikiDarkModeClasses,
+          )}
+          dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+        />
+      ) : (
+        <pre className="text-[7px] leading-[1.4] text-muted-foreground/70 font-mono whitespace-pre overflow-hidden select-none pointer-events-none">
+          {preview}
+        </pre>
+      )}
       <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-muted/20 to-transparent" />
     </div>
   );
@@ -133,29 +190,60 @@ function CsvThumbnail({ filePath }: { filePath: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// JSON Thumbnail — shows formatted JSON preview
+// JSON Thumbnail — shows formatted JSON preview with syntax highlighting
 // ---------------------------------------------------------------------------
 
-function JsonThumbnail({ filePath }: { filePath: string }) {
+function JsonThumbnail({ filePath, fileName }: { filePath: string; fileName: string }) {
   const { data: fileContent } = useFileContent(filePath, { staleTime: 60_000 });
+  const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
 
   const preview = useMemo(() => {
     if (!fileContent?.content) return null;
     try {
       const parsed = JSON.parse(fileContent.content);
-      return JSON.stringify(parsed, null, 2).split('\n').slice(0, 10).join('\n');
+      return JSON.stringify(parsed, null, 2).split('\n').slice(0, 12).join('\n');
     } catch {
-      return fileContent.content.split('\n').slice(0, 10).join('\n');
+      return fileContent.content.split('\n').slice(0, 12).join('\n');
     }
   }, [fileContent]);
+
+  useEffect(() => {
+    if (!preview) return;
+    let cancelled = false;
+
+    codeToHtml(preview, {
+      lang: 'json',
+      themes: {
+        light: 'github-light',
+        dark: 'github-dark',
+      },
+    }).then((html) => {
+      if (!cancelled) setHighlightedHtml(html);
+    }).catch(() => {
+      // Fallback: keep null, render plain text
+    });
+
+    return () => { cancelled = true; };
+  }, [preview]);
 
   if (!preview) return null;
 
   return (
     <div className="absolute inset-0 p-2 overflow-hidden">
-      <pre className="text-[7px] leading-[1.4] text-muted-foreground/70 font-mono whitespace-pre overflow-hidden select-none pointer-events-none">
-        {preview}
-      </pre>
+      {highlightedHtml ? (
+        <div
+          className={cn(
+            'text-[7px] leading-[1.4] font-mono whitespace-pre overflow-hidden select-none pointer-events-none',
+            '[&_code]:!text-[7px] [&_code]:!leading-[1.4]',
+            shikiDarkModeClasses,
+          )}
+          dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+        />
+      ) : (
+        <pre className="text-[7px] leading-[1.4] text-muted-foreground/70 font-mono whitespace-pre overflow-hidden select-none pointer-events-none">
+          {preview}
+        </pre>
+      )}
       <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-muted/20 to-transparent" />
     </div>
   );
@@ -171,7 +259,8 @@ function HtmlThumbnail({ filePath }: { filePath: string }) {
 
   // Proxy URL for the file itself
   const previewUrl = useMemo(() => {
-    const encodedPath = filePath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    const normalizedPath = ensureWorkspacePath(filePath);
+    const encodedPath = normalizedPath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
     return rewritePortPath(staticPort, `/open?path=/${encodedPath}`);
   }, [filePath, rewritePortPath, staticPort]);
 
@@ -208,19 +297,28 @@ function HtmlThumbnail({ filePath }: { filePath: string }) {
   // Container ref for scaling the iframe to fit
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const update = () => {
       const w = el.clientWidth;
-      if (w > 0) setScale(w / 1280);
+      const h = el.clientHeight;
+      if (w > 0) {
+        setScale(w / 1280);
+        setContainerSize({ w, h });
+      }
     };
     const ro = new ResizeObserver(update);
     ro.observe(el);
     update();
     return () => ro.disconnect();
   }, []);
+
+  const iframeHeight = containerSize.w > 0 && containerSize.h > 0
+    ? Math.round(1280 / (containerSize.w / containerSize.h))
+    : 800;
 
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden select-none pointer-events-none">
@@ -235,7 +333,7 @@ function HtmlThumbnail({ filePath }: { filePath: string }) {
           className="border-0 origin-top-left"
           style={{
             width: `${1280}px`,
-            height: `${Math.round(1280 / (containerRef.current!.clientWidth / containerRef.current!.clientHeight || 1))}px`,
+            height: `${iframeHeight}px`,
             transform: `scale(${scale})`,
           }}
           sandbox="allow-scripts allow-same-origin"
@@ -287,25 +385,32 @@ export function FileThumbnail({ filePath, fileName, className }: FileThumbnailPr
   const isText = category === 'text' || isMarkdown || isPlaintext;
   const ext = fileName.includes('.') ? extLower.toUpperCase() : '';
 
+  // Determine which single thumbnail to render (mutually exclusive)
+  let thumbnailType: 'image' | 'html' | 'csv' | 'json' | 'markdown' | 'code' | 'text' | 'fallback';
+  if (isImage) thumbnailType = 'image';
+  else if (isHtml) thumbnailType = 'html';
+  else if (isCsv) thumbnailType = 'csv';
+  else if (isJson) thumbnailType = 'json';
+  else if (isMarkdown) thumbnailType = 'markdown';
+  else if (isCode) thumbnailType = 'code';
+  else if (isText) thumbnailType = 'text';
+  else thumbnailType = 'fallback';
+
   return (
     <div className={cn('flex items-center justify-center relative overflow-hidden bg-muted/20', className)}>
-      {/* Thumbnails by type */}
-      {isImage && <ImageThumbnail filePath={filePath} />}
-      {isHtml && <HtmlThumbnail filePath={filePath} />}
-      {isCode && <CodeThumbnail filePath={filePath} />}
-      {isMarkdown && <MarkdownThumbnail filePath={filePath} />}
-      {isJson && <JsonThumbnail filePath={filePath} />}
-      {isCsv && <CsvThumbnail filePath={filePath} />}
-      {isText && !isMarkdown && <CodeThumbnail filePath={filePath} />}
-
-      {/* Fallback icon for binary / unsupported types */}
-      {!isImage && !isHtml && !isCode && !isMarkdown && !isJson && !isCsv && !isText && (
-        getFileIcon(fileName, { className: 'h-12 w-12', variant: 'monochrome' })
-      )}
+      {/* Thumbnails by type — only one renders */}
+      {thumbnailType === 'image' && <ImageThumbnail filePath={filePath} />}
+      {thumbnailType === 'html' && <HtmlThumbnail filePath={filePath} />}
+      {thumbnailType === 'code' && <CodeThumbnail filePath={filePath} fileName={fileName} />}
+      {thumbnailType === 'markdown' && <MarkdownThumbnail filePath={filePath} />}
+      {thumbnailType === 'json' && <JsonThumbnail filePath={filePath} fileName={fileName} />}
+      {thumbnailType === 'csv' && <CsvThumbnail filePath={filePath} />}
+      {thumbnailType === 'text' && <CodeThumbnail filePath={filePath} fileName={fileName} />}
+      {thumbnailType === 'fallback' && getFileIcon(fileName, { className: 'h-12 w-12', variant: 'monochrome' })}
 
       {/* File type badge (shown for non-image types) */}
-      {ext && !isImage && (
-        <span className="absolute bottom-1.5 right-1.5 text-[9px] font-medium text-muted-foreground/50 uppercase tracking-wider bg-background/80 px-1.5 py-0.5 rounded z-10">
+      {ext && thumbnailType !== 'image' && (
+        <span className="absolute bottom-1.5 right-1.5 text-[0.5625rem] font-medium text-muted-foreground/50 uppercase tracking-wider bg-background/80 px-1.5 py-0.5 rounded z-10">
           {ext}
         </span>
       )}

@@ -385,7 +385,7 @@ export const UnifiedAgentCard: React.FC<UnifiedAgentCardProps> = ({
           </div>
 
           <motion.button
-            className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-all duration-300"
+            className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors duration-300"
             initial={{ y: 10 }}
             whileHover={{ y: 0 }}
             onClick={() => onClick?.(data)}
@@ -401,7 +401,7 @@ export const UnifiedAgentCard: React.FC<UnifiedAgentCardProps> = ({
   const renderDashboardCard = () => (
     <div
       className={cn(
-        'group h-38 relative bg-muted/80 dark:bg-muted/20 rounded-3xl overflow-hidden transition-all duration-300 border cursor-pointer flex flex-col w-full border-border/50',
+        'group h-38 relative bg-muted/80 dark:bg-muted/20 rounded-3xl overflow-hidden transition-colors duration-300 border cursor-pointer flex flex-col w-full border-border/50',
         'hover:border-primary/20',
         className
       )}
@@ -433,7 +433,7 @@ export const UnifiedAgentCard: React.FC<UnifiedAgentCardProps> = ({
     >
       <Card 
         className={cn(
-          'cursor-pointer transition-all duration-200 relative overflow-hidden',
+          'cursor-pointer transition-colors duration-200 relative overflow-hidden',
           isSelected 
             ? 'border-2 border-foreground bg-background' 
             : 'border border-border hover:border-muted-foreground/30',
@@ -490,7 +490,7 @@ export const UnifiedAgentCard: React.FC<UnifiedAgentCardProps> = ({
   
   const renderStandardCard = () => {
     const cardClassName = cn(
-      'group relative bg-card rounded-2xl overflow-hidden transition-all duration-300 border cursor-pointer flex flex-col border-border/50 hover:border-primary/20',
+      'group relative bg-card rounded-2xl overflow-hidden transition-colors duration-300 border cursor-pointer flex flex-col border-border/50 hover:border-primary/20',
       className
     );
     

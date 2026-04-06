@@ -43,7 +43,7 @@ export function SkillCard({ skill, onEdit, onDelete, onNavigate }: SkillCardProp
   const isEditable = source === 'project';
 
   return (
-    <div className="group rounded-lg border border-border/50 hover:border-border hover:bg-muted/30 transition-all duration-150">
+    <div className="group rounded-lg border border-border/50 hover:border-border hover:bg-muted/30 transition-colors duration-150">
       <div
         role="button"
         tabIndex={0}

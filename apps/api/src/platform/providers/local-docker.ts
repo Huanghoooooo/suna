@@ -564,10 +564,17 @@ export class LocalDockerProvider implements SandboxProvider {
     }
 
     const sandboxApiBase = getSandboxInternalApiUrl();
+    const routerBase = `${sandboxApiBase}/v1/router`;
     const desired: Record<string, string> = {
       KORTIX_API_URL: sandboxApiBase,
       INTERNAL_SERVICE_KEY: config.INTERNAL_SERVICE_KEY,
       TUNNEL_API_URL: sandboxApiBase,
+      // Tool proxy URLs — route through kortix-api router so sandbox tools
+      // auth with KORTIX_TOKEN and the router injects real upstream API keys.
+      TAVILY_API_URL: `${routerBase}/tavily`,
+      REPLICATE_API_URL: `${routerBase}/replicate`,
+      SERPER_API_URL: `${routerBase}/serper`,
+      FIRECRAWL_API_URL: `${routerBase}/firecrawl`,
     };
 
     // Read current state from the live master env (s6 env dir) — NOT from
@@ -578,11 +585,10 @@ export class LocalDockerProvider implements SandboxProvider {
     } catch {
       // Master not ready yet — fall back to Docker inspect for URL/key only
       const containerEnv = await this.getContainerEnv();
-      currentEnv = {
-        KORTIX_API_URL: containerEnv['KORTIX_API_URL'] || '',
-        INTERNAL_SERVICE_KEY: containerEnv['INTERNAL_SERVICE_KEY'] || '',
-        TUNNEL_API_URL: containerEnv['TUNNEL_API_URL'] || '',
-      };
+      currentEnv = {};
+      for (const key of Object.keys(desired)) {
+        currentEnv[key] = containerEnv[key] || '';
+      }
     }
 
     const stale: Record<string, string> = {};
@@ -839,12 +845,19 @@ export class LocalDockerProvider implements SandboxProvider {
       'PROJECT_ID',
       'ENV_MODE',
       'CORS_ALLOWED_ORIGINS',
+      'TAVILY_API_URL',
+      'REPLICATE_API_URL',
+      'SERPER_API_URL',
+      'FIRECRAWL_API_URL',
     ]);
 
     const filteredSandboxEnv = sandboxEnvVars.filter((entry) => {
       const varName = entry.split('=')[0];
       return !MANAGED_VARS.has(varName);
     });
+
+    const sandboxApiBase = getSandboxInternalApiUrl();
+    const routerBase = `${sandboxApiBase}/v1/router`;
 
     const env = [
       'PUID=911',
@@ -864,13 +877,20 @@ export class LocalDockerProvider implements SandboxProvider {
       'SECRET_FILE_PATH=/workspace/.secrets/.secrets.json',
       'SALT_FILE_PATH=/workspace/.secrets/.salt',
       // ENCRYPTION_KEY_PATH auto-derived from SECRET_FILE_PATH dir
-      `KORTIX_API_URL=${getSandboxInternalApiUrl()}`,
+      `KORTIX_API_URL=${sandboxApiBase}`,
       `KORTIX_TOKEN=${authToken}`,
       `INTERNAL_SERVICE_KEY=${serviceKey}`,
-      `TUNNEL_API_URL=${getSandboxInternalApiUrl()}`,
+      `TUNNEL_API_URL=${sandboxApiBase}`,
       `TUNNEL_TOKEN=${authToken}`,
       `SANDBOX_ID=${CONTAINER_NAME}`,
       'PROJECT_ID=local',
+      // ── Tool proxy URLs — route through kortix-api router ─────────────
+      // Sandbox tools use KORTIX_TOKEN to auth; the router injects the real
+      // upstream API key. Matches cloud provider env injection (justavps/daytona/pool).
+      `TAVILY_API_URL=${routerBase}/tavily`,
+      `REPLICATE_API_URL=${routerBase}/replicate`,
+      `SERPER_API_URL=${routerBase}/serper`,
+      `FIRECRAWL_API_URL=${routerBase}/firecrawl`,
       ...(config.KORTIX_LOCAL_IMAGES ? ['KORTIX_LOCAL_SOURCE=1'] : []),
       `ENV_MODE=${config.KORTIX_BILLING_INTERNAL_ENABLED ? 'cloud' : 'local'}`,
       `CORS_ALLOWED_ORIGINS=${[config.FRONTEND_URL, config.KORTIX_URL].filter(Boolean).join(',')}`,

@@ -198,7 +198,7 @@ export function FilePreviewModal() {
           {hasPrev && (
             <button
               onClick={prevFile}
-              className="absolute left-3 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-md hover:bg-background flex items-center justify-center transition-all cursor-pointer hover:scale-105"
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-md hover:bg-background flex items-center justify-center transition-colors cursor-pointer hover:scale-105"
               title="Previous file"
             >
               <ChevronLeft className="h-5 w-5 text-foreground" />
@@ -209,7 +209,7 @@ export function FilePreviewModal() {
           {hasNext && (
             <button
               onClick={nextFile}
-              className="absolute right-3 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-md hover:bg-background flex items-center justify-center transition-all cursor-pointer hover:scale-105"
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-md hover:bg-background flex items-center justify-center transition-colors cursor-pointer hover:scale-105"
               title="Next file"
             >
               <ChevronRight className="h-5 w-5 text-foreground" />
@@ -221,6 +221,7 @@ export function FilePreviewModal() {
             <FileContentRenderer
               filePath={selectedFilePath}
               showHeader={false}
+              readOnly
             />
           </div>
 

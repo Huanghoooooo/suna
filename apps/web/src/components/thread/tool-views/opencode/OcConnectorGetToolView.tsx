@@ -5,7 +5,6 @@ import {
   CheckCircle,
   AlertCircle,
   Plug,
-  Key,
 } from 'lucide-react';
 import { ToolViewProps } from '../types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -45,11 +44,11 @@ export function OcConnectorGetToolView({
           <ToolViewIconTitle
             icon={Plug}
             title={data?.name ?? 'Connector'}
-            subtitle={connectorName && connectorName !== data?.name ? connectorName : (data?.type || 'Details')}
+            subtitle={connectorName && connectorName !== data?.name ? connectorName : (data?.description || 'Details')}
           />
           {data && (
             <Badge variant="outline" className="h-6 py-0.5 bg-muted flex-shrink-0 ml-2 capitalize">
-              {data.type}
+              {data.source}
             </Badge>
           )}
         </div>
@@ -59,26 +58,45 @@ export function OcConnectorGetToolView({
         {data ? (
           <ScrollArea className="h-full w-full">
             <div className="p-4 space-y-4">
-              {/* Status and type */}
+              {/* Description and source */}
+              {data.description && (
+                <div className="text-xs text-muted-foreground">
+                  {data.description}
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <Badge 
                   variant="outline" 
                   className={cn(
                     "h-6 py-0 capitalize",
-                    data.status === 'connected' && 'border-emerald-500 text-emerald-600 dark:text-emerald-400',
+                    data.source === 'pipedream' && 'border-indigo-500 text-indigo-600 dark:text-indigo-400',
+                    data.source === 'api-key' && 'border-amber-500 text-amber-600 dark:text-amber-400',
+                    data.source === 'cli' && 'border-gray-500 text-gray-600 dark:text-gray-400',
+                    data.source === 'channel' && 'border-emerald-500 text-emerald-600 dark:text-emerald-400',
+                    data.source === 'custom' && 'border-purple-500 text-purple-600 dark:text-purple-400',
+                    data.source === 'file' && 'border-slate-500 text-slate-600 dark:text-slate-400',
                   )}
                 >
-                  {data.status}
+                  {data.source}
                 </Badge>
               </div>
 
-              {/* Secrets */}
-              {data.secrets !== 'none' && (
+              {/* Pipedream slug */}
+              {data.pipedream_slug && (
                 <div className="flex items-center gap-2 text-xs">
-                  <Key className="size-3.5 text-muted-foreground" />
-                  <span className="text-muted-foreground">Environment variables:</span>
+                  <span className="text-muted-foreground">Pipedream:</span>
                   <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-mono">
-                    {data.secrets}
+                    {data.pipedream_slug}
+                  </code>
+                </div>
+              )}
+
+              {/* Env keys */}
+              {data.env && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">Env:</span>
+                  <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-mono">
+                    {data.env}
                   </code>
                 </div>
               )}

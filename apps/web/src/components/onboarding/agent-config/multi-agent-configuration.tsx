@@ -116,7 +116,7 @@ export const MultiAgentConfigurationStep = () => {
                 <div
                   key={agent.id}
                   className={cn(
-                    'w-2 h-2 rounded-full transition-all',
+                    'w-2 h-2 rounded-full transition-colors',
                     index === currentAgentIndex
                       ? 'bg-foreground w-6'
                       : isConfigured(agent.id)

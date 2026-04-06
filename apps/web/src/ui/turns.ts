@@ -431,7 +431,27 @@ export function computeStatusFromPart(part: Part | undefined): string | undefine
     switch (part.tool) {
       case 'task':
       case 'session_spawn':
+      case 'session_start_background':
+      case 'session-spawn':
+      case 'session-start-background':
         return 'Delegating to agent...';
+      case 'agent_spawn':
+      case 'agent-spawn':
+        return 'Delegating to agent...';
+      case 'agent_message':
+      case 'agent-message':
+        return 'Messaging agent...';
+      case 'task_create':
+      case 'task-create':
+        return 'Creating task...';
+      case 'task_list':
+      case 'task-list':
+        return 'Listing tasks...';
+      case 'task_update':
+      case 'task-update':
+      case 'task_done':
+      case 'task-done':
+        return 'Updating task...';
       case 'todowrite':
       case 'todoread':
         return 'Planning...';
@@ -555,18 +575,34 @@ export function formatDuration(ms: number): string {
  * Extract child session ID from a task tool part's metadata.
  */
 export function getChildSessionId(part: ToolPart): string | undefined {
-  if (part.tool === 'task') {
-    const status = part.state.status;
-    if (status === 'completed' || status === 'running') {
-      return (part.state.metadata as any)?.sessionId;
+  // Native task tool or agent_spawn
+  if (part.tool === 'task' || part.tool === 'agent_spawn' || part.tool === 'agent-spawn' || part.tool === 'agent_message' || part.tool === 'agent-message') {
+    // 1. Try metadata (ctx.metadata — available immediately for built-in tools)
+    const metaSessionId = (part.state.metadata as any)?.sessionId;
+    if (metaSessionId) return metaSessionId;
+
+    // 2. Try title (plugin tools embed session ID in title via ctx.metadata)
+    const title = (part.state as any)?.title as string | undefined;
+    if (title) {
+      const tm = title.match(/\bses_[a-zA-Z0-9]+/);
+      if (tm) return tm[0];
+    }
+
+    // 3. Try output text (available after tool completes)
+    const output = (part.state as any)?.output as string | undefined;
+    if (output) {
+      const m = output.match(/\bses_[a-zA-Z0-9]+/);
+      if (m) return m[0];
     }
     return undefined;
   }
-  // session_spawn: extract session ID from output text (format: "- **Session:** ses_xxx")
-  if (part.tool === 'session_spawn') {
+  // session_spawn / session_start_background: extract session ID from output text
+  // Output format: "- **Session:** ses_xxx" or "Session: ses_xxx"
+  const toolName = part.tool?.replace(/-/g, '_') || '';
+  if (toolName === 'session_spawn' || toolName === 'session_start_background') {
     const output = (part.state as any)?.output as string | undefined;
     if (output) {
-      const match = output.match(/\*\*Session:\*\*\s*(ses_[a-zA-Z0-9]+)/);
+      const match = output.match(/\*?\*?Session:?\*?\*?\s*(ses_[a-zA-Z0-9]+)/);
       if (match) return match[1];
     }
     return undefined;
@@ -662,10 +698,13 @@ export function getToolInfo(tool: string, input: Record<string, any> = {}): Tool
         subtitle: input.description,
       };
     case 'session_spawn':
+    case 'session_start_background':
+    case 'session-spawn':
+    case 'session-start-background':
       return {
         icon: 'square-kanban',
         title: `Worker (${input.agent || 'KortixWorker'})`,
-        subtitle: input.prompt?.slice(0, 60),
+        subtitle: input.description || input.prompt?.slice(0, 60),
       };
     case 'bash':
       return { icon: 'terminal', title: 'Shell', subtitle: input.description };
@@ -696,6 +735,62 @@ export function getToolInfo(tool: string, input: Record<string, any> = {}): Tool
       return { icon: 'scissors', title: 'DCP Compress', subtitle: input.topic };
     case 'context_info':
       return { icon: 'scissors', title: 'Context Info' };
+    case 'session_read':
+    case 'session-read':
+      return { icon: 'glasses', title: `Session Read (${input.mode || 'summary'})`, subtitle: input.session_id?.slice(-12) };
+    case 'session_search':
+    case 'session-search':
+      return { icon: 'search', title: 'Session Search', subtitle: input.query };
+    case 'session_message':
+    case 'session-message':
+      return { icon: 'message-circle', title: 'Message → Session', subtitle: input.session_id?.slice(-12) };
+    case 'session_lineage':
+    case 'session-lineage':
+      return { icon: 'list-tree', title: 'Session Lineage', subtitle: input.session_id?.slice(-12) };
+    case 'session_list_background':
+    case 'session-list-background':
+    case 'session_list_spawned':
+    case 'session-list-spawned':
+      return { icon: 'layers', title: 'Background Sessions', subtitle: input.project || 'all' };
+    case 'session_stats':
+    case 'session-stats':
+      return { icon: 'layers', title: 'Session Stats', subtitle: input.session_id?.slice(-12) || 'current' };
+    case 'session_list':
+    case 'session-list':
+      return { icon: 'list', title: 'Session List', subtitle: input.search };
+    case 'session_get':
+    case 'session-get':
+      return { icon: 'book-open', title: 'Session Get', subtitle: input.session_id?.slice(-12) };
+    case 'project_delete':
+    case 'project-delete':
+      return { icon: 'trash-2', title: 'Delete Project', subtitle: input.project };
+    case 'agent_spawn':
+    case 'agent-spawn':
+      return { icon: 'cpu', title: `Agent (${input.agent_type || 'worker'})`, subtitle: input.description };
+    case 'agent_message':
+    case 'agent-message':
+      return { icon: 'message-circle', title: 'Agent Message', subtitle: input.agent_id };
+    case 'agent_stop':
+    case 'agent-stop':
+      return { icon: 'ban', title: 'Agent Stop', subtitle: input.agent_id };
+    case 'agent_status':
+    case 'agent-status':
+      return { icon: 'layers', title: 'Agent Status' };
+    case 'task_create':
+    case 'task-create':
+      return { icon: 'plus', title: 'Create Task', subtitle: input.title };
+    case 'task_list':
+    case 'task-list':
+      return { icon: 'list', title: 'Tasks', subtitle: input.status || 'all' };
+    case 'task_update':
+    case 'task-update':
+      return { icon: 'refresh-cw', title: 'Update Task', subtitle: input.id };
+    case 'task_done':
+    case 'task-done':
+      return { icon: 'check-circle', title: 'Task Done', subtitle: input.id };
+    case 'task_delete':
+    case 'task-delete':
+      return { icon: 'trash-2', title: 'Delete Task', subtitle: input.id };
     case 'pty_spawn':
       return { icon: 'terminal', title: 'Spawn', subtitle: input.title || input.command };
     case 'pty_read':

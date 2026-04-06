@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -91,7 +92,7 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
   };
 
   return (
-    <div className={`border border-border rounded-lg ${className}`}>
+    <div className={cn('border border-border rounded-lg', className)}>
       <div className="flex items-center justify-between p-3 border-b border-border bg-muted/30">
         <div className="flex items-center gap-2">
           <Button

@@ -1,9 +1,7 @@
-import type { ChannelType } from '@/hooks/channels';
-
 export const DEFAULT_CHANNEL_AGENT = 'kortix';
 
-export function buildDefaultChannelInstructions(channelType: ChannelType, channelName?: string) {
-  const label = channelName?.trim() || channelType;
+export function buildDefaultChannelInstructions(platform: 'telegram' | 'slack', channelName?: string) {
+  const label = channelName?.trim() || platform;
   return [
     `You are an AI agent responding via ${label}.`,
     'Keep responses concise and chat-appropriate.',

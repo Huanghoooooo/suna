@@ -1,9 +1,13 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "permission": "allow",
+  "permission": {
+    "*": "allow",
+    "task": "deny",
+    "todoread": "deny",
+    "todowrite": "deny"
+  },
   "autoupdate": false,
   "disabled_providers": ["opencode"],
-  // "model": "kortix/minimax-m27",
   "default_agent": "kortix",
   "agent": {
     "build": { "disable": true },
@@ -50,15 +54,7 @@
     }
   },
   "plugin": [
-    "./plugin/anthropic-auth.ts",
-    "./plugin/opencode-pty/src/plugin.ts",
-    "./plugin/kortix-orchestrator/kortix-orchestrator.ts",
-    "./plugin/worktree/worktree.ts",
-    "./plugin/kortix-sessions/kortix-sessions.ts",
-    "./plugin/kortix-continuation/kortix-continuation.ts",
-    "./plugin/connectors/connectors.ts",
-    "./plugin/btw/btw.ts"
-    // "./plugin/opencode-morph-plugin/opencode-morph-plugin.ts",
+    "./plugin/kortix-system/kortix-system.ts"
   ],
   "mcp": {
     "context7": {

@@ -146,7 +146,7 @@ export function OcApplyPatchToolView({
                         <div className="w-3.5" />
                       )}
 
-                      <Badge variant="outline" className={`h-5 py-0 px-1.5 text-[10px] font-bold uppercase ${config.color} ${config.bg} border-none flex-shrink-0`}>
+                      <Badge variant="outline" className={`h-5 py-0 px-1.5 text-[10px] font-semibold uppercase ${config.color} ${config.bg} border-none flex-shrink-0`}>
                         {config.label}
                       </Badge>
 

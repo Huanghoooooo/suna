@@ -3,7 +3,7 @@
 import { ThemeToggle } from '@/components/home/theme-toggle';
 import { siteConfig } from '@/lib/site-config';
 import { cn } from '@/lib/utils';
-import { X, Menu, Type, Layers } from 'lucide-react';
+import { X, Menu, Type, Layers, Gem } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 import { useEffect, useState, useCallback, useRef } from 'react';
@@ -13,7 +13,6 @@ import { KortixLogo } from '@/components/sidebar/kortix-logo';
 import { useTranslations } from 'next-intl';
 import { trackCtaSignup } from '@/lib/analytics/gtm';
 import { AppDownloadQR } from '@/components/common/app-download-qr';
-import { isMobileDevice } from '@/lib/utils/is-mobile-device';
 import { Button } from '@/components/ui/button';
 import { useGitHubStars } from '@/hooks/utils/use-github-stars';
 import {
@@ -52,7 +51,7 @@ function PowerButton({ href, onClick, label = 'Launch Kortix' }: { href?: string
 
   const inner = (
     <span
-      className="relative flex items-center justify-center size-[42px] rounded-full transition-all duration-200 cursor-pointer select-none"
+      className="relative flex items-center justify-center size-[42px] rounded-full transition-colors duration-200 cursor-pointer select-none"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -152,7 +151,6 @@ export function Navbar({ isAbsolute = false }: NavbarProps) {
   const [hasScrolled, setHasScrolled] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('hero');
-  const [isMobile, setIsMobile] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -162,14 +160,7 @@ export function Navbar({ isAbsolute = false }: NavbarProps) {
   const filteredNavLinks = siteConfig.nav.links;
   const { formattedStars, loading: starsLoading } = useGitHubStars('kortix-ai', 'kortix');
 
-  // Detect if user is on an actual mobile device (iOS/Android)
-  // Mobile users clicking "Try Free" will be redirected to /app which then redirects to app stores
-  useEffect(() => {
-    setIsMobile(isMobileDevice());
-  }, []);
-
-  // Get the appropriate CTA link based on device type
-  const ctaLink = isMobile ? '/app' : '/auth';
+  const ctaLink = '/auth';
 
   // Single unified scroll handler with hysteresis
   const handleScroll = useCallback(() => {
@@ -210,7 +201,7 @@ export function Navbar({ isAbsolute = false }: NavbarProps) {
 
   return (
     <header className={cn(
-      "w-full px-5 pt-4 transition-all duration-300",
+      "w-full px-5 pt-4 transition-colors duration-300",
       isAbsolute ? "" : "sticky top-0 z-50",
       hasScrolled && !isAbsolute && "bg-background/80 backdrop-blur-xl pb-2"
     )}>
@@ -225,8 +216,7 @@ export function Navbar({ isAbsolute = false }: NavbarProps) {
           <ContextMenuContent className="w-48">
             <ContextMenuSub>
               <ContextMenuSubTrigger className="gap-2 text-[13px]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/kortix-symbol.svg" alt="" className="h-3 w-auto shrink-0 dark:invert" />
+                <Gem className="size-3.5 shrink-0" />
                 Download symbol
               </ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-40">
@@ -306,36 +296,34 @@ export function Navbar({ isAbsolute = false }: NavbarProps) {
           </a>
 
           {user ? (
-            <Link 
-              href="/dashboard"
-              className="inline-flex items-center justify-center h-9 px-4 text-sm font-medium text-primary-foreground bg-primary rounded-full hover:bg-primary/90 transition-colors shadow-sm"
-            >
-              Dashboard
-            </Link>
+            <Button asChild size="default">
+              <Link href="/dashboard">Dashboard</Link>
+            </Button>
           ) : (
-            <button
-              onClick={() => {
-                trackCtaSignup();
-                router.push(ctaLink);
-              }}
-              className="flex items-center justify-center size-[38px] rounded-full cursor-pointer transition-opacity text-foreground opacity-80 hover:opacity-100"
+            <Button
+              onClick={() => { trackCtaSignup(); router.push(ctaLink); }}
+              variant="ghost"
+              size="icon"
               aria-label="Launch Kortix"
+              className="opacity-80 hover:opacity-100"
             >
               <svg viewBox="0 0 24 24" className="size-[20px]" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
                 <path d="M7.19 5.54A8 8 0 1 0 16.83 5.5" />
                 <line x1="12" y1="2" x2="12" y2="12" />
               </svg>
-            </button>
+            </Button>
           )}
 
           {/* Mobile Menu Button */}
-          <button
+          <Button
             onClick={toggleDrawer}
-            className="md:hidden p-2 rounded-lg hover:bg-accent transition-colors"
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
             aria-label="Open menu"
           >
             <Menu className="size-5" />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -354,13 +342,14 @@ export function Navbar({ isAbsolute = false }: NavbarProps) {
               <Link href="/" className="flex items-center gap-3" onClick={() => setIsDrawerOpen(false)}>
                 <KortixLogo size={18} variant='logomark' />
               </Link>
-              <button
+              <Button
                 onClick={toggleDrawer}
-                className="border border-border rounded-lg p-2 cursor-pointer hover:bg-accent transition-colors"
+                variant="outline"
+                size="icon"
                 aria-label="Close menu"
               >
                 <X className="size-5" />
-              </button>
+              </Button>
             </div>
 
             {/* Navigation Links - Big Typography, Left Aligned */}
@@ -391,11 +380,11 @@ export function Navbar({ isAbsolute = false }: NavbarProps) {
                         element?.scrollIntoView({ behavior: 'smooth' });
                         setIsDrawerOpen(false);
                       }}
-                      className={`block py-3 text-4xl font-medium tracking-tight transition-colors ${
+                      className={cn('block py-3 text-4xl font-medium tracking-tight transition-colors', 
                         (item.href.startsWith('#') && pathname === '/' && activeSection === item.href.substring(1)) || (item.href === pathname)
                           ? 'text-foreground'
                           : 'text-muted-foreground hover:text-foreground'
-                      }`}
+                      )}
                     >
                       {item.name}
                     </a>
@@ -406,11 +395,11 @@ export function Navbar({ isAbsolute = false }: NavbarProps) {
                   <Link
                     href="/app"
                     onClick={() => setIsDrawerOpen(false)}
-                    className={`block py-3 text-4xl font-medium tracking-tight transition-colors ${
+                    className={cn('block py-3 text-4xl font-medium tracking-tight transition-colors', 
                       pathname === '/app'
                         ? 'text-foreground'
                         : 'text-muted-foreground hover:text-foreground'
-                    }`}
+                    )}
                   >
                     Mobile
                   </Link>

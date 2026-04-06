@@ -14,6 +14,7 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -72,7 +73,7 @@ function useCopy(text: string, label?: string) {
 function CopyOverlay({ copied }: { copied: boolean }) {
   return (
     <div className={cn(
-      'absolute top-1.5 right-1.5 z-10 flex items-center justify-center h-6 w-6 rounded-md transition-all',
+      'absolute top-1.5 right-1.5 z-10 flex items-center justify-center h-6 w-6 rounded-md transition-colors',
       copied
         ? 'bg-emerald-500/15 text-emerald-400'
         : 'bg-background/60 text-muted-foreground opacity-0 group-hover:opacity-100 backdrop-blur-sm',
@@ -85,19 +86,15 @@ function CopyOverlay({ copied }: { copied: boolean }) {
 function InlineCopyButton({ text, label }: { text: string; label?: string }) {
   const { copied, copy } = useCopy(text, label);
   return (
-    <button
+    <Button
       type="button"
       onClick={copy}
-      className={cn(
-        'shrink-0 flex items-center justify-center gap-1.5 text-[11px] font-medium px-2.5 h-7 rounded-md border transition-all cursor-pointer',
-        copied
-          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-          : 'border-border bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted',
-      )}
+      variant={copied ? 'success' : 'outline'}
+      size="toolbar"
     >
       {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
       {copied ? 'Copied!' : 'Copy'}
-    </button>
+    </Button>
   );
 }
 
@@ -205,7 +202,7 @@ export function SSHResultView({ sshResult, copiedField, onCopy, onRegenerate, is
       {/* ── Step 1: Save SSH key & connect ── */}
       <div className="rounded-lg border border-border/60 overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border/40 bg-muted/20">
-          <span className="h-5 w-5 rounded-full bg-foreground text-background text-[10px] font-bold flex items-center justify-center shrink-0">1</span>
+          <span className="h-5 w-5 rounded-full bg-foreground text-background text-[10px] font-semibold flex items-center justify-center shrink-0">1</span>
           <span className="text-xs font-medium">Save SSH key &amp; connect</span>
           <div className="ml-auto flex items-center gap-1 text-[10px] text-amber-500 dark:text-amber-400">
             <KeyRound className="h-2.5 w-2.5" />
@@ -225,7 +222,7 @@ export function SSHResultView({ sshResult, copiedField, onCopy, onRegenerate, is
       {/* ── Step 2: Open in your editor ── */}
       <div className="rounded-lg border border-border/60 overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border/40 bg-muted/20">
-          <span className="h-5 w-5 rounded-full bg-foreground text-background text-[10px] font-bold flex items-center justify-center shrink-0">2</span>
+          <span className="h-5 w-5 rounded-full bg-foreground text-background text-[10px] font-semibold flex items-center justify-center shrink-0">2</span>
           <span className="text-xs font-medium">Open in your editor</span>
         </div>
         <div className="divide-y divide-border/30">
@@ -234,7 +231,7 @@ export function SSHResultView({ sshResult, copiedField, onCopy, onRegenerate, is
             <div className="flex items-center gap-2">
               <Monitor className="h-3.5 w-3.5 text-muted-foreground/70" />
               <span className="text-xs font-medium">Cursor / VS Code</span>
-              <span className="text-[9px] font-medium bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded-full leading-none">
+              <span className="text-[0.5625rem] font-medium bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded-full leading-none">
                 Recommended
               </span>
             </div>
@@ -242,7 +239,7 @@ export function SSHResultView({ sshResult, copiedField, onCopy, onRegenerate, is
             <VisibleCodeBlock text={sshConfigCmd} label="SSH config" variant="green" />
             <p className="text-[10px] text-muted-foreground leading-relaxed">
               Then{' '}
-              <kbd className="px-1 py-0.5 rounded-sm bg-muted border border-border/50 text-[9px] font-mono text-foreground/70">Cmd+Shift+P</kbd>
+              <kbd className="px-1 py-0.5 rounded-sm bg-muted border border-border/50 text-[0.5625rem] font-mono text-foreground/70">Cmd+Shift+P</kbd>
               {' → '}
               <span className="text-foreground/70">Remote-SSH: Connect to Host</span>
               {' → '}
@@ -263,22 +260,24 @@ export function SSHResultView({ sshResult, copiedField, onCopy, onRegenerate, is
 
       {/* ── Footer ── */}
       <div className="flex items-center justify-between pt-1 border-t border-border/30">
-        <button
+        <Button
           type="button"
           onClick={onDownloadKey}
-          className="flex items-center gap-1.5 h-7 text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
+          variant="muted"
+          size="toolbar"
         >
           <Download className="h-3 w-3" />
           Download key file
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="h-7 px-3 text-[11px] font-medium text-muted-foreground hover:text-foreground bg-muted/50 hover:bg-muted border border-border/50 rounded-md transition-all cursor-pointer disabled:opacity-50"
+          variant="outline"
+          size="toolbar"
           onClick={onRegenerate}
           disabled={isGenerating}
         >
           {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Regenerate'}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -386,18 +385,19 @@ export function SSHKeyDialog({ open, onOpenChange }: SSHKeyDialogProps) {
               </p>
             )}
 
-            <button
+            <Button
               type="button"
               onClick={handleGenerate}
               disabled={isGenerating}
-              className="flex items-center justify-center gap-2 w-full h-10 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              size="default"
+              className="w-full"
             >
               {isGenerating ? (
                 <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
               ) : (
                 <><Key className="h-3.5 w-3.5" /> Generate SSH Key</>
               )}
-            </button>
+            </Button>
             <p className="text-[10px] text-muted-foreground/60 text-center">
               Generates an ed25519 keypair unique to this machine and configures SSH access.
             </p>
@@ -411,7 +411,7 @@ export function SSHKeyDialog({ open, onOpenChange }: SSHKeyDialogProps) {
                   </code>
                   <InlineCopyButton text={sshMeta.ssh_command} label="Reconnect" />
                 </div>
-                <p className="text-[9px] text-muted-foreground/40">
+                <p className="text-[0.5625rem] text-muted-foreground/40">
                   From {new Date(sshMeta.updatedAt).toLocaleString()}
                 </p>
               </div>

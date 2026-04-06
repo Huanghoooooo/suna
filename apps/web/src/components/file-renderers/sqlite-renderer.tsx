@@ -28,6 +28,7 @@ import React, {
   Suspense,
 } from 'react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Database,
@@ -140,7 +141,7 @@ function getTypeIcon(sqlType: string) {
   if (t.includes('INT') || t.includes('REAL') || t.includes('FLOAT') || t.includes('DOUBLE') || t.includes('NUMERIC') || t.includes('DECIMAL'))
     return <Hash className="h-3 w-3 text-cyan-500/70" />;
   if (t.includes('TEXT') || t.includes('CHAR') || t.includes('CLOB') || t.includes('VARCHAR') || t.includes('STRING'))
-    return <Type className="h-3 w-3 text-green-500/70" />;
+    return <Type className="h-3 w-3 text-emerald-500/70" />;
   if (t.includes('BOOL'))
     return <ToggleLeft className="h-3 w-3 text-yellow-500/70" />;
   if (t.includes('DATE') || t.includes('TIME') || t.includes('TIMESTAMP'))
@@ -385,7 +386,7 @@ export function SqliteRenderer({ filePath, fileName, className }: SqliteRenderer
       editable: isEditable,
       flex: tableData.columns.length <= 8 ? 1 : undefined,
       width: tableData.columns.length > 8 ? 160 : undefined,
-      headerClass: pkColumns.has(col) ? 'font-bold' : '',
+      headerClass: pkColumns.has(col) ? 'font-semibold' : '',
       cellStyle: { cursor: isEditable ? 'text' : 'default' },
     }));
   }, [tableData.columns, selectedTableInfo, isEditable]);
@@ -789,27 +790,29 @@ export function SqliteRenderer({ filePath, fileName, className }: SqliteRenderer
           {/* Save / Discard */}
           {hasUnsavedChanges && (
             <>
-              <button
-                className="h-7 px-2 text-[11px] rounded-md cursor-pointer inline-flex items-center text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
+              <Button
+                variant="muted"
+                size="toolbar"
                 onClick={handleDiscard}
                 title="Discard changes"
               >
-                <Undo2 className="h-3 w-3 mr-1" />
+                <Undo2 className="h-3 w-3" />
                 Discard
-              </button>
-              <button
-                className="h-7 px-2.5 text-[11px] rounded-md cursor-pointer inline-flex items-center bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              </Button>
+              <Button
+                variant="default"
+                size="toolbar"
                 onClick={handleSave}
                 disabled={isSaving}
                 title="Save to file (⌘S)"
               >
                 {isSaving ? (
-                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
-                  <Save className="h-3 w-3 mr-1" />
+                  <Save className="h-3 w-3" />
                 )}
                 Save
-              </button>
+              </Button>
             </>
           )}
 
@@ -844,8 +847,8 @@ export function SqliteRenderer({ filePath, fileName, className }: SqliteRenderer
           <div className="p-2 border-b">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/50" />
-              <Input
-                placeholder="Filter tables…"
+              <Input type="text"
+                placeholder="Filter tables…" autoComplete="off"
                 value={tableSearch}
                 onChange={(e) => setTableSearch(e.target.value)}
                 className="h-7 pl-7 pr-7 text-xs"
@@ -945,8 +948,8 @@ export function SqliteRenderer({ filePath, fileName, className }: SqliteRenderer
                   {/* Quick search */}
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/40" />
-                    <Input
-                      placeholder="Filter…"
+                    <Input type="text"
+                      placeholder="Filter…" autoComplete="off"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="h-7 pl-7 pr-7 text-xs w-40"
@@ -1041,17 +1044,18 @@ export function SqliteRenderer({ filePath, fileName, className }: SqliteRenderer
                   <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     CREATE Statement
                   </h3>
-                  <button
-                    className="inline-flex items-center h-6 px-2 text-[11px] rounded-md hover:bg-muted transition-colors cursor-pointer text-muted-foreground hover:text-foreground"
+                  <Button
+                    variant="muted"
+                    size="xs"
                     onClick={handleCopySchema}
                   >
                     {copied ? (
-                      <Check className="h-3 w-3 mr-1 text-green-500" />
+                      <Check className="h-3 w-3 text-emerald-500" />
                     ) : (
-                      <Copy className="h-3 w-3 mr-1" />
+                      <Copy className="h-3 w-3" />
                     )}
                     {copied ? 'Copied' : 'Copy'}
-                  </button>
+                  </Button>
                 </div>
                 <pre className="bg-muted/50 rounded-lg p-4 text-xs font-mono text-foreground/80 overflow-x-auto whitespace-pre-wrap border select-text">
                   {selectedTableInfo.sql || '-- No SQL available (system table or virtual table)'}
@@ -1096,14 +1100,14 @@ export function SqliteRenderer({ filePath, fileName, className }: SqliteRenderer
                           </td>
                           <td className="text-center px-3 py-2">
                             {col.pk && (
-                              <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-bold">
+                              <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-semibold">
                                 ✓
                               </span>
                             )}
                           </td>
                           <td className="text-center px-3 py-2">
                             {col.notnull && (
-                              <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-red-500/10 text-red-500 text-[10px] font-bold">
+                              <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-red-500/10 text-red-500 text-[10px] font-semibold">
                                 ✓
                               </span>
                             )}
@@ -1260,20 +1264,22 @@ export function SqliteRenderer({ filePath, fileName, className }: SqliteRenderer
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {isEditable && expandedEditValue !== expandedCell.value && (
-                  <button
-                    className="h-7 px-2.5 text-[11px] rounded-md cursor-pointer inline-flex items-center gap-1 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                  <Button
+                    variant="default"
+                    size="toolbar"
                     onClick={handleExpandedSave}
                   >
                     <Check className="h-3 w-3" />
                     Apply
-                  </button>
+                  </Button>
                 )}
-                <button
+                <Button
                   onClick={() => setExpandedCell(null)}
-                  className="h-7 w-7 rounded-md inline-flex items-center justify-center hover:bg-muted transition-colors cursor-pointer text-muted-foreground/50 hover:text-foreground"
+                  variant="ghost"
+                  size="icon-sm"
                 >
                   <X className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </div>
             </div>
 

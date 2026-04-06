@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Copy, Check, ChevronDown, ChevronRight, Network } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
   Dialog,
@@ -242,7 +243,7 @@ function RawMessage({ message, parts, formatTime }: {
         <div className="flex items-center justify-between gap-2 w-full pr-2">
           <div className="min-w-0 truncate font-mono">
             <span className={cn(
-              'px-1.5 py-0.5 rounded text-[10px] font-bold uppercase mr-2',
+              'px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase mr-2',
               message.role === 'user' ? 'bg-blue-500/20 text-blue-500' : 'bg-emerald-500/20 text-emerald-500',
             )}>
               {message.role}
@@ -533,13 +534,15 @@ export function SessionContextModal({
         <DialogHeader className="flex-shrink-0">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-base font-semibold">Context</DialogTitle>
-            <button
+            <Button
               onClick={handleCopyAll}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 mr-8 rounded-md text-[11px] font-medium border border-border/50 hover:bg-muted/60 transition-colors cursor-pointer text-muted-foreground"
+              variant="outline"
+              size="toolbar"
+              className="mr-8"
             >
               {copiedAll ? <Check className="size-3" /> : <Copy className="size-3" />}
               {copiedAll ? 'Copied!' : 'Copy All JSON'}
-            </button>
+            </Button>
           </div>
         </DialogHeader>
 

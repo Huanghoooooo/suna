@@ -13,6 +13,8 @@ export {
   type Execution,
   type ExecutionStatus,
   type SessionMode,
+  type TriggerType,
+  type ActionType,
   type CreateTriggerData,
   type UpdateTriggerData,
   type SandboxProvider,

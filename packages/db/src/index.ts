@@ -75,8 +75,6 @@ export {
 } from './schema/kortix';
 
 export type {
-  ChannelPlatformConfig,
-  ChannelPlatformUser,
   TunnelMachineInfo,
   TunnelFilesystemScope,
   TunnelShellScope,

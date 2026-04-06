@@ -145,7 +145,7 @@ ${streamingContent}
             // Empty slide frame - no loading indicators
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center opacity-20">
-                <span className="text-6xl font-bold text-zinc-400 dark:text-zinc-600">
+                <span className="text-6xl font-semibold text-zinc-400 dark:text-zinc-600">
                   {slideNumber}
                 </span>
               </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -56,6 +57,8 @@ function GooglePlayLogo({ className }: { className?: string }) {
 }
 
 export function MobileAppInterstitial() {
+  // Mobile app interstitial disabled — mobile users go through normal auth flow
+  return null;
   const [isVisible, setIsVisible] = useState(false);
   const [platform, setPlatform] = useState<Platform | null>(null);
 
@@ -96,13 +99,10 @@ export function MobileAppInterstitial() {
       >
         <div className="relative max-w-lg mx-auto">
           {/* Close Button */}
-          <button
-            onClick={dismiss}
-            className="absolute -top-2 -right-2 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-neutral-800 border border-black/10 dark:border-white/10 shadow-md hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors"
-            aria-label="Dismiss"
-          >
-            <X className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
-          </button>
+          <Button variant="ghost" size="icon-sm" onClick={dismiss}>
+<X className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
+          
+</Button>
 
           {/* Card */}
           <button

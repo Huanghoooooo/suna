@@ -46,8 +46,7 @@ function LiveClock() {
         {day} {month} {date}
       </p>
       <p
-        className="text-foreground/80 text-[80px] sm:text-[104px] font-extralight leading-none -tracking-[0.02em]"
-        style={{ fontVariantNumeric: 'tabular-nums' }}
+        className="text-foreground/80 text-[80px] sm:text-[104px] font-extralight leading-none -tracking-[0.02em] tabular-nums"
       >
         {h}:{m}
       </p>
@@ -104,7 +103,7 @@ function AccessRequestForm({ email, onSubmitted, onBack }: { email: string; onSu
         <h1 className="text-[22px] font-semibold text-foreground/95 tracking-tight">
           Get Early Access
         </h1>
-        <p className="text-[14px] text-foreground/45 mt-1.5 text-center leading-relaxed">
+        <p className="text-sm text-foreground/45 mt-1.5 text-center leading-relaxed">
           We&apos;re onboarding new users in batches.
           <br />
           Reserve your spot and we&apos;ll notify you.
@@ -117,10 +116,10 @@ function AccessRequestForm({ email, onSubmitted, onBack }: { email: string; onSu
       </div>
 
       <form className="space-y-3.5">
-        <Input
+        <Input type="text"
           name="company"
           placeholder="Company (optional)"
-          className="h-12 text-[15px] bg-foreground/[0.04] border-foreground/[0.08] rounded-xl"
+          className="h-12 text-[15px] rounded-xl bg-foreground/[0.04] border-foreground/[0.08]"
         />
         <textarea
           name="useCase"
@@ -137,7 +136,7 @@ function AccessRequestForm({ email, onSubmitted, onBack }: { email: string; onSu
         <button
           type="button"
           onClick={onBack}
-          className="text-[12px] text-foreground/25 hover:text-foreground/45 transition-colors"
+          className="text-xs text-foreground/25 hover:text-foreground/45 transition-colors"
         >
           &larr; Back to sign in
         </button>
@@ -392,13 +391,13 @@ function LoginContent() {
             )}
             <button
               onClick={() => { setOtpCode(''); setShowOtpModal(true); }}
-              className="text-[12px] text-foreground/30 hover:text-foreground/50 transition-colors text-center"
+              className="text-xs text-foreground/30 hover:text-foreground/50 transition-colors text-center"
             >
               Or <span className="underline underline-offset-2">enter 6-digit code</span>
             </button>
             <button
               onClick={() => setRegistrationSuccess(false)}
-              className="text-[12px] text-foreground/30 hover:text-foreground/50 transition-colors text-center"
+              className="text-xs text-foreground/30 hover:text-foreground/50 transition-colors text-center"
             >
               {t('didntReceiveEmail')} <span className="underline underline-offset-2">{t('resend')}</span>
             </button>
@@ -408,7 +407,7 @@ function LoginContent() {
         {/* OTP verification modal */}
         <Dialog open={showOtpModal} onOpenChange={setShowOtpModal}>
           <DialogContent className="!max-w-[300px] sm:!max-w-[300px] p-5 gap-0 rounded-2xl" hideCloseButton aria-describedby="otp-modal-desc">
-            <DialogTitle className="text-[14px] font-medium text-foreground/70 text-center">
+            <DialogTitle className="text-sm font-medium text-foreground/70 text-center">
               Enter code
             </DialogTitle>
             <DialogDescription id="otp-modal-desc" className="sr-only">
@@ -424,7 +423,7 @@ function LoginContent() {
                 placeholder="000000"
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                className="h-11 text-center text-[18px] font-mono tracking-[0.3em] bg-foreground/[0.03] border-foreground/[0.08] rounded-xl shadow-none focus-visible:border-foreground/20 transition-colors"
+                className="h-11 text-center text-lg font-mono tracking-[0.3em] bg-foreground/[0.03] border-foreground/[0.08] rounded-xl shadow-none focus-visible:border-foreground/20 transition-colors"
               />
               <SubmitButton formAction={handleVerifyOtp} className="w-full h-10 text-[13px] font-medium rounded-xl shadow-none" pendingText="Verifying…" disabled={otpCode.length !== 6}>
                 Verify
@@ -515,7 +514,7 @@ function LoginContent() {
               </div>
               <div className="text-center space-y-1">
                 <h1 className="text-[28px] font-extralight tracking-tight text-foreground/80">Check your email</h1>
-                <p className="text-[14px] text-foreground/50">We sent a 6-digit code to <span className="text-foreground/70">{expiredEmailState || resendEmail}</span></p>
+                <p className="text-sm text-foreground/50">We sent a 6-digit code to <span className="text-foreground/70">{expiredEmailState || resendEmail}</span></p>
               </div>
               <label htmlFor="otp-input" className="w-full cursor-text">
                 <div className="flex justify-center gap-2">
@@ -523,7 +522,7 @@ function LoginContent() {
                     <div
                       key={i}
                       className={cn(
-                        "w-11 h-14 rounded-xl border-2 flex items-center justify-center text-xl font-medium font-mono transition-all duration-200 bg-background/60 backdrop-blur-sm",
+                        "w-11 h-14 rounded-xl border-2 flex items-center justify-center text-xl font-medium font-mono transition-colors duration-200 bg-background/60 backdrop-blur-sm",
                         otpDigits[i] ? 'border-foreground/20' : 'border-border',
                         i === otpCode.length && otpCode.length < 6 ? 'border-foreground/40 ring-2 ring-foreground/10' : ''
                       )}
@@ -568,7 +567,7 @@ function LoginContent() {
                     setAutoSendingCode(false);
                   }
                 }}
-                className="text-[12px] text-foreground/40 hover:text-foreground/60 transition-colors"
+                className="text-xs text-foreground/40 hover:text-foreground/60 transition-colors"
               >
                 Didn&apos;t receive it? <span className="underline underline-offset-2">Send again</span>
               </button>
@@ -581,7 +580,7 @@ function LoginContent() {
               </div>
               <div className="text-center space-y-1">
                 <h1 className="text-[28px] font-extralight tracking-tight text-foreground/80">{t('magicLinkExpired')}</h1>
-                <p className="text-[14px] text-foreground/50 max-w-[260px]">
+                <p className="text-sm text-foreground/50 max-w-[260px]">
                   {autoSendError ? "We couldn't send a code automatically. Try again below." : t('magicLinkExpiredDescription')}
                 </p>
               </div>
@@ -638,10 +637,10 @@ function LoginContent() {
               transition={{ duration: 0.7, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
             >
               <div className="flex flex-col items-center gap-1.5">
-                <p className="text-foreground/50 text-[14px] font-medium tracking-wide">
+                <p className="text-foreground/50 text-sm font-medium tracking-wide">
                   Kortix
                 </p>
-                <p className="text-foreground/25 text-[12px] tracking-widest uppercase">
+                <p className="text-foreground/25 text-xs tracking-widest uppercase">
                   Click or press Enter to sign in
                 </p>
               </div>
@@ -702,7 +701,7 @@ function LoginContent() {
                       placeholder="Email"
                       required
                       autoComplete="email"
-                      className="h-11 text-[14px] bg-foreground/[0.03] border-foreground/[0.08] rounded-xl shadow-none focus-visible:border-foreground/20 transition-colors"
+                      className="h-11 text-sm rounded-xl bg-foreground/[0.03] border-foreground/[0.08] shadow-none focus-visible:border-foreground/20 transition-colors"
                     />
                     <Input
                       id="password"
@@ -711,7 +710,7 @@ function LoginContent() {
                       placeholder="Password"
                       required
                       autoComplete="current-password"
-                      className="h-11 text-[14px] bg-foreground/[0.03] border-foreground/[0.08] rounded-xl shadow-none focus-visible:border-foreground/20 transition-colors"
+                      className="h-11 text-sm rounded-xl bg-foreground/[0.03] border-foreground/[0.08] shadow-none focus-visible:border-foreground/20 transition-colors"
                     />
                     <SubmitButton
                       formAction={handlePasswordAuth}
@@ -748,7 +747,7 @@ function LoginContent() {
                         placeholder="Email"
                         required
                         autoComplete="email"
-                        className="h-11 text-[14px] bg-foreground/[0.03] border-foreground/[0.08] rounded-xl shadow-none focus-visible:border-foreground/20 transition-colors"
+                        className="h-11 text-sm rounded-xl bg-foreground/[0.03] border-foreground/[0.08] shadow-none focus-visible:border-foreground/20 transition-colors"
                       />
 
                       {referralCodeParam && (
@@ -790,8 +789,8 @@ function LoginContent() {
                           Continue with email
                         </SubmitButton>
                         {wasEmailLastMethod && (
-                          <div className="absolute -top-0.5 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-background shadow-sm">
-                            <div className="w-full h-full bg-green-500 rounded-full animate-pulse" />
+                          <div className="absolute -top-0.5 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-background shadow-sm">
+                            <div className="w-full h-full bg-emerald-500 rounded-full animate-pulse" />
                           </div>
                         )}
                       </div>
@@ -905,8 +904,8 @@ function SelfHostedLoginContent() {
               transition={{ duration: 0.7, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
             >
               <div className="flex flex-col items-center gap-1.5">
-                <p className="text-foreground/50 text-[14px] font-medium tracking-wide">Kortix</p>
-                <p className="text-foreground/25 text-[12px] tracking-widest uppercase">Click or press Enter to sign in</p>
+                <p className="text-foreground/50 text-sm font-medium tracking-wide">Kortix</p>
+                <p className="text-foreground/25 text-xs tracking-widest uppercase">Click or press Enter to sign in</p>
               </div>
               <motion.div
                 animate={{ y: [0, 5, 0] }}

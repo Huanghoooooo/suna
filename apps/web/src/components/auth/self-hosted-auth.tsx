@@ -371,7 +371,7 @@ export function SelfHostedForm({ returnUrl, installed }: SelfHostedFormProps) {
           placeholder="Email address"
           required
           autoComplete="email"
-          className="h-11 text-[15px] bg-foreground/[0.04] border-foreground/[0.08] rounded-xl shadow-none"
+          className="h-11 text-[15px] bg-foreground/[0.04] border-foreground/[0.08] shadow-none"
         />
         <Input
           id="password"
@@ -380,7 +380,7 @@ export function SelfHostedForm({ returnUrl, installed }: SelfHostedFormProps) {
           placeholder="Password"
           required
           autoComplete="current-password"
-          className="h-11 text-[15px] bg-foreground/[0.04] border-foreground/[0.08] rounded-xl shadow-none"
+          className="h-11 text-[15px] bg-foreground/[0.04] border-foreground/[0.08] shadow-none"
         />
 
         <Button

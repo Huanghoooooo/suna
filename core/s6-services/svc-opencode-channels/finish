@@ -1,5 +1,0 @@
-#!/bin/bash
-# Back off 30s before s6 restarts.
-# Prevents spam when no channel credentials configured yet.
-# kortix-api does s6-svc -r after OAuth to restart immediately.
-sleep 30

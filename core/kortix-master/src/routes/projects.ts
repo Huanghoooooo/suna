@@ -157,6 +157,33 @@ projectsRouter.get('/:id/sessions', async (c) => {
   return c.json(links.map(l => ({ id: l.session_id })))
 })
 
+// DELETE /:id — remove project from registry (does NOT delete files on disk)
+projectsRouter.delete('/:id', async (c) => {
+  const db = getDb()
+  const id = decodeURIComponent(c.req.param('id'))
+  const p = (
+    db.prepare('SELECT * FROM projects WHERE id=$v').get({ $v: id })
+    || db.prepare('SELECT * FROM projects WHERE opencode_id=$v').get({ $v: id })
+    || db.prepare('SELECT * FROM projects WHERE LOWER(name)=LOWER($v)').get({ $v: id })
+  ) as ProjectRow | null
+  if (!p) return c.json({ error: 'Project not found' }, 404)
+
+  // Block if sessions are still running
+  const running = db.prepare(
+    "SELECT COUNT(*) as c FROM delegations WHERE project_id=$pid AND status='running'"
+  ).get({ $pid: p.id }) as { c: number }
+  if (running.c > 0) {
+    return c.json({ error: `Cannot delete: ${running.c} session(s) still running` }, 409)
+  }
+
+  // Clean up all related records
+  try { db.prepare('DELETE FROM session_projects WHERE project_id=$pid').run({ $pid: p.id }) } catch {}
+  db.prepare('DELETE FROM delegations WHERE project_id=$pid').run({ $pid: p.id })
+  db.prepare('DELETE FROM projects WHERE id=$id').run({ $id: p.id })
+
+  return c.json({ deleted: true, name: p.name, path: p.path })
+})
+
 // PATCH /:id — update project
 projectsRouter.patch('/:id', async (c) => {
   const db = getDb()

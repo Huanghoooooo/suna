@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -11,15 +11,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Switch } from '@/components/ui/switch';
-import { AlertCircle, Loader2, Zap } from 'lucide-react';
-import { billingApi, getAutoTopupSettings, configureAutoTopup, type AutoTopupConfig } from '@/lib/api/billing';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { billingApi } from '@/lib/api/billing';
+import { AutoTopupCard } from '@/components/billing/auto-topup-card';
 import { toast } from '@/lib/toast';
 import { formatCredits } from '@kortix/shared';
 import { useUserCurrency } from '@/hooks/use-user-currency';
 import { formatPrice } from '@/lib/utils/currency';
 import { cn } from '@/lib/utils';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // ─── Credit packages ────────────────────────────────────────────────────────
 
@@ -121,21 +120,20 @@ export function CreditPurchaseModal({
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Buy credits</p>
                     <div className="grid grid-cols-3 gap-2">
                         {CREDIT_PACKAGES.map((pkg) => (
-                            <button
+                            <Button
                                 key={pkg.price}
                                 type="button"
                                 onClick={() => setSelectedPackage(pkg)}
                                 disabled={isProcessing}
+                                variant="outline"
                                 className={cn(
-                                    'rounded-xl border p-3 text-center transition-all cursor-pointer',
-                                    selectedPackage?.price === pkg.price
-                                        ? 'border-foreground bg-foreground/5'
-                                        : 'border-border hover:border-foreground/20',
+                                    'h-auto p-3 flex-col rounded-xl text-center',
+                                    selectedPackage?.price === pkg.price && 'border-foreground bg-foreground/5',
                                 )}
                             >
                                 <p className="text-lg font-semibold tabular-nums">${pkg.price}</p>
                                 <p className="text-xs text-muted-foreground">{formatCredits(pkg.credits)} credits</p>
-                            </button>
+                            </Button>
                         ))}
                     </div>
                 </div>
@@ -168,46 +166,7 @@ export function CreditPurchaseModal({
 // ─── Auto Top-up Modal ──────────────────────────────────────────────────────
 
 export function AutoTopupModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-    const queryClient = useQueryClient();
-    const [saving, setSaving] = useState(false);
-    const [dirty, setDirty] = useState(false);
-
-    const { data: config, isLoading } = useQuery({
-        queryKey: ['auto-topup-settings'],
-        queryFn: getAutoTopupSettings,
-        retry: 1,
-        enabled: open,
-    });
-
-    const [enabled, setEnabled] = useState(false);
-    const [threshold, setThreshold] = useState('1000');
-    const [amount, setAmount] = useState('2500');
-
-    useEffect(() => {
-        if (!config) return;
-        setEnabled(config.enabled);
-        setThreshold(String(config.threshold));
-        setAmount(String(config.amount));
-        setDirty(false);
-    }, [config]);
-
-    const handleSave = async () => {
-        const thresholdNum = Math.max(0, parseInt(threshold, 10) || 0);
-        const amountNum = Math.max(1, parseInt(amount, 10) || 1);
-        setSaving(true);
-        try {
-            await configureAutoTopup({ enabled, threshold: thresholdNum, amount: amountNum });
-            queryClient.invalidateQueries({ queryKey: ['auto-topup-settings'] });
-            queryClient.invalidateQueries({ queryKey: ['accountState'] });
-            setDirty(false);
-            toast.success('Auto top-up settings saved');
-        } catch (err: any) {
-            toast.error(err?.message || 'Failed to update auto-topup');
-        } finally {
-            setSaving(false);
-        }
-    };
-
+    if (!open) return null;
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
@@ -217,70 +176,7 @@ export function AutoTopupModal({ open, onOpenChange }: { open: boolean; onOpenCh
                         Automatically purchase credits when your balance gets low.
                     </DialogDescription>
                 </DialogHeader>
-
-                {isLoading ? (
-                    <div className="flex items-center justify-center py-6">
-                        <Loader2 className="size-5 animate-spin text-muted-foreground" />
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        {/* Toggle */}
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Zap className="size-4 text-muted-foreground" />
-                                <span className="text-sm font-medium">Enable auto top-up</span>
-                            </div>
-                            <Switch checked={enabled} onCheckedChange={(v) => { setEnabled(v); setDirty(true); }} />
-                        </div>
-
-                        {enabled && (
-                            <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-150">
-                                {/* Threshold */}
-                                <div>
-                                    <label className="text-sm text-muted-foreground block mb-1.5">When balance drops below</label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                                        <input
-                                            type="number"
-                                            min={1}
-                                            step={1}
-                                            value={threshold}
-                                            onChange={(e) => { setThreshold(e.target.value); setDirty(true); }}
-                                            className="w-full h-10 rounded-lg border border-border bg-background pl-7 pr-3 text-sm tabular-nums text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground transition-colors"
-                                            placeholder="5"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Amount */}
-                                <div>
-                                    <label className="text-sm text-muted-foreground block mb-1.5">Automatically purchase</label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                                        <input
-                                            type="number"
-                                            min={1}
-                                            step={1}
-                                            value={amount}
-                                            onChange={(e) => { setAmount(e.target.value); setDirty(true); }}
-                                            className="w-full h-10 rounded-lg border border-border bg-background pl-7 pr-3 text-sm tabular-nums text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground transition-colors"
-                                            placeholder="20"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Save */}
-                        <Button
-                            className="w-full"
-                            disabled={saving || !dirty}
-                            onClick={handleSave}
-                        >
-                            {saving ? <><Loader2 className="size-4 animate-spin mr-2" /> Saving...</> : 'Save'}
-                        </Button>
-                    </div>
-                )}
+                <AutoTopupCard fetchSettings showSaveButton />
             </DialogContent>
         </Dialog>
     );

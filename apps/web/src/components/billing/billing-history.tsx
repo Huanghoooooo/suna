@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
 import {
   RefreshCw,
   CreditCard,
@@ -162,28 +163,25 @@ export default function BillingHistory() {
 
       {/* Filters + refresh */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-0.5">
+        <FilterBar>
           {FILTER_TABS.map((t) => (
-            <button
+            <FilterBarItem
               key={t.id}
+              value={t.id}
               onClick={() => { setTab(t.id); setOffset(0); }}
-              className={cn(
-                'cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                tab === t.id
-                  ? 'bg-foreground text-background'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
+              data-state={tab === t.id ? 'active' : 'inactive'}
             >
               {t.label}
-            </button>
+            </FilterBarItem>
           ))}
-        </div>
-        <button
+        </FilterBar>
+        <Button
           onClick={() => refetch()}
-          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          variant="ghost"
+          size="icon-sm"
         >
           {isRefetching ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-        </button>
+        </Button>
       </div>
 
       {/* Table */}
@@ -232,7 +230,7 @@ export default function BillingHistory() {
                       <TableCell className="px-3 py-2.5 text-right">
                         <span className={cn(
                           'text-xs font-medium tabular-nums',
-                          isRefund ? 'text-green-600 dark:text-green-400' : 'text-foreground',
+                          isRefund ? 'text-emerald-600 dark:text-green-400' : 'text-foreground',
                         )}>
                           {isRefund ? '+' : ''}{formatDollars(tx.amount)}
                         </span>

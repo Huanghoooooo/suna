@@ -1,13 +1,12 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getActiveOpenCodeUrl } from '@/stores/server-store';
+import { useServerStore } from '@/stores/server-store';
 import { authenticatedFetch } from '@/lib/auth-token';
-
-const getInstanceUrl = () => getActiveOpenCodeUrl();
+import { useAuth } from '@/components/AuthProvider';
 
 export const secretsKeys = {
-  all: ['secrets'] as const,
+  all: (instanceUrl: string | null) => ['secrets', instanceUrl ?? 'no-instance'] as const,
 };
 
 /**
@@ -15,14 +14,20 @@ export const secretsKeys = {
  * The frontend handles masking in the UI.
  */
 export function useSecrets() {
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const instanceUrl = useServerStore((s) => s.getActiveServerUrl());
+  const queryKey = secretsKeys.all(instanceUrl || null);
+
   return useQuery({
-    queryKey: secretsKeys.all,
+    queryKey,
     queryFn: async (): Promise<Record<string, string>> => {
-      const res = await authenticatedFetch(`${getInstanceUrl()}/env`);
+      if (!instanceUrl) return {};
+      const res = await authenticatedFetch(`${instanceUrl}/env`);
       if (!res.ok) throw new Error('Failed to fetch secrets');
       const data = await res.json();
       return data.secrets ?? {};
     },
+    enabled: !isAuthLoading && !!user && !!instanceUrl,
   });
 }
 
@@ -31,9 +36,13 @@ export function useSecrets() {
  */
 export function useSetSecret() {
   const qc = useQueryClient();
+  const instanceUrl = useServerStore((s) => s.getActiveServerUrl());
+  const queryKey = secretsKeys.all(instanceUrl || null);
+
   return useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
-      const res = await authenticatedFetch(`${getInstanceUrl()}/env/${encodeURIComponent(key)}`, {
+      if (!instanceUrl) throw new Error('No active instance selected');
+      const res = await authenticatedFetch(`${instanceUrl}/env/${encodeURIComponent(key)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ value }),
@@ -45,18 +54,18 @@ export function useSetSecret() {
       return res.json();
     },
     onMutate: async ({ key, value }) => {
-      await qc.cancelQueries({ queryKey: secretsKeys.all });
-      const prev = qc.getQueryData<Record<string, string>>(secretsKeys.all);
+      await qc.cancelQueries({ queryKey });
+      const prev = qc.getQueryData<Record<string, string>>(queryKey);
       if (prev) {
-        qc.setQueryData(secretsKeys.all, { ...prev, [key]: value });
+        qc.setQueryData(queryKey, { ...prev, [key]: value });
       }
       return { prev };
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) qc.setQueryData(secretsKeys.all, ctx.prev);
+      if (ctx?.prev) qc.setQueryData(queryKey, ctx.prev);
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: secretsKeys.all });
+      qc.invalidateQueries({ queryKey: ['secrets'] });
     },
   });
 }
@@ -66,9 +75,13 @@ export function useSetSecret() {
  */
 export function useDeleteSecret() {
   const qc = useQueryClient();
+  const instanceUrl = useServerStore((s) => s.getActiveServerUrl());
+  const queryKey = secretsKeys.all(instanceUrl || null);
+
   return useMutation({
     mutationFn: async (key: string) => {
-      const res = await authenticatedFetch(`${getInstanceUrl()}/env/${encodeURIComponent(key)}`, {
+      if (!instanceUrl) throw new Error('No active instance selected');
+      const res = await authenticatedFetch(`${instanceUrl}/env/${encodeURIComponent(key)}`, {
         method: 'DELETE',
       });
       if (!res.ok) {
@@ -78,20 +91,20 @@ export function useDeleteSecret() {
       return res.json();
     },
     onMutate: async (key) => {
-      await qc.cancelQueries({ queryKey: secretsKeys.all });
-      const prev = qc.getQueryData<Record<string, string>>(secretsKeys.all);
+      await qc.cancelQueries({ queryKey });
+      const prev = qc.getQueryData<Record<string, string>>(queryKey);
       if (prev) {
         const next = { ...prev };
         if (key in next) next[key] = '';
-        qc.setQueryData(secretsKeys.all, next);
+        qc.setQueryData(queryKey, next);
       }
       return { prev };
     },
     onError: (_err, _key, ctx) => {
-      if (ctx?.prev) qc.setQueryData(secretsKeys.all, ctx.prev);
+      if (ctx?.prev) qc.setQueryData(queryKey, ctx.prev);
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: secretsKeys.all });
+      qc.invalidateQueries({ queryKey: ['secrets'] });
     },
   });
 }

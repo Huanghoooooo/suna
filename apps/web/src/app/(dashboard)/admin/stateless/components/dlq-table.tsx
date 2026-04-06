@@ -239,8 +239,8 @@ export function DLQTable({
           <div className="flex items-center gap-3 mt-4">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by ID, run ID, or error..."
+              <Input type="text"
+                placeholder="Search by ID, run ID, or error..." autoComplete="off"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 h-9"
@@ -257,7 +257,7 @@ export function DLQTable({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-2">
+                <Button variant="outline" size="sm" className="gap-2">
                   <Filter className="w-4 h-4" />
                   Type
                   {selectedTypes.size > 0 && (
@@ -301,7 +301,7 @@ export function DLQTable({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-2">
+                <Button variant="outline" size="sm" className="gap-2">
                   Sort
                   <ChevronDown className="w-3 h-3" />
                 </Button>
@@ -330,7 +330,7 @@ export function DLQTable({
                   variant="outline"
                   onClick={handleBulkRetry}
                   disabled={isRetrying}
-                  className="h-9"
+                  className=""
                 >
                   <RefreshCw className="w-4 h-4 mr-1.5" />
                   Retry All
@@ -340,7 +340,7 @@ export function DLQTable({
                   variant="outline"
                   onClick={handleBulkDelete}
                   disabled={isDeleting}
-                  className="h-9 text-red-500 hover:text-red-600"
+                  className="text-red-500 hover:text-red-600"
                 >
                   <Trash2 className="w-4 h-4 mr-1.5" />
                   Delete All

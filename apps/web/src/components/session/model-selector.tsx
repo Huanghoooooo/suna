@@ -96,23 +96,9 @@ export function ManageModelsDialog({
   return null;
 }
 
-// ─── Tag ─────────────────────────────────────────────────────────────────────
-
-export function Tag({ children, variant = 'default' }: { children: React.ReactNode; variant?: 'default' | 'free' | 'latest' | 'custom' }) {
-  return (
-    <span
-      className={cn(
-        'px-1.5 py-0.5 rounded text-[10px] font-medium leading-none flex-shrink-0',
-        variant === 'free' && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-        variant === 'latest' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-        variant === 'custom' && 'bg-muted text-muted-foreground',
-        variant === 'default' && 'bg-muted text-muted-foreground',
-      )}
-    >
-      {children}
-    </span>
-  );
-}
+// Import from canonical UI component and re-export for consumers
+import { Tag } from '@/components/ui/tag';
+export { Tag };
 
 // ─── ModelSelector ───────────────────────────────────────────────────────────
 
@@ -196,7 +182,7 @@ export function ModelSelector({ models, selectedModel, onSelect }: ModelSelector
             <button
               type="button"
               className={cn(
-                'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200 cursor-pointer',
+                'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors duration-200 cursor-pointer',
                 open && 'bg-muted text-foreground',
               )}
             >

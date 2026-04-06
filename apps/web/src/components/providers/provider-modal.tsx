@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import {
@@ -81,7 +82,7 @@ function EmptyState({ message, action }: { message: string; action?: { label: st
     <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 text-center">
       <p className="text-xs text-muted-foreground/60">{message}</p>
       {action && (
-        <Button variant="outline" size="sm" className="h-7 rounded-lg px-3 text-[11px]" onClick={action.onClick}>
+        <Button variant="outline" size="sm" className="h-7 px-3 text-[11px]" onClick={action.onClick}>
           <Plus className="h-3 w-3" />
           {action.label}
         </Button>
@@ -162,7 +163,7 @@ function ConnectedTabContent({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 rounded-lg px-2.5 text-[11px] shrink-0 -mr-1"
+              className="h-7 px-2.5 text-[11px] shrink-0 -mr-1"
               onClick={onAddProvider}
             >
               <Plus className="h-3 w-3" />
@@ -198,7 +199,7 @@ function ConnectedTabContent({
                           <span className="text-sm font-medium text-foreground">
                             {PROVIDER_LABELS[provider.id] || provider.name || provider.id}
                           </span>
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-px text-[9px] font-medium text-emerald-600 dark:text-emerald-400">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-px text-[0.5625rem] font-medium text-emerald-600 dark:text-emerald-400">
                             <span className="h-1 w-1 rounded-full bg-emerald-500" />
                             connected
                           </span>
@@ -214,18 +215,20 @@ function ConnectedTabContent({
                             ? <ChevronDown className="h-3 w-3 text-muted-foreground/40" />
                             : <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
                         )}
-                        <button
+                         <Button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             setConfirmDisconnect(provider.id);
                           }}
                           disabled={isDisconnecting}
-                          className="rounded-md p-1.5 text-muted-foreground/40 transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground/40 hover:bg-destructive/10 hover:text-destructive"
                           title="Disconnect"
                         >
                           {isDisconnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unplug className="h-3.5 w-3.5" />}
-                        </button>
+                        </Button>
                       </div>
                     </CommandItem>
 
@@ -344,7 +347,7 @@ function ModelsTabContent({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 rounded-lg px-2.5 text-[11px] shrink-0 -mr-1"
+              className="h-7 px-2.5 text-[11px] shrink-0 -mr-1"
               onClick={onAddProvider}
             >
               <Plus className="h-3 w-3" />
@@ -464,26 +467,22 @@ export function ProviderModal({
 
         {/* Tab bar */}
         <div className="px-5 pb-2">
-          <div className="flex items-center gap-0.5 rounded-lg border border-border/30 bg-muted/20 p-0.5">
+          <FilterBar className="w-full">
             {visibleTabs.map((tabItem) => (
-              <button
+              <FilterBarItem
                 key={tabItem.id}
-                type="button"
+                value={tabItem.id}
                 onClick={() => setTab(tabItem.id)}
-                className={cn(
-                  'flex-1 rounded-md px-3 py-1.5 text-[11px] font-medium transition-all',
-                  tab === tabItem.id
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground/60 hover:text-foreground/80',
-                )}
+                data-state={tab === tabItem.id ? 'active' : 'inactive'}
+                className="flex-1"
               >
                 {tabItem.label}
                 {tabItem.id === 'connected' && connectedProviders.length > 0 && (
                   <span className="ml-1 text-[10px] text-muted-foreground/40">{connectedProviders.length}</span>
                 )}
-              </button>
+              </FilterBarItem>
             ))}
-          </div>
+          </FilterBar>
         </div>
 
         {/* Tab content */}

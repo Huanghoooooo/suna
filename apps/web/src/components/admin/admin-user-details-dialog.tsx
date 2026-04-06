@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import {
   Dialog,
@@ -425,7 +426,7 @@ export function AdminUserDetailsDialog({
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className={`font-semibold ${getTransactionColor(transaction.type)}`}>
+                              <p className={cn('font-semibold', getTransactionColor(transaction.type))}>
                                 {formatCreditsWithSign(dollarsToCredits(transaction.amount), { showDecimals: true })}
                               </p>
                               <p className="text-xs text-muted-foreground">

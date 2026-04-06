@@ -49,6 +49,28 @@ const COMMON_NON_FILES = new Set([
 // URL protocols — skip anything that looks like a URL
 const URL_PROTOCOL_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
 
+/**
+ * Check if a regex match at the given position is embedded inside a URL.
+ * Scans backwards to the nearest whitespace boundary and checks if the
+ * resulting token starts with a URL protocol (http://, https://, etc.).
+ *
+ * For example, in "http://localhost:3211/open?path=/workspace/file.txt",
+ * the path "/workspace/file.txt" is embedded in the URL and should NOT
+ * be detected as a standalone clickable file path.
+ */
+function isEmbeddedInUrl(text: string, matchStart: number): boolean {
+  let i = matchStart - 1;
+  while (i >= 0 && !/\s/.test(text[i])) {
+    i--;
+  }
+  const tokenStart = i + 1;
+  if (tokenStart >= matchStart) return false;
+  const preceding = text.slice(tokenStart, matchStart);
+  // Strip leading delimiters (quotes, brackets) that might wrap the URL
+  const stripped = preceding.replace(/^["'`(\[{<]+/, '');
+  return URL_PROTOCOL_RE.test(stripped);
+}
+
 // ---------------------------------------------------------------------------
 // Core regex
 // ---------------------------------------------------------------------------
@@ -162,6 +184,10 @@ export function detectFilePaths(text: string): PathMatch[] {
 
     // Skip if it looks like a URL fragment
     if (URL_PROTOCOL_RE.test(pathPart)) continue;
+
+    // Skip if the matched path is embedded inside a URL
+    // (e.g. "http://localhost:3211/open?path=/workspace/file.txt")
+    if (isEmbeddedInUrl(text, m.index)) continue;
 
     // Skip common non-file patterns
     if (COMMON_NON_FILES.has(pathPart.toLowerCase())) continue;

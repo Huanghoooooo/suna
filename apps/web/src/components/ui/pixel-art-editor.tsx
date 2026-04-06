@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -163,10 +164,10 @@ export const PixelArtEditor: React.FC<PixelArtEditorProps> = ({
             {COLORS.map(color => (
               <button
                 key={color}
-                className={`w-8 h-8 rounded border-2 ${selectedColor === color && !isErasing
+                className={cn('w-8 h-8 rounded border-2', selectedColor === color && !isErasing
                     ? 'border-primary ring-2 ring-primary/20'
                     : 'border-border'
-                  }`}
+                  )}
                 style={{ backgroundColor: color }}
                 onClick={() => {
                   setSelectedColor(color);

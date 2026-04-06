@@ -260,10 +260,10 @@ See [Release Flow](#release-flow) below. `pnpm ship` builds Docker images, creat
 
 ```bash
 # Deploy API to prod (manual)
-gh workflow run deploy-api.yml -f target=prod --repo kortix-ai/computer
+gh workflow run deploy-api.yml -f target=prod --repo kortix-ai/suna
 
 # Deploy API to dev (manual override — normally auto on push)
-gh workflow run deploy-api.yml -f target=dev --repo kortix-ai/computer
+gh workflow run deploy-api.yml -f target=dev --repo kortix-ai/suna
 ```
 
 ---
@@ -295,7 +295,7 @@ By default the image-builder script uses `nbg1` for the temporary build machine 
 git push
 # The push to main auto-deploys the API to dev.
 # To also deploy the API to prod:
-gh workflow run deploy-api.yml -f target=prod --repo kortix-ai/computer
+gh workflow run deploy-api.yml -f target=prod --repo kortix-ai/suna
 ```
 
 ### Validate state without shipping
@@ -432,7 +432,7 @@ docker exec -it kortix-sandbox bash
 pnpm ship 0.8.0
 git push
 # 3. Deploy API to prod if needed:
-gh workflow run deploy-api.yml -f target=prod --repo kortix-ai/computer
+gh workflow run deploy-api.yml -f target=prod --repo kortix-ai/suna
 ```
 
 ### Release + new Docker image
@@ -441,7 +441,7 @@ gh workflow run deploy-api.yml -f target=prod --repo kortix-ai/computer
 pnpm ship 0.8.0
 git push
 # Deploy API to prod:
-gh workflow run deploy-api.yml -f target=prod --repo kortix-ai/computer
+gh workflow run deploy-api.yml -f target=prod --repo kortix-ai/suna
 ```
 
 ### Rebuild the JustAVPS image only
@@ -465,7 +465,7 @@ docker compose -f core/docker/docker-compose.yml build
 ### Deploy API to prod
 
 ```bash
-gh workflow run deploy-api.yml -f target=prod --repo kortix-ai/computer
+gh workflow run deploy-api.yml -f target=prod --repo kortix-ai/suna
 ```
 
 ### Force rebuild after dep change

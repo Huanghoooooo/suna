@@ -151,7 +151,7 @@ export type NavSubGroup =
 
 /** Human-readable labels for sub-groups (used in expanded sidebar) */
 export const navSubGroupLabels: Record<NavSubGroup, string> = {
-  tools: 'Workspace',
+  tools: '',
   services: 'Services',
   security: 'Security',
 };
@@ -264,6 +264,27 @@ export const menuRegistry: MenuItemDef[] = [
     requiresSession: true,
   },
 
+  {
+    id: 'restart-config',
+    label: 'Restart: Config Only',
+    icon: RefreshCw,
+    group: 'actions',
+    showIn: ['commandPalette'],
+    kind: 'action',
+    actionId: 'restartConfig',
+    keywords: 'reload restart config agents skills commands',
+  },
+  {
+    id: 'restart-full',
+    label: 'Restart: Full',
+    icon: RefreshCw,
+    group: 'actions',
+    showIn: ['commandPalette'],
+    kind: 'action',
+    actionId: 'restartFull',
+    keywords: 'reload restart full services kill nuclear',
+  },
+
   // ──────────────────────────────────────────────────────────────────────────
   // QUICK ACTIONS (right sidebar top section)
   // ──────────────────────────────────────────────────────────────────────────
@@ -299,19 +320,6 @@ export const menuRegistry: MenuItemDef[] = [
     href: '/workspace',
     activePathPrefixes: ['/workspace', '/agents', '/skills', '/commands', '/tools'],
     keywords: 'workspace agents skills commands tools build create',
-  },
-  {
-    id: 'reload-instance',
-    label: 'Restart Instance',
-    icon: RefreshCw,
-    group: 'quickActions',
-    subGroup: 'tools',
-    showIn: ['commandPalette'],
-    kind: 'navigate',
-    href: '/service-manager',
-    tabId: 'service-manager',
-    tabType: 'services',
-    keywords: 'reload restart refresh dispose instance rescan skills agents plugins service manager',
   },
   {
     id: 'secrets-quick',
@@ -377,7 +385,7 @@ export const menuRegistry: MenuItemDef[] = [
     label: 'Marketplace',
     icon: Sparkles,
     group: 'navigation',
-    showIn: ['commandPalette', 'rightSidebar'],
+    showIn: [],
     subGroup: 'tools',
     kind: 'navigate',
     href: '/marketplace',

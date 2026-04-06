@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PresentationSlideCard } from './PresentationSlideCard';
 import { constructHtmlPreviewUrl } from '@/lib/utils/url';
@@ -119,7 +120,7 @@ export function PresentationSlidePreview({
   // Show loading state
   if (isLoading) {
     return (
-      <div className={`flex flex-col items-center justify-center p-8 bg-muted/30 rounded-lg border ${className}`}>
+      <div className={cn('flex flex-col items-center justify-center p-8 bg-muted/30 rounded-lg border', className)}>
         <KortixLoader customSize={24} className="mb-2" />
         <span className="text-sm text-muted-foreground">Loading presentation...</span>
         {retryCount > 0 && (
@@ -134,7 +135,7 @@ export function PresentationSlidePreview({
   // Show error state with retry button
   if (error || !metadata) {
     return (
-      <div className={`flex flex-col items-center justify-center p-8 bg-muted/30 rounded-lg border ${className}`}>
+      <div className={cn('flex flex-col items-center justify-center p-8 bg-muted/30 rounded-lg border', className)}>
         <Presentation className="h-10 w-10 text-muted-foreground/50 mb-3" />
         <p className="text-sm text-muted-foreground mb-3">
           {error || 'Presentation not found'}

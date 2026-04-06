@@ -31,6 +31,10 @@ export { OcMemSearchToolView } from './OcMemSearchToolView';
 export { OcMemSaveToolView } from './OcMemSaveToolView';
 export { OcSessionListToolView } from './OcSessionListToolView';
 export { OcSessionGetToolView } from './OcSessionGetToolView';
+export { OcSessionReadToolView } from './OcSessionReadToolView';
+export { OcSessionSearchToolView } from './OcSessionSearchToolView';
+export { OcSessionMessageToolView } from './OcSessionMessageToolView';
+export { OcSessionLineageToolView } from './OcSessionLineageToolView';
 export { OcGetMemToolView } from './OcGetMemToolView';
 export { OcProjectListToolView } from './OcProjectListToolView';
 export { OcProjectGetToolView } from './OcProjectGetToolView';
@@ -68,6 +72,10 @@ import { OcMemSearchToolView } from './OcMemSearchToolView';
 import { OcMemSaveToolView } from './OcMemSaveToolView';
 import { OcSessionListToolView } from './OcSessionListToolView';
 import { OcSessionGetToolView } from './OcSessionGetToolView';
+import { OcSessionReadToolView } from './OcSessionReadToolView';
+import { OcSessionSearchToolView } from './OcSessionSearchToolView';
+import { OcSessionMessageToolView } from './OcSessionMessageToolView';
+import { OcSessionLineageToolView } from './OcSessionLineageToolView';
 import { OcGetMemToolView } from './OcGetMemToolView';
 import { OcProjectListToolView } from './OcProjectListToolView';
 import { OcProjectGetToolView } from './OcProjectGetToolView';
@@ -151,6 +159,10 @@ export const ocToolViewRegistrations: Record<string, ToolViewComponent> = {
   'oc-session-spawn': OcSessionSpawnToolView,
   'session_spawn': OcSessionSpawnToolView,
   'session-spawn': OcSessionSpawnToolView,
+  'oc-session_start_background': OcSessionSpawnToolView,
+  'oc-session-start-background': OcSessionSpawnToolView,
+  'session_start_background': OcSessionSpawnToolView,
+  'session-start-background': OcSessionSpawnToolView,
 
   // Todo / task management
   'oc-todowrite': OcTodoToolView,
@@ -190,11 +202,31 @@ export const ocToolViewRegistrations: Record<string, ToolViewComponent> = {
   'oc-mem_save': OcMemSaveToolView,
   'oc-mem-save': OcMemSaveToolView,
 
-  // Session tools (kortix-memory)
+  // Session tools (kortix-sessions + kortix-orchestrator)
   'oc-session_list': OcSessionListToolView,
   'oc-session-list': OcSessionListToolView,
+  'session_list': OcSessionListToolView,
   'oc-session_get': OcSessionGetToolView,
   'oc-session-get': OcSessionGetToolView,
+  'session_get': OcSessionGetToolView,
+  'oc-session_read': OcSessionReadToolView,
+  'oc-session-read': OcSessionReadToolView,
+  'session_read': OcSessionReadToolView,
+  'oc-session_search': OcSessionSearchToolView,
+  'oc-session-search': OcSessionSearchToolView,
+  'session_search': OcSessionSearchToolView,
+  'oc-session_message': OcSessionMessageToolView,
+  'oc-session-message': OcSessionMessageToolView,
+  'session_message': OcSessionMessageToolView,
+  'oc-session_lineage': OcSessionLineageToolView,
+  'oc-session-lineage': OcSessionLineageToolView,
+  'session_lineage': OcSessionLineageToolView,
+  'oc-session_list_background': OcSessionListToolView,
+  'oc-session-list-background': OcSessionListToolView,
+  'session_list_background': OcSessionListToolView,
+  'oc-session_list_spawned': OcSessionListToolView,
+  'oc-session-list-spawned': OcSessionListToolView,
+  'session_list_spawned': OcSessionListToolView,
 
   // Project tools (kortix-orchestrator)
   'oc-project_list': OcProjectListToolView,
@@ -212,6 +244,9 @@ export const ocToolViewRegistrations: Record<string, ToolViewComponent> = {
   'oc-project_update': OcProjectGetToolView,
   'oc-project-update': OcProjectGetToolView,
   'project_update': OcProjectGetToolView,
+  'oc-project_delete': OcProjectGetToolView,
+  'oc-project-delete': OcProjectGetToolView,
+  'project_delete': OcProjectGetToolView,
 
   // Connector tools (kortix-connectors plugin)
   'oc-connector_list': OcConnectorListToolView,

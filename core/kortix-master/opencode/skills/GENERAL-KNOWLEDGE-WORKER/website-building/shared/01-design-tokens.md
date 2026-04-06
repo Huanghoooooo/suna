@@ -96,20 +96,34 @@ Use OKLCH as your primary color space. Define a layered system with semantic rol
 - Store preference in a JS variable (not localStorage — sandboxed iframes block it)
 - Default to system preference via `window.matchMedia('(prefers-color-scheme: dark)')`
 
-### Art Direction First — Then Fallback to Kortix
+### Art Direction First — EVERY Site Gets a Unique Palette
 
-**Always infer a palette from the subject matter before reaching for defaults.** A jazz festival site should feel warm and expressive. A law firm should feel sober and restrained. A children's toy store should feel bright and playful. Derive color from the content — don't wait for the user to explicitly provide a hex code.
+**EVERY website must have a UNIQUE color palette.** Do NOT reuse the same colors across different sites.
 
-The decision tree:
-1. **User provides colors/brand** → use those, maintain the variable structure below
-2. **No colors given, but subject is clear** → infer an appropriate palette from the subject's domain, mood, and audience (see Art Direction tables in the domain files)
-3. **Subject is ambiguous AND user gave no direction after being asked** → use Kortix defaults below
+**Step 1: Generate a palette.** Run the palette generator script with keywords describing the subject:
 
-When building a custom palette (steps 1-2), maintain the same variable structure with both light and dark modes and ensure WCAG AA contrast (4.5:1 body text, 3:1 large text).
+```bash
+bun run skills/GENERAL-KNOWLEDGE-WORKER/website-building/shared/generate-palette.ts "coffee shop warm cozy"
+```
 
-### Kortix Design System (Fallback Palette)
+This outputs 5 harmonious palettes (analogous, complementary, triadic, split-complementary, monochromatic) with ready-to-use CSS variables for both light and dark modes. Pick the one that fits best, then customize.
 
-The Kortix palette is a neutral, warm-beige/teal system designed as a safe fallback — not the default for every site. For the format-agnostic hex palette and full rationale, see `skills/GENERAL-KNOWLEDGE-WORKER/design-foundations/SKILL.md`. Below is the CSS variable implementation.
+**Step 2: Pick and customize.** Choose the harmony that fits the subject's mood:
+- **Analogous** — harmonious, calm (spas, nature, editorial)
+- **Complementary** — bold contrast, energy (startups, sports, food)
+- **Triadic** — vibrant, balanced (creative agencies, kids, events)
+- **Split-complementary** — contrast with subtlety (portfolios, shops)
+- **Monochromatic** — elegant, focused (luxury, minimalist, academic)
+
+**Step 3: If the user provides brand colors,** skip the generator and build the palette around their colors. Maintain the same CSS variable structure.
+
+**NEVER build two sites that look the same.** Different subject = different palette, different fonts, different vibe.
+
+Maintain both light and dark modes. Ensure WCAG AA contrast (4.5:1 body text, 3:1 large text).
+
+### Kortix Design System (Fallback Palette — ONLY for Kortix-branded sites)
+
+This palette is ONLY for sites that are explicitly Kortix-branded. For everything else, run the palette generator.
 
 ```css
 /* NEXUS DESIGN SYSTEM — warm beige surfaces, teal primary accent */

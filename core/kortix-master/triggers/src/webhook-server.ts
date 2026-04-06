@@ -67,7 +67,7 @@ export class WebhookTriggerServer {
       // Health endpoint
       if (pathname === "/health") {
         res.writeHead(200, { "Content-Type": "application/json" })
-        res.end(JSON.stringify({ ok: true, service: "opencode-agent-triggers", routes: this.routes.size }))
+        res.end(JSON.stringify({ ok: true, service: "kortix-triggers", routes: this.routes.size }))
         return
       }
 

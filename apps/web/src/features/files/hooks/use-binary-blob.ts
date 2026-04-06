@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useServerStore } from '@/stores/server-store';
 import { readFileAsBlob } from '../api/opencode-files';
@@ -23,13 +23,12 @@ export const binaryBlobKeys = {
  *
  * Pass `null` for filePath to disable loading.
  *
- * Uses the same React Query pattern as `useFileContent`:
- *  - `serverUrl` in the query key → cache miss when URL changes
- *  - `serverVersion` in the query key → guaranteed re-fetch when the
- *    sandbox registers (even if the URL string stays the same, e.g.
- *    local mode where DEFAULT_SANDBOX_URL == real sandbox URL)
- *  - Built-in retry with exponential backoff (no console spam)
- *  - Automatic garbage collection after gcTime
+ * IMPORTANT — Blob URL lifecycle:
+ *   React Query caches only the raw Blob (stable, never revoked).
+ *   The blob URL is derived per-mount via URL.createObjectURL and
+ *   revoked on unmount or when the underlying Blob changes.
+ *   This prevents the stale-blob-URL bug where navigating away and
+ *   back would serve a revoked URL from the query cache.
  */
 export function useBinaryBlob(filePath: string | null): {
   blobUrl: string | null;
@@ -40,7 +39,8 @@ export function useBinaryBlob(filePath: string | null): {
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
   const serverVersion = useServerStore((s) => s.serverVersion);
 
-  const query = useQuery<{ blobUrl: string; blob: Blob }>({
+  // ── Fetch the raw Blob — this is what React Query caches ────────────
+  const query = useQuery<Blob>({
     queryKey: filePath
       ? binaryBlobKeys.file(serverUrl, serverVersion, filePath)
       : ['opencode-files', 'binary-blob', '__disabled__'],
@@ -49,49 +49,48 @@ export function useBinaryBlob(filePath: string | null): {
       if (blob.size === 0) {
         throw new Error('File is empty (0 bytes). It may still be generating — try again in a moment.');
       }
-      const url = URL.createObjectURL(blob);
-      return { blobUrl: url, blob };
+      return blob;
     },
     enabled: !!filePath,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     retry: (failureCount, error: Error) => {
-      // Don't retry on 404 / 403 — those are permanent failures
-      if (error.message.includes('404') || error.message.includes('403')) return false;
+      // Don't retry permanent failures (not found, access denied)
+      const msg = error.message.toLowerCase();
+      if (msg.includes('404') || msg.includes('403') || msg.includes('not found') || msg.includes('access denied')) return false;
       return failureCount < 3;
     },
     retryDelay: (attempt) => Math.min(1000 * Math.pow(2, attempt), 5000),
   });
 
-  // ── Blob URL memory management ───────────────────────────────────────
-  // Blob URLs are browser-managed and need explicit revocation.
-  // Track the current blobUrl and revoke stale ones when the query data
-  // changes (new key → new fetch → new blobUrl) or on unmount.
-  const prevBlobUrlRef = useRef<string | null>(null);
-  const currentBlobUrl = query.data?.blobUrl ?? null;
+  const cachedBlob = query.data ?? null;
+
+  // ── Blob URL — derived per-mount, revoked on unmount/change ─────────
+  // Each component mount creates its own blob URL from the cached Blob.
+  // When the component unmounts the URL is revoked, but the raw Blob
+  // stays safe in React Query's cache for the next mount.
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    // Revoke the PREVIOUS blobUrl when a new one arrives
-    if (prevBlobUrlRef.current && prevBlobUrlRef.current !== currentBlobUrl) {
-      URL.revokeObjectURL(prevBlobUrlRef.current);
+    if (!cachedBlob) {
+      setBlobUrl(null);
+      return;
     }
-    prevBlobUrlRef.current = currentBlobUrl;
+    const url = URL.createObjectURL(cachedBlob);
+    setBlobUrl(url);
 
-    // Revoke on unmount
+    // Revoke when the Blob changes or on unmount
     return () => {
-      if (prevBlobUrlRef.current) {
-        URL.revokeObjectURL(prevBlobUrlRef.current);
-        prevBlobUrlRef.current = null;
-      }
+      URL.revokeObjectURL(url);
     };
-  }, [currentBlobUrl]);
+  }, [cachedBlob]);
 
   // ── Stable return value ──────────────────────────────────────────────
   return useMemo(() => ({
-    blobUrl: currentBlobUrl,
-    blob: query.data?.blob ?? null,
+    blobUrl,
+    blob: cachedBlob,
     isLoading: query.isLoading,
     error: query.error?.message ?? null,
-  }), [currentBlobUrl, query.data?.blob, query.isLoading, query.error?.message]);
+  }), [blobUrl, cachedBlob, query.isLoading, query.error?.message]);
 }

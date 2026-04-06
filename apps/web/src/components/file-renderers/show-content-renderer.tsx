@@ -49,6 +49,8 @@ import { ImageRenderer } from './image-renderer';
 import { VideoRenderer } from './video-renderer';
 import { FileContentRenderer } from '@/features/files/components/file-content-renderer';
 import { SANDBOX_PORTS } from '@/lib/platform-client';
+import { isHeicFile } from '@/lib/utils/heic-convert';
+import { useHeicBlob } from '@/hooks/use-heic-url';
 
 // ── Lazy-load heavy renderers ──────────────────────────────────────────────
 
@@ -70,7 +72,7 @@ const PptxRenderer = lazy(() =>
 
 // ── Extension regexes ──────────────────────────────────────────────────────
 
-export const SHOW_IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif|tiff?)$/i;
+export const SHOW_IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif|tiff?|heic|heif)$/i;
 export const SHOW_VIDEO_EXT_RE = /\.(mp4|webm|mov|avi|mkv|m4v|ogv)$/i;
 export const SHOW_AUDIO_EXT_RE = /\.(mp3|wav|ogg|aac|flac|m4a|opus|wma)$/i;
 export const SHOW_PDF_EXT_RE = /\.pdf$/i;
@@ -103,6 +105,12 @@ function isLocalSandboxFilePath(value: string): boolean {
   if (!value) return false;
   if (/^(https?:|data:|blob:)/i.test(value)) return false;
   return value.startsWith('/');
+}
+
+/** Ensure a sandbox file path starts with /workspace/ for the static file server. */
+function ensureWorkspacePath(filePath: string): string {
+  if (filePath.startsWith('/workspace/')) return filePath;
+  return '/workspace/' + filePath.replace(/^\/+/, '');
 }
 
 /** Auto-detect file category from extension — used when type='file' */
@@ -229,6 +237,13 @@ export function ShowContentRenderer({
   const blobFilePath = needsBlob ? sandboxPath : null;
   const { blobUrl, blob: rawBlob, isLoading: blobLoading, error: blobError } = useBinaryBlob(blobFilePath);
 
+  // HEIC conversion — converts the raw blob to renderable JPEG
+  const isHeic = isImage && isHeicFile(fileName);
+  const { url: heicImageUrl, isConverting: heicConverting } = useHeicBlob(
+    isHeic ? rawBlob : null,
+    fileName,
+  );
+
   // CSV/TSV: text content via SDK
   const csvLoadPath = isCsv && sandboxPath ? sandboxPath : null;
   const { data: csvData, isLoading: csvLoading } = useFileContent(
@@ -272,7 +287,8 @@ export function ShowContentRenderer({
   // ═════════════════════════════════════════════════════════════════════════
   if ((isHtmlFile || (isHtml && !content)) && sandboxPath && LocalhostPreview) {
     const staticPort = parseInt(SANDBOX_PORTS.STATIC_FILE_SERVER ?? '3211', 10);
-    const encodedPath = sandboxPath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    const normalizedPath = ensureWorkspacePath(sandboxPath);
+    const encodedPath = normalizedPath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
     const staticUrl = `http://localhost:${staticPort}/open?path=/${encodedPath}`;
     return <LocalhostPreview url={staticUrl} label={title || fileName || undefined} />;
   }
@@ -325,14 +341,17 @@ export function ShowContentRenderer({
 
   // ═════════════════════════════════════════════════════════════════════════
   // Image — loaded via useBinaryBlob → blobUrl → ImageRenderer
+  // HEIC images go through an extra conversion step (blob → JPEG → blobUrl)
   // ═════════════════════════════════════════════════════════════════════════
   if (isImage && path) {
-    if (blobLoading) return <RendererFallback />;
+    if (blobLoading || heicConverting) return <RendererFallback />;
     if (blobError) return <LoadError message={blobError} />;
-    if (blobUrl) {
+    // HEIC: use the converted JPEG URL
+    const imageUrl = isHeic ? heicImageUrl : blobUrl;
+    if (imageUrl) {
       return (
         <div className="h-[420px]">
-          <ImageRenderer url={blobUrl} />
+          <ImageRenderer url={imageUrl} fileName={fileName} />
         </div>
       );
     }
@@ -597,15 +616,19 @@ export interface ShowCarouselProps {
   items: ShowCarouselItem[];
   /** Optional: component for rendering proxied localhost iframes */
   LocalhostPreview?: React.ComponentType<{ url: string; label?: string }>;
+  /** Called when the active carousel item changes — lets parents track the current item for "Open File" etc. */
+  onIndexChange?: (index: number) => void;
 }
 
-export function ShowCarousel({ items, LocalhostPreview }: ShowCarouselProps) {
+export function ShowCarousel({ items, LocalhostPreview, onIndexChange }: ShowCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const count = items.length;
 
   const goTo = useCallback((idx: number) => {
-    setCurrentIndex(Math.max(0, Math.min(idx, count - 1)));
-  }, [count]);
+    const clamped = Math.max(0, Math.min(idx, count - 1));
+    setCurrentIndex(clamped);
+    onIndexChange?.(clamped);
+  }, [count, onIndexChange]);
 
   const prev = useCallback(() => goTo(currentIndex - 1), [goTo, currentIndex]);
   const next = useCallback(() => goTo(currentIndex + 1), [goTo, currentIndex]);
@@ -659,7 +682,7 @@ export function ShowCarousel({ items, LocalhostPreview }: ShowCarouselProps) {
                   type="button"
                   onClick={() => goTo(i)}
                   className={cn(
-                    'rounded-full transition-all',
+                    'rounded-full transition-colors',
                     i === currentIndex
                       ? 'w-5 h-1.5 bg-foreground/60'
                       : 'w-1.5 h-1.5 bg-foreground/15 hover:bg-foreground/30',

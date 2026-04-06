@@ -3,22 +3,24 @@
  * Binary patch: enable tool-input streaming in OpenCode's compiled Bun binary.
  *
  * ROOT CAUSE: The processor (processor.ts) has no-op handlers for
- * tool-input-delta and tool-input-end events — they just `break`.
- * The AI SDK pipeline already correctly generates and forwards these
- * events all the way to fullStream, but the processor ignores them.
+ * tool-input-delta and tool-input-end events — they just `break`/`return`.
+ * The AI SDK pipeline correctly generates and forwards these events all the
+ * way to fullStream, but the processor ignores them.
  *
- * This patch replaces the no-op tool-input-delta handler with code that:
- *   1. Retrieves the pending tool part from the toolcalls map
- *   2. Accumulates the streaming JSON delta into state.raw
- *   3. Calls Session.updatePart() to push the updated part to the frontend
+ * This patch replaces the no-op handlers with code that:
+ *   tool-input-delta: accumulates value.delta into part.state.raw, pushes update
+ *   tool-input-end:   no-op (tool-call sets input from parsed args anyway)
  *
- * The frontend's parsePartialJSON() and partStreamingInput() helpers
- * (in tool-renderers.tsx) read state.raw and display streaming arguments.
+ * Supports two binary layouts:
+ *   old-style (<=1.2.x): uses `break`, `await Session.updatePart`, `toolcalls[v.id]=part`
+ *   new-style (>=1.3.x): uses `return`, `yield* session.updatePart`, `ctx.toolcalls[v.id]=...`
  *
- * Binary patching strategy: find-and-replace with exact same byte length,
- * padded with trailing spaces. The Bun binary stores JS source as plain text.
+ * The patcher auto-detects the variable name (value5, value8, value9, etc.)
+ * from the surrounding code and builds a tailored replacement.
  *
- * There are 2 copies of the processor code in the binary — both are patched.
+ * Strategy: find-and-replace with exact same byte length, padded with trailing
+ * spaces. The Bun binary stores JS source as plain text. There are typically
+ * 2 copies of the processor code — both are patched.
  */
 
 const fs = require("fs");
@@ -28,7 +30,13 @@ const { execSync } = require("child_process");
 // ── Locate all opencode binaries ───────────────────────────────────────────
 
 function findBinaries() {
-  const npmGlobalRoot = execSync("npm root -g").toString().trim();
+  const roots = new Set();
+  try {
+    roots.add(execSync("npm root -g", { encoding: "utf8" }).trim());
+  } catch {}
+  // Build-time install location (Docker images)
+  roots.add("/usr/local/lib/node_modules");
+
   const pkgNames = [
     "opencode-linux-arm64-musl",
     "opencode-linux-x64-musl",
@@ -39,114 +47,159 @@ function findBinaries() {
   ];
 
   const paths = new Set();
-
-  // Direct global installs: <root>/<pkg>/bin/opencode
-  for (const pkg of pkgNames) {
-    const p = path.join(npmGlobalRoot, pkg, "bin", "opencode");
-    if (fs.existsSync(p) && fs.statSync(p).size > 1_000_000) paths.add(p);
+  for (const root of roots) {
+    for (const pkg of pkgNames) {
+      const p = path.join(root, pkg, "bin", "opencode");
+      if (fs.existsSync(p) && fs.statSync(p).size > 1_000_000) paths.add(p);
+    }
+    for (const pkg of pkgNames) {
+      const p = path.join(root, "opencode-ai", "node_modules", pkg, "bin", "opencode");
+      if (fs.existsSync(p) && fs.statSync(p).size > 1_000_000) paths.add(p);
+    }
   }
-
-  // Nested inside opencode-ai: <root>/opencode-ai/node_modules/<pkg>/bin/opencode
-  for (const pkg of pkgNames) {
-    const p = path.join(npmGlobalRoot, "opencode-ai", "node_modules", pkg, "bin", "opencode");
-    if (fs.existsSync(p) && fs.statSync(p).size > 1_000_000) paths.add(p);
-  }
-
   return [...paths];
 }
 
-const binaryPaths = findBinaries();
+// ── Pattern definitions ────────────────────────────────────────────────────
 
+function oldStyleSearch(v) {
+  // Old-style (<=1.2.x): 193 bytes. Includes end of tool-input-start assignment.
+  return (
+    `toolcalls[${v}.id] = part;\n` +
+    `                    break;\n` +
+    `                  case "tool-input-delta":\n` +
+    `                    break;\n` +
+    `                  case "tool-input-end":\n` +
+    `                    break;`
+  );
+}
+
+function oldStyleReplace(v) {
+  // Compressed: accumulate delta via await Session.updatePart
+  return (
+    `toolcalls[${v}.id]=part;break;` +
+    `case"tool-input-delta":` +
+    `{let p=toolcalls[${v}.id];` +
+    `if(p){p.state.raw+=${v}.delta;` +
+    `Session.updatePart(p)}break}` +
+    `case"tool-input-end":break;`
+  );
+}
+
+function newStyleSearch(v) {
+  // New-style (>=1.3.x): wide pattern including the full updatePart call
+  return (
+    `ctx.toolcalls[${v}.id] = yield* session.updatePart({\n` +
+    `                id: ctx.toolcalls[${v}.id]?.id ?? PartID.ascending(),\n` +
+    `                messageID: ctx.assistantMessage.id,\n` +
+    `                sessionID: ctx.assistantMessage.sessionID,\n` +
+    `                type: "tool",\n` +
+    `                tool: ${v}.toolName,\n` +
+    `                callID: ${v}.id,\n` +
+    `                state: { status: "pending", input: {}, raw: "" },\n` +
+    `              } satisfies MessageV2.ToolPart)\n` +
+    `              return;\n` +
+    `            case "tool-input-delta":\n` +
+    `              return;\n` +
+    `            case "tool-input-end":\n` +
+    `              return;`
+  );
+}
+
+function newStyleReplace(v) {
+  // Compressed updatePart + delta handler via yield*
+  return (
+    `ctx.toolcalls[${v}.id]=yield*session.updatePart({` +
+    `id:ctx.toolcalls[${v}.id]?.id??PartID.ascending(),` +
+    `messageID:ctx.assistantMessage.id,` +
+    `sessionID:ctx.assistantMessage.sessionID,` +
+    `type:"tool",tool:${v}.toolName,callID:${v}.id,` +
+    `state:{status:"pending",input:{},raw:""},` +
+    `});return;` +
+    `case"tool-input-delta":{` +
+    `let p=ctx.toolcalls[${v}.id];` +
+    `if(p&&p.state.status==="pending"){` +
+    `p.state.raw+=${v}.delta;` +
+    `yield*session.updatePart(p)}return}` +
+    `case"tool-input-end":return;`
+  );
+}
+
+// ── Sentinel to detect already-patched binaries ────────────────────────────
+const PATCH_MARKER = Buffer.from("p.state.raw+=", "utf8");
+
+// ── Main ───────────────────────────────────────────────────────────────────
+
+const binaryPaths = findBinaries();
 if (binaryPaths.length === 0) {
   console.log("[patch-streaming] No opencode binaries found — skipping");
   process.exit(0);
 }
-
 console.log(`[patch-streaming] Found ${binaryPaths.length} binary(ies)`);
 
-// ── Define search and replacement ──────────────────────────────────────────
-
-// ORIGINAL code in the processor's switch(value.type) statement.
-// Covers the end of tool-input-start (assignment + break) through
-// tool-input-delta (no-op break) and tool-input-end (no-op break).
-// 192 bytes, appears at 2 offsets in the binary.
-const SEARCH =
-  'toolcalls[value.id] = part;\n' +
-  '                    break;\n' +
-  '                  case "tool-input-delta":\n' +
-  '                    break;\n' +
-  '                  case "tool-input-end":\n' +
-  '                    break;';
-
-// REPLACEMENT — same 192 bytes (padded with trailing spaces).
-// - Compresses whitespace from the toolcalls assignment
-// - Adds actual logic to tool-input-delta:
-//   1. Looks up the pending tool part via toolcalls[value.id]
-//   2. Appends value.delta to part.state.raw (accumulates streaming JSON)
-//   3. Calls Session.updatePart(p) to push PartUpdated event
-// - tool-input-end remains a no-op break (nothing to do on end)
-const REPLACE_BASE =
-  'toolcalls[value.id]=part;break;' +
-  'case"tool-input-delta":' +
-  '{let p=toolcalls[value.id];' +
-  'if(p){p.state.raw+=value.delta;' +
-  'await Session.updatePart(p)}break}' +
-  'case"tool-input-end":break;';
-
-// Pad to exact byte length
-const searchBytes = Buffer.byteLength(SEARCH, "utf8");
-const replaceBytes = Buffer.byteLength(REPLACE_BASE, "utf8");
-
-if (replaceBytes > searchBytes) {
-  console.error(
-    `[patch-streaming] FATAL: replacement (${replaceBytes}B) exceeds target (${searchBytes}B)`
-  );
-  process.exit(1);
+// Detect variable names used in the binary
+function detectVars(binary) {
+  const str = binary.toString("utf8");
+  const vars = new Set();
+  const re = /toolcalls\[(value\d*)\./g;
+  let m;
+  while ((m = re.exec(str)) !== null) vars.add(m[1]);
+  return [...vars];
 }
-
-const REPLACE = REPLACE_BASE + " ".repeat(searchBytes - replaceBytes);
-
-// Verify exact byte match
-const searchBuf = Buffer.from(SEARCH, "utf8");
-const replaceBuf = Buffer.from(REPLACE, "utf8");
-
-if (searchBuf.length !== replaceBuf.length) {
-  console.error(
-    `[patch-streaming] FATAL: length mismatch — search=${searchBuf.length}, replace=${replaceBuf.length}`
-  );
-  process.exit(1);
-}
-
-console.log(`[patch-streaming] Pattern: ${searchBuf.length} bytes`);
-
-// ── Read binary and patch ──────────────────────────────────────────────────
 
 for (const binaryPath of binaryPaths) {
+  console.log(`[patch-streaming] Processing ${binaryPath}`);
   const binary = fs.readFileSync(binaryPath);
 
-  // Check if already patched
-  if (binary.indexOf(replaceBuf) !== -1) {
+  if (binary.indexOf(PATCH_MARKER) !== -1) {
     console.log("[patch-streaming] Already patched — skipping");
     continue;
   }
 
-  // Find and replace all occurrences
-  let count = 0;
-  let offset = 0;
-  while (true) {
-    const idx = binary.indexOf(searchBuf, offset);
-    if (idx === -1) break;
-    replaceBuf.copy(binary, idx);
-    count++;
-    offset = idx + searchBuf.length;
+  const vars = detectVars(binary);
+  console.log(`[patch-streaming] Detected variables: ${vars.join(", ")}`);
+
+  let total = 0;
+
+  for (const v of vars) {
+    // Try each pattern style
+    const styles = [
+      { name: "old-style", search: oldStyleSearch, replace: oldStyleReplace },
+      { name: "new-style", search: newStyleSearch, replace: newStyleReplace },
+    ];
+
+    for (const style of styles) {
+      const searchStr = style.search(v);
+      const replaceStr = style.replace(v);
+      const searchBuf = Buffer.from(searchStr, "utf8");
+      const replaceBuf = Buffer.from(replaceStr, "utf8");
+
+      if (replaceBuf.length > searchBuf.length) {
+        // Won't fit — skip silently (expected for non-matching style)
+        continue;
+      }
+
+      // Pad to exact length
+      const padded = Buffer.alloc(searchBuf.length, 0x20);
+      replaceBuf.copy(padded);
+
+      let offset = 0;
+      while (true) {
+        const idx = binary.indexOf(searchBuf, offset);
+        if (idx === -1) break;
+        padded.copy(binary, idx);
+        total++;
+        console.log(`[patch-streaming] Patched ${style.name} at offset ${idx} (${v})`);
+        offset = idx + searchBuf.length;
+      }
+    }
   }
 
-  if (count === 0) {
-    console.error("[patch-streaming] SEARCH pattern not found in binary");
-    console.error("[patch-streaming] The opencode version may have changed — update the patch");
+  if (total === 0) {
+    console.error("[patch-streaming] No matching patterns found — opencode version may need a new pattern");
     continue;
   }
 
   fs.writeFileSync(binaryPath, binary);
-  console.log(`[patch-streaming] OK — patched ${count} occurrence(s) in ${binaryPath}`);
+  console.log(`[patch-streaming] OK — patched ${total} occurrence(s) in ${binaryPath}`);
 }

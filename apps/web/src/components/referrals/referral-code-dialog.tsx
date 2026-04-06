@@ -39,16 +39,16 @@ export function ReferralCodeDialog({ open, onOpenChange, referralCode = '', onCo
         <div className="p-5">
           {/* Header */}
           <div className="mb-4">
-            <DialogTitle className="text-[14px] font-medium text-foreground/85 tracking-tight">
+            <DialogTitle className="text-sm font-medium text-foreground/85 tracking-tight">
               {t('yourReferralCode')}
             </DialogTitle>
-            <p className="text-[12px] text-foreground/40 mt-0.5">
+            <p className="text-xs text-foreground/40 mt-0.5">
               {t('enterCodeDescription')}
             </p>
           </div>
 
           {/* Code Input */}
-          <Input
+          <Input type="text"
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             placeholder={t('enterCode')}
@@ -63,7 +63,7 @@ export function ReferralCodeDialog({ open, onOpenChange, referralCode = '', onCo
             <Button
               variant="ghost"
               size="sm"
-              className="flex-1 h-9 text-[13px] text-foreground/40 hover:text-foreground/70 rounded-xl"
+              className="flex-1 text-[13px] text-foreground/40 hover:text-foreground/70 "
               onClick={() => onOpenChange(false)}
             >
               {tCommon('cancel')}
@@ -71,7 +71,7 @@ export function ReferralCodeDialog({ open, onOpenChange, referralCode = '', onCo
             <Button
               variant="default"
               size="sm"
-              className="flex-1 h-9 text-[13px] rounded-xl shadow-none"
+              className="flex-1 text-[13px] shadow-none"
               onClick={handleSave}
             >
               {tCommon('save')}

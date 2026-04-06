@@ -108,7 +108,7 @@ export const TagInput: React.FC<TagInputProps> = ({
         ))}
 
         {!disabled && tags.length < maxTags && (
-          <Input
+          <Input type="text"
             ref={inputRef}
             value={inputValue}
             onChange={handleInputChange}

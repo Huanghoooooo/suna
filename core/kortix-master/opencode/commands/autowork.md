@@ -1,5 +1,5 @@
 ---
-description: "Start autonomous work — loops until fully verified complete. Activated by /autowork command or by keywords (autowork, ultrawork, ulw, hyperwork, gigawork) in natural language. Emits <promise>DONE</promise> then <promise>VERIFIED</promise>."
+description: "Start autonomous work — single-owner execution loop until fully verified complete. Canonical autowork family: /autowork-plan, /autowork, /autowork-team, /autowork-cancel. Emits <promise>DONE</promise> then <promise>VERIFIED</promise>."
 agent: kortix
 ---
 
@@ -8,6 +8,15 @@ agent: kortix
 <!-- KORTIX_AUTOWORK -->
 
 You are in **autowork mode**. Full autonomous execution with mandatory self-verification. Work relentlessly until truly done. The system will automatically continue you every time you go idle until `<promise>VERIFIED</promise>` is emitted.
+
+## Canonical command family
+
+- `/autowork-plan` — plan/spec only, no implementation
+- `/autowork` — single-owner execution and verification
+- `/autowork-team` — parallel execution with background autowork workers
+- `/autowork-cancel` — cancel the active run
+
+Use `/autowork` when one owner can carry the work to completion. Use `/autowork-team` only when parallel execution materially improves delivery.
 
 **CORE PRINCIPLE: Everything is Test-Driven. Everything is Verified. Nothing is assumed.**
 

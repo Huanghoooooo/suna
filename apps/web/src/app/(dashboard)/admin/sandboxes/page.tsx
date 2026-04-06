@@ -159,9 +159,9 @@ function SandboxesTab() {
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-          <Input
+          <Input type="text"
             className="pl-8 h-8 text-sm"
-            placeholder="Search by sandbox ID, name, account, email..."
+            placeholder="Search by sandbox ID, name, account, email..." autoComplete="off"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
@@ -187,7 +187,7 @@ function SandboxesTab() {
           </SelectContent>
         </Select>
         <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="h-8 gap-1.5">
-          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+          <RefreshCw className={cn('h-3.5 w-3.5', isFetching ? 'animate-spin' : '')} />
         </Button>
       </div>
 
@@ -199,7 +199,7 @@ function SandboxesTab() {
           <p className="text-sm">No sandboxes match your filters</p>
         </div>
       ) : (
-        <div className={`border border-foreground/[0.08] rounded-xl overflow-hidden transition-opacity ${isFetching ? 'opacity-60' : ''}`}>
+        <div className={cn('border border-foreground/[0.08] rounded-xl overflow-hidden transition-opacity', isFetching ? 'opacity-60' : '')}>
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -398,10 +398,10 @@ function PoolTab() {
 
       {/* Actions */}
       <div className="flex gap-2">
-        <Button size="sm" className="h-8 gap-1.5" onClick={() => setReplenishOpen(true)}>
+        <Button size="sm" className="gap-1.5" onClick={() => setReplenishOpen(true)}>
           <Plus className="h-3.5 w-3.5" /> Add to Pool
         </Button>
-        <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={handleCleanup} disabled={cleanupMutation.isPending}>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleCleanup} disabled={cleanupMutation.isPending}>
           {cleanupMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
           Cleanup Stale
         </Button>
@@ -471,7 +471,7 @@ function PoolTab() {
                     <div
                       key={t.name}
                       className={cn(
-                        'flex items-center gap-3.5 w-full px-3 py-2.5 rounded-xl border text-left transition-all',
+                        'flex items-center gap-3.5 w-full px-3 py-2.5 rounded-xl border text-left transition-colors',
                         qty > 0
                           ? 'border-foreground/20 bg-foreground/[0.04] shadow-sm'
                           : 'border-border/40',

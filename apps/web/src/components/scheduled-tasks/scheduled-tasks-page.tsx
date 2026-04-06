@@ -3,6 +3,8 @@
 import React, { useMemo, useState } from 'react';
 import { useTriggers, useDeleteTrigger, type Trigger } from '@/hooks/scheduled-tasks';
 import { Button } from '@/components/ui/button';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
+import { PageSearchBar } from '@/components/ui/page-search-bar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +18,9 @@ import {
   Timer,
   Trash2,
   Webhook,
+  MessageSquare,
+  Terminal,
+  Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SpotlightCard } from '@/components/ui/spotlight-card';
@@ -115,6 +120,9 @@ const TaskListItem = ({
   onDelete: (e: React.MouseEvent) => void;
   isDeleting: boolean;
 }) => {
+  const actionType = trigger.action_type ?? 'prompt';
+  const actionIcon = actionType === 'command' ? <Terminal className="h-3 w-3" /> : actionType === 'http' ? <Globe className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />;
+
   return (
     <SpotlightCard
       className={cn(
@@ -131,14 +139,17 @@ const TaskListItem = ({
             <div className="flex items-center gap-2 mb-0.5">
               <h3 className="font-medium text-foreground truncate">{trigger.name}</h3>
               <Badge variant={trigger.isActive ? "highlight" : "secondary"} className="text-xs">
-                {trigger.type === 'cron' ? (trigger.isActive ? 'Active' : 'Paused') : 'Webhook'}
+                {trigger.isActive ? 'Active' : 'Paused'}
               </Badge>
-              <Badge variant="outline" className="text-xs capitalize">{trigger.sourceType}</Badge>
+              <Badge variant="outline" className="text-xs flex items-center gap-1">
+                {actionIcon}
+                <span className="capitalize">{actionType}</span>
+              </Badge>
             </div>
             <p className="text-sm text-muted-foreground truncate">
               {trigger.type === 'cron'
                 ? `${describeCron(trigger.cronExpr || '')} · ${trigger.timezone}`
-                : `${trigger.webhook?.method || 'POST'} ${trigger.webhook?.path || ''}`}
+                : `POST ${trigger.webhook?.path || ''}`}
             </p>
           </div>
         </div>
@@ -155,21 +166,20 @@ const TaskListItem = ({
               </div>
             )}
           </div>
-          {trigger.editable && (
-          <button
+          <Button
             onClick={onDelete}
             disabled={isDeleting}
+            variant="ghost"
+            size="icon-sm"
             className={cn(
-              "p-2 rounded-lg transition-all",
               "opacity-0 group-hover:opacity-100 focus:opacity-100",
               "text-muted-foreground hover:text-red-500 hover:bg-red-500/10",
               isDeleting && "opacity-100 text-red-500"
             )}
-            title="Delete task"
+            title="Delete trigger"
           >
             <Trash2 className="h-4 w-4" />
-          </button>
-          )}
+          </Button>
         </div>
       </div>
     </SpotlightCard>
@@ -183,7 +193,7 @@ const EmptyState = ({ onCreateClick }: { onCreateClick: () => void }) => (
     </div>
     <h3 className="text-base font-semibold text-foreground mb-2">Create a trigger</h3>
     <p className="text-sm text-muted-foreground text-center max-w-sm mb-6">
-      Automate your agent with triggers. Create cron runs here, and inspect agent-defined webhook triggers in one place.
+      Automate with triggers. Schedule cron jobs, set up webhooks, run commands, or call HTTP endpoints — all from one place.
     </p>
     <Button onClick={onCreateClick} size="sm">
       <Plus className="h-4 w-4 mr-2" />
@@ -216,6 +226,7 @@ export function ScheduledTasksPage() {
   const [selectedTrigger, setSelectedTrigger] = useState<Trigger | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'cron' | 'webhook'>('all');
   const deleteMutation = useDeleteTrigger();
 
   const panelOpen = !!selectedTrigger;
@@ -225,6 +236,10 @@ export function ScheduledTasksPage() {
       if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
+
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter((t) => t.type === typeFilter);
+    }
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -238,7 +253,7 @@ export function ScheduledTasksPage() {
     }
 
     return filtered;
-  }, [triggers, searchQuery]);
+  }, [triggers, searchQuery, typeFilter]);
 
   const handleTriggerClick = (trigger: Trigger) => {
     if (selectedTrigger?.id === trigger.id) {
@@ -258,11 +273,11 @@ export function ScheduledTasksPage() {
 
   const handleDelete = async (e: React.MouseEvent, trigger: Trigger) => {
     e.stopPropagation();
-    if (!trigger.triggerId) return;
+    if (!trigger.id) return;
     if (!confirm(`Delete "${trigger.name}"? This cannot be undone.`)) return;
     try {
-      await deleteMutation.mutateAsync(trigger.triggerId);
-      toast.success('Task deleted');
+      await deleteMutation.mutateAsync(trigger.id);
+      toast.success('Trigger deleted');
       if (selectedTrigger?.id === trigger.id) {
         setSelectedTrigger(null);
       }
@@ -306,10 +321,10 @@ export function ScheduledTasksPage() {
       {/* Hero / PageHeader — collapses when panel is open */}
       <div
         className={cn(
-          "overflow-hidden transition-all duration-500 ease-in-out",
+          "overflow-hidden transition-colors duration-500 ease-in-out",
           panelOpen
             ? "max-h-0 opacity-0 py-0"
-            : "max-h-[300px] opacity-100 py-4 sm:py-8"
+            : "max-h-[300px] opacity-100 py-3 sm:py-4"
         )}
       >
         <div className="container mx-auto max-w-7xl px-3 sm:px-4">
@@ -334,27 +349,33 @@ export function ScheduledTasksPage() {
 
         {/* Main Content */}
         <div className="h-full flex flex-col overflow-hidden 2xl:flex-1 relative z-0">
-          {/* Search + Create */}
+          {/* Search + Filter + Create */}
           <div className="container mx-auto max-w-7xl px-3 sm:px-4">
             <div className="flex items-center justify-between gap-2 sm:gap-4 pb-3 sm:pb-4 pt-2 sm:pt-3">
-              <div className="flex-1 max-w-md">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search triggers..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-9 sm:h-10 w-full rounded-xl border border-input bg-background px-8 sm:px-10 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  />
-                  <div className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                    <Search className="h-4 w-4" />
-                  </div>
-                </div>
+              <div className="flex-1 flex items-center gap-2">
+                <PageSearchBar
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder="Search triggers..."
+                  className="max-w-md"
+                />
+                <FilterBar className="hidden sm:inline-flex">
+                  {(['all', 'cron', 'webhook'] as const).map((f) => (
+                    <FilterBarItem
+                      key={f}
+                      value={f}
+                      onClick={() => setTypeFilter(f)}
+                      data-state={typeFilter === f ? 'active' : 'inactive'}
+                      className="capitalize"
+                    >
+                      {f}
+                    </FilterBarItem>
+                  ))}
+                </FilterBar>
               </div>
               <Button
                 variant="default"
-                size="sm"
-                className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl gap-1.5 sm:gap-2 text-sm"
+                size="default"
                 onClick={() => setShowCreateDialog(true)}
               >
                 <Plus className="h-4 w-4" />
@@ -392,7 +413,7 @@ export function ScheduledTasksPage() {
         {/* Detail Panel */}
         <div
           className={cn(
-            "h-screen transition-all duration-300 ease-in-out bg-background",
+            "h-screen transition-colors duration-300 ease-in-out bg-background",
             "fixed 2xl:relative top-0 right-0",
             "z-40 2xl:z-auto",
             selectedTrigger ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden",

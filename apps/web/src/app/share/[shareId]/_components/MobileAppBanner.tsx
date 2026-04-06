@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,8 @@ interface MobileAppBannerProps {
 }
 
 export function MobileAppBanner({ shareId }: MobileAppBannerProps) {
+  // Mobile app banner disabled — mobile users go through normal auth flow
+  return null;
   const [isMobile, setIsMobile] = useState(false);
   const [platform, setPlatform] = useState<'ios' | 'android' | null>(null);
   const [isDismissed, setIsDismissed] = useState(false);
@@ -71,9 +74,9 @@ export function MobileAppBanner({ shareId }: MobileAppBannerProps) {
 
   return (
     <div
-      className={`fixed top-0 left-0 right-0 z-50 transform transition-transform duration-300 ease-out ${
+      className={cn('fixed top-0 left-0 right-0 z-50 transform transition-transform duration-300 ease-out', 
         isVisible ? 'translate-y-0' : '-translate-y-full'
-      }`}
+      )}
     >
       <div className="bg-background/95 backdrop-blur-md border-b border-border/50 px-3 py-2.5 safe-area-top">
         <div className="flex items-center gap-3">
@@ -96,7 +99,7 @@ export function MobileAppBanner({ shareId }: MobileAppBannerProps) {
           <Button
             onClick={handleOpenInApp}
             size="sm"
-            className="h-8 px-4 text-xs"
+            className="px-4 text-xs"
           >
             Open
           </Button>

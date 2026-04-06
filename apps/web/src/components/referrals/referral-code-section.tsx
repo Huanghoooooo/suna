@@ -73,7 +73,7 @@ export function ReferralCodeSection({ referralCode, isLoading }: ReferralCodeSec
         </label>
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Input
+            <Input type="text"
               value={referralCode?.referral_url || ''}
               readOnly
               className="text-xs sm:text-sm font-mono pr-10"

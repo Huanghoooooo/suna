@@ -22,7 +22,6 @@ export interface ListeningProcess {
 const EXCLUDED_PORTS = new Set([
   config.PORT,                    // Kortix Master itself (8000)
   4096,                           // OpenCode API
-  3111,                           // OpenCode UI
   6080,                           // Desktop VNC
   6081,                           // Desktop VNC HTTPS
   3210,                           // Presentation viewer

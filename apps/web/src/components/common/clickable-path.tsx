@@ -6,6 +6,20 @@ import { cn } from '@/lib/utils';
 import { splitTextByPaths } from '@/lib/utils/path-detection';
 import { useFilePreviewStore } from '@/stores/file-preview-store';
 import { openTabAndNavigate } from '@/stores/tab-store';
+import { toast } from '@/lib/toast';
+
+// ---------------------------------------------------------------------------
+// Path validation
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if a file path is absolute (starts with /).
+ * Relative paths are rejected — they resolve to wrong locations in the sandbox
+ * and would show empty file content to the user.
+ */
+function isAbsolutePath(filePath: string): boolean {
+  return filePath.startsWith('/');
+}
 
 // ---------------------------------------------------------------------------
 // ClickablePath — renders a single file path as a clickable element
@@ -41,6 +55,12 @@ export function ClickablePath({
       e.preventDefault();
       e.stopPropagation();
 
+      // Reject relative paths — they resolve to wrong locations and show empty files
+      if (!isAbsolutePath(filePath)) {
+        toast.error(`Cannot open relative path: ${filePath}`);
+        return;
+      }
+
       // Ctrl/Cmd + Click → open in new tab (navigates)
       if (e.metaKey || e.ctrlKey) {
         const fileName = filePath.split('/').pop() || filePath;
@@ -63,6 +83,12 @@ export function ClickablePath({
     (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+
+      if (!isAbsolutePath(filePath)) {
+        toast.error(`Cannot open relative path: ${filePath}`);
+        return;
+      }
+
       const fileName = filePath.split('/').pop() || filePath;
       openTabAndNavigate({
         id: `file:${filePath}`,
@@ -74,17 +100,23 @@ export function ClickablePath({
     [filePath],
   );
 
-  const title = lineNumber
-    ? `${filePath}:${lineNumber}${column ? `:${column}` : ''} — Click to preview, Ctrl/Cmd+Click to open in tab`
-    : `${filePath} — Click to preview, Ctrl/Cmd+Click to open in tab`;
+  const isRelative = !isAbsolutePath(filePath);
+
+  const title = isRelative
+    ? `${filePath} — Relative path (cannot open)`
+    : lineNumber
+      ? `${filePath}:${lineNumber}${column ? `:${column}` : ''} — Click to preview, Ctrl/Cmd+Click to open in tab`
+      : `${filePath} — Click to preview, Ctrl/Cmd+Click to open in tab`;
 
   if (variant === 'terminal') {
     return (
       <span
         className={cn(
-          'cursor-pointer underline decoration-dotted decoration-1 underline-offset-2',
-          'text-blue-400 hover:text-blue-300 dark:text-blue-400 dark:hover:text-blue-300',
+          'underline decoration-dotted decoration-1 underline-offset-2',
           'transition-colors inline-flex items-center gap-0.5 group/path',
+          isRelative
+            ? 'text-muted-foreground/70 cursor-not-allowed'
+            : 'cursor-pointer text-blue-400 hover:text-blue-300 dark:text-blue-400 dark:hover:text-blue-300',
           className,
         )}
         onClick={handleClick}
@@ -96,10 +128,12 @@ export function ClickablePath({
         {lineNumber && (
           <span className="text-blue-400/60">:{lineNumber}{column ? `:${column}` : ''}</span>
         )}
-        <ExternalLink
-          className="size-2.5 opacity-0 group-hover/path:opacity-60 transition-opacity inline-block flex-shrink-0"
-          onClick={handleOpenNewTab}
-        />
+        {!isRelative && (
+          <ExternalLink
+            className="size-2.5 opacity-0 group-hover/path:opacity-60 transition-opacity inline-block flex-shrink-0"
+            onClick={handleOpenNewTab}
+          />
+        )}
       </span>
     );
   }
@@ -108,10 +142,12 @@ export function ClickablePath({
   return (
     <span
       className={cn(
-        'cursor-pointer',
-        'text-foreground hover:text-blue-600 dark:hover:text-blue-400',
-        'underline decoration-dotted decoration-blue-400/40 hover:decoration-blue-500/70 underline-offset-2 decoration-1',
-        'transition-colors inline-flex items-center gap-0.5 group/path',
+        'inline-flex items-center gap-0.5 group/path',
+        'underline decoration-dotted underline-offset-2 decoration-1',
+        isRelative
+          ? 'text-muted-foreground/70 decoration-muted-foreground/30 cursor-not-allowed'
+          : 'cursor-pointer text-foreground hover:text-blue-600 dark:hover:text-blue-400 decoration-blue-400/40 hover:decoration-blue-500/70',
+        'transition-colors',
         className,
       )}
       onClick={handleClick}
@@ -123,10 +159,12 @@ export function ClickablePath({
       {lineNumber && (
         <span className="text-muted-foreground">:{lineNumber}{column ? `:${column}` : ''}</span>
       )}
-      <ExternalLink
-        className="size-2.5 opacity-0 group-hover/path:opacity-50 transition-opacity inline-block flex-shrink-0"
-        onClick={handleOpenNewTab}
-      />
+      {!isRelative && (
+        <ExternalLink
+          className="size-2.5 opacity-0 group-hover/path:opacity-50 transition-opacity inline-block flex-shrink-0"
+          onClick={handleOpenNewTab}
+        />
+      )}
     </span>
   );
 }
@@ -263,6 +301,14 @@ export function wrapChildrenWithPaths(
         (el.type === 'code' || el.type === 'a' || el.type === 'pre')
       ) {
         return child;
+      }
+      // For custom (non-native) components (e.g. Streamdown's code/a/pre
+      // overrides), don't recurse if children is a string that looks like a
+      // URL — those components handle their own URL/path rendering.
+      if (typeof el.type !== 'string' && typeof el.props.children === 'string') {
+        if (/^[a-z][a-z0-9+.-]*:\/\//i.test(el.props.children.trim())) {
+          return child;
+        }
       }
       // Recurse
       if (el.props.children) {

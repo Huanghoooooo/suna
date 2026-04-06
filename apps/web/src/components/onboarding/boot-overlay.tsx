@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const SYMBOL =
@@ -102,7 +103,7 @@ export function BootOverlay({ onComplete }: BootOverlayProps) {
                   transition={{ duration: 0.04 }}
                   className={
                     line.bold
-                      ? 'text-foreground font-bold mb-2 tracking-wide'
+                      ? 'text-foreground font-semibold mb-2 tracking-wide'
                       : line.text === ''
                         ? 'h-3'
                         : 'text-foreground/70'
@@ -160,14 +161,13 @@ export function BootOverlay({ onComplete }: BootOverlayProps) {
               </svg>
               <div className="mt-10 w-44 sm:w-52 h-px bg-foreground/[0.06] overflow-hidden">
                 <div
-                  className="h-full bg-foreground/30"
-                  style={{
-                    width: progressFill ? '100%' : '0%',
-                    transition: progressFill
-                      ? 'width 2.5s cubic-bezier(0.4, 0, 0.2, 1)'
-                      : 'none',
-                  }}
-                />
+                   className={cn("h-full bg-foreground/30", progressFill ? "w-full" : "w-0")}
+                   style={{
+                     transition: progressFill
+                       ? 'width 2.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                       : 'none',
+                   }}
+                 />
               </div>
             </motion.div>
           </motion.div>

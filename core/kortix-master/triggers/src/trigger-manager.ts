@@ -1,674 +1,540 @@
-import { watch, type FSWatcher } from "node:fs"
-import path from "node:path"
-import type { MinimalOpenCodeClient, AgentTriggersPluginOptions, CronTriggerConfig, DiscoveredAgent, TriggerSyncResult, WebhookDispatchResult, WebhookTriggerConfig, CronTriggerRecord, EventListenerRecord } from "./types.js"
-import { CronClient } from "./cron-client.js"
-import { CronManager } from "./cron-manager.js"
-import { CronStoreSqlite } from "./cron-store-sqlite.js"
-import { ListenerStore } from "./listener-store.js"
-import { discoverAgentsWithTriggers, resolveAgentPaths } from "./parser.js"
+/**
+ * TriggerManager — Unified orchestration for the trigger system.
+ *
+ * Wires together: TriggerStore (DB), TriggerYaml (file sync),
+ * CronScheduler (croner jobs), WebhookServer (HTTP), ActionDispatcher (execution).
+ */
+import { Cron } from "croner"
+import { TriggerStore, getNextRun } from "./trigger-store.js"
+import { TriggerYaml } from "./trigger-yaml.js"
+import { ActionDispatcher, type DispatchEvent } from "./action-dispatch.js"
 import { WebhookTriggerServer, type WebhookRoute } from "./webhook-server.js"
+import type { MinimalOpenCodeClient, TriggerPluginOptions, TriggerRecord, TriggerSyncResult, CronSourceConfig, WebhookSourceConfig } from "./types.js"
 
 const KORTIX_MASTER_URL = "http://localhost:8000"
 
-function parseModel(modelId?: string): { providerID: string; modelID: string } | undefined {
-  if (!modelId) return undefined
-  const [providerID, ...rest] = modelId.split("/")
-  if (!providerID || rest.length === 0) return { providerID: "kortix", modelID: modelId }
-  return { providerID, modelID: rest.join("/") }
-}
-
-function getPathValue(input: unknown, path: string): unknown {
-  return path.split(".").reduce<unknown>((current, part) => {
-    if (current === null || current === undefined || typeof current !== "object") return undefined
-    return (current as Record<string, unknown>)[part]
-  }, input)
-}
-
-function renderPrompt(template: string, values: Record<string, unknown>): string {
-  return template.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_, key: string) => {
-    const value = values[key]
-    if (value === null || value === undefined) return ""
-    if (typeof value === "string") return value
-    return JSON.stringify(value)
-  })
-}
-
 export class TriggerManager {
-  private readonly cronClient: CronClient
-  private readonly cronManager: CronManager
+  private readonly store: TriggerStore
+  private readonly yamlSync: TriggerYaml
+  private readonly dispatcher: ActionDispatcher
   private readonly webhookServer: WebhookTriggerServer
-  private readonly listenerStore: ListenerStore
-  private discovered: DiscoveredAgent[] = []
-  private readonly reusedSessions = new Map<string, string>()
+  private readonly cronJobs = new Map<string, Cron>()
   private started = false
-  private watchers: FSWatcher[] = []
-  private syncDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
     private readonly client: MinimalOpenCodeClient,
-    private readonly options: AgentTriggersPluginOptions = {},
+    private readonly options: TriggerPluginOptions = {},
   ) {
+    const directory = options.directory ?? process.cwd()
+    const dbPath = this.resolveDbPath(directory)
+
+    this.store = new TriggerStore(dbPath)
+    this.yamlSync = new TriggerYaml(
+      this.store,
+      directory,
+      options.logger,
+      () => this.rebuildRuntime(), // callback after YAML sync
+    )
+    this.dispatcher = new ActionDispatcher(this.store, client, directory, options.logger)
+
     const host = options.webhookHost ?? "0.0.0.0"
     const port = options.webhookPort ?? 8099
-    // Store trigger state in .kortix/ (persisted across container restarts)
-    const stateDir = path.join(options.directory ?? process.cwd(), ".kortix", "agent-triggers")
-    const dbPath = path.join(stateDir, "triggers.sqlite")
-    const listenerStatePath = options.listenerStatePath ?? path.join(stateDir, "listener-state.json")
-
-    const cronStore = new CronStoreSqlite(dbPath)
-    this.cronManager = new CronManager(cronStore, (trigger, event) => this.dispatchCron(trigger, event))
-    this.cronClient = new CronClient(this.cronManager)
-    this.listenerStore = new ListenerStore(listenerStatePath)
     this.webhookServer = new WebhookTriggerServer(host, port, (route, payload) => this.dispatchWebhook(route, payload))
+    // Pipedream handler: route events from Pipedream through the webhook server
     this.webhookServer.setPipedreamHandler((listenerId, payload) => this.dispatchPipedreamEvent(listenerId, payload))
+  }
+
+  private resolveDbPath(directory: string): string {
+    // Use the central kortix.db if it exists, otherwise create in .kortix/
+    const centralDb = `${directory}/.kortix/kortix.db`
+    return centralDb
   }
 
   private log(level: "info" | "warn" | "error", message: string): void {
     this.options.logger?.(level, message)
   }
 
-  // JSON store removed — SQLite (bun:sqlite) is the only backend.
+  // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
-  public getPublicBaseUrl(): string {
-    return this.options.publicBaseUrl ?? `http://localhost:${this.options.webhookPort ?? 8099}`
-  }
+  async start(): Promise<TriggerSyncResult> {
+    if (this.started) return { total: 0, created: 0, updated: 0, removed: 0, details: [] }
+    this.started = true
 
-  public async start(): Promise<TriggerSyncResult> {
-    if (!this.started) {
-      this.cronManager.start()
-      await this.webhookServer.start()
-      this.watchAgentDirs()
-      this.started = true
-    }
+    // Run migration from old system if needed
+    await this.migrateFromOldSystem()
+
+    // Sync from YAML → DB
+    let syncResult: TriggerSyncResult
     try {
-      return await this.sync()
+      syncResult = this.yamlSync.syncFromYaml()
     } catch (err) {
-      // Don't let agent-markdown parse errors prevent the plugin from loading.
-      // The webhook server and cron scheduler are already running — tools should
-      // still be available for manual listener management.
-      this.log("error", `[agent-triggers] Initial sync failed (tools still available): ${err instanceof Error ? err.message : String(err)}`)
-      return {
-        discoveredAgents: 0,
-        cronRegistered: 0,
-        cronUpdated: 0,
-        cronRemoved: 0,
-        webhookRegistered: 0,
-        pipedreamDeployed: 0,
-        pipedreamUpdated: 0,
-        pipedreamRemoved: 0,
-        details: [`Initial sync error: ${err instanceof Error ? err.message : String(err)}`],
-      }
+      this.log("error", `[triggers] Initial YAML sync failed: ${err instanceof Error ? err.message : String(err)}`)
+      syncResult = { total: 0, created: 0, updated: 0, removed: 0, details: [`Sync error: ${err instanceof Error ? err.message : String(err)}`] }
     }
+
+    // Start runtimes
+    this.rebuildRuntime()
+    await this.webhookServer.start()
+    this.yamlSync.startWatching()
+
+    this.log("info", `[triggers] Started: ${syncResult.total} triggers, ${this.cronJobs.size} cron jobs`)
+    return syncResult
   }
 
-  public async stop(): Promise<void> {
-    this.cronManager.stop()
+  async stop(): Promise<void> {
+    this.yamlSync.stopWatching()
+    for (const job of this.cronJobs.values()) job.stop()
+    this.cronJobs.clear()
     await this.webhookServer.stop()
-    this.unwatchAgentDirs()
     this.started = false
   }
 
-  /**
-   * Watch all agent directories for file changes (add/remove/modify .md files).
-   * Debounces re-sync to avoid thrashing on rapid saves.
-   */
-  private watchAgentDirs(): void {
-    this.unwatchAgentDirs()
-    for (const dirPath of resolveAgentPaths(this.options)) {
-      try {
-        const watcher = watch(dirPath, { persistent: false }, (_event, filename) => {
-          if (filename && !filename.endsWith(".md")) return
-          this.debouncedSync()
-        })
-        this.watchers.push(watcher)
-        this.log("info", `[agent-triggers] Watching ${dirPath} for agent changes`)
-      } catch {
-        // Directory may not exist yet — that's fine
+  // ─── Runtime rebuild (after YAML sync or config change) ───────────────────
+
+  private rebuildRuntime(): void {
+    // Stop all existing cron jobs
+    for (const job of this.cronJobs.values()) job.stop()
+    this.cronJobs.clear()
+
+    // Schedule active cron triggers
+    const triggers = this.store.list({ is_active: true })
+    for (const trigger of triggers) {
+      if (trigger.source_type === "cron") {
+        this.scheduleCron(trigger)
       }
     }
+
+    // Rebuild webhook routes
+    this.rebuildWebhookRoutes()
   }
 
-  private unwatchAgentDirs(): void {
-    for (const watcher of this.watchers) {
-      try { watcher.close() } catch {}
-    }
-    this.watchers = []
-  }
+  private scheduleCron(trigger: TriggerRecord): void {
+    const sc = JSON.parse(trigger.source_config) as CronSourceConfig
+    if (!sc.cron_expr) return
 
-  private debouncedSync(): void {
-    if (this.syncDebounceTimer) clearTimeout(this.syncDebounceTimer)
-    this.syncDebounceTimer = setTimeout(() => {
-      this.syncDebounceTimer = null
-      this.sync().catch((err) => {
-        this.log("error", `[agent-triggers] Auto-sync failed: ${err instanceof Error ? err.message : String(err)}`)
-      })
-    }, 1000)
-  }
-
-  public discover(): DiscoveredAgent[] {
     try {
-      this.discovered = discoverAgentsWithTriggers(this.options)
+      const job = new Cron(sc.cron_expr, { timezone: sc.timezone ?? "UTC" }, async () => {
+        await this.dispatcher.dispatch(trigger.id, {
+          type: "cron.tick",
+          manual: false,
+          timestamp: new Date().toISOString(),
+        })
+      })
+      this.cronJobs.set(trigger.id, job)
     } catch (err) {
-      this.log("error", `[agent-triggers] Agent discovery failed: ${err instanceof Error ? err.message : String(err)}`)
-      this.discovered = []
+      this.log("error", `[triggers] Failed to schedule cron ${trigger.name}: ${err instanceof Error ? err.message : String(err)}`)
     }
-    return this.discovered
   }
 
-  // ─── Webhook dispatch (existing) ────────────────────────────────────────────
+  private rebuildWebhookRoutes(): void {
+    const triggers = this.store.list({ source_type: "webhook", is_active: true })
+    const routes: WebhookRoute[] = []
 
-  private buildExecutionText(route: WebhookRoute, payload: { body: string; headers: Record<string, string>; method: string; path: string }): string {
-    const parsedBody = (() => {
-      try {
-        return JSON.parse(payload.body)
-      } catch {
-        return payload.body
+    for (const trigger of triggers) {
+      const sc = JSON.parse(trigger.source_config) as WebhookSourceConfig
+      const ac = JSON.parse(trigger.action_config) as Record<string, unknown>
+      const ctx = JSON.parse(trigger.context_config || "{}") as Record<string, unknown>
+
+      const route: WebhookRoute = {
+        agentName: trigger.agent_name ?? "kortix",
+        trigger: {
+          name: trigger.name,
+          source: {
+            type: "webhook" as const,
+            path: sc.path,
+            method: sc.method,
+            secret: sc.secret,
+          },
+          execution: {
+            prompt: (ac.prompt as string) ?? "",
+            agentName: trigger.agent_name ?? undefined,
+            modelId: trigger.model_id ?? undefined,
+            sessionMode: trigger.session_mode === "reuse" ? "reuse" : "new",
+          },
+          context: (ctx.extract || ctx.include_raw !== undefined) ? {
+            extract: ctx.extract as Record<string, string>,
+            includeRaw: ctx.include_raw as boolean,
+          } : undefined,
+        },
       }
+      routes.push(route)
+    }
+
+    this.webhookServer.setRoutes(routes)
+  }
+
+  // ─── Webhook dispatch ─────────────────────────────────────────────────────
+
+  private async dispatchWebhook(route: any, payload: { body: string; headers: Record<string, string>; method: string; path: string }): Promise<{ sessionId: string }> {
+    // Find the trigger by webhook path
+    const triggers = this.store.list({ source_type: "webhook" })
+    const trigger = triggers.find((t) => {
+      const sc = JSON.parse(t.source_config) as WebhookSourceConfig
+      return sc.path === payload.path || sc.path === route.trigger.source.path
+    })
+
+    if (!trigger) {
+      throw new Error(`No trigger found for webhook path: ${payload.path}`)
+    }
+
+    const parsedBody = (() => {
+      try { return JSON.parse(payload.body) } catch { return payload.body }
     })()
-    const event = {
+
+    // ── Channel webhook pre-processing ──────────────────────────────────
+    // If the path matches /hooks/telegram/* or /hooks/slack/*, use the
+    // channel-webhooks parsers to normalize the payload and inject
+    // _channel_prompt and _session_key into the event data.
+    const channelData = this.processChannelWebhook(payload.path, parsedBody)
+    if (channelData?.skip) {
+      // Slack challenge or bot message — don't dispatch
+      return { sessionId: channelData.challengeResponse ?? "skipped" }
+    }
+
+    const result = await this.dispatcher.dispatch(trigger.id, {
       type: "webhook.request",
-      trigger: route.trigger.name,
-      agent: route.agentName,
+      manual: false,
+      timestamp: new Date().toISOString(),
       data: {
         method: payload.method,
         path: payload.path,
         headers: payload.headers,
         body: parsedBody,
-      },
-    }
-
-    const extracted: Record<string, unknown> = {}
-    for (const [key, path] of Object.entries(route.trigger.context?.extract ?? {})) {
-      extracted[key] = getPathValue(event, path)
-    }
-
-    const sections = [renderPrompt(route.trigger.execution.prompt, extracted)]
-    if (Object.keys(extracted).length > 0) {
-      sections.push("", "<trigger_context_values>", JSON.stringify(extracted, null, 2), "</trigger_context_values>")
-    }
-    if (route.trigger.context?.includeRaw !== false) {
-      sections.push("", "<trigger_event>", JSON.stringify(event, null, 2), "</trigger_event>")
-    }
-    return sections.join("\n")
-  }
-
-  private buildCronExecutionText(trigger: CronTriggerRecord, event: { type: "cron.tick"; manual: boolean; timestamp: string }): string {
-    const normalizedEvent = {
-      type: event.type,
-      trigger: trigger.name,
-      data: {
-        timestamp: event.timestamp,
-        manual: event.manual,
-      },
-    }
-    return [
-      trigger.prompt,
-      "",
-      "<trigger_event>",
-      JSON.stringify(normalizedEvent, null, 2),
-      "</trigger_event>",
-    ].join("\n")
-  }
-
-  private async dispatchCron(trigger: CronTriggerRecord, event: { type: "cron.tick"; manual: boolean; timestamp: string }): Promise<{ sessionId: string; response: { accepted: true } }> {
-    const reuseKey = `${trigger.name}`
-    let sessionId = trigger.session_mode === "reuse" ? this.reusedSessions.get(reuseKey) ?? trigger.session_id ?? undefined : undefined
-
-    if (!sessionId) {
-      const created = await this.client.session.create({
-        body: {
-          directory: this.options.directory,
-          title: trigger.name,
-        },
-      }) as { data?: { id: string }; id?: string }
-      sessionId = created.data?.id ?? created.id
-      if (!sessionId) throw new Error("session.create did not return an id")
-      if (trigger.session_mode === "reuse") this.reusedSessions.set(reuseKey, sessionId)
-    }
-
-    await this.client.session.promptAsync({
-      path: { id: sessionId },
-      body: {
-        agent: trigger.agent_name ?? undefined,
-        model: parseModel(trigger.model_id),
-        parts: [{ type: "text", text: this.buildCronExecutionText(trigger, event) }],
+        // Channel-specific fields injected for prompt-action template rendering
+        ...(channelData?.eventData ?? {}),
       },
     })
 
-    return { sessionId, response: { accepted: true } }
+    return { sessionId: result.sessionId ?? "unknown" }
   }
 
-  private async dispatchWebhook(route: WebhookRoute, payload: { body: string; headers: Record<string, string>; method: string; path: string }): Promise<WebhookDispatchResult> {
-    const reuseKey = `${route.agentName}:${route.trigger.name}`
-    let sessionId = route.trigger.execution.sessionMode === "reuse" ? this.reusedSessions.get(reuseKey) : undefined
+  /** Slack event dedup cache */
+  private slackSeenEvents = new Map<string, number>()
+  private static SLACK_DEDUP_MAX = 200
+  private static SLACK_DEDUP_TTL = 5 * 60 * 1000 // 5 min
 
-    if (!sessionId) {
-      const created = await this.client.session.create({
-        body: {
-          directory: this.options.directory,
-          title: `${route.agentName}:${route.trigger.name}`,
+  private processChannelWebhook(path: string, body: any): { skip?: boolean; challengeResponse?: string; eventData?: Record<string, unknown> } | null {
+    // ── Telegram: /hooks/telegram/<configId> ──
+    const tgMatch = path.match(/^\/hooks\/telegram\/(.+)$/)
+    if (tgMatch) {
+      const { parseTelegramUpdate } = require("./channel-webhooks") as typeof import("./channel-webhooks")
+      const configId = tgMatch[1]!
+      const normalized = parseTelegramUpdate(body, configId)
+      if (!normalized) return { skip: true }
+      return {
+        eventData: {
+          _channel_prompt: normalized.prompt,
+          _session_key: normalized.session_key,
+          _channel_platform: "telegram",
+          _channel_event_type: normalized.event_type,
+          _channel_user_id: normalized.user_id,
+          _channel_chat_id: normalized.chat_id,
         },
-      }) as { data?: { id: string }; id?: string }
-      sessionId = created.data?.id ?? created.id
-      if (!sessionId) throw new Error("session.create did not return an id")
-      if (route.trigger.execution.sessionMode === "reuse") this.reusedSessions.set(reuseKey, sessionId)
+      }
     }
 
-    const bodyText = this.buildExecutionText(route, payload)
+    // ── Slack: /hooks/slack/<configId> ──
+    const slackMatch = path.match(/^\/hooks\/slack\/(.+)$/)
+    if (slackMatch) {
+      const { parseSlackEvent } = require("./channel-webhooks") as typeof import("./channel-webhooks")
+      const configId = slackMatch[1]!
+      // Bot user ID from env (needed for mention stripping)
+      const botUserId = process.env.SLACK_BOT_USER_ID || "UNKNOWN_BOT"
 
-    await this.client.session.promptAsync({
-      path: { id: sessionId },
-      body: {
-        agent: route.trigger.execution.agentName ?? route.agentName,
-        model: parseModel(route.trigger.execution.modelId),
-        parts: [{ type: "text", text: bodyText }],
-      },
-    })
+      const parsed = parseSlackEvent(body, configId, botUserId)
 
-    return { sessionId }
+      // Challenge verification
+      if (parsed.is_challenge) {
+        return { skip: true, challengeResponse: `challenge:${parsed.challenge}` }
+      }
+
+      // No dispatch event (bot message, unrecognized, etc.)
+      if (!parsed.dispatch_event) {
+        return { skip: true }
+      }
+
+      // Dedup by event_id
+      const eventId = body?.event_id
+      if (eventId) {
+        const now = Date.now()
+        if (this.slackSeenEvents.has(eventId)) {
+          return { skip: true }
+        }
+        this.slackSeenEvents.set(eventId, now)
+        // Prune old entries
+        if (this.slackSeenEvents.size > TriggerManager.SLACK_DEDUP_MAX) {
+          for (const [id, ts] of this.slackSeenEvents) {
+            if (now - ts > TriggerManager.SLACK_DEDUP_TTL) this.slackSeenEvents.delete(id)
+          }
+        }
+      }
+
+      const ev = parsed.dispatch_event
+      return {
+        eventData: {
+          _channel_prompt: ev.prompt,
+          _session_key: ev.session_key,
+          _channel_platform: "slack",
+          _channel_event_type: ev.event_type,
+          _channel_user_id: ev.user_id,
+          _channel_chat_id: ev.chat_id,
+          _channel_thread_ts: ev.thread_ts,
+        },
+      }
+    }
+
+    // Not a channel webhook — pass through
+    return null
   }
 
-  // ─── Pipedream event dispatch ───────────────────────────────────────────────
+  // ─── Pipedream event dispatch ─────────────────────────────────────────────
 
   private async dispatchPipedreamEvent(listenerId: string, payload: { body: string; headers: Record<string, string> }): Promise<{ sessionId: string } | { error: string; status: number }> {
-    const listener = this.listenerStore.get(listenerId)
-    if (!listener) {
+    // Find trigger by Pipedream-related path or by matching listener patterns
+    const triggers = this.store.list({ source_type: "webhook" })
+    const trigger = triggers.find((t) => {
+      const sc = JSON.parse(t.source_config) as WebhookSourceConfig
+      return sc.path?.includes(listenerId) || sc.path === `/events/pipedream/${listenerId}`
+    })
+
+    if (!trigger) {
       return { error: `Unknown listener: ${listenerId}`, status: 404 }
     }
-    if (!listener.isActive) {
+
+    if (!trigger.is_active) {
       return { error: `Listener is paused: ${listenerId}`, status: 403 }
     }
 
     const parsedBody = (() => {
-      try {
-        return JSON.parse(payload.body)
-      } catch {
-        return payload.body
-      }
+      try { return JSON.parse(payload.body) } catch { return payload.body }
     })()
 
-    const event = {
+    this.store.recordEvent(trigger.id)
+
+    const result = await this.dispatcher.dispatch(trigger.id, {
       type: "pipedream.event",
-      trigger: listener.name,
-      agent: listener.agentName,
-      app: listener.app,
-      componentKey: listener.componentKey,
+      manual: false,
+      timestamp: new Date().toISOString(),
       data: parsedBody,
-    }
-
-    // Extract context values
-    const extracted: Record<string, unknown> = {}
-    if (listener.context?.extract) {
-      for (const [key, extractPath] of Object.entries(listener.context.extract)) {
-        extracted[key] = getPathValue(event, extractPath as string)
-      }
-    }
-
-    // Build prompt
-    const sections = [renderPrompt(listener.prompt, { ...extracted, ...flattenEventData(parsedBody) })]
-    if (Object.keys(extracted).length > 0) {
-      sections.push("", "<trigger_context_values>", JSON.stringify(extracted, null, 2), "</trigger_context_values>")
-    }
-    sections.push("", "<trigger_event>", JSON.stringify(event, null, 2), "</trigger_event>")
-    const promptText = sections.join("\n")
-
-    // Create or reuse session
-    const reuseKey = `pipedream:${listener.agentName}:${listener.name}`
-    let sessionId = listener.sessionMode === "reuse" ? this.reusedSessions.get(reuseKey) : undefined
-
-    if (!sessionId) {
-      const created = await this.client.session.create({
-        body: {
-          directory: this.options.directory,
-          title: `${listener.agentName}:${listener.name}`,
-        },
-      }) as { data?: { id: string }; id?: string }
-      sessionId = created.data?.id ?? created.id
-      if (!sessionId) throw new Error("session.create did not return an id")
-      if (listener.sessionMode === "reuse") this.reusedSessions.set(reuseKey, sessionId)
-    }
-
-    await this.client.session.promptAsync({
-      path: { id: sessionId },
-      body: {
-        agent: listener.executionAgentName ?? listener.agentName,
-        model: parseModel(listener.modelId),
-        parts: [{ type: "text", text: promptText }],
-      },
     })
 
-    // Record event
-    this.listenerStore.recordEvent(listenerId)
-    this.log("info", `[agent-triggers] Pipedream event dispatched: listener=${listener.name} agent=${listener.agentName} session=${sessionId}`)
-
-    return { sessionId }
+    return { sessionId: result.sessionId ?? "unknown" }
   }
 
-  // ─── Listener management (for the event_triggers tool) ──────────────────────
+  // ─── Public API (used by routes + plugin tools) ───────────────────────────
 
-  /**
-   * List available triggers for an app by calling kortix-master → kortix-api → Pipedream.
-   */
-  public async listAvailableTriggers(app: string, query?: string): Promise<unknown> {
-    const params = new URLSearchParams({ app })
-    if (query) params.set("q", query)
-    const res = await fetch(`${KORTIX_MASTER_URL}/api/pipedream/triggers/available?${params.toString()}`, {
-      signal: AbortSignal.timeout(15_000),
-    })
-    if (!res.ok) {
-      const text = await res.text()
-      throw new Error(`Failed to list triggers (${res.status}): ${text}`)
-    }
-    return res.json()
+  getStore(): TriggerStore {
+    return this.store
   }
 
-  /**
-   * Deploy a new event listener.
-   * 1. Pre-create listener record (get stable ID)
-   * 2. Deploy trigger with webhook URL using that ID
-   * 3. Update record with Pipedream's deployedTriggerId
-   */
-  public async setupListener(options: {
-    name: string
-    agentName: string
-    app: string
-    componentKey: string
-    configuredProps?: Record<string, unknown>
-    prompt: string
-    context?: { extract?: Record<string, string>; includeRaw?: boolean }
-    sessionMode?: "new" | "reuse"
-    executionAgentName?: string
-    modelId?: string
-  }): Promise<EventListenerRecord> {
-    // Step 1: Pre-create listener record to get a stable ID
-    const record = this.listenerStore.create({
-      name: options.name,
-      agentName: options.agentName,
-      app: options.app,
-      componentKey: options.componentKey,
-      deployedTriggerId: "pending", // will be updated after deploy
-      configuredProps: options.configuredProps,
-      prompt: options.prompt,
-      context: options.context ? { extract: options.context.extract, includeRaw: options.context.includeRaw } : undefined,
-      sessionMode: options.sessionMode,
-      executionAgentName: options.executionAgentName,
-      modelId: options.modelId,
-      isActive: false, // will be activated after successful deploy
-      source: "manual",
-      externalUserId: "",
-      webhookUrl: "", // will be updated
-      lastEventAt: null,
-    })
-
-    // Step 2: Build webhook URL with the record's ID
-    const webhookUrl = this.buildPipedreamWebhookUrl(record.id)
-
-    // Step 3: Deploy via kortix-master → kortix-api → Pipedream
-    let deployResult: { deployedTriggerId: string; active: boolean }
-    try {
-      const res = await fetch(`${KORTIX_MASTER_URL}/api/pipedream/triggers/deploy`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          app: options.app,
-          component_key: options.componentKey,
-          configured_props: options.configuredProps ?? {},
-          webhook_url: webhookUrl,
-        }),
-        signal: AbortSignal.timeout(30_000),
-      })
-
-      if (!res.ok) {
-        // Clean up the pre-created record
-        this.listenerStore.delete(record.id)
-        const text = await res.text()
-        throw new Error(`Failed to deploy trigger (${res.status}): ${text}`)
-      }
-
-      deployResult = (await res.json()) as { deployedTriggerId: string; active: boolean }
-    } catch (err) {
-      // Clean up the pre-created record on any error
-      this.listenerStore.delete(record.id)
-      throw err
-    }
-
-    // Step 4: Update record with deploy result
-    const updated = this.listenerStore.update(record.id, {
-      deployedTriggerId: deployResult.deployedTriggerId,
-      isActive: true,
-      webhookUrl,
-    })
-
-    this.log("info", `[agent-triggers] Listener created: ${options.name} app=${options.app} trigger=${options.componentKey} id=${record.id}`)
-    return updated!
+  getYamlSync(): TriggerYaml {
+    return this.yamlSync
   }
 
-  /**
-   * Remove a listener. Calls Pipedream to delete the deployed trigger, then removes local state.
-   */
-  public async removeListener(listenerId: string): Promise<boolean> {
-    const listener = this.listenerStore.get(listenerId)
-      ?? this.listenerStore.list().find((l: EventListenerRecord) => l.name === listenerId)
-    if (!listener) return false
+  getPublicBaseUrl(): string {
+    return this.options.publicBaseUrl ?? `http://localhost:${this.options.webhookPort ?? 8099}`
+  }
 
-    // Delete from Pipedream via kortix-master
-    if (listener.deployedTriggerId && listener.deployedTriggerId !== "pending") {
+  /** Create trigger via API: write to YAML + DB, rebuild runtime */
+  createTrigger(input: Parameters<TriggerStore["create"]>[0]): TriggerRecord {
+    const trigger = this.store.create(input)
+    this.yamlSync.writeThrough()
+    this.rebuildRuntime()
+    return trigger
+  }
+
+  /** Update trigger config via API: update DB + YAML, rebuild runtime */
+  updateTrigger(id: string, patch: Parameters<TriggerStore["update"]>[1]): TriggerRecord | null {
+    const trigger = this.store.update(id, patch)
+    if (!trigger) return null
+    // Only write through to YAML for config changes, not runtime state
+    if (patch.source_config || patch.action_config || patch.name || patch.description !== undefined || patch.context_config || patch.agent_name !== undefined || patch.model_id !== undefined || patch.session_mode) {
+      this.yamlSync.writeThrough()
+    }
+    this.rebuildRuntime()
+    return trigger
+  }
+
+  /** Delete trigger: remove from DB + YAML, rebuild runtime */
+  deleteTrigger(id: string): boolean {
+    const result = this.store.delete(id)
+    if (result) {
+      this.yamlSync.writeThrough()
+      this.rebuildRuntime()
+    }
+    return result
+  }
+
+  /** Pause trigger: DB only (runtime state), rebuild cron schedule */
+  pauseTrigger(id: string): TriggerRecord | null {
+    const trigger = this.store.update(id, { is_active: false })
+    if (trigger) {
+      // Unschedule cron job
+      const job = this.cronJobs.get(id)
+      if (job) { job.stop(); this.cronJobs.delete(id) }
+      this.rebuildWebhookRoutes()
+    }
+    return trigger
+  }
+
+  /** Resume trigger: DB only (runtime state), rebuild cron schedule */
+  resumeTrigger(id: string): TriggerRecord | null {
+    const trigger = this.store.update(id, { is_active: true })
+    if (trigger) {
+      if (trigger.source_type === "cron") this.scheduleCron(trigger)
+      this.rebuildWebhookRoutes()
+    }
+    return trigger
+  }
+
+  /** Run trigger manually */
+  async runTrigger(id: string): Promise<{ executionId: string } | null> {
+    const trigger = this.store.get(id)
+    if (!trigger) return null
+    const result = await this.dispatcher.dispatch(id, {
+      type: trigger.source_type === "cron" ? "cron.tick" : "webhook.request",
+      manual: true,
+      timestamp: new Date().toISOString(),
+    })
+    return { executionId: result.executionId }
+  }
+
+  /** Force re-read YAML → DB */
+  sync(): TriggerSyncResult {
+    const result = this.yamlSync.syncFromYaml()
+    this.rebuildRuntime()
+    return result
+  }
+
+  // ─── Migration from old system ────────────────────────────────────────────
+
+  private async migrateFromOldSystem(): Promise<void> {
+    const { existsSync, readFileSync } = await import("node:fs")
+    const path = await import("node:path")
+    const directory = this.options.directory ?? process.cwd()
+    const oldDir = path.join(directory, ".kortix", "agent-triggers")
+    const migratedMarker = path.join(oldDir, ".migrated-v2")
+
+    if (existsSync(migratedMarker)) return // Already migrated
+    if (!existsSync(oldDir)) return // Nothing to migrate
+
+    this.log("info", "[triggers] Migrating from old trigger system...")
+
+    let migrated = 0
+
+    // 1. Migrate old triggers.sqlite
+    const oldSqlitePath = path.join(oldDir, "triggers.sqlite")
+    if (existsSync(oldSqlitePath)) {
       try {
-        await fetch(`${KORTIX_MASTER_URL}/api/pipedream/triggers/deployed/${listener.deployedTriggerId}`, {
-          method: "DELETE",
-          signal: AbortSignal.timeout(15_000),
-        })
-      } catch (err) {
-        this.log("warn", `[agent-triggers] Failed to delete Pipedream trigger ${listener.deployedTriggerId}: ${err}`)
-      }
-    }
-
-    this.listenerStore.delete(listener.id)
-    this.log("info", `[agent-triggers] Listener removed: ${listener.name} id=${listener.id}`)
-    return true
-  }
-
-  /**
-   * Pause a listener.
-   */
-  public async pauseListener(listenerId: string): Promise<EventListenerRecord | null> {
-    const listener = this.listenerStore.get(listenerId)
-    if (!listener) return null
-
-    if (listener.deployedTriggerId && listener.deployedTriggerId !== "pending") {
-      try {
-        await fetch(`${KORTIX_MASTER_URL}/api/pipedream/triggers/deployed/${listener.deployedTriggerId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ active: false }),
-          signal: AbortSignal.timeout(15_000),
-        })
-      } catch (err) {
-        this.log("warn", `[agent-triggers] Failed to pause Pipedream trigger ${listener.deployedTriggerId}: ${err}`)
-      }
-    }
-
-    return this.listenerStore.update(listenerId, { isActive: false })
-  }
-
-  /**
-   * Resume a listener.
-   */
-  public async resumeListener(listenerId: string): Promise<EventListenerRecord | null> {
-    const listener = this.listenerStore.get(listenerId)
-    if (!listener) return null
-
-    if (listener.deployedTriggerId && listener.deployedTriggerId !== "pending") {
-      try {
-        await fetch(`${KORTIX_MASTER_URL}/api/pipedream/triggers/deployed/${listener.deployedTriggerId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ active: true }),
-          signal: AbortSignal.timeout(15_000),
-        })
-      } catch (err) {
-        this.log("warn", `[agent-triggers] Failed to resume Pipedream trigger ${listener.deployedTriggerId}: ${err}`)
-      }
-    }
-
-    return this.listenerStore.update(listenerId, { isActive: true })
-  }
-
-  /**
-   * List all active listeners.
-   */
-  public listListeners(filter?: { agentName?: string; app?: string }): EventListenerRecord[] {
-    return this.listenerStore.list(filter)
-  }
-
-  /**
-   * Get a single listener.
-   */
-  public getListener(listenerId: string): EventListenerRecord | null {
-    return this.listenerStore.get(listenerId)
-  }
-
-  /**
-   * Build the public webhook URL that Pipedream will POST events to.
-   * Goes through: Internet → kortix-api proxy → kortix-master → port 8099
-   * From inside the sandbox, the webhook server on port 8099 handles it directly.
-   * But we need the PUBLIC URL for Pipedream. The kortix-master route at
-   * /events/pipedream/:listenerId forwards to port 8099.
-   * The actual public URL depends on the deployment — see publicBaseUrl option.
-   */
-  private buildPipedreamWebhookUrl(listenerId: string): string {
-    // For local dev, Pipedream can't reach localhost, so we use the publicBaseUrl.
-    // In production, the sandbox is reachable via the proxy.
-    // The format: {publicBaseUrl}/events/pipedream/{listenerId}
-    // publicBaseUrl should be something like https://p8000-{sandboxId}.kortix.cloud
-    const base = this.options.publicBaseUrl ?? `http://localhost:${this.options.webhookPort ?? 8099}`
-    return `${base}/events/pipedream/${listenerId}`
-  }
-
-  // ─── Sync (cron + webhook) ──────────────────────────────────────────────────
-
-  private async syncCronTriggers(agents: DiscoveredAgent[], details: string[]): Promise<{ registered: number; updated: number; removed: number }> {
-    const existing = await this.cronClient.list()
-    const desired = new Map<string, { agentName: string; trigger: CronTriggerConfig }>()
-
-    for (const agent of agents) {
-      for (const trigger of agent.triggers) {
-        if (trigger.source.type !== "cron" || trigger.enabled === false) continue
-        desired.set(`${agent.name}:${trigger.name}`, { agentName: agent.name, trigger: trigger as CronTriggerConfig })
-      }
-    }
-
-    let registered = 0
-    let updated = 0
-    let removed = 0
-    const existingByName = new Map(existing.map((item) => [item.name, item]))
-
-    for (const [name, config] of desired.entries()) {
-      const source = `agent:${config.agentName}`
-      const current = existingByName.get(name)
-      if (!current) {
-        await this.cronClient.create(name, config.trigger, source)
-        registered++
-        details.push(`registered cron ${name}`)
-        continue
-      }
-      if (
-        current.cron_expr !== config.trigger.source.expr ||
-        current.prompt !== config.trigger.execution.prompt ||
-        (current.timezone ?? "") !== (config.trigger.source.timezone ?? "") ||
-        (current.session_mode ?? "") !== (config.trigger.execution.sessionMode ?? "") ||
-        (current.model_id ?? "") !== (config.trigger.execution.modelId ?? "")
-      ) {
-        const id = current.id ?? name
-        await this.cronClient.update(id, { ...config.trigger, name }, source)
-        updated++
-        details.push(`updated cron ${name}`)
-      }
-    }
-
-    for (const item of existing) {
-      if (!item.name.includes(":")) continue
-      if (item.source && !String(item.source).startsWith("agent:")) continue
-      if (!desired.has(item.name)) {
-        const id = item.id ?? item.name
-        await this.cronClient.remove(id)
-        removed++
-        details.push(`removed stale cron ${item.name}`)
-      }
-    }
-
-    return { registered, updated, removed }
-  }
-
-  private syncWebhookRoutes(agents: DiscoveredAgent[]): number {
-    const routes: WebhookRoute[] = []
-    for (const agent of agents) {
-      for (const trigger of agent.triggers) {
-        if (trigger.source.type !== "webhook" || trigger.enabled === false) continue
-        const webhookTrigger = trigger as WebhookTriggerConfig
-        // Namespace webhook path with agent name to prevent collisions.
-        // e.g. agent "ops" with path "/inbound" → "/ops/inbound"
-        const rawPath = webhookTrigger.source.path
-        const prefixed = rawPath.startsWith(`/${agent.name}/`) || rawPath === `/${agent.name}`
-          ? rawPath
-          : `/${agent.name}${rawPath.startsWith("/") ? rawPath : `/${rawPath}`}`
-        const namespacedTrigger: WebhookTriggerConfig = {
-          ...webhookTrigger,
-          source: { ...webhookTrigger.source, path: prefixed },
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { Database } = require("bun:sqlite")
+        const oldDb = new Database(oldSqlitePath, { readonly: true })
+        const rows = oldDb.query("SELECT * FROM cron_triggers").all() as any[]
+        for (const row of rows) {
+          const existing = this.store.getByName(row.name)
+          if (existing) continue
+          this.store.create({
+            name: row.name,
+            source_type: "cron",
+            source_config: { cron_expr: row.cron_expr, timezone: row.timezone ?? "UTC" },
+            action_type: "prompt",
+            action_config: { prompt: row.prompt },
+            agent_name: row.agent_name,
+            model_id: row.model_id,
+            session_mode: row.session_mode ?? "new",
+          })
+          migrated++
         }
-        routes.push({ agentName: agent.name, trigger: namespacedTrigger })
+        oldDb.close()
+        this.log("info", `[triggers] Migrated ${migrated} cron triggers from old SQLite`)
+      } catch (err) {
+        this.log("warn", `[triggers] Failed to migrate old SQLite: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
-    this.webhookServer.setRoutes(routes)
-    return routes.length
-  }
 
-  public async sync(): Promise<TriggerSyncResult> {
-    const agents = this.discover()
-    const details: string[] = []
-    const cron = await this.syncCronTriggers(agents, details)
-    const webhookRegistered = this.syncWebhookRoutes(agents)
-    const listeners = this.listenerStore.list({ isActive: true })
-    details.push(`registered ${webhookRegistered} webhook route(s)`)
-    details.push(`${listeners.length} active Pipedream listener(s)`)
-    this.log("info", `[agent-triggers] sync complete: ${cron.registered} cron created, ${cron.updated} cron updated, ${cron.removed} cron removed, ${webhookRegistered} webhooks, ${listeners.length} Pipedream listeners`)
-    return {
-      discoveredAgents: agents.length,
-      cronRegistered: cron.registered,
-      cronUpdated: cron.updated,
-      cronRemoved: cron.removed,
-      webhookRegistered,
-      pipedreamDeployed: 0, // only reflects this sync cycle
-      pipedreamUpdated: 0,
-      pipedreamRemoved: 0,
-      details,
+    // 2. Migrate old listener-state.json
+    const oldListenerPath = path.join(oldDir, "listener-state.json")
+    if (existsSync(oldListenerPath)) {
+      try {
+        const raw = JSON.parse(readFileSync(oldListenerPath, "utf8"))
+        const listeners = Array.isArray(raw.listeners) ? raw.listeners : []
+        for (const listener of listeners) {
+          const existing = this.store.getByName(listener.name)
+          if (existing) continue
+          this.store.create({
+            name: listener.name,
+            source_type: "webhook",
+            source_config: { path: `/events/pipedream/${listener.id}`, method: "POST" },
+            action_type: "prompt",
+            action_config: { prompt: listener.prompt },
+            agent_name: listener.agentName,
+            model_id: listener.modelId,
+            session_mode: listener.sessionMode ?? "new",
+            pipedream_app: listener.app,
+            pipedream_component: listener.componentKey,
+            pipedream_props: listener.configuredProps,
+          })
+          migrated++
+        }
+        this.log("info", `[triggers] Migrated ${listeners.length} Pipedream listeners from old JSON`)
+      } catch (err) {
+        this.log("warn", `[triggers] Failed to migrate old listeners: ${err instanceof Error ? err.message : String(err)}`)
+      }
     }
-  }
 
-  public async listState(): Promise<{ agents: DiscoveredAgent[]; cron: Awaited<ReturnType<CronClient["list"]>>; listeners: EventListenerRecord[]; publicBaseUrl: string }> {
-    return {
-      agents: this.discover(),
-      cron: await this.cronClient.list(),
-      listeners: this.listenerStore.list(),
-      publicBaseUrl: this.getPublicBaseUrl(),
+    // 3. Migrate agent YAML triggers
+    try {
+      const { discoverAgentsWithTriggers } = await import("./parser.js")
+      const agents = discoverAgentsWithTriggers({ directory, homeDir: directory })
+      for (const agent of agents) {
+        for (const trigger of agent.triggers) {
+          const fullName = `${agent.name}:${trigger.name}`
+          const existing = this.store.getByName(fullName)
+          if (existing) continue
+
+          if (trigger.source.type === "cron") {
+            this.store.create({
+              name: fullName,
+              source_type: "cron",
+              source_config: { cron_expr: trigger.source.expr, timezone: trigger.source.timezone ?? "UTC" },
+              action_type: "prompt",
+              action_config: { prompt: trigger.execution.prompt },
+              agent_name: trigger.execution.agentName ?? agent.name,
+              model_id: trigger.execution.modelId,
+              session_mode: trigger.execution.sessionMode ?? "new",
+            })
+            migrated++
+          } else if (trigger.source.type === "webhook") {
+            this.store.create({
+              name: fullName,
+              source_type: "webhook",
+              source_config: { path: trigger.source.path, method: trigger.source.method ?? "POST", secret: trigger.source.secret },
+              action_type: "prompt",
+              action_config: { prompt: trigger.execution.prompt },
+              agent_name: trigger.execution.agentName ?? agent.name,
+              model_id: trigger.execution.modelId,
+              session_mode: trigger.execution.sessionMode ?? "new",
+            })
+            migrated++
+          }
+        }
+      }
+      this.log("info", `[triggers] Migrated ${migrated} triggers from agent YAML`)
+    } catch (err) {
+      this.log("warn", `[triggers] Failed to migrate agent YAML triggers: ${err instanceof Error ? err.message : String(err)}`)
     }
-  }
 
-  public getCronClient(): CronClient {
-    return this.cronClient
-  }
+    // 4. Flush migrated state to triggers.yaml
+    if (migrated > 0) {
+      this.yamlSync.flushToYaml()
+      this.log("info", `[triggers] Flushed ${migrated} migrated triggers to triggers.yaml`)
+    }
 
-  public getListenerStore(): ListenerStore {
-    return this.listenerStore
+    // 5. Mark migration complete
+    try {
+      const { writeFileSync: wf, mkdirSync: md } = await import("node:fs")
+      md(oldDir, { recursive: true })
+      wf(migratedMarker, new Date().toISOString(), "utf8")
+    } catch {}
   }
-}
-
-/** Flatten top-level keys from event data for prompt template variables */
-function flattenEventData(data: unknown): Record<string, unknown> {
-  if (!data || typeof data !== "object" || Array.isArray(data)) return {}
-  const flat: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
-    flat[key] = value
-  }
-  return flat
 }

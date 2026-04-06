@@ -16,6 +16,8 @@ import { AnimatePresence } from 'framer-motion';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { PageSearchBar } from '@/components/ui/page-search-bar';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
 import {
 	Dialog,
 	DialogContent,
@@ -185,7 +187,7 @@ function ComponentDetailModal({
 							<Button
 								variant="outline"
 								size="sm"
-								className="h-8 px-3 text-xs"
+								className="px-3 text-xs"
 								onClick={() => component && navigator.clipboard.writeText(component.name)}
 							>
 								Copy
@@ -193,7 +195,7 @@ function ComponentDetailModal({
 							<Button
 								variant="default"
 								size="sm"
-								className="h-8 px-3 text-xs"
+								className="px-3 text-xs"
 								onClick={handleInstall}
 								disabled={!component || isInstalling || isInstalled}
 							>
@@ -315,7 +317,7 @@ function ComponentCard({
 						<Button
 							variant="default"
 							size="sm"
-							className="h-8 px-3 text-xs"
+							className="px-3 text-xs"
 							onClick={handleInstall}
 							disabled={isInstalling}
 						>
@@ -383,17 +385,14 @@ function MarketplaceEmptyState({ searchQuery, filter }: { searchQuery: string; f
 
 function FilterPill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
 	return (
-		<button
+		<Button
 			onClick={onClick}
-			className={cn(
-				'px-3 py-1.5 text-xs font-medium rounded-lg transition-all cursor-pointer border',
-				active
-					? 'bg-background text-foreground border-border/50 shadow-sm'
-					: 'text-muted-foreground hover:text-foreground bg-transparent border-transparent hover:border-border/30',
-			)}
+			variant={active ? 'outline' : 'ghost'}
+			size="sm"
+			className={cn(!active && 'text-muted-foreground hover:text-foreground')}
 		>
 			{children}
-		</button>
+		</Button>
 	);
 }
 
@@ -438,7 +437,7 @@ export function Marketplace() {
 		<>
 			<div className="flex-1 overflow-y-auto">
 				{/* Page header */}
-				<div className="container mx-auto max-w-7xl px-3 sm:px-4 py-4 sm:py-8 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both">
+				<div className="container mx-auto max-w-7xl px-3 sm:px-4 py-3 sm:py-4 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both">
 					<PageHeader icon={Sparkles}>
 						<div className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
 							<span className="text-primary">Marketplace</span>
@@ -449,30 +448,26 @@ export function Marketplace() {
 				<div className="container mx-auto max-w-7xl px-3 sm:px-4">
 					{/* Search + filter */}
 					<div className="flex items-center gap-2 pb-3 pt-1 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both delay-75">
-						<div className="relative flex-1 max-w-sm">
-							<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-							<input
-								type="text"
-								placeholder="Search components..."
-								value={search}
-								onChange={(e) => setSearch(e.target.value)}
-								className="h-9 w-full rounded-lg border border-input bg-card pl-9 pr-8 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-							/>
-							{search && (
-								<button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer">
-									<X className="h-3.5 w-3.5" />
-								</button>
-							)}
-						</div>
+						<PageSearchBar
+							value={search}
+							onChange={setSearch}
+							placeholder="Search components..."
+							className="max-w-sm"
+						/>
 
-						<div className="hidden sm:flex items-center gap-0.5 rounded-lg border border-border bg-muted/40 p-0.5">
+						<FilterBar className="hidden sm:inline-flex">
 							{FILTERS.map((f) => (
-								<FilterPill key={f.key} active={activeFilter === f.key} onClick={() => setActiveFilter(f.key)}>
+								<FilterBarItem
+									key={f.key}
+									value={f.key}
+									onClick={() => setActiveFilter(f.key)}
+									data-state={activeFilter === f.key ? 'active' : 'inactive'}
+								>
 									{f.label}
 									{counts[f.key] > 0 && <span className="ml-1 opacity-50 tabular-nums">{counts[f.key]}</span>}
-								</FilterPill>
+								</FilterBarItem>
 							))}
-						</div>
+						</FilterBar>
 
 						<select
 							value={activeFilter}

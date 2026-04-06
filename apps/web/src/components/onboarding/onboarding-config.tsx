@@ -8,6 +8,7 @@ import { WorkforceSelectionStep } from './steps/workforce-selection-step';
 import { MultiAgentConfigurationStep } from './agent-config/multi-agent-configuration';
 import { TeamInvitationStep } from './steps/team-invitation-step';
 import { CompletionStep } from './steps/completion-step';
+import { AutoTopupStep } from './steps/auto-topup-step';
 
 // Fixed onboarding steps - clean, organized flow
 export const onboardingSteps: OnboardingStep[] = [
@@ -51,6 +52,14 @@ export const onboardingSteps: OnboardingStep[] = [
   //   canSkip: true,
   //   actionLabel: 'Finish Setup'
   // },
+  {
+    id: 'auto-topup',
+    title: 'Auto Top-up',
+    description: 'Credit replenishment preference',
+    content: <AutoTopupStep />,
+    canSkip: false,
+    actionLabel: 'Continue'
+  },
   {
     id: 'completion',
     title: 'Complete',

@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from '@/lib/utils';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -123,7 +124,7 @@ export function TechnicalIssueDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="message">Message</Label>
-                <Input
+                <Input type="text"
                   id="message"
                   placeholder="e.g., We're experiencing high demand"
                   value={message}
@@ -152,14 +153,14 @@ export function TechnicalIssueDialog({
                       <div
                         key={service.id}
                         onClick={() => toggleService(service.label)}
-                        className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors text-sm ${
+                        className={cn('flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors text-sm', 
                           isSelected 
                             ? 'border-primary bg-primary/5' 
                             : 'border-border hover:border-primary/50'
-                        }`}
+                        )}
                       >
                         <Checkbox checked={isSelected} />
-                        <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                        <Icon className={cn('w-3.5 h-3.5', isSelected ? 'text-primary' : 'text-muted-foreground')} />
                         <span>{service.label}</span>
                       </div>
                     );
@@ -170,7 +171,7 @@ export function TechnicalIssueDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="resolution">Est. Resolution</Label>
-                  <Input
+                  <Input type="text"
                     id="resolution"
                     placeholder="e.g., ~2 hours"
                     value={resolution}
@@ -179,7 +180,7 @@ export function TechnicalIssueDialog({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="status-url">Status URL</Label>
-                  <Input
+                  <Input type="text"
                     id="status-url"
                     placeholder="/status"
                     value={statusUrl}

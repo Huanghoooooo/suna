@@ -66,19 +66,8 @@ function ShimmerBox({ className }: { className?: string }) {
       <div className={`absolute inset-[-50%] bg-gradient-to-br ${colorClass} blur-2xl rounded-lg`} />
       <div className="absolute inset-0 bg-zinc-100/30 dark:bg-zinc-900/30 backdrop-blur-sm rounded-lg" />
       <div
-        className="absolute inset-0 rounded-lg"
-        style={{
-          background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.4) 50%, transparent 70%)',
-          backgroundSize: '200% 100%',
-          animation: 'shimmer 1.8s ease-in-out infinite',
-        }}
+        className="absolute inset-0 rounded-lg bg-[linear-gradient(110deg,transparent_30%,rgba(255,255,255,0.4)_50%,transparent_70%)] bg-[length:200%_100%] animate-canvas-shimmer"
       />
-      <style>{`
-        @keyframes shimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}</style>
     </div>
   );
 }

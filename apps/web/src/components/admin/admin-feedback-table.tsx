@@ -119,7 +119,7 @@ export function AdminFeedbackTable() {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 gap-2"
+              className="gap-2"
               onClick={(e) => {
                 e.stopPropagation();
                 router.push(`/share/${feedback.thread_id}`);

@@ -171,11 +171,11 @@ function DeviceAuthorize() {
             <div className="flex items-center justify-between rounded-xl bg-foreground/[0.04] border border-foreground/[0.06] px-4 py-3 mb-6">
               <div className="flex items-center gap-3">
                 <div className="size-2 rounded-full bg-amber-400 animate-pulse" />
-                <span className="font-mono text-[18px] font-medium tracking-[0.15em]">
+                <span className="font-mono text-lg font-medium tracking-[0.15em]">
                   {info.deviceCode}
                 </span>
               </div>
-              <span className="text-[12px] text-foreground/30 tabular-nums font-mono">
+              <span className="text-xs text-foreground/30 tabular-nums font-mono">
                 {minutes}:{seconds.toString().padStart(2, '0')}
               </span>
             </div>
@@ -190,11 +190,11 @@ function DeviceAuthorize() {
 
             {/* Connection name */}
             <div className="mb-5">
-              <input
+              <input type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={info.machineHostname || 'Connection name'}
-                className="w-full h-11 text-[14px] bg-foreground/[0.03] border border-foreground/[0.08] rounded-xl px-3.5 shadow-none focus-visible:outline-none focus-visible:border-foreground/20 transition-colors placeholder:text-foreground/25"
+                className="w-full h-11 text-sm bg-foreground/[0.03] border border-foreground/[0.08] rounded-xl px-3.5 shadow-none focus-visible:outline-none focus-visible:border-foreground/20 transition-colors placeholder:text-foreground/25"
               />
             </div>
 
@@ -258,7 +258,7 @@ function DeviceAuthorize() {
               <button
                 onClick={handleDeny}
                 disabled={deny.isPending || approve.isPending}
-                className="w-full text-[12px] text-foreground/30 hover:text-foreground/50 transition-colors py-2"
+                className="w-full text-xs text-foreground/30 hover:text-foreground/50 transition-colors py-2"
               >
                 Deny request
               </button>
@@ -301,7 +301,7 @@ function StatusScreen({
           <h1 className="text-[28px] font-extralight tracking-tight text-foreground/80">
             {title}
           </h1>
-          <p className="text-[14px] text-foreground/50 max-w-[280px]">
+          <p className="text-sm text-foreground/50 max-w-[280px]">
             {description}
           </p>
         </div>

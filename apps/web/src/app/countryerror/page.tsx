@@ -24,7 +24,7 @@ export default function CountryError() {
           </h1>
 
           {/* Description */}
-          <p className="text-sm sm:text-[16px] text-foreground/60 text-center leading-relaxed px-2">
+          <p className="text-sm sm:text-base text-foreground/60 text-center leading-relaxed px-2">
             We're sorry, Kortix is currently unavailable in your country. We're
             working to expand our availability and hope to serve you soon.
           </p>
@@ -37,7 +37,7 @@ export default function CountryError() {
                   <Globe className="h-6 w-6 text-blue-500" />
                 </div>
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[14px] font-medium text-foreground">
+                  <span className="text-sm font-medium text-foreground">
                     Region restricted
                   </span>
                   <span className="text-[13px] text-foreground/60">

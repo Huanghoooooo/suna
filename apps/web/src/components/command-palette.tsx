@@ -48,6 +48,8 @@ import {
   useOpenCodeProviders,
 } from '@/hooks/opencode/use-opencode-sessions';
 import { toast } from '@/lib/toast';
+import { useServerStore } from '@/stores/server-store';
+import { authenticatedFetch } from '@/lib/auth-token';
 
 import { useCreateOpenCodeSession } from '@/hooks/opencode/use-opencode-sessions';
 import { openTabAndNavigate } from '@/stores/tab-store';
@@ -70,6 +72,10 @@ import {
 } from '@/components/providers/provider-branding';
 import { useWorkspaceSearch, useFilesStore } from '@/features/files';
 import { useKortixProjects, type KortixProject } from '@/hooks/kortix/use-kortix-projects';
+import { useOpenCodeMessages } from '@/hooks/opencode/use-opencode-sessions';
+import { useMessageJumpStore } from '@/stores/message-jump-store';
+import { groupMessagesIntoTurns, isTextPart, type TextPart } from '@/ui';
+import { stripKortixSystemTags } from '@/lib/utils/kortix-system-tags';
 
 import { getFileIcon } from '@/features/files/components/file-icon';
 import type { FindMatch } from '@/features/files';
@@ -86,7 +92,7 @@ import { useSandboxProxy } from '@/hooks/use-sandbox-proxy';
 // Types
 // ============================================================================
 
-type PalettePage = 'root' | 'agents' | 'models' | 'files';
+type PalettePage = 'root' | 'agents' | 'models' | 'files' | 'messages';
 
 // ============================================================================
 // Helpers
@@ -251,6 +257,89 @@ function FileSearchPage({
               {item.path}
             </span>
           </div>
+        </CommandItem>
+      ))}
+    </CommandGroup>
+  );
+}
+
+// ============================================================================
+// MessagesPage — shows user messages for jump-to-message
+// ============================================================================
+
+function MessagesPage({
+  sessionId,
+  query,
+  onSelect,
+}: {
+  sessionId: string;
+  query: string;
+  onSelect: (messageId: string) => void;
+}) {
+  const { data: messages, isLoading } = useOpenCodeMessages(sessionId);
+
+  const turns = useMemo(
+    () => (messages ? groupMessagesIntoTurns(messages) : []),
+    [messages],
+  );
+
+  const items = useMemo(() => {
+    return turns
+      .map((turn) => {
+        const textParts = turn.userMessage.parts.filter(isTextPart) as TextPart[];
+        const raw = textParts.map((p) => p.text).join(' ');
+        const stripped = stripKortixSystemTags(raw).replace(/<[^>]+>/g, '').trim();
+        return {
+          id: turn.userMessage.info.id,
+          text: stripped,
+        };
+      })
+      .filter((item) => item.text.length > 0);
+  }, [turns]);
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return items;
+    const q = query.trim().toLowerCase();
+    return items.filter((item) => item.text.toLowerCase().includes(q));
+  }, [items, query]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-10">
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/50" />
+        <span className="text-sm text-muted-foreground/50">Loading messages...</span>
+      </div>
+    );
+  }
+
+  if (filtered.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-12">
+        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-muted/30">
+          <MessageCircle className="h-4 w-4 text-muted-foreground/30" />
+        </div>
+        <span className="text-sm text-muted-foreground/60">
+          {query ? `No messages matching "${query}"` : 'No messages in this session'}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <CommandGroup heading={`Messages (${filtered.length})`} forceMount>
+      {filtered.map((item, index) => (
+        <CommandItem
+          key={item.id}
+          value={sanitizeCmdkValue(`message ${index} ${item.text.slice(0, 80)}`)}
+          onSelect={() => onSelect(item.id)}
+        >
+          <MessageCircle className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />
+          <span className="text-[11px] text-muted-foreground/50 tabular-nums w-6 text-right flex-shrink-0">
+            #{index + 1}
+          </span>
+          <span className="truncate text-sm flex-1">
+            {item.text.length > 80 ? `${item.text.slice(0, 80)}...` : item.text}
+          </span>
         </CommandItem>
       ))}
     </CommandGroup>
@@ -522,6 +611,12 @@ export function CommandPalette() {
         keywords: 'change model llm switch select provider anthropic openai claude gpt',
         targetPage: 'models',
       });
+      items.push({
+        id: 'jump-to-message',
+        label: 'Jump to Message',
+        keywords: 'jump message go scroll navigate find conversation chat',
+        targetPage: 'messages',
+      });
     }
     return items.filter((item) => {
       const haystack = [item.label, item.keywords].join(' ').toLowerCase();
@@ -629,6 +724,16 @@ export function CommandPalette() {
       close();
     },
     [close],
+  );
+
+  const jumpToMessage = useMessageJumpStore((s) => s.jumpToMessage);
+
+  const handleJumpToMessage = useCallback(
+    (messageId: string) => {
+      jumpToMessage(messageId);
+      close();
+    },
+    [jumpToMessage, close],
   );
 
   // ── URL detection: localhost:PORT, http(s)://, or bare port ──
@@ -777,6 +882,30 @@ export function CommandPalette() {
     });
   }, [close]);
 
+  const handleRestartConfig = useCallback(() => {
+    close();
+    const serverUrl = useServerStore.getState().getActiveServerUrl();
+    authenticatedFetch(`${serverUrl}/kortix/services/system/reload`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'dispose-only' }),
+    }).then((res) => {
+      if (res.ok) toast.success('Config reloaded');
+      else toast.error('Restart failed');
+    }).catch(() => toast.error('Restart failed'));
+  }, [close]);
+
+  const handleRestartFull = useCallback(() => {
+    close();
+    const serverUrl = useServerStore.getState().getActiveServerUrl();
+    authenticatedFetch(`${serverUrl}/kortix/services/system/reload`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'full' }),
+    }).then((res) => {
+      if (res.ok) toast.success('Full restart initiated');
+      else toast.error('Restart failed');
+    }).catch(() => toast.error('Restart failed'));
+  }, [close]);
+
   const actionHandlers: Record<string, () => void> = useMemo(() => ({
     newSession: handleNewSession,
     openTerminal: handleOpenTerminal,
@@ -787,7 +916,9 @@ export function CommandPalette() {
     openPlan: handleOpenPlan,
     openProviderModal: handleOpenProviderModal,
     generateSSHKey: handleGenerateSSHKey,
-  }), [handleNewSession, handleOpenTerminal, handleCompactSession, handleViewChanges, handleToggleSidebar, handleLogout, handleOpenPlan, handleOpenProviderModal, handleGenerateSSHKey]);
+    restartConfig: handleRestartConfig,
+    restartFull: handleRestartFull,
+  }), [handleNewSession, handleOpenTerminal, handleCompactSession, handleViewChanges, handleToggleSidebar, handleLogout, handleOpenPlan, handleOpenProviderModal, handleGenerateSSHKey, handleRestartConfig, handleRestartFull]);
 
   const handleRegistryItem = useCallback((item: MenuItemDef) => {
     switch (item.kind) {
@@ -843,6 +974,7 @@ export function CommandPalette() {
   const totalSearchResults = useMemo(() => {
     if (page === 'agents') return filteredAgents.length;
     if (page === 'models') return visibleModels.length;
+    if (page === 'messages') return 0; // count is shown inline by MessagesPage
     if (!hasQuery) return 0;
     return filteredNavItems.length + filteredSessions.length + filteredProjects.length + sessionActionItems.length;
   }, [page, hasQuery, filteredNavItems, filteredSessions, filteredProjects, sessionActionItems, filteredAgents, visibleModels]);
@@ -852,6 +984,7 @@ export function CommandPalette() {
     if (page === 'agents') return 'Search agents...';
     if (page === 'models') return 'Search models...';
     if (page === 'files') return 'Search files in /workspace...';
+    if (page === 'messages') return 'Search messages...';
     return 'Search commands, projects, sessions...';
   }, [page]);
 
@@ -860,6 +993,7 @@ export function CommandPalette() {
     if (page === 'agents') return 'Change Agent';
     if (page === 'models') return 'Change Model';
     if (page === 'files') return 'Search Files';
+    if (page === 'messages') return 'Jump to Message';
     return null;
   }, [page]);
 
@@ -969,6 +1103,14 @@ export function CommandPalette() {
                           )}
                           <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
                         </CommandItem>
+                        <CommandItem
+                          value="suggestion jump to message go scroll navigate"
+                          onSelect={() => goToPage('messages')}
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                          <span className="flex-1">Jump to Message</span>
+                          <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
+                        </CommandItem>
                       </>
                     )}
 
@@ -1055,7 +1197,7 @@ export function CommandPalette() {
                           value={`${item.label} ${item.keywords}`}
                           onSelect={() => goToPage(item.targetPage)}
                         >
-                          {item.id === 'change-agent' ? <Bot className="h-4 w-4" /> : <Cpu className="h-4 w-4" />}
+                          {item.id === 'change-agent' ? <Bot className="h-4 w-4" /> : item.id === 'jump-to-message' ? <MessageCircle className="h-4 w-4" /> : <Cpu className="h-4 w-4" />}
                           <span className="flex-1">{item.label}</span>
                           <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
                         </CommandItem>
@@ -1384,6 +1526,13 @@ export function CommandPalette() {
           {/* PAGE: FILES                                                   */}
           {/* ============================================================ */}
           {page === 'files' && <FileSearchPage query={query} onSelect={handleSelectFile} />}
+
+          {/* ============================================================ */}
+          {/* PAGE: MESSAGES                                                */}
+          {/* ============================================================ */}
+          {page === 'messages' && currentSessionId && (
+            <MessagesPage sessionId={currentSessionId} query={query} onSelect={handleJumpToMessage} />
+          )}
         </CommandList>
 
         {/* ── Footer ── */}

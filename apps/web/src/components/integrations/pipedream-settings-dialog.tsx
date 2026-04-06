@@ -70,15 +70,17 @@ export function PipedreamSettingsDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button
-          className="flex items-center justify-center h-9 w-9 rounded-xl border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer relative"
+        <Button
+          variant="outline"
+          size="icon"
+          className="relative"
           title="Pipedream settings"
         >
           <Settings className="h-4 w-4" />
           {isCustom && (
             <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 border-2 border-background" />
           )}
-        </button>
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>

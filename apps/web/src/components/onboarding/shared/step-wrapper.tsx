@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import { ReactNode } from 'react';
 
 interface StepWrapperProps {
@@ -9,7 +10,7 @@ interface StepWrapperProps {
 
 export const StepWrapper = ({ children, className = "" }: StepWrapperProps) => {
   return (
-    <div className={`w-full ${className}`}>
+    <div className={cn('w-full', className)}>
       {children}
     </div>
   );

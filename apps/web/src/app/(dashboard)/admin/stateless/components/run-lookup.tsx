@@ -50,7 +50,7 @@ export function RunLookup() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-2">
-          <Input
+          <Input type="text"
             placeholder="Enter run ID..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}

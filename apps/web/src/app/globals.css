@@ -3,12 +3,58 @@
  * CSS linters may show warnings but these are false positives
  */
 @import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
 @import 'tw-animate-css';
 @plugin 'tailwind-scrollbar';
 @plugin 'tailwind-scrollbar-hide';
 
 /* Streamdown source for Tailwind CSS v4 */
 @source "../node_modules/streamdown/dist/*.js";
+@source "../node_modules/fumadocs-ui/dist/**/*.js";
+
+/* ─── Fumadocs → Kortix brand overrides ─── */
+:root {
+  --color-fd-background: oklch(0.985 0 0);
+  --color-fd-foreground: oklch(0.145 0 0);
+  --color-fd-muted: oklch(0.955 0 0);
+  --color-fd-muted-foreground: oklch(0.45 0 0);
+  --color-fd-popover: oklch(1 0 0);
+  --color-fd-popover-foreground: oklch(0.145 0 0);
+  --color-fd-card: oklch(0.97 0 0);
+  --color-fd-card-foreground: oklch(0.145 0 0);
+  --color-fd-border: oklch(0.885 0 0 / 0.6);
+  --color-fd-primary: oklch(0.205 0 0);
+  --color-fd-primary-foreground: oklch(0.985 0 0);
+  --color-fd-secondary: oklch(0.955 0 0);
+  --color-fd-secondary-foreground: oklch(0.205 0 0);
+  --color-fd-accent: oklch(0.92 0 0 / 0.5);
+  --color-fd-accent-foreground: oklch(0.205 0 0);
+  --color-fd-ring: oklch(0.708 0 0);
+}
+.dark {
+  --color-fd-background: oklch(0.18 0 0);
+  --color-fd-foreground: oklch(0.94 0 0);
+  --color-fd-muted: oklch(0.27 0 0);
+  --color-fd-muted-foreground: oklch(0.60 0 0);
+  --color-fd-popover: oklch(0.24 0 0);
+  --color-fd-popover-foreground: oklch(0.94 0 0);
+  --color-fd-card: oklch(0.21 0 0);
+  --color-fd-card-foreground: oklch(0.94 0 0);
+  --color-fd-border: oklch(0.30 0 0 / 0.5);
+  --color-fd-primary: oklch(0.94 0 0);
+  --color-fd-primary-foreground: oklch(0.18 0 0);
+  --color-fd-secondary: oklch(0.27 0 0);
+  --color-fd-secondary-foreground: oklch(0.94 0 0);
+  --color-fd-accent: oklch(0.35 0 0 / 0.5);
+  --color-fd-accent-foreground: oklch(0.94 0 0);
+  --color-fd-ring: oklch(0.50 0 0);
+}
+.dark #nd-sidebar {
+  --color-fd-muted: oklch(0.22 0 0);
+  --color-fd-secondary: oklch(0.25 0 0);
+  --color-fd-muted-foreground: oklch(0.60 0 0);
+}
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -1558,4 +1604,80 @@
   0% { filter: blur(20px); }
   60% { filter: blur(6px); }
   100% { filter: blur(0px); }
+}
+
+/* ─── Provisioning / Setup animations ─── */
+@keyframes setting-up-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-setting-up-fade-in {
+  animation: setting-up-fade-in 0.6s ease-out forwards;
+}
+.animate-setting-up-fade-in-slow {
+  animation: setting-up-fade-in 0.8s ease-out forwards;
+}
+.animate-setting-up-fade-in-dino {
+  opacity: 0;
+  animation: setting-up-fade-in 2s ease-out 3s forwards;
+}
+.setting-up-dot-complete {
+  animation: setting-up-fade-in 0.4s ease-out forwards;
+}
+
+/* ─── Kortix Loader keyframe ─── */
+@keyframes kortix-spin {
+  to { transform: rotate(360deg); }
+}
+/* ─── Instance page animations ─── */
+@keyframes instance-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-instance-fade-in {
+  animation: instance-fade-in 1s ease-out forwards;
+}
+
+/* ─── Skeleton shimmer animations ─── */
+@keyframes skeleton-gradient {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes skeleton-shimmer {
+  to { transform: translateX(300%); }
+}
+.skeleton-animate {
+  background-size: 200% 200%;
+  animation: skeleton-gradient 1s ease infinite;
+}
+.skeleton-shimmer-wrapper {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  overflow: hidden;
+}
+.skeleton-shimmer-bar {
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,0.3) 50%,
+    rgba(255,255,255,0) 100%
+  );
+  animation: skeleton-shimmer 1s infinite;
+  position: absolute;
+  top: 0;
+  transform: translateX(-300%);
+}
+
+/* ─── Canvas / tool-view shimmer ─── */
+@keyframes canvas-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-canvas-shimmer {
+  animation: canvas-shimmer 1.8s ease-in-out infinite;
 }

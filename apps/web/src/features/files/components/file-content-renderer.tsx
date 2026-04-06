@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback, useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useMemo, useCallback, useState, useEffect, useRef, lazy, Suspense } from 'react';
 import {
   AlertTriangle,
   Braces,
@@ -9,10 +9,13 @@ import {
   Download,
   Eye,
   FileWarning,
+  FileX,
   GitBranch,
   Globe,
   Loader2,
   Save,
+  RotateCcw,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useFileContent } from '../hooks';
@@ -22,11 +25,13 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import { UnifiedMarkdown } from '@/components/markdown';
 import { CodeEditor } from '@/components/file-editors/code-editor';
-import { getFileIcon } from './file-icon';
 import { useDiagnosticsStore, findDiagnosticsForFile } from '@/stores/diagnostics-store';
 import { useSandboxProxy } from '@/hooks/use-sandbox-proxy';
 import { SANDBOX_PORTS } from '@/lib/platform-client';
 import { useAuthenticatedPreviewUrl } from '@/hooks/use-authenticated-preview-url';
+import { FilePathBreadcrumbs } from './file-breadcrumbs';
+import { isHeicFile } from '@/lib/utils/heic-convert';
+import { useHeicBlob } from '@/hooks/use-heic-url';
 
 // ---------------------------------------------------------------------------
 // Lazy-load heavy renderers to keep initial bundle small
@@ -61,6 +66,12 @@ const SqliteRenderer = lazy(() =>
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Ensure a sandbox file path starts with /workspace/ for the static file server. */
+function ensureWorkspacePath(filePath: string): string {
+  if (filePath.startsWith('/workspace/')) return filePath;
+  return '/workspace/' + filePath.replace(/^\/+/, '');
+}
+
 /** Categories that need a blob fetched via readFileAsBlob */
 const BLOB_CATEGORIES = ['pdf', 'docx', 'video', 'audio', 'pptx'] as const;
 type BlobCategory = (typeof BLOB_CATEGORIES)[number];
@@ -83,7 +94,7 @@ export type FileCategory =
 export function getFileCategory(filename: string, mimeType?: string): FileCategory {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
 
-  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'avif', 'tiff', 'tif'].includes(ext)) return 'image';
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'avif', 'tiff', 'tif', 'heic', 'heif'].includes(ext)) return 'image';
   if (ext === 'pdf') return 'pdf';
   if (ext === 'docx') return 'docx';
   if (['pptx', 'ppt'].includes(ext)) return 'pptx';
@@ -144,9 +155,38 @@ function RendererFallback() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Binary blob loading — uses shared hook from hooks/use-binary-blob.ts
-// ---------------------------------------------------------------------------
+/** Detect error messages that indicate "file not found" vs other failures. */
+function isNotFoundError(errorMsg: string): boolean {
+  const lower = errorMsg.toLowerCase();
+  return (
+    lower.includes('404') ||
+    lower.includes('not found') ||
+    lower.includes('no such file') ||
+    lower.includes('enoent') ||
+    lower.includes('does not exist') ||
+    lower.includes('path not found')
+  );
+}
+
+/** Shared "file does not exist" UI shown when a file cannot be loaded. */
+function FileNotFoundState({ filePath }: { filePath: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
+      <div className="h-12 w-12 rounded-xl bg-muted/50 flex items-center justify-center">
+        <FileX className="h-6 w-6 text-muted-foreground/40" />
+      </div>
+      <p className="text-sm font-medium text-muted-foreground">
+        File not found
+      </p>
+      <p className="text-xs font-mono text-muted-foreground/50 max-w-sm break-all">
+        {filePath}
+      </p>
+      <p className="text-xs text-muted-foreground/40 max-w-xs">
+        This file does not exist or may have been deleted.
+      </p>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // FileContentRenderer — the shared file content rendering component
@@ -170,6 +210,8 @@ export interface FileContentRendererProps {
   errorFallback?: (error: string, filePath: string) => React.ReactNode;
   /** 1-indexed line number to scroll to after mount */
   targetLine?: number | null;
+  /** When true, the file is displayed in view-only mode — no editing, no save. */
+  readOnly?: boolean;
 }
 
 export function FileContentRenderer({
@@ -181,15 +223,26 @@ export function FileContentRenderer({
   className,
   errorFallback,
   targetLine,
+  readOnly = false,
 }: FileContentRendererProps) {
-  // Text content (for code/text files, CSV, images)
-  const { data: fileContent, isLoading, error, refetch } = useFileContent(filePath);
+  const fileName = filePath.split('/').pop() || '';
+  const isHeicImage = isHeicFile(fileName);
+
+  // Text content (for code/text files, CSV, non-HEIC images).
+  // HEIC files are loaded exclusively via the blob pipeline — the text/base64
+  // endpoint often returns 500 for HEIC because the server can't encode them.
+  const { data: fileContent, isLoading, error, refetch } = useFileContent(
+    isHeicImage ? null : filePath,
+  );
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveFlash, setSaveFlash] = useState(false);
+  // Tracks the latest editor content so we can save from the header button.
   const latestContentRef = useRef<string>('');
+  // Bumped on discard to force-remount the CodeEditor and reset its internal state.
+  const [discardKey, setDiscardKey] = useState(0);
 
-  const fileName = filePath.split('/').pop() || '';
   const language = getLanguageFromExt(fileName);
   const fileCategory = getFileCategory(fileName, fileContent?.mimeType);
   const isMarkdownFile = language === 'markdown';
@@ -206,7 +259,8 @@ export function FileContentRenderer({
 
   const htmlPreviewUrl = useMemo(() => {
     if (!isHtmlFile) return '';
-    const encodedPath = filePath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    const normalizedPath = ensureWorkspacePath(filePath);
+    const encodedPath = normalizedPath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
     return rewritePortPath(staticPort, `/open?path=/${encodedPath}`);
   }, [isHtmlFile, filePath, rewritePortPath, staticPort]);
 
@@ -273,9 +327,15 @@ export function FileContentRenderer({
     [fileDiagnostics],
   );
 
-  // Binary blob for PDF, DOCX, video, audio, PPTX
-  const blobPath = isBlobCategory(fileCategory) ? filePath : null;
+  // Binary blob for PDF, DOCX, video, audio, PPTX — AND HEIC images
+  const blobPath = (isBlobCategory(fileCategory) || isHeicImage) ? filePath : null;
   const { blobUrl, blob: rawBlob, isLoading: blobLoading, error: blobError } = useBinaryBlob(blobPath);
+
+  // HEIC conversion — converts the raw HEIC blob to a renderable JPEG URL
+  const { url: heicImageUrl, isConverting: heicConverting } = useHeicBlob(
+    isHeicImage ? rawBlob : null,
+    fileName,
+  );
 
   const displayContent = fileContent?.content ?? '';
 
@@ -291,6 +351,7 @@ export function FileContentRenderer({
     setIsMarkdownPreview(false);
     setIsJsonTreeView(false);
     setHasUnsavedChanges(false);
+    setSaveFlash(false);
     // HTML files always default to preview mode
     setIsHtmlPreview(true);
     latestContentRef.current = '';
@@ -311,16 +372,24 @@ export function FileContentRenderer({
     }
   }, [filePath, fileName]);
 
-  // Save handler
+  // Save handler — called by CodeEditor (Cmd+S) and by the header Save button.
+  // When called from the header button we pass latestContentRef.current.
+  // When called from CodeEditor's Cmd+S, CodeEditor passes its own localContent.
   const handleSave = useCallback(async (content: string) => {
+    if (readOnly) return;
     setIsSaving(true);
     try {
       const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
       const file = new File([blob], fileName, { type: 'text/plain' });
       const parentPath = filePath.substring(0, filePath.lastIndexOf('/'));
       await uploadFile(file, parentPath || undefined);
+      // Refetch so fileContent.content (= originalContent for CodeEditor) updates.
+      // CodeEditor's originalContent effect will then sync savedContent.current
+      // to match localContent, clearing its internal hasChanges flag.
       await refetch();
       setHasUnsavedChanges(false);
+      setSaveFlash(true);
+      setTimeout(() => setSaveFlash(false), 2000);
       onSaved?.();
       toast.success('File saved');
     } catch (err) {
@@ -328,16 +397,25 @@ export function FileContentRenderer({
     } finally {
       setIsSaving(false);
     }
-  }, [filePath, fileName, refetch, onSaved]);
+  }, [filePath, fileName, refetch, onSaved, readOnly]);
 
-  // Track editor content changes
+  // Discard handler — force-remounts CodeEditor so it re-initialises from fileContent.content.
+  const handleDiscard = useCallback(() => {
+    if (readOnly) return;
+    latestContentRef.current = fileContent?.content ?? '';
+    setHasUnsavedChanges(false);
+    setDiscardKey((k) => k + 1);
+  }, [readOnly, fileContent?.content]);
+
+  // Track editor content changes (called on every keystroke by CodeEditor)
   const handleEditorChange = useCallback((content: string) => {
+    if (readOnly) return;
     latestContentRef.current = content;
-  }, []);
+  }, [readOnly]);
 
   // Cmd+S handler for when CodeEditor is not mounted (e.g. markdown preview)
   useEffect(() => {
-    if (!isMarkdownPreview) return;
+    if (readOnly || !isMarkdownPreview) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
@@ -348,10 +426,21 @@ export function FileContentRenderer({
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [isMarkdownPreview, hasUnsavedChanges, handleSave]);
+  }, [readOnly, isMarkdownPreview, hasUnsavedChanges, handleSave]);
 
-  // Image rendering
+  // Warn before leaving the page with unsaved changes
+  useEffect(() => {
+    if (readOnly || !hasUnsavedChanges) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [readOnly, hasUnsavedChanges]);
+
+  // Image rendering — skip HEIC (handled separately via blob pipeline)
   const imageDataUrl = useMemo(() => {
+    if (isHeicImage) return null;
     if (
       fileContent?.encoding === 'base64' &&
       isImageMime(fileContent.mimeType)
@@ -359,26 +448,76 @@ export function FileContentRenderer({
       return `data:${fileContent.mimeType};base64,${fileContent.content}`;
     }
     return null;
-  }, [fileContent]);
+  }, [fileContent, isHeicImage]);
 
   // Determine loading state
-  const needsBlob = isBlobCategory(fileCategory);
+  const needsBlob = isBlobCategory(fileCategory) || isHeicImage;
   const isContentReady = needsBlob
     ? (!blobLoading && !blobError)
     : (!isLoading && !error);
   const contentError = needsBlob ? blobError : (error instanceof Error ? error.message : error ? String(error) : null);
   const showLoadingState = needsBlob ? blobLoading : isLoading;
 
+  // Detect "file not found" — either via explicit error or empty resolution
+  const isNotFound = useMemo(() => {
+    if (contentError) return isNotFoundError(contentError);
+    // Query settled with no data and no error → file likely doesn't exist
+    if (!showLoadingState && !contentError && !needsBlob && !isLoading && !fileContent) return true;
+    if (!showLoadingState && !contentError && needsBlob && !blobLoading && !blobError && !rawBlob) return true;
+    return false;
+  }, [contentError, showLoadingState, needsBlob, isLoading, fileContent, blobLoading, blobError, rawBlob]);
+
+  // ---------------------------------------------------------------------------
+  // Shared CodeEditor props — keeps edit & read-only paths DRY
+  // ---------------------------------------------------------------------------
+  // IMPORTANT: Always pass fileContent.content as both `content` and
+  // `originalContent`. CodeEditor manages its own localContent internally.
+  // When the user edits, localContent diverges from savedContent.current.
+  // After save + refetch, originalContent updates → CodeEditor's effect
+  // syncs savedContent.current → hasChanges clears automatically.
+  // Passing latestContentRef.current as content was causing a desync where
+  // CodeEditor's savedContent never updated and hasChanges stayed true.
+  const codeEditorProps = {
+    content: fileContent?.content ?? '',
+    originalContent: fileContent?.content ?? '',
+    fileName,
+    onSave: readOnly ? undefined : handleSave,
+    onChange: readOnly ? undefined : handleEditorChange,
+    onUnsavedChange: readOnly ? undefined : setHasUnsavedChanges,
+    readOnly,
+    showHeader: false,
+    fontSize: 'text-sm' as const,
+    diagnostics: fileDiagnostics,
+    targetLine,
+  };
+
   return (
     <div className={cn('flex flex-col h-full', className)}>
       {/* Header */}
       {showHeader && (
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/50 shrink-0 h-10">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            {getFileIcon(fileName, { className: 'h-4 w-4 shrink-0' })}
-            <span className="text-sm truncate">{fileName}</span>
-            {hasUnsavedChanges && (
-              <span className="h-2 w-2 rounded-full bg-yellow-500 shrink-0" title="Unsaved changes" />
+          <div className="flex items-center gap-1 flex-1 min-w-0">
+            <FilePathBreadcrumbs filePath={filePath} />
+            {/* Edit state indicator */}
+            {!readOnly && hasUnsavedChanges && (
+              <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-500 px-2 py-0.5 bg-amber-50 dark:bg-amber-900/20 rounded-md shrink-0">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+                </span>
+                <span className="font-semibold">Edited</span>
+              </div>
+            )}
+            {!readOnly && saveFlash && !hasUnsavedChanges && (
+              <div className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-500 px-2 py-0.5 bg-green-50 dark:bg-green-900/20 rounded-md shrink-0">
+                <Check className="h-3 w-3" />
+                <span className="font-semibold">Saved</span>
+              </div>
+            )}
+            {readOnly && (
+              <span className="text-[10px] text-muted-foreground/60 px-1.5 py-0.5 bg-muted/50 rounded shrink-0 uppercase tracking-wider font-medium">
+                View only
+              </span>
             )}
             {/* Inline diagnostic counts */}
             {(fileDiagErrorCount > 0 || fileDiagWarningCount > 0) && (
@@ -400,22 +539,34 @@ export function FileContentRenderer({
           </div>
 
           <div className="flex items-center gap-0.5 shrink-0">
-            {/* Save button */}
-            {hasUnsavedChanges && fileContent?.type === 'text' && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-yellow-500 hover:text-yellow-600"
-                onClick={() => handleSave(latestContentRef.current)}
-                disabled={isSaving}
-                title="Save"
-              >
-                {isSaving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-              </Button>
+            {/* Explicit Save button — only when editing and has changes */}
+            {!readOnly && hasUnsavedChanges && fileContent?.type === 'text' && (
+              <>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="h-7 px-3 text-xs gap-1.5 font-medium"
+                  onClick={() => handleSave(latestContentRef.current)}
+                  disabled={isSaving}
+                  title="Save (⌘S)"
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="h-3.5 w-3.5" />
+                  )}
+                  Save
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  onClick={handleDiscard}
+                  title="Discard changes"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </Button>
+              </>
             )}
 
             {/* HTML preview toggle */}
@@ -482,8 +633,9 @@ export function FileContentRenderer({
         </div>
       )}
 
-      {/* Content area */}
-      <div className="flex-1 overflow-hidden">
+      {/* Content area — readOnly uses overflow-auto so the read-only editor
+          (which renders at auto height) can scroll within the fixed-size parent. */}
+      <div className={cn('flex-1', readOnly ? 'overflow-auto' : 'overflow-hidden')}>
         {/* Loading */}
         {showLoadingState && (
           <div className="flex items-center justify-center h-full">
@@ -494,19 +646,39 @@ export function FileContentRenderer({
         {/* Error */}
         {contentError && !showLoadingState && (
           errorFallback ? errorFallback(contentError, filePath) : (
-            <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
-              <FileWarning className="h-8 w-8 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground/60 max-w-sm">
-                {contentError}
-              </p>
-            </div>
+            isNotFound ? (
+              <FileNotFoundState filePath={filePath} />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
+                <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center">
+                  <FileWarning className="h-6 w-6 text-destructive/50" />
+                </div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Failed to load file
+                </p>
+                <p className="text-xs text-muted-foreground/50 max-w-sm break-all font-mono">
+                  {filePath}
+                </p>
+                <p className="text-xs text-muted-foreground/60 max-w-sm">
+                  {contentError}
+                </p>
+              </div>
+            )
           )
         )}
 
-        {/* Image content */}
+        {/* Image content (non-HEIC) */}
         {!isLoading && !error && imageDataUrl && (
           <Suspense fallback={<RendererFallback />}>
-            <ImageRenderer url={imageDataUrl} className="h-full" />
+            <ImageRenderer url={imageDataUrl} className="h-full" fileName={fileName} />
+          </Suspense>
+        )}
+
+        {/* HEIC image — loaded as raw blob, converted to JPEG client-side */}
+        {isHeicImage && (blobLoading || heicConverting) && <RendererFallback />}
+        {isHeicImage && !blobLoading && !blobError && heicImageUrl && !heicConverting && (
+          <Suspense fallback={<RendererFallback />}>
+            <ImageRenderer url={heicImageUrl} className="h-full" fileName={fileName} />
           </Suspense>
         )}
 
@@ -525,7 +697,7 @@ export function FileContentRenderer({
         )}
 
         {/* XLSX / XLS preview */}
-        {!isLoading && !error && fileCategory === 'xlsx' && (
+        {!isLoading && !error && !isNotFound && fileCategory === 'xlsx' && (
           <Suspense fallback={<RendererFallback />}>
             <XlsxRenderer
               filePath={filePath}
@@ -536,7 +708,7 @@ export function FileContentRenderer({
         )}
 
         {/* SQLite database viewer */}
-        {!isLoading && !error && fileCategory === 'sqlite' && (
+        {!isLoading && !error && !isNotFound && fileCategory === 'sqlite' && (
           <Suspense fallback={<RendererFallback />}>
             <SqliteRenderer
               filePath={filePath}
@@ -614,18 +786,9 @@ export function FileContentRenderer({
         {/* HTML source — shown when preview toggle is off */}
         {isHtmlFile && !isHtmlPreview && !isLoading && !error && fileContent?.type === 'text' && (
           <CodeEditor
-            key={`html-source-${filePath}`}
-            content={hasUnsavedChanges ? latestContentRef.current : fileContent.content}
-            originalContent={fileContent.content}
-            fileName={fileName}
-            onSave={handleSave}
-            onChange={handleEditorChange}
-            onUnsavedChange={setHasUnsavedChanges}
-            showHeader={false}
-            fontSize="text-sm"
+            key={`html-source-${filePath}-${discardKey}`}
+            {...codeEditorProps}
             className="h-full"
-            diagnostics={fileDiagnostics}
-            targetLine={targetLine}
           />
         )}
 
@@ -635,6 +798,7 @@ export function FileContentRenderer({
           fileContent &&
           fileContent.type === 'binary' &&
           !imageDataUrl &&
+          !isHeicImage &&
           !['pdf', 'docx', 'pptx', 'xlsx', 'sqlite', 'video', 'audio'].includes(fileCategory) && (
             <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
               <div className="h-12 w-12 rounded-xl bg-muted/50 flex items-center justify-center">
@@ -643,7 +807,7 @@ export function FileContentRenderer({
               <p className="text-sm text-muted-foreground/50">
                 Binary file
               </p>
-              <Button variant="outline" size="sm" className="h-8 text-sm" onClick={handleDownload}>
+              <Button variant="outline" size="sm" className="" onClick={handleDownload}>
                 <Download className="h-3.5 w-3.5 mr-1.5" />
                 Download
               </Button>
@@ -676,22 +840,18 @@ export function FileContentRenderer({
                 </div>
               ) : (
                 <CodeEditor
-                  key={filePath}
-                  content={hasUnsavedChanges ? latestContentRef.current : fileContent.content}
-                  originalContent={fileContent.content}
-                  fileName={fileName}
-                  onSave={handleSave}
-                  onChange={handleEditorChange}
-                  onUnsavedChange={setHasUnsavedChanges}
-                  showHeader={false}
-                  fontSize="text-sm"
+                  key={`${filePath}-${discardKey}`}
+                  {...codeEditorProps}
                   className="h-full"
-                  diagnostics={fileDiagnostics}
-                  targetLine={targetLine}
                 />
               )}
             </div>
           )}
+
+        {/* File not found fallback — catches cases where loading settled but no content/error */}
+        {!showLoadingState && !contentError && isNotFound && (
+          <FileNotFoundState filePath={filePath} />
+        )}
       </div>
     </div>
   );
@@ -760,7 +920,7 @@ function JsonNode({ value, keyName, depth }: { value: unknown; keyName: string |
     return (
       <div style={{ paddingLeft: depth * 20 }} className="break-all">
         {keyName !== null && <span className="text-primary/70">{`"${keyName}"`}: </span>}
-        <span className="text-green-500/80">
+        <span className="text-emerald-500/80">
           &quot;{value.length > 200 ? value.slice(0, 200) + '...' : value}&quot;
         </span>
         {isUrl && (

@@ -49,9 +49,9 @@ export function ShellScopeEditor({ scope, onChange }: ShellScopeEditorProps) {
             {scope.commands.map((cmd) => (
               <Badge key={cmd} variant="secondary" className="gap-1 pr-1 font-mono text-xs">
                 {cmd}
-                <button onClick={() => removeCommand(cmd)} className="ml-0.5 rounded hover:bg-muted-foreground/20">
+                <Button onClick={() => removeCommand(cmd)} variant="ghost" size="icon-xs" className="ml-0.5">
                   <X className="h-3 w-3" />
-                </button>
+                </Button>
               </Badge>
             ))}
           </div>
@@ -72,13 +72,15 @@ export function ShellScopeEditor({ scope, onChange }: ShellScopeEditorProps) {
         {unusedSuggestions.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {unusedSuggestions.map((cmd) => (
-              <button
+              <Button
                 key={cmd}
                 onClick={() => addCommand(cmd)}
-                className="rounded-md border border-dashed px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+                variant="outline"
+                size="xs"
+                className="border-dashed"
               >
                 + {cmd}
-              </button>
+              </Button>
             ))}
           </div>
         )}

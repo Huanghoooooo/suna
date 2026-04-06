@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useCallback, useState, useRef } from 'react';
+import { Button } from '@/components/ui/button';
 import {
   Folder,
   FolderOpen,
@@ -160,8 +161,8 @@ function FolderCard({
           onDrop={handleDrop}
           onClick={isRenaming ? undefined : onClick}
           className={cn(
-            'group flex items-center gap-3 h-11 px-3 rounded-xl border border-border/50 cursor-pointer select-none',
-            'transition-all duration-150',
+            'group flex items-center gap-2.5 h-10 px-3 rounded-lg border border-border/50 cursor-pointer select-none',
+            'transition-colors duration-150',
             'hover:bg-muted/50 hover:border-border',
             'active:scale-[0.98]',
             isCut && 'opacity-40',
@@ -169,7 +170,7 @@ function FolderCard({
             isDragOver && 'bg-primary/[0.08] border-primary/40',
           )}
         >
-          <Folder className="h-5 w-5 text-muted-foreground shrink-0" />
+          <Folder className="h-4.5 w-4.5 text-muted-foreground shrink-0" />
           <div className="flex-1 min-w-0 h-full flex items-center">
             {isRenaming ? (
               <input
@@ -183,21 +184,23 @@ function FolderCard({
                 }}
                 onBlur={confirmRename}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full text-sm bg-transparent border-b border-primary/50 py-0.5 outline-none"
+                className="w-full text-[13px] bg-transparent border-b border-primary/50 py-0.5 outline-none"
               />
             ) : (
-              <span className="text-sm truncate text-foreground">
+              <span className="text-[13px] truncate text-foreground">
                 {node.name}
               </span>
             )}
           </div>
           {!isRenaming && (
-            <button
+            <Button
               onClick={handleDotsClick}
-              className="h-6 w-6 flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity cursor-pointer shrink-0"
+              variant="ghost"
+              size="icon-xs"
+              className="opacity-0 group-hover:opacity-100 shrink-0"
             >
-              <MoreVertical className="h-4 w-4 text-muted-foreground" />
-            </button>
+              <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
+            </Button>
           )}
         </div>
       </ContextMenuTrigger>
@@ -325,8 +328,8 @@ function FileCard({
           onClick={isRenaming ? undefined : onClick}
           onDoubleClick={isRenaming ? undefined : onDoubleClick}
           className={cn(
-            'group relative flex flex-col rounded-xl border border-border/50 cursor-pointer select-none overflow-hidden',
-            'transition-all duration-150',
+            'group relative flex flex-col rounded-lg border border-border/50 cursor-pointer select-none overflow-hidden',
+            'transition-colors duration-150',
             'hover:bg-muted/30 hover:border-border hover:shadow-sm',
             'active:scale-[0.98]',
             isCut && 'opacity-40',
@@ -337,21 +340,23 @@ function FileCard({
           <FileThumbnail
             filePath={node.path}
             fileName={node.name}
-            className="h-[120px]"
+            className="h-[100px]"
           />
 
           {/* Three-dot menu trigger */}
           {!isRenaming && (
-            <button
+            <Button
               onClick={handleDotsClick}
-              className="absolute top-2 right-2 h-7 w-7 flex items-center justify-center rounded-full bg-background/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity cursor-pointer z-10"
+              variant="ghost"
+              size="icon-xs"
+              className="absolute top-1.5 right-1.5 h-6 w-6 bg-background/80 opacity-0 group-hover:opacity-100 z-10"
             >
-              <MoreVertical className="h-4 w-4 text-muted-foreground" />
-            </button>
+              <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
+            </Button>
           )}
 
-          {/* Name area - fixed height to prevent layout shift */}
-          <div className="px-3 py-2.5 border-t border-border/30 h-[44px] flex items-center">
+          {/* Name area */}
+          <div className="px-2.5 py-2 border-t border-border/30 h-[38px] flex items-center">
             {isRenaming ? (
               <input
                 ref={renameInputRef}
@@ -364,12 +369,12 @@ function FileCard({
                 }}
                 onBlur={confirmRename}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full text-sm bg-transparent border-b border-primary/50 py-0.5 outline-none"
+                className="w-full text-[13px] bg-transparent border-b border-primary/50 py-0.5 outline-none"
               />
             ) : (
-              <div className="flex items-center gap-2 min-w-0 w-full">
+              <div className="flex items-center gap-1.5 min-w-0 w-full">
                 {getFileIcon(node.name, { className: 'h-4 w-4 shrink-0', variant: 'monochrome' })}
-                <span className="text-sm truncate text-foreground">{node.name}</span>
+                <span className="text-[13px] truncate text-foreground">{node.name}</span>
               </div>
             )}
           </div>
@@ -483,7 +488,7 @@ export function DriveGridView({
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3 px-1">
             Folders
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+          <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
             {dirs.map((node) => (
               <FolderCard
                 key={node.path}
@@ -509,7 +514,7 @@ export function DriveGridView({
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3 px-1">
             Files
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
             {files.map((node) => (
               <FileCard
                 key={node.path}

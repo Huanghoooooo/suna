@@ -17,6 +17,7 @@ import { useSandboxConnection } from "@/hooks/platform/use-sandbox-connection";
 import { useWebNotifications } from "@/hooks/use-web-notifications";
 import { backendApi } from "@/lib/api-client";
 import { getClient } from "@/lib/opencode-sdk";
+import { Button } from "@/components/ui/button";
 import { KortixLogo } from "@/components/sidebar/kortix-logo";
 import { KortixLoader } from "@/components/ui/kortix-loader";
 import { featureFlags } from "@/lib/feature-flags";
@@ -30,6 +31,18 @@ import { AnnouncementDialog } from "../announcements/announcement-dialog";
 import { NovuInboxProvider } from "../notifications/novu-inbox-provider";
 import { FilePreviewDialog } from "../common/file-preview-dialog";
 import { UpdateDialogProvider } from "@/components/update-dialog-provider";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { ChevronRight } from "lucide-react";
 
 /** Monitors session status transitions and fires browser notifications. Renders nothing. */
 function WebNotificationProvider() {
@@ -72,18 +85,6 @@ const SetupWizard = lazy(() =>
 const DashboardPromoBanner = lazy(() =>
 	import("@/components/home/dashboard-promo-banner").then((mod) => ({
 		default: mod.DashboardPromoBanner,
-	})),
-);
-
-const KortixAppBanners = lazy(() =>
-	import("@/components/announcements/kortix-app-banners").then((mod) => ({
-		default: mod.KortixAppBanners,
-	})),
-);
-
-const TutorialsBanner = lazy(() =>
-	import("@/components/announcements/tutorials-banner").then((mod) => ({
-		default: mod.TutorialsBanner,
 	})),
 );
 
@@ -196,8 +197,9 @@ async function authFetch(...args: Parameters<typeof fetch>) {
 	return authenticatedFetch(...args);
 }
 
-async function persistEnv(key: string, value: string) {
+async function persistEnv(key: string, value: string): Promise<boolean> {
 	const u = getInstanceUrl();
+	if (!u) return false;
 	// Retry a few times — on fresh login the auth session may still be hydrating
 	// and authFetch returns a synthetic 401 if the token isn't available yet.
 	for (let attempt = 0; attempt < 5; attempt++) {
@@ -207,20 +209,21 @@ async function persistEnv(key: string, value: string) {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ value }),
 			});
-			if (res.ok) return;
+			if (res.ok) return true;
 			if (res.status === 401 && attempt < 4) {
 				await new Promise(r => setTimeout(r, 1000));
 				continue;
 			}
-			return;
+			return false;
 		} catch {
 			if (attempt < 4) {
 				await new Promise(r => setTimeout(r, 1000));
 				continue;
 			}
-			return;
+			return false;
 		}
 	}
+	return false;
 }
 
 async function readEnv(key: string): Promise<string | null> {
@@ -249,6 +252,17 @@ function DashboardSkeleton() {
 
 				<p className="max-w-[300px] text-sm leading-relaxed text-muted-foreground/60">
 					Checking sandbox health and restoring your session.
+				</p>
+
+				<p className="max-w-[300px] text-xs leading-relaxed text-muted-foreground/50">
+					Having problems? Email{" "}
+					<a
+						href="mailto:support@kortix.com"
+						className="underline underline-offset-4 hover:text-foreground/80"
+					>
+						support@kortix.com
+					</a>
+					.
 				</p>
 			</div>
 		</div>
@@ -440,6 +454,41 @@ function SessionTabsContainer({ children }: { children: React.ReactNode }) {
 	);
 }
 
+/* ─── Floating skip button shown during the onboarding chat session ───── */
+function OnboardingSkipButton({ onConfirm }: { onConfirm: () => void }) {
+	return (
+		<AlertDialog>
+			<AlertDialogTrigger asChild>
+				<Button
+					variant="outline"
+					size="sm"
+					className="absolute top-3 right-3 z-20"
+				>
+					Skip onboarding
+					<ChevronRight className="h-3.5 w-3.5" />
+				</Button>
+			</AlertDialogTrigger>
+			<AlertDialogContent className="max-w-sm rounded-2xl">
+				<AlertDialogHeader>
+					<AlertDialogTitle className="text-base font-medium text-foreground/90">Skip onboarding?</AlertDialogTitle>
+					<AlertDialogDescription className="text-[13px] text-muted-foreground/60 leading-relaxed">
+						You can set up your profile anytime. Your agent will work fine — it just won&apos;t know your preferences yet.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<AlertDialogFooter className="gap-2 sm:gap-2">
+					<AlertDialogCancel className="rounded-xl text-[13px]">Continue</AlertDialogCancel>
+					<AlertDialogAction
+						onClick={onConfirm}
+						className="rounded-xl text-[13px] bg-foreground text-background hover:bg-foreground/90"
+					>
+						Skip onboarding
+					</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+	);
+}
+
 interface DashboardLayoutContentProps {
 	children: React.ReactNode;
 }
@@ -539,9 +588,17 @@ export default function DashboardLayoutContent({
 
 		if (!shouldSkip && !shouldRedo) { setParamHandled(true); return; }
 
+		// Don't attempt to persist until we have a valid sandbox URL.
+		// In cloud mode, getInstanceUrl() returns '' while the sandbox is still
+		// being registered. Bailing here keeps sessionStorage intact so the
+		// effect retries when activeServerId changes to a real server.
+		const instanceUrl = getInstanceUrl();
+		if (!instanceUrl) return;
+
 		(async () => {
 			if (shouldSkip) {
-				await persistEnv("ONBOARDING_COMPLETE", "true");
+				const ok = await persistEnv("ONBOARDING_COMPLETE", "true");
+				if (!ok) return; // sandbox unreachable — keep intent, retry on next activeServerId change
 				sessionStorage.removeItem("kortix-onboarding-skip");
 				// Clean URL and let the normal check pass through
 				const clean = new URL(window.location.href);
@@ -550,7 +607,8 @@ export default function DashboardLayoutContent({
 				ob.done(); // exit onboarding mode if active
 				setParamHandled(true);
 			} else if (shouldRedo) {
-				await persistEnv("ONBOARDING_COMPLETE", "false");
+				const ok = await persistEnv("ONBOARDING_COMPLETE", "false");
+				if (!ok) return; // sandbox unreachable — keep intent, retry on next activeServerId change
 				await persistEnv("ONBOARDING_SESSION_ID", "");
 				await persistEnv("ONBOARDING_COMMAND_FIRED", "");
 				sessionStorage.removeItem("kortix-onboarding-redo");
@@ -701,6 +759,13 @@ export default function DashboardLayoutContent({
 
 	// ── Setup wizard callback ──
 	const handleSetupDone = useCallback(() => ob.hideSetup(), [ob]);
+
+	// ── Skip onboarding callback (from floating button during chat) ──
+	const handleSkipOnboarding = useCallback(async () => {
+		await persistEnv("ONBOARDING_COMPLETE", "true");
+		ob.morph();
+		setTimeout(() => ob.done(), 900);
+	}, [ob]);
 
 	// Keep the active server in sync with the current instance.
 	// Source of truth: URL path (/instances/:id/...) OR active-instance cookie
@@ -860,9 +925,9 @@ export default function DashboardLayoutContent({
 								initial={{ height: 0, opacity: 0 }}
 								animate={{ height: "auto", opacity: 1 }}
 								exit={{ height: 0, opacity: 0 }}
-								transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-								style={{ overflow: "hidden" }}
-							>
+							transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+							className="overflow-hidden"
+						>
 								<TabBar />
 							</motion.div>
 						)}
@@ -870,6 +935,11 @@ export default function DashboardLayoutContent({
 
 					<div className="flex-1 min-h-0 flex flex-col md:border md:border-b-0 md:border-border/50 overflow-hidden md:rounded-t-xl relative">
 						<SessionTabsContainer>{children}</SessionTabsContainer>
+
+						{/* Floating skip button during onboarding chat session */}
+						{ob.active && !ob.showBoot && !ob.showSetup && ob.sessionId && (
+							<OnboardingSkipButton onConfirm={handleSkipOnboarding} />
+						)}
 
 						{/* Loading state while creating onboarding session */}
 						{ob.active && !ob.sessionId && !ob.showBoot && !ob.showSetup && (
@@ -908,14 +978,6 @@ export default function DashboardLayoutContent({
 							/>
 						</Suspense>
 					)}
-				<Suspense fallback={null}>
-					<KortixAppBanners
-						disableMobileAdvertising={featureFlags.disableMobileAdvertising}
-					/>
-				</Suspense>
-				<Suspense fallback={null}>
-					<TutorialsBanner />
-				</Suspense>
 				{!featureFlags.disableMobileAdvertising ? (
 					<Suspense fallback={null}>
 						<MobileAppInterstitial />

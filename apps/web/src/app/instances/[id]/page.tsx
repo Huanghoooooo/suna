@@ -60,7 +60,7 @@ function LocalProvisioningView({ progress }: { progress: { progress: number; mes
         <svg className="h-full w-full -rotate-90" viewBox="0 0 100 100">
           <circle cx="50" cy="50" r="42" fill="none" strokeWidth="4" className="stroke-foreground/[0.06]" />
           <circle cx="50" cy="50" r="42" fill="none" strokeWidth="4" strokeLinecap="round"
-            className="stroke-primary transition-all duration-700 ease-out"
+            className="stroke-primary transition-colors duration-700 ease-out"
             strokeDasharray={`${2 * Math.PI * 42}`}
             strokeDashoffset={`${2 * Math.PI * 42 * (1 - pct / 100)}`}
           />
@@ -71,9 +71,9 @@ function LocalProvisioningView({ progress }: { progress: { progress: number; mes
       </div>
       <div className="w-full space-y-2">
         <div className="w-full bg-foreground/[0.06] rounded-full h-1.5 overflow-hidden">
-          <div className="bg-primary h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${Math.max(pct, 2)}%` }} />
+          <div className="bg-primary h-full rounded-full transition-colors duration-700 ease-out" style={{ width: `${Math.max(pct, 2)}%` }} />
         </div>
-        <p className="text-[12px] text-muted-foreground/50 text-center">{msg}</p>
+        <p className="text-xs text-muted-foreground/50 text-center">{msg}</p>
       </div>
       <p className="text-[11px] text-muted-foreground/30 text-center">
         First boot can take a few minutes while the image is pulled.
@@ -262,8 +262,6 @@ export default function InstanceDetailPage() {
 
   return (
     <div className="w-full relative overflow-hidden min-h-screen bg-background">
-      <style>{`@keyframes instance-fade-in { from { opacity: 0; } to { opacity: 1; } }`}</style>
-
       <div className="absolute top-4 left-4 z-20">
         <Button variant="ghost" size="sm" onClick={() => router.push('/instances')} className="gap-1.5 text-muted-foreground/50 hover:text-foreground">
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -275,7 +273,7 @@ export default function InstanceDetailPage() {
         <div className="relative z-10 w-full max-w-[600px] flex flex-col items-center">
 
           {/* Logo + title */}
-          <div className="mb-12 flex flex-col items-center gap-3" style={{ animation: 'instance-fade-in 1s ease-out forwards' }}>
+          <div className="mb-12 flex flex-col items-center gap-3 animate-instance-fade-in">
             <KortixLogo size={22} />
             <h1 className="text-[15px] font-normal text-foreground/30 tracking-[0.15em] uppercase">
               {titleText}

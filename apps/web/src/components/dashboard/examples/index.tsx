@@ -102,7 +102,7 @@ const allPrompts: PromptExample[] = [
   {
     title: 'Analyze market opportunities',
     query: '1. Research {{market_topic}} for investment opportunities\n2. Analyze market size, growth, and key players\n3. Identify investment themes and risks\n4. Assess market challenges and barriers\n5. Create investment presentation with recommendations',
-    icon: <Rocket className="text-green-600 dark:text-green-300" size={16} />,
+    icon: <Rocket className="text-emerald-600 dark:text-green-300" size={16} />,
   },
   {
     title: 'Process invoices & documents',

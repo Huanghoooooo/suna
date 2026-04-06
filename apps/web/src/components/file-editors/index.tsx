@@ -90,7 +90,7 @@ export function getEditableFileType(fileName: string): EditableFileType {
     'dockerfile', 'makefile', 'cmake',
   ];
   const textExtensions = ['txt', 'log', 'env', 'ini', 'conf', 'cfg', 'gitignore', 'editorconfig'];
-  const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'];
+  const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'heif', 'avif'];
   const videoExtensions = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'ogg'];
   const pdfExtensions = ['pdf'];
   const csvExtensions = ['csv', 'tsv'];

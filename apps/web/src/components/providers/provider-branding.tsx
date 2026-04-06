@@ -209,7 +209,7 @@ export function ProviderLogo({
       ) : (
         <span className={cn(
           'font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-300',
-          size === 'small' ? 'text-[9px]' : size === 'large' ? 'text-xs' : 'text-[10px]'
+          size === 'small' ? 'text-[0.5625rem]' : size === 'large' ? 'text-xs' : 'text-[10px]'
         )}>
           {initialsFor(providerID, name)}
         </span>

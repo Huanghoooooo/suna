@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Settings,
   Shield,
@@ -38,13 +38,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,6 +56,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { opencodeKeys } from '@/hooks/opencode/use-opencode-sessions';
 import { ProviderList } from '@/components/providers/provider-list';
 import { useProviderModalStore } from '@/stores/provider-modal-store';
+import { ModelSelector } from '@/components/session/model-selector';
+import { flattenModels } from '@/components/session/session-chat-input';
 import {
   useOpenCodeMcpStatus,
   useAddMcpServer,
@@ -73,23 +68,11 @@ import {
 } from '@/hooks/opencode/use-opencode-mcp';
 import type { McpStatus } from '@/hooks/opencode/use-opencode-mcp';
 import { toast } from '@/lib/toast';
+import { setGlobalDefaultModel } from '@/hooks/opencode/use-model-store';
 
 // ============================================================================
 // Constants
 // ============================================================================
-
-const PROVIDER_LABELS: Record<string, string> = {
-  anthropic: 'Anthropic',
-  openai: 'OpenAI',
-  google: 'Google',
-  xai: 'xAI',
-  opencode: 'OpenCode',
-  kortix: 'Kortix',
-  bedrock: 'AWS Bedrock',
-  openrouter: 'OpenRouter',
-  'github-copilot': 'GitHub Copilot',
-  vercel: 'Vercel',
-};
 
 const PERMISSION_TYPES = [
   { key: 'read', label: 'Read', description: 'Read files in the project' },
@@ -132,19 +115,23 @@ function GeneralSection({
   onDraft: (key: string, value: unknown) => void;
 }) {
   const { data: providers } = useOpenCodeProviders();
+  const allModels = useMemo(() => flattenModels(providers), [providers]);
 
-  const allModels = useMemo(() => {
-    if (!providers?.all) return [];
-    return providers.all.flatMap((p) =>
-      Object.values(p.models).map((m) => ({
-        label: `${p.id}/${m.id}`,
-        name: m.name,
-        providerName: PROVIDER_LABELS[p.id] || p.name || p.id,
-      })),
-    );
-  }, [providers]);
+  const modelStr = (draft.model as string) ?? config.model ?? '';
+  const selectedModel = useMemo(() => {
+    if (!modelStr) return null;
+    const idx = modelStr.indexOf('/');
+    if (idx <= 0) return null;
+    return { providerID: modelStr.slice(0, idx), modelID: modelStr.slice(idx + 1) };
+  }, [modelStr]);
 
-  const model = (draft.model as string) ?? config.model ?? '';
+  const handleModelSelect = useCallback(
+    (model: { providerID: string; modelID: string } | null) => {
+      onDraft('model', model ? `${model.providerID}/${model.modelID}` : undefined);
+    },
+    [onDraft],
+  );
+
   const instructions = (draft.instructions as string[]) ?? config.instructions ?? [];
   const instructionsText = instructions.join('\n');
   const snapshot = (draft.snapshot as boolean | undefined) ?? config.snapshot ?? false;
@@ -178,22 +165,27 @@ function GeneralSection({
         <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
           Default Model
         </label>
-        <Select
-          value={model || '__auto__'}
-          onValueChange={(v) => onDraft('model', v === '__auto__' ? undefined : v)}
-        >
-          <SelectTrigger className="w-full font-mono text-sm rounded-xl cursor-pointer hover:bg-muted/40 transition-colors">
-            <SelectValue placeholder="Auto-detect" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__auto__" className="cursor-pointer data-[highlighted]:bg-muted/70">Auto-detect</SelectItem>
-            {allModels.map((m) => (
-              <SelectItem key={m.label} value={m.label} className="cursor-pointer data-[highlighted]:bg-muted/70">
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <ModelSelector
+            models={allModels}
+            selectedModel={selectedModel}
+            onSelect={handleModelSelect}
+          />
+          {selectedModel && (
+            <Button
+              type="button"
+              onClick={() => onDraft('model', undefined)}
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-xs text-muted-foreground"
+            >
+              Reset to auto
+            </Button>
+          )}
+          {!selectedModel && (
+            <span className="text-xs text-muted-foreground/60">Auto-detect</span>
+          )}
+        </div>
       </div>
 
       {/* Snapshots */}
@@ -244,7 +236,7 @@ function ProvidersSection({
         <Button
           variant="outline"
           size="sm"
-          className="h-7 px-2.5 text-xs gap-1.5 rounded-lg"
+          className="h-7 px-2.5 text-xs gap-1.5 "
           onClick={() => openProviderModal('providers')}
         >
           <Plus className="h-3 w-3" />
@@ -337,38 +329,34 @@ function PermissionsSection({
         </p>
         <div className="flex gap-1.5">
           {ACTIONS.map((a) => (
-            <button
+            <Button
               key={a}
               onClick={() => setGlobalMode(a)}
+              size="toolbar"
+              variant={isGlobalMode && globalAction === a
+                ? a === 'allow' ? 'success'
+                : a === 'deny' ? 'destructive'
+                : 'muted'
+                : 'muted'}
               className={cn(
-                'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer',
-                isGlobalMode && globalAction === a
-                  ? a === 'allow'
-                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                    : a === 'deny'
-                      ? 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/20'
-                      : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent',
+                isGlobalMode && globalAction === a && a === 'allow' && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20',
+                isGlobalMode && globalAction === a && a === 'deny' && 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/20 hover:bg-red-500/20',
+                isGlobalMode && globalAction === a && a === 'ask' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20',
               )}
             >
               {a}
-            </button>
+            </Button>
           ))}
-          <button
-            onClick={() => {
-              if (isGlobalMode) {
-                onDraft('permission', {});
-              }
-            }}
+          <Button
+            onClick={() => { if (isGlobalMode) { onDraft('permission', {}); } }}
+            size="toolbar"
+            variant="muted"
             className={cn(
-              'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer',
-              !isGlobalMode
-                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent',
+              !isGlobalMode && 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20 hover:bg-blue-500/20',
             )}
           >
             per-tool
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -390,22 +378,19 @@ function PermissionsSection({
                 </div>
                 <div className="flex gap-1 flex-shrink-0">
                   {ACTIONS.map((a) => (
-                    <button
+                    <Button
                       key={a}
                       onClick={() => setAction(key, a)}
+                      size="xs"
+                      variant="muted"
                       className={cn(
-                        'px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer',
-                        getAction(key) === a
-                          ? a === 'allow'
-                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                            : a === 'deny'
-                              ? 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/20'
-                              : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent',
+                        getAction(key) === a && a === 'allow' && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20',
+                        getAction(key) === a && a === 'deny' && 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/20 hover:bg-red-500/20',
+                        getAction(key) === a && a === 'ask' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20',
                       )}
                     >
                       {a}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -652,13 +637,14 @@ function McpServersSection() {
     return (
       <div className="space-y-4 overflow-y-auto pr-1">
         <div className="flex items-center gap-2">
-          <button
+          <Button
             type="button"
             onClick={() => { setView({ type: 'list' }); setAuthError(''); }}
-            className="p-1.5 -ml-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            variant="ghost"
+            size="icon-sm"
           >
             <ChevronRight className="h-4 w-4 rotate-180" />
-          </button>
+          </Button>
           <h3 className="text-sm font-semibold">Authorize: {view.name}</h3>
         </div>
 
@@ -680,7 +666,7 @@ function McpServersSection() {
             </p>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Localhost Redirect URL</label>
-              <Input
+              <Input type="text"
                 placeholder="Paste http://localhost:.../callback?..."
                 value={authCode}
                 onChange={(e) => setAuthCode(e.target.value)}
@@ -733,13 +719,14 @@ function McpServersSection() {
     return (
       <div className="space-y-4 overflow-y-auto pr-1">
         <div className="flex items-center gap-2">
-          <button
+          <Button
             type="button"
             onClick={() => { setView({ type: 'list' }); setAddError(''); }}
-            className="p-1.5 -ml-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            variant="ghost"
+            size="icon-sm"
           >
             <ChevronRight className="h-4 w-4 rotate-180" />
-          </button>
+          </Button>
           <h3 className="text-sm font-semibold">Add MCP Server</h3>
         </div>
 
@@ -747,7 +734,7 @@ function McpServersSection() {
           {/* Name */}
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">Server Name</label>
-            <Input
+            <Input type="text"
               placeholder="my-server"
               value={addForm.name}
               onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
@@ -759,30 +746,24 @@ function McpServersSection() {
           <div className="space-y-2">
             <label className="text-xs text-muted-foreground mb-1 block">Transport Type</label>
             <div className="flex gap-1.5">
-              <button
+              <Button
                 type="button"
                 onClick={() => setAddForm((f) => ({ ...f, transportType: 'stdio' }))}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer',
-                  addForm.transportType === 'stdio'
-                    ? 'bg-primary/10 text-primary border border-primary/20'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent',
-                )}
+                size="toolbar"
+                variant={addForm.transportType === 'stdio' ? 'subtle' : 'muted'}
+                className={cn(addForm.transportType === 'stdio' && 'border border-primary/20')}
               >
                 Stdio (command)
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={() => setAddForm((f) => ({ ...f, transportType: 'http' }))}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer',
-                  addForm.transportType === 'http'
-                    ? 'bg-primary/10 text-primary border border-primary/20'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent',
-                )}
+                size="toolbar"
+                variant={addForm.transportType === 'http' ? 'subtle' : 'muted'}
+                className={cn(addForm.transportType === 'http' && 'border border-primary/20')}
               >
                 HTTP (URL)
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -790,7 +771,7 @@ function McpServersSection() {
           {addForm.transportType === 'stdio' ? (
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Command</label>
-              <Input
+              <Input type="text"
                 placeholder="npx -y @modelcontextprotocol/server-github"
                 value={addForm.command}
                 onChange={(e) => setAddForm((f) => ({ ...f, command: e.target.value }))}
@@ -802,7 +783,7 @@ function McpServersSection() {
           ) : (
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">URL</label>
-              <Input
+              <Input type="text"
                 placeholder="https://mcp.example.com/sse"
                 value={addForm.url}
                 onChange={(e) => setAddForm((f) => ({ ...f, url: e.target.value }))}
@@ -814,38 +795,41 @@ function McpServersSection() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs text-muted-foreground">Environment Variables</label>
-              <button
+              <Button
                 type="button"
                 onClick={addEnvPair}
-                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                variant="muted"
+                size="xs"
               >
                 <Plus className="h-3 w-3" />
                 Add
-              </button>
+              </Button>
             </div>
             {addForm.envPairs.length > 0 && (
               <div className="space-y-2">
                 {addForm.envPairs.map((pair, i) => (
                   <div key={i} className="flex gap-2 items-center">
-                    <Input
+                    <Input type="text"
                       placeholder="KEY"
                       value={pair.key}
                       onChange={(e) => updateEnvPair(i, 'key', e.target.value)}
                       className="flex-1 font-mono text-xs"
                     />
-                    <Input
+                    <Input type="text"
                       placeholder="value"
                       value={pair.value}
                       onChange={(e) => updateEnvPair(i, 'value', e.target.value)}
                       className="flex-1 text-xs"
                     />
-                    <button
+                    <Button
                       type="button"
                       onClick={() => removeEnvPair(i)}
-                      className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer flex-shrink-0"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
                     >
                       <X className="h-3.5 w-3.5" />
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -942,25 +926,26 @@ function McpServersSection() {
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {/* Auth button for servers needing authentication */}
                     {needsAuth && (
-                      <button
+                      <Button
                         onClick={() => handleAuthStart(name)}
                         disabled={authStartMutation.isPending}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors cursor-pointer disabled:opacity-50"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
                         title="Authorize"
                       >
                         <Plug className="h-3.5 w-3.5" />
-                      </button>
+                      </Button>
                     )}
 
                     {/* Connect / Disconnect toggle */}
-                    <button
+                    <Button
                       onClick={() => isConnected ? handleDisconnect(name) : handleConnect(name)}
                       disabled={isToggling}
+                      variant="ghost"
+                      size="icon-sm"
                       className={cn(
-                        'flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors cursor-pointer disabled:opacity-50',
-                        isConnected
-                          ? 'text-muted-foreground hover:text-red-500 hover:bg-red-500/10'
-                          : 'text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10',
+                        isConnected ? 'hover:text-red-500 hover:bg-red-500/10' : 'hover:text-emerald-500 hover:bg-emerald-500/10',
                       )}
                       title={isConnected ? 'Disconnect' : 'Connect'}
                     >
@@ -971,16 +956,17 @@ function McpServersSection() {
                       ) : (
                         <Plug className="h-3.5 w-3.5" />
                       )}
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
                 {/* Tools expand/collapse */}
                 {tools.length > 0 && (
                   <>
-                    <button
+                    <Button
                       onClick={() => setExpanded(isExp ? null : name)}
-                      className="flex items-center gap-1 px-3 pb-2 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      variant="muted"
+                      size="xs"
                     >
                       {isExp ? (
                         <ChevronDown className="h-3 w-3" />
@@ -988,7 +974,7 @@ function McpServersSection() {
                         <ChevronRight className="h-3 w-3" />
                       )}
                       {isExp ? 'Hide tools' : 'Show tools'}
-                    </button>
+                    </Button>
 
                     {isExp && (
                       <div className="border-t border-border/30 max-h-40 overflow-y-auto">
@@ -1035,8 +1021,6 @@ export function OpenCodeSettingsDialog({
   const updateMutation = useUpdateOpenCodeConfig();
   const [draft, setDraft] = useState<Record<string, unknown>>({});
   const [activeTab, setActiveTab] = useState<OpenCodeSettingsTab>(initialTab);
-  const contentInnerRef = useRef<HTMLDivElement | null>(null);
-  const [contentHeight, setContentHeight] = useState<number>(0);
 
   const onDraft = useCallback((key: string, value: unknown) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -1048,6 +1032,22 @@ export function OpenCodeSettingsDialog({
     if (!hasDraftChanges) return;
     updateMutation.mutate(draft as Partial<Config>, {
       onSuccess: () => {
+        // Sync model change to client-side model store so the resolution
+        // chain in use-opencode-local.ts picks it up immediately.
+        if ('model' in draft) {
+          if (typeof draft.model === 'string' && draft.model) {
+            const idx = draft.model.indexOf('/');
+            if (idx > 0 && idx < draft.model.length - 1) {
+              setGlobalDefaultModel({
+                providerID: draft.model.slice(0, idx),
+                modelID: draft.model.slice(idx + 1),
+              });
+            }
+          } else {
+            // User selected "Auto-detect" — clear globalDefault
+            setGlobalDefaultModel(undefined);
+          }
+        }
         setDraft({});
       },
     });
@@ -1055,17 +1055,7 @@ export function OpenCodeSettingsDialog({
 
   const handleDiscard = useCallback(() => setDraft({}), []);
 
-  const measureContentHeight = useCallback(() => {
-    const el = contentInnerRef.current;
-    if (!el) return;
-    setContentHeight(Math.ceil(el.getBoundingClientRect().height));
-  }, []);
-
   const handleTabChange = useCallback((value: string) => {
-    const el = contentInnerRef.current;
-    if (el) {
-      setContentHeight(Math.ceil(el.getBoundingClientRect().height));
-    }
     setActiveTab(value as OpenCodeSettingsTab);
   }, []);
 
@@ -1075,7 +1065,6 @@ export function OpenCodeSettingsDialog({
       if (!nextOpen) {
         setDraft({});
         setActiveTab(initialTab);
-        setContentHeight(0);
       }
       onOpenChange(nextOpen);
     },
@@ -1087,30 +1076,10 @@ export function OpenCodeSettingsDialog({
     setActiveTab(initialTab);
   }, [initialTab, open]);
 
-  useEffect(() => {
-    if (!open || isLoading || !config) return;
-    const raf = requestAnimationFrame(() => {
-      measureContentHeight();
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [open, isLoading, config, activeTab, measureContentHeight]);
-
-  useEffect(() => {
-    const el = contentInnerRef.current;
-    if (!el || isLoading || !config) return;
-
-    const observer = new ResizeObserver(() => {
-      measureContentHeight();
-    });
-    observer.observe(el);
-
-    return () => observer.disconnect();
-  }, [activeTab, isLoading, config, measureContentHeight]);
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0"
+       <DialogContent
+        className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden"
         aria-describedby="opencode-settings-desc"
       >
         <DialogHeader className="px-6 pt-5 pb-0 flex-shrink-0">
@@ -1129,7 +1098,7 @@ export function OpenCodeSettingsDialog({
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="px-6 pt-3 flex-shrink-0">
               <TabsList className="w-full">
                 <TabsTrigger value="general" className="flex-1 gap-1.5">
@@ -1151,43 +1120,30 @@ export function OpenCodeSettingsDialog({
               </TabsList>
             </div>
 
-            <div
-              className="overflow-hidden transition-[height] duration-300 ease-out"
-              style={contentHeight ? { height: contentHeight } : undefined}
-            >
-              <div ref={contentInnerRef} className="px-6 py-4">
-                {activeTab === 'general' && (
-                  <div className="max-h-[56vh] overflow-y-auto pr-1">
-                    <GeneralSection
-                      draft={draft}
-                      config={config}
-                      onDraft={onDraft}
-                    />
-                  </div>
-                )}
+            <div className="px-6 py-4 flex-1 min-h-0 overflow-y-auto">
+              {activeTab === 'general' && (
+                <GeneralSection
+                  draft={draft}
+                  config={config}
+                  onDraft={onDraft}
+                />
+              )}
 
-                {activeTab === 'providers' && (
-                  <div className="max-h-[56vh] overflow-y-auto pr-1">
-                    <ProvidersSection onDirty={() => {}} />
-                  </div>
-                )}
+              {activeTab === 'providers' && (
+                <ProvidersSection onDirty={() => {}} />
+              )}
 
-                {activeTab === 'permissions' && (
-                  <div className="max-h-[56vh] overflow-y-auto pr-1">
-                    <PermissionsSection
-                      draft={draft}
-                      config={config}
-                      onDraft={onDraft}
-                    />
-                  </div>
-                )}
+              {activeTab === 'permissions' && (
+                <PermissionsSection
+                  draft={draft}
+                  config={config}
+                  onDraft={onDraft}
+                />
+              )}
 
-                {activeTab === 'mcp' && (
-                  <div className="min-h-0 pr-1" style={{ maxHeight: '62vh', overflowY: 'auto' }}>
-                    <McpServersSection />
-                  </div>
-                )}
-              </div>
+              {activeTab === 'mcp' && (
+                <McpServersSection />
+              )}
             </div>
 
             {/* Save / Discard footer */}

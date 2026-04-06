@@ -7,116 +7,194 @@ import {
   FolderRoot,
   Home,
   Edit3,
-  Check,
-  X,
 } from 'lucide-react';
 import { useFilesStore } from '../store/files-store';
 import { useCurrentProject } from '../hooks';
+import { openTabAndNavigate } from '@/stores/tab-store';
 import { cn } from '@/lib/utils';
+import { getFileIcon } from './file-icon';
 
+// ---------------------------------------------------------------------------
+// Shared breadcrumb segment rendering — used by both modes
+// ---------------------------------------------------------------------------
+
+interface BreadcrumbSegmentsProps {
+  /** All path segments (e.g. ['workspace', 'src', 'index.ts']) */
+  segments: string[];
+  /** Called when a directory segment is clicked */
+  onSegmentClick: (index: number) => void;
+  /** Called when the home/root button is clicked */
+  onHomeClick: () => void;
+  /** When true, the last segment is rendered as a non-clickable label (file mode) */
+  fileMode?: boolean;
+  /** File icon element to show before the filename in file mode */
+  fileIcon?: React.ReactNode;
+  /** Root path constraint — segments above this are hidden */
+  rootPath?: string | null;
+  /** Called on double-click (for edit mode) */
+  onDoubleClick?: () => void;
+  /** Extra content after the breadcrumb segments (e.g. edit button) */
+  trailing?: React.ReactNode;
+}
+
+function BreadcrumbSegments({
+  segments,
+  onSegmentClick,
+  onHomeClick,
+  fileMode,
+  fileIcon,
+  rootPath,
+  onDoubleClick,
+  trailing,
+}: BreadcrumbSegmentsProps) {
+  // When rootPath is set, only show segments at or below it
+  const rootSegmentCount = useMemo(
+    () => (rootPath ? rootPath.split('/').filter(Boolean).length : 0),
+    [rootPath],
+  );
+  const visibleSegments = useMemo(
+    () => (rootPath ? segments.slice(rootSegmentCount) : segments),
+    [rootPath, segments, rootSegmentCount],
+  );
+
+  return (
+    <nav
+      className="flex items-center gap-0.5 min-w-0 flex-1 overflow-x-auto"
+      onDoubleClick={onDoubleClick}
+      title={onDoubleClick ? 'Double-click to edit path' : undefined}
+    >
+      {/* Home / root */}
+      <button
+        onClick={onHomeClick}
+        className={cn(
+          'flex items-center gap-1 px-2 py-1 rounded-md transition-colors cursor-pointer shrink-0',
+          'hover:bg-muted',
+          visibleSegments.length === 0
+            ? 'text-foreground font-medium bg-muted/50'
+            : 'text-muted-foreground',
+        )}
+      >
+        <FolderRoot className="h-3.5 w-3.5" />
+      </button>
+
+      {visibleSegments.map((segment, visibleIndex) => {
+        // Skip 'workspace' when not sandboxed (rootPath null)
+        if (!rootPath && visibleIndex === 0 && segment === 'workspace') return null;
+
+        const isLast = visibleIndex === visibleSegments.length - 1;
+        // Recover the absolute index for the click handler
+        const absoluteIndex = rootPath ? visibleIndex + rootSegmentCount : visibleIndex;
+        const pathToHere = '/' + segments.slice(0, absoluteIndex + 1).join('/');
+
+        return (
+          <div key={pathToHere} className="flex items-center gap-0.5 min-w-0 shrink-0">
+            <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+            {isLast && fileMode ? (
+              /* File name — non-clickable active segment with optional icon */
+              <span className="inline-flex items-center gap-1.5 px-1.5 py-1 text-xs text-foreground font-medium bg-muted/30 rounded-md truncate max-w-[200px]">
+                {fileIcon}
+                {segment}
+              </span>
+            ) : (
+              <button
+                onClick={() => onSegmentClick(absoluteIndex)}
+                className={cn(
+                  'px-1.5 py-1 rounded-md transition-colors cursor-pointer truncate max-w-[180px] text-xs',
+                  'hover:bg-muted',
+                  isLast && !fileMode
+                    ? 'text-foreground font-medium bg-muted/30'
+                    : 'text-muted-foreground',
+                )}
+              >
+                {segment}
+              </button>
+            )}
+          </div>
+        );
+      })}
+
+      {trailing}
+    </nav>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FileBreadcrumbs — directory mode (reads from files store)
+// ---------------------------------------------------------------------------
+
+/**
+ * Full-featured breadcrumb for the file explorer.
+ * Reads the current directory from the files store.
+ * Supports double-click to edit path, keyboard navigation, up button.
+ */
 export function FileBreadcrumbs() {
   const currentPath = useFilesStore((s) => s.currentPath);
   const navigateToPath = useFilesStore((s) => s.navigateToPath);
-  const { data: project } = useCurrentProject();
+  const rootPath = useFilesStore((s) => s.rootPath);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const projectName = project?.name || project?.worktree?.split('/').pop() || 'Project';
+  const homePath = rootPath || '/';
 
-  // Split the path into segments
   const isRoot = currentPath === '/' || currentPath === '.' || currentPath === '';
   const segments = useMemo(
     () => (isRoot ? [] : currentPath.split('/').filter(Boolean)),
     [isRoot, currentPath],
   );
 
-  // Start editing on double-click
   const handleDoubleClick = useCallback(() => {
     setEditValue(currentPath === '/' ? '' : currentPath);
     setIsEditing(true);
-    // Focus and select all after a short delay
     setTimeout(() => {
       inputRef.current?.focus();
       inputRef.current?.select();
     }, 0);
   }, [currentPath]);
 
-  // Handle keyboard navigation
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && isEditing) {
-        // Navigate to entered path
-        const newPath = editValue.trim() || '/';
-        navigateToPath(newPath);
+        navigateToPath(editValue.trim() || '/');
         setIsEditing(false);
       } else if (e.key === 'Escape' && isEditing) {
         setIsEditing(false);
       } else if (!isEditing) {
-        // Navigate up with Backspace (when not editing and input is empty)
         if (e.key === 'Backspace' && !isRoot) {
           const lastSlash = currentPath.lastIndexOf('/');
-          const parent = lastSlash <= 0 ? '/' : currentPath.slice(0, lastSlash);
-          navigateToPath(parent);
+          navigateToPath(lastSlash <= 0 ? '/' : currentPath.slice(0, lastSlash));
         }
-        // Alt + Left Arrow = go up
         if (e.altKey && e.key === 'ArrowLeft' && !isRoot) {
           const lastSlash = currentPath.lastIndexOf('/');
-          const parent = lastSlash <= 0 ? '/' : currentPath.slice(0, lastSlash);
-          navigateToPath(parent);
-        }
-        // Alt + Right Arrow = go to first segment after root
-        if (e.altKey && e.key === 'ArrowRight' && segments.length > 1) {
-          const firstSegment = '/' + segments[0];
-          navigateToPath(firstSegment);
+          navigateToPath(lastSlash <= 0 ? '/' : currentPath.slice(0, lastSlash));
         }
       }
     },
-    [isEditing, editValue, navigateToPath, isRoot, currentPath, segments],
+    [isEditing, editValue, navigateToPath, isRoot, currentPath],
   );
 
-  // Cancel editing when clicking outside
   useEffect(() => {
     if (!isEditing) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (!(e.target instanceof HTMLInputElement)) {
-        setIsEditing(false);
-      }
+    const handler = (e: MouseEvent) => {
+      if (!(e.target instanceof HTMLInputElement)) setIsEditing(false);
     };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
   }, [isEditing]);
 
-  // Navigate to a specific segment
   const handleSegmentClick = useCallback(
     (index: number) => {
-      const pathToHere = '/' + segments.slice(0, index + 1).join('/');
-      navigateToPath(pathToHere);
+      navigateToPath('/' + segments.slice(0, index + 1).join('/'));
     },
     [segments, navigateToPath],
   );
 
-  // Navigate up one level
   const handleGoUp = useCallback(() => {
     if (isRoot) return;
     const lastSlash = currentPath.lastIndexOf('/');
-    const parent = lastSlash <= 0 ? '/' : currentPath.slice(0, lastSlash);
-    navigateToPath(parent);
+    navigateToPath(lastSlash <= 0 ? '/' : currentPath.slice(0, lastSlash));
   }, [isRoot, currentPath, navigateToPath]);
-
-  // Handle edit submit
-  const handleEditSubmit = useCallback(() => {
-    const newPath = editValue.trim() || '/';
-    navigateToPath(newPath);
-    setIsEditing(false);
-  }, [editValue, navigateToPath]);
-
-  // Handle edit cancel
-  const handleEditCancel = useCallback(() => {
-    setIsEditing(false);
-    setEditValue('');
-  }, []);
 
   return (
     <div
@@ -125,7 +203,7 @@ export function FileBreadcrumbs() {
     >
       {/* Home button */}
       <button
-        onClick={() => navigateToPath('/')}
+        onClick={() => navigateToPath(homePath)}
         className={cn(
           'flex items-center justify-center h-7 w-7 rounded-md transition-colors cursor-pointer shrink-0',
           'text-muted-foreground hover:text-foreground hover:bg-muted',
@@ -135,7 +213,7 @@ export function FileBreadcrumbs() {
         <Home className="h-3.5 w-3.5" />
       </button>
 
-      {/* Up button - only show when not at root */}
+      {/* Up button */}
       {!isRoot && (
         <button
           onClick={handleGoUp}
@@ -161,10 +239,10 @@ export function FileBreadcrumbs() {
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleEditSubmit();
-              if (e.key === 'Escape') handleEditCancel();
+              if (e.key === 'Enter') { navigateToPath(editValue.trim() || '/'); setIsEditing(false); }
+              if (e.key === 'Escape') setIsEditing(false);
             }}
-            onBlur={handleEditSubmit}
+            onBlur={() => { navigateToPath(editValue.trim() || '/'); setIsEditing(false); }}
             className={cn(
               'flex-1 min-w-0 h-7 px-2 text-sm bg-background border rounded-md',
               'outline-none focus:ring-1 focus:ring-primary font-mono',
@@ -173,61 +251,92 @@ export function FileBreadcrumbs() {
           />
         </div>
       ) : (
-        <nav
-          className="flex items-center gap-0.5 min-w-0 flex-1 overflow-x-auto cursor-text"
+        <BreadcrumbSegments
+          segments={segments}
+          onSegmentClick={handleSegmentClick}
+          onHomeClick={() => navigateToPath(homePath)}
+          rootPath={rootPath}
           onDoubleClick={handleDoubleClick}
-          title="Double-click to edit path"
-        >
-          {/* Root / button */}
-          <button
-            onClick={() => navigateToPath('/')}
-            className={cn(
-              'flex items-center gap-1 px-2 py-1 rounded-md transition-colors cursor-pointer shrink-0',
-              'hover:bg-muted',
-              segments.length === 0
-                ? 'text-foreground font-medium bg-muted/50'
-                : 'text-muted-foreground',
-            )}
-          >
-            <FolderRoot className="h-3.5 w-3.5" />
-          </button>
-
-          {segments.map((segment, index) => {
-            const isLast = index === segments.length - 1;
-            const pathToHere = '/' + segments.slice(0, index + 1).join('/');
-
-            return (
-              <div key={pathToHere} className="flex items-center gap-0.5 min-w-0">
-                <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                <button
-                  onClick={() => handleSegmentClick(index)}
-                  className={cn(
-                    'px-1.5 py-1 rounded-md transition-colors cursor-pointer truncate max-w-[180px] text-xs',
-                    'hover:bg-muted',
-                    isLast
-                      ? 'text-foreground font-medium bg-muted/30'
-                      : 'text-muted-foreground',
-                  )}
-                >
-                  {segment}
-                </button>
-              </div>
-            );
-          })}
-
-          {/* Edit indicator */}
-          <button
-            onClick={handleDoubleClick}
-            className={cn(
-              'flex items-center justify-center h-6 w-6 rounded transition-colors cursor-pointer shrink-0 ml-1',
-              'text-muted-foreground/40 hover:text-foreground hover:bg-muted',
-            )}
-            title="Edit path"
-          >
-            <Edit3 className="h-3 w-3" />
-          </button>
-        </nav>
+          trailing={
+            <button
+              onClick={handleDoubleClick}
+              className={cn(
+                'flex items-center justify-center h-6 w-6 rounded transition-colors cursor-pointer shrink-0 ml-1',
+                'text-muted-foreground/40 hover:text-foreground hover:bg-muted',
+              )}
+              title="Edit path"
+            >
+              <Edit3 className="h-3 w-3" />
+            </button>
+          }
+        />
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FilePathBreadcrumbs — file mode (receives filePath prop)
+// ---------------------------------------------------------------------------
+
+interface FilePathBreadcrumbsProps {
+  /** Absolute path to the file being viewed */
+  filePath: string;
+  /** Optional className for the container */
+  className?: string;
+}
+
+/**
+ * Compact breadcrumb for the file viewer header.
+ * Shows the full path to a file. Directory segments are clickable
+ * and navigate to the Files tab. The filename segment shows the file icon
+ * and is styled as the active/current item.
+ */
+export function FilePathBreadcrumbs({ filePath, className }: FilePathBreadcrumbsProps) {
+  const rootPath = useFilesStore((s) => s.rootPath);
+  const homePath = rootPath || '/workspace';
+
+  const segments = useMemo(
+    () => filePath.split('/').filter(Boolean),
+    [filePath],
+  );
+
+  const fileName = segments[segments.length - 1] || '';
+
+  const handleSegmentClick = useCallback(
+    (index: number) => {
+      const dirPath = '/' + segments.slice(0, index + 1).join('/');
+      useFilesStore.getState().navigateToPath(dirPath);
+      openTabAndNavigate({
+        id: 'page:/files',
+        title: 'Files',
+        type: 'page',
+        href: '/files',
+      });
+    },
+    [segments],
+  );
+
+  const handleHomeClick = useCallback(() => {
+    useFilesStore.getState().navigateToPath(homePath);
+    openTabAndNavigate({
+      id: 'page:/files',
+      title: 'Files',
+      type: 'page',
+      href: '/files',
+    });
+  }, [homePath]);
+
+  return (
+    <div className={cn('min-w-0 flex-1', className)}>
+      <BreadcrumbSegments
+        segments={segments}
+        onSegmentClick={handleSegmentClick}
+        onHomeClick={handleHomeClick}
+        fileMode
+        fileIcon={getFileIcon(fileName, { className: 'h-3.5 w-3.5 shrink-0' })}
+        rootPath={rootPath}
+      />
     </div>
   );
 }

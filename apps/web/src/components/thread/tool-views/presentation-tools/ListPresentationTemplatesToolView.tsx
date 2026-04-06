@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import { useState } from "react"
 import Image from "next/image"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -182,7 +183,7 @@ export function ListPresentationTemplatesToolView({
                     <div
                       key={template.id}
                       onClick={() => handleTemplateClick(template.id)}
-                      className="group rounded-lg cursor-pointer transition-all duration-200 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-lg hover:scale-[1.01]"
+                      className="group rounded-lg cursor-pointer transition-colors duration-200 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-lg hover:scale-[1.01]"
                     >
                       <div className="relative rounded-t-lg overflow-hidden bg-muted">
                         {imageUrl ? (
@@ -203,9 +204,9 @@ export function ListPresentationTemplatesToolView({
                               alt={template.name}
                               width={400}
                               height={192}
-                              className={`w-full h-full object-contain transition-opacity duration-300 ${
+                              className={cn('w-full h-full object-contain transition-opacity duration-300', 
                                 isLoaded ? 'opacity-100' : 'opacity-0'
-                              }`}
+                              )}
                               onLoad={() => handleImageLoad(template.id)}
                               unoptimized
                             />

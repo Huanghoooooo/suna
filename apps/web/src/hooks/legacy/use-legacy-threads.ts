@@ -1,7 +1,8 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSupabaseAccessToken } from '@/lib/auth-token';
+import { authenticatedFetch } from '@/lib/auth-token';
+import { useAuth } from '@/components/AuthProvider';
 import { getEnv } from '@/lib/env-config';
 
 interface LegacyThread {
@@ -38,14 +39,10 @@ function getApiUrl(): string {
 }
 
 async function legacyFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = await getSupabaseAccessToken();
-  if (!token) throw new Error('Not authenticated');
-
-  const res = await fetch(`${getApiUrl()}/legacy${path}`, {
+  const res = await authenticatedFetch(`${getApiUrl()}/legacy${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
       ...(options.headers as Record<string, string>),
     },
   });
@@ -59,21 +56,24 @@ async function legacyFetch<T>(path: string, options: RequestInit = {}): Promise<
 }
 
 export function useLegacyThreads(limit = 50, offset = 0) {
+  const { user, isLoading: isAuthLoading } = useAuth();
   return useQuery({
-    queryKey: ['legacy-threads', limit, offset],
+    queryKey: ['legacy-threads', limit, offset, user?.id ?? 'anonymous'],
     queryFn: () =>
       legacyFetch<{ threads: LegacyThread[]; total: number }>(
         `/threads?limit=${limit}&offset=${offset}`,
       ),
+    enabled: !isAuthLoading && !!user,
     staleTime: 60_000,
   });
 }
 
 export function useLegacyMessages(threadId: string | null) {
+  const { user, isLoading: isAuthLoading } = useAuth();
   return useQuery({
-    queryKey: ['legacy-messages', threadId],
+    queryKey: ['legacy-messages', threadId, user?.id ?? 'anonymous'],
     queryFn: () => legacyFetch<{ messages: LegacyMessage[] }>(`/threads/${threadId}/messages`),
-    enabled: !!threadId,
+    enabled: !isAuthLoading && !!user && !!threadId,
   });
 }
 
@@ -119,11 +119,12 @@ export function useMigrateAllLegacyThreads() {
 
 export function useMigrateAllStatus(enabled: boolean) {
   const queryClient = useQueryClient();
+  const { user, isLoading: isAuthLoading } = useAuth();
 
   return useQuery({
-    queryKey: ['legacy-migrate-all-status'],
+    queryKey: ['legacy-migrate-all-status', user?.id ?? 'anonymous'],
     queryFn: () => legacyFetch<MigrateAllStatus>(`/migrate-all/status`),
-    enabled,
+    enabled: enabled && !isAuthLoading && !!user,
     refetchInterval: (query) => {
       const data = query.state.data;
       if (data?.status === 'running') return 2000;

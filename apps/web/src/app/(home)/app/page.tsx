@@ -119,7 +119,7 @@ export default function AppDownloadPage() {
                     href={STORE_LINKS.ios}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 h-12 bg-black dark:bg-white rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 active:scale-[0.98] transition-all"
+                    className="flex-1 h-12 bg-black dark:bg-white rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 active:scale-[0.98] transition-colors"
                   >
                     <AppleLogo className="h-4 w-4 text-white dark:text-black" />
                     <span className="text-base font-semibold text-white dark:text-black">
@@ -130,7 +130,7 @@ export default function AppDownloadPage() {
                     href={STORE_LINKS.android}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 h-12 bg-black dark:bg-white rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 active:scale-[0.98] transition-all"
+                    className="flex-1 h-12 bg-black dark:bg-white rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 active:scale-[0.98] transition-colors"
                   >
                     <PlayIcon className="h-3 w-3 text-white dark:text-black" />
                     <span className="text-base font-semibold text-white dark:text-black">

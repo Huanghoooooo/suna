@@ -290,18 +290,18 @@ export function useOpenCodeLocal({
 
   // ---- Current model resolution ----
   // Priority: per-session > per-agent > globalDefault > agent.model > fallback
-  // Per-session persists the user's explicit pick for THIS session across reloads.
-  // globalDefault is set during onboarding setup and overrides agent defaults.
+  // Per-session and per-agent overrides take priority over globalDefault so that
+  // explicit per-conversation choices are respected. globalDefault is the user's
+  // chosen default for NEW conversations (set during onboarding or settings).
   const currentModelKey = useMemo<ModelKey | undefined>(() => {
     if (!currentAgent) return undefined;
     return getFirstValidModel(
-      // 1. User's global default (set during onboarding setup wizard — wins until user
-      //    explicitly changes model in a session, which clears globalDefault)
-      () => modelStore.globalDefault,
-      // 2. Per-session model (user's explicit choice in this session — survives reload)
+      // 1. Per-session model (user's explicit choice in this session — survives reload)
       () => sessionId ? modelStore.getSessionModel(sessionId) : undefined,
-      // 3. Per-agent model (persisted across sessions for this agent)
+      // 2. Per-agent model (persisted across sessions for this agent)
       () => modelStore.getSelectedModel(currentAgent.name),
+      // 3. User's global default (set during onboarding or settings)
+      () => modelStore.globalDefault,
       // 4. Agent's configured default model
       () => currentAgent.model as ModelKey | undefined,
       // 5. Global fallback (config.model > recent > first connected)
@@ -342,11 +342,10 @@ export function useOpenCodeLocal({
       }
       if (options?.recent && model) {
         modelStore.pushRecent(model);
-        // User explicitly changed model — clear globalDefault so their
-        // per-session/per-agent choice takes over going forward.
-        if (modelStore.globalDefault) {
-          modelStore.setGlobalDefault(undefined);
-        }
+        // Per-session and per-agent overrides already take priority in the
+        // resolution chain, so there's no need to clear globalDefault here.
+        // The user's onboarding/settings choice should persist as the default
+        // for NEW sessions even when they change model in an existing session.
       }
     },
     [currentAgent, sessionId, fallbackModel, modelStore, isModelValid],

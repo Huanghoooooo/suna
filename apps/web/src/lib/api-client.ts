@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/client';
 import { getEnv } from '@/lib/env-config';
+import { getSupabaseAccessTokenWithRetry } from '@/lib/auth-token';
 import { handleApiError, handleNetworkError, ErrorContext, ApiError } from './error-handler';
 import { parseBillingError, RequestTooLargeError } from './api/errors';
 
@@ -40,8 +40,7 @@ async function makeRequest<T = any>(
       }
     }, timeout);
 
-    const supabase = createClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    const token = await getSupabaseAccessTokenWithRetry();
 
     // Don't set Content-Type for FormData - browser will set it automatically with boundary
     const isFormData = fetchOptions.body instanceof FormData;
@@ -54,8 +53,8 @@ async function makeRequest<T = any>(
     // Merge with any headers from fetchOptions
     Object.assign(headers, fetchOptions.headers as Record<string, string>);
 
-    if (session?.access_token) {
-      headers['Authorization'] = `Bearer ${session.access_token}`;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     } else {
       // No session yet — Supabase hasn't hydrated from cookies.
       // Return a silent failure instead of sending a naked request that will 401.

@@ -7,7 +7,7 @@ import {
   markThreadMigrated,
   ensureMigrationColumn,
 } from './repository';
-import { transformThread, transformMessages } from './transformer';
+import { transformThread, transformMessages, createMigrationNotice } from './transformer';
 import { writeSessionToSandbox } from './sandbox-writer';
 import { transferFiles } from './file-transfer';
 import type { MigrationResult } from './types';
@@ -69,6 +69,12 @@ legacyApp.post('/threads/:threadId/migrate', async (c: any) => {
   const session = transformThread(thread.name, thread.created_at, thread.updated_at);
   const { messages, parts } = transformMessages(session, legacyMessages);
 
+  // Append migration notice as the last message in the session
+  const lastAssistantMsgId = messages.filter(m => m.role === 'assistant').at(-1)?.id ?? null;
+  const notice = createMigrationNotice(session, threadId, lastAssistantMsgId);
+  messages.push(notice.message);
+  parts.push(notice.part);
+
   const realSessionId = await writeSessionToSandbox(sandboxExternalId, session, messages, parts);
   await markThreadMigrated(threadId, realSessionId);
 
@@ -79,7 +85,7 @@ legacyApp.post('/threads/:threadId/migrate', async (c: any) => {
 
   if (thread.project_id) {
     try {
-      const fileResult = await transferFiles(thread.project_id, sandboxExternalId);
+      const fileResult = await transferFiles(thread.project_id, sandboxExternalId, threadId);
       filesTransferred = fileResult.transferred;
       fileCount = fileResult.fileCount;
       filesErrors = fileResult.errors;
@@ -146,13 +152,17 @@ legacyApp.post('/migrate-all', async (c: any) => {
         const legacyMessages = await getMessagesByThread(thread.thread_id);
         const session = transformThread(thread.name, thread.created_at, thread.updated_at);
         const { messages, parts } = transformMessages(session, legacyMessages);
+        const lastAssistantId = messages.filter(m => m.role === 'assistant').at(-1)?.id ?? null;
+        const notice = createMigrationNotice(session, thread.thread_id, lastAssistantId);
+        messages.push(notice.message);
+        parts.push(notice.part);
         const realSessionId = await writeSessionToSandbox(sandboxExternalId, session, messages, parts);
         await markThreadMigrated(thread.thread_id, realSessionId);
 
         // Transfer files for this thread's project
         if (thread.project_id) {
           try {
-            const fileResult = await transferFiles(thread.project_id, sandboxExternalId);
+            const fileResult = await transferFiles(thread.project_id, sandboxExternalId, thread.thread_id);
             if (fileResult.transferred) {
               console.log(`[legacy] Transferred ${fileResult.fileCount} files for ${thread.thread_id}`);
             }

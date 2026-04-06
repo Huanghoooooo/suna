@@ -259,7 +259,7 @@ export default function NotificationManagementPage() {
                   ) : (
                     <div className="space-y-2">
                       <Label htmlFor="subscriber-id">User ID</Label>
-                      <Input
+                      <Input type="text"
                         id="subscriber-id"
                         placeholder="Enter user/account ID"
                         value={subscriberId}

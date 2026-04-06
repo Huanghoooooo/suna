@@ -211,12 +211,14 @@ export function UpdateDialog({
                     ))}
                   </div>
                   {hasMore && (
-                    <button
+                    <Button
                       onClick={() => setExpanded(true)}
-                      className="w-full text-center text-xs font-medium text-primary hover:text-primary/80 py-2 border-t border-border/30 transition-colors cursor-pointer"
+                      variant="link"
+                      size="sm"
+                      className="w-full border-t border-border/30 rounded-none h-auto py-2"
                     >
                       Show {changes.length - 4} more changes
-                    </button>
+                    </Button>
                   )}
                 </div>
               )}

@@ -14,10 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useSidebar } from '@/components/ui/sidebar';
-import { useIsMobile } from '@/hooks/utils';
 import {
-  Menu,
   PanelRightClose,
   PanelRightOpen,
   FileDown,
@@ -61,34 +58,17 @@ export function SessionSiteHeader({
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
 
-  const isMobile = useIsMobile() || isMobileView;
-  const { setOpen: setSidebarOpen, setOpenMobile } = useSidebar();
-
   // Worktree detection — disabled for now
   const worktreeInfo = null;
-
-  const handleOpenMenu = () => {
-    setSidebarOpen(true);
-    setOpenMobile(true);
-  };
 
   return (
     <>
       {/* Floating actions in top-right corner */}
       <div className="absolute top-0 right-0 left-0 z-20 pointer-events-none">
         <div className="flex items-center justify-between px-3 sm:px-4 pt-2">
-          {/* Left: leading action + mobile menu */}
+          {/* Left: leading action */}
           <div className="flex items-center gap-1 pointer-events-auto">
             {leadingAction}
-            {isMobile && (
-              <button
-                onClick={handleOpenMenu}
-                className="flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent active:bg-accent transition-colors touch-manipulation"
-                aria-label="Open menu"
-              >
-                <Menu className="h-4 w-4" />
-              </button>
-            )}
           </div>
 
           {/* Right: actions */}
@@ -146,7 +126,7 @@ export function SessionSiteHeader({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-9 px-2.5 cursor-pointer gap-1.5"
+                  className="px-2.5 cursor-pointer gap-1.5"
                 >
                   <Upload className="h-4 w-4" />
                   <span className="hidden sm:inline text-sm">Share</span>

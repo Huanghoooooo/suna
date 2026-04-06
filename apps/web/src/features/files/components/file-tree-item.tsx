@@ -61,7 +61,7 @@ function getNodeIcon(node: FileNode) {
 
 /** Git status → text color class */
 const gitStatusTextColor: Record<GitStatusType, string> = {
-  added: 'text-green-500 dark:text-green-400',
+  added: 'text-emerald-500 dark:text-green-400',
   modified: 'text-yellow-500 dark:text-yellow-400',
   deleted: 'text-red-500 dark:text-red-400',
 };
@@ -75,7 +75,7 @@ const gitStatusLabel: Record<GitStatusType, string> = {
 
 /** Git status → badge color class */
 const gitStatusBadgeColor: Record<GitStatusType, string> = {
-  added: 'text-green-500 dark:text-green-400',
+  added: 'text-emerald-500 dark:text-green-400',
   modified: 'text-yellow-500 dark:text-yellow-400',
   deleted: 'text-red-500 dark:text-red-400',
 };

@@ -63,7 +63,7 @@ const InputComponent = React.forwardRef<
   HTMLInputElement,
   React.ComponentProps<"input">
 >(({ className, ...props }, ref) => (
-  <Input
+  <Input type="text"
     className={cn("rounded-e-lg rounded-s-none", className)}
     {...props}
     ref={ref}
@@ -191,9 +191,9 @@ const CountrySelectOption = ({
         {`+${RPNInput.getCountryCallingCode(country)}`}
       </span>
       <CheckIcon
-        className={`ml-auto size-4 ${
+        className={cn('ml-auto size-4', 
           country === selectedCountry ? "opacity-100" : "opacity-0"
-        }`}
+        )}
       />
     </CommandItem>
   );

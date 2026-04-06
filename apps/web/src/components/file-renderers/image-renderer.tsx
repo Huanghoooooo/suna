@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,9 +15,14 @@ import {
 interface ImageRendererProps {
   url: string;
   className?: string;
+  /** Optional file name — shown in the info panel type field */
+  fileName?: string;
 }
 
-export function ImageRenderer({ url, className }: ImageRendererProps) {
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [500, 1500, 3000]; // ms — escalating backoff
+
+export function ImageRenderer({ url, className, fileName }: ImageRendererProps) {
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
@@ -33,12 +38,49 @@ export function ImageRenderer({ url, className }: ImageRendererProps) {
   } | null>(null);
   const [showControls, setShowControls] = useState(false);
 
+  // ── Retry state ──────────────────────────────────────────────────────
+  const [retryCount, setRetryCount] = useState(0);
+  const [imgSrc, setImgSrc] = useState(url);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
   // Check if the url is an SVG
   const isSvg =
     url?.toLowerCase().endsWith('.svg') || url?.includes('image/svg');
+
+  // Derive the display file type for the info panel
+  const displayFileType = (() => {
+    if (isSvg) return 'SVG';
+    if (fileName) {
+      const ext = fileName.split('.').pop()?.toUpperCase();
+      if (ext) return ext;
+    }
+    const ext = url.split('.').pop()?.toUpperCase();
+    return ext || 'Image';
+  })();
+
+  // When the parent passes a new URL, reset everything
+  useEffect(() => {
+    setImgSrc(url);
+    setImgLoaded(false);
+    setImgError(false);
+    setRetryCount(0);
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+  }, [url]);
+
+  // Cleanup retry timer on unmount
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+      }
+    };
+  }, []);
 
   // Reset position when zoom changes
   useEffect(() => {
@@ -48,24 +90,41 @@ export function ImageRenderer({ url, className }: ImageRendererProps) {
   }, [zoom, isFitToScreen]);
 
   // Handle image load success
-  const handleImageLoad = () => {
+  const handleImageLoad = useCallback(() => {
     setImgLoaded(true);
     setImgError(false);
+    setRetryCount(0); // reset on success
 
     if (imageRef.current) {
       setImgInfo({
         width: imageRef.current.naturalWidth,
         height: imageRef.current.naturalHeight,
-        type: isSvg ? 'SVG' : url.split('.').pop()?.toUpperCase() || 'Image',
+        type: displayFileType,
       });
     }
-  };
+  }, [displayFileType]);
 
-  // Handle image load error
-  const handleImageError = () => {
-    setImgLoaded(false);
-    setImgError(true);
-  };
+  // Handle image load error — auto-retry with backoff
+  const handleImageError = useCallback(() => {
+    if (retryCount < MAX_RETRIES) {
+      const delay = RETRY_DELAYS[retryCount] ?? 3000;
+      retryTimerRef.current = setTimeout(() => {
+        // Force the browser to re-attempt by toggling the src.
+        // For blob: URLs a cache-bust param doesn't help, so we
+        // briefly clear and re-set the src.
+        setImgSrc('');
+        // Use rAF to ensure the empty src is committed before re-setting
+        requestAnimationFrame(() => {
+          setImgSrc(url);
+        });
+        setRetryCount((c) => c + 1);
+      }, delay);
+    } else {
+      // All retries exhausted
+      setImgLoaded(false);
+      setImgError(true);
+    }
+  }, [retryCount, url]);
 
   // Functions for zooming — adaptive step: 0.25 up to 2x, 0.5 up to 5x, 1.0 above
   const getZoomStep = (currentZoom: number) => {
@@ -162,7 +221,7 @@ export function ImageRenderer({ url, className }: ImageRendererProps) {
       {/* Floating Controls - Only visible on hover */}
       <div 
         className={cn(
-          "absolute top-4 left-1/2 -translate-x-1/2 z-10 transition-all duration-200",
+          "absolute top-4 left-1/2 -translate-x-1/2 z-10 transition-colors duration-200",
           showControls || showInfo ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"
         )}
       >
@@ -287,7 +346,7 @@ export function ImageRenderer({ url, className }: ImageRendererProps) {
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 ref={imageRef}
-                src={url}
+                src={imgSrc}
                 alt="SVG preview"
                 className="max-w-full max-h-full object-contain"
                 style={{
@@ -302,7 +361,7 @@ export function ImageRenderer({ url, className }: ImageRendererProps) {
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 ref={imageRef}
-                src={url}
+                src={imgSrc}
                 alt="Image preview"
                 className="max-w-full max-h-full object-contain"
                 style={{

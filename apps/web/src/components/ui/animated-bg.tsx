@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import type { TargetAndTransition } from 'framer-motion';
 import { useEffect, useState, useId, useMemo } from 'react';
@@ -264,7 +265,7 @@ export function AnimatedBg({ variant = 'hero', blurMultiplier = 1, sizeMultiplie
     if (!mounted) {
         return (
             <div
-                className={`absolute inset-0 overflow-hidden pointer-events-none ${variant === 'header' ? 'z-0' : '-z-10'}`}
+                className={cn('absolute inset-0 overflow-hidden pointer-events-none', variant === 'header' ? 'z-0' : '-z-10')}
                 aria-hidden="true"
             >
                 {/* Static gradient placeholder matching the animated bg */}
@@ -424,7 +425,7 @@ export function AnimatedBg({ variant = 'hero', blurMultiplier = 1, sizeMultiplie
 
     return (
         <div
-            className={`absolute inset-0 overflow-hidden pointer-events-none ${variant === 'header' ? 'z-0' : '-z-10'}`}
+            className={cn('absolute inset-0 overflow-hidden pointer-events-none', variant === 'header' ? 'z-0' : '-z-10')}
             style={{
                 transform: 'translateZ(0)',
                 WebkitTransform: 'translateZ(0)',

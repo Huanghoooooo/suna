@@ -69,8 +69,7 @@ function SleepClock({ phase }: { phase: 'in' | 'visible' | 'out' }) {
         {day} {month} {date}
       </p>
       <p
-        className="text-foreground/80 text-[80px] sm:text-[104px] font-extralight leading-none -tracking-[0.02em]"
-        style={{ fontVariantNumeric: 'tabular-nums' }}
+        className="text-foreground/80 text-[80px] sm:text-[104px] font-extralight leading-none -tracking-[0.02em] tabular-nums"
       >
         {h}:{m}
       </p>
@@ -143,12 +142,10 @@ export function SleepOverlay() {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] select-none cursor-pointer"
+      className="fixed inset-0 z-[9999] select-none cursor-pointer bg-background"
       onClick={handleWake}
       style={{
-        backgroundColor: 'var(--background)',
         opacity: isOut ? 0 : isAnimatedIn ? 1 : 0,
-        backdropFilter: isOut ? 'blur(0px)' : isAnimatedIn ? 'blur(0px)' : 'blur(0px)',
         transition: isOut
           ? 'opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1)'
           : 'opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -190,10 +187,10 @@ export function SleepOverlay() {
             </span>
           )}
         </div>
-        <p className="text-foreground/80 text-[15px] sm:text-[16px] font-medium tracking-wide mb-1">
+        <p className="text-foreground/80 text-[15px] sm:text-base font-medium tracking-wide mb-1">
           {user?.name || ''}
         </p>
-        <p className="text-foreground/30 text-[12px] tracking-wide">
+        <p className="text-foreground/30 text-xs tracking-wide">
           Click anywhere or press Enter to continue
         </p>
       </div>

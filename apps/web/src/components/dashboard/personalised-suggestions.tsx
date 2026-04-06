@@ -184,7 +184,7 @@ export function PersonalisedSuggestions({ onSuggestionClick }: PersonalisedSugge
                         'text-[13px] leading-normal text-left',
                         'bg-background/60 backdrop-blur-md',
                         'border border-border/40',
-                        'transition-all duration-200',
+                        'transition-colors duration-200',
                         'hover:bg-background/80 hover:border-border/70',
                         'active:scale-[0.98]',
                         'cursor-pointer select-none',
@@ -194,7 +194,7 @@ export function PersonalisedSuggestions({ onSuggestionClick }: PersonalisedSugge
                       <span className="flex-1 text-muted-foreground group-hover:text-foreground/80 transition-colors duration-200 truncate">
                         {item.text}
                       </span>
-                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/0 group-hover:text-muted-foreground/30 translate-x-[-4px] group-hover:translate-x-0 transition-all duration-200" />
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/0 group-hover:text-muted-foreground/30 translate-x-[-4px] group-hover:translate-x-0 transition-colors duration-200" />
                     </motion.button>
                   );
                 })}

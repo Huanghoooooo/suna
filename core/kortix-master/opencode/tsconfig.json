@@ -25,5 +25,14 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+  "exclude": [
+    "**/*.test.ts",
+    "plugin/kortix-orchestrator/test.ts",
+    "plugin/opencode-morph-plugin/**",
+    "plugin/opencode-pty/test/**",
+    "skills/GENERAL-KNOWLEDGE-WORKER/webapp/template/**",
+    "skills/GENERAL-KNOWLEDGE-WORKER/website-building/webapp/template/**",
+    "node_modules"
+  ]
 }

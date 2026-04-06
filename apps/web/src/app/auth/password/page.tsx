@@ -84,7 +84,7 @@ function PasswordAuthContent() {
 
               <Link
                 href="/auth"
-                className="group border border-border/50 bg-background hover:bg-accent/20 rounded-full text-sm h-8 px-3 flex items-center gap-2 transition-all duration-200 shadow-sm mb-6"
+                className="group border border-border/50 bg-background hover:bg-accent/20 rounded-full text-sm h-8 px-3 flex items-center gap-2 transition-colors duration-200 shadow-sm mb-6"
               >
                 <ArrowLeft className="h-4 w-4 text-muted-foreground" />
                 <span className="font-medium text-muted-foreground text-xs tracking-wide">
@@ -105,7 +105,7 @@ function PasswordAuthContent() {
                     setErrorMessage(null);
                   }}
                   className={cn(
-                    "px-6 py-2 rounded-full text-sm font-medium transition-all",
+                    "px-6 py-2 rounded-full text-sm font-medium transition-colors",
                     !isSignUp
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
@@ -120,7 +120,7 @@ function PasswordAuthContent() {
                     setErrorMessage(null);
                   }}
                   className={cn(
-                    "px-6 py-2 rounded-full text-sm font-medium transition-all",
+                    "px-6 py-2 rounded-full text-sm font-medium transition-colors",
                     isSignUp
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
@@ -199,7 +199,7 @@ function PasswordAuthContent() {
                 <div className="space-y-4 pt-4">
                   <SubmitButton
                     formAction={handleAuth}
-                    className="w-full h-12 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md"
+                    className="w-full h-12 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-md"
                     pendingText={isSignUp ? 'Creating account...' : 'Signing in...'}
                   >
                     {isSignUp ? 'Create account' : 'Sign in'}

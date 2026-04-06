@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import {
   Search,
   PanelLeftClose,
@@ -70,7 +71,7 @@ export function FileExplorerToolbar() {
         <Button
           variant="ghost"
           size="icon"
-          className={`h-7 w-7 hover:text-foreground ${showHidden ? 'text-foreground' : 'text-muted-foreground/60'}`}
+          className={cn('h-7 w-7 hover:text-foreground', showHidden ? 'text-foreground' : 'text-muted-foreground/60')}
           onClick={toggleHidden}
           title={showHidden ? 'Hide dotfiles' : 'Show dotfiles'}
         >

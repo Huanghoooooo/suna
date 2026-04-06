@@ -220,6 +220,35 @@ async function pollSingleSandbox(sandbox: typeof sandboxes.$inferSelect): Promis
 
       console.log(`[provision-poller] ${sandbox.sandboxId} → active (sandbox services ready)`);
 
+      // Inject PUBLIC_BASE_URL so getMasterPublicBaseUrl() returns a public URL
+      // instead of localhost inside the sandbox. Fire-and-forget — non-critical.
+      const slug = meta.justavpsSlug as string | undefined;
+      const proxyToken = meta.justavpsProxyToken as string | undefined;
+      const serviceKey = ((sandbox.config as Record<string, unknown> | null)?.serviceKey as string | undefined) || '';
+      if (slug && proxyToken) {
+        const proxyDomain = config.JUSTAVPS_PROXY_DOMAIN || 'kortix.cloud';
+        const publicBaseUrl = `https://8000--${slug}.${proxyDomain}?__proxy_token=${proxyToken}`;
+        try {
+          const envRes = await fetch(`https://8000--${slug}.${proxyDomain}/env/PUBLIC_BASE_URL`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Proxy-Token': proxyToken,
+              ...(serviceKey ? { 'Authorization': `Bearer ${serviceKey}` } : {}),
+            },
+            body: JSON.stringify({ value: publicBaseUrl }),
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (envRes.ok) {
+            console.log(`[provision-poller] PUBLIC_BASE_URL injected for ${sandbox.sandboxId}`);
+          } else {
+            console.warn(`[provision-poller] PUBLIC_BASE_URL injection returned ${envRes.status} for ${sandbox.sandboxId}`);
+          }
+        } catch (err) {
+          console.warn(`[provision-poller] Failed to inject PUBLIC_BASE_URL for ${sandbox.sandboxId}:`, (err as Error).message);
+        }
+      }
+
       sandboxEventBus.emit({
         sandboxId: sandbox.sandboxId,
         externalId: sandbox.externalId,

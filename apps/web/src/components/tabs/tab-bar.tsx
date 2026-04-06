@@ -20,6 +20,10 @@ import {
   Monitor,
   TerminalSquare,
   Activity,
+  ChevronLeft,
+  ChevronRight,
+  Menu,
+  PanelRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTabStore, type Tab, type TabType, DASHBOARD_TAB_ID } from '@/stores/tab-store';
@@ -46,6 +50,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { useSidebar } from '@/components/ui/sidebar';
+import { useRightSidebarSafe } from '@/components/ui/sidebar-right-provider';
 
 const DEPLOYMENTS_ENABLED = process.env.NEXT_PUBLIC_KORTIX_DEPLOYMENTS_ENABLED === 'true';
 
@@ -460,14 +466,15 @@ function TabItem({
       onClick={handleClick}
       onContextMenu={handleContextMenu}
       className={cn(
-        'group relative flex items-center text-xs select-none cursor-pointer',
-        'transition-all duration-200 ease-out',
+        'group relative flex items-center text-[13px] select-none cursor-pointer',
+        'transition-colors duration-150',
+        'h-full',
         isDashboard
-          ? 'w-9 md:w-10 justify-center px-0'
-          : 'gap-2 pl-3 pr-2 max-w-[200px] min-w-[100px]',
+          ? 'w-9 justify-center px-0'
+          : 'gap-1.5 px-2 md:gap-2 md:px-3 max-w-[200px] min-w-[48px] md:min-w-[80px]',
         isActive
-          ? 'h-[36px] md:h-[40px] rounded-t-[8px] bg-muted text-foreground'
-          : 'h-[32px] md:h-[36px] rounded-t-[6px] text-muted-foreground hover:text-foreground hover:bg-foreground/[0.05]',
+          ? 'text-foreground'
+          : 'text-muted-foreground hover:text-foreground',
       )}
     >
       {/* Drag-over indicator */}
@@ -524,7 +531,7 @@ function TabItem({
 
       {/* Pin indicator — hidden for dashboard (it's always pinned but we don't show the icon) */}
       {tab.pinned && !isDashboard && (
-        <Pin className="flex-shrink-0 h-2 w-2 text-muted-foreground/40 -rotate-[20deg]" />
+        <Pin className="flex-shrink-0 h-2 w-2 text-muted-foreground/40 -rotate-[20deg] hidden md:block" />
       )}
 
       {/* Close button — never shown for dashboard */}
@@ -532,11 +539,12 @@ function TabItem({
         <button
           onClick={handleCloseClick}
           className={cn(
-            'flex-shrink-0 p-0.5 rounded transition-all duration-100 cursor-pointer',
-            'hover:bg-foreground/8 active:bg-foreground/12',
+            'flex-shrink-0 p-0.5 rounded-sm transition-colors duration-100 cursor-pointer',
+            'hover:bg-foreground/10',
+            'hidden md:block',
             isActive
-              ? 'opacity-50 hover:opacity-100'
-              : 'opacity-0 group-hover:opacity-60 group-hover:hover:opacity-100',
+              ? 'md:opacity-40 md:hover:opacity-80'
+              : 'md:opacity-0 md:group-hover:opacity-40 md:group-hover:hover:opacity-80',
           )}
           aria-label={`Close ${tab.title}`}
         >
@@ -544,6 +552,10 @@ function TabItem({
         </button>
       )}
 
+      {/* Active indicator — bottom accent line */}
+      {isActive && (
+        <div className="absolute bottom-0 left-2 right-2 h-[2px] bg-foreground/80 rounded-full" />
+      )}
 
     </div>
   );
@@ -559,6 +571,8 @@ export function TabBar() {
   const currentInstanceId = getCurrentInstanceIdFromPathname(rawPathname) || getActiveInstanceIdFromCookie();
   const scrollRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const sidebar = useSidebar();
+  const rightSidebar = useRightSidebarSafe();
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -800,8 +814,18 @@ export function TabBar() {
 
   const handleClose = useCallback(
     (tabId: string) => {
-      closingTabIds.current.add(tabId);
       const state = useTabStore.getState();
+      const tab = state.tabs[tabId];
+
+      // Guard: confirm before closing a dirty (unsaved) file tab
+      if (tab?.dirty && tab.type === 'file') {
+        const confirmed = window.confirm(
+          'You have unsaved changes. Are you sure you want to close this file?'
+        );
+        if (!confirmed) return;
+      }
+
+      closingTabIds.current.add(tabId);
       const nextTabId = state.closeTab(tabId);
       if (nextTabId) {
         const nextTab = useTabStore.getState().tabs[nextTabId];
@@ -1063,28 +1087,69 @@ export function TabBar() {
 
   // Always render the bar so the bg-sidebar strip above the content curve is consistent
   if (orderedTabs.length === 0) {
-    return <div className="flex-shrink-0 bg-sidebar h-[42px] md:h-[46px]" />;
+    return <div className="flex-shrink-0 bg-sidebar h-[44px] md:h-[38px]" />;
   }
 
   return (
     <>
       <div
         ref={tabBarRef}
-        className="flex-shrink-0 flex items-end bg-sidebar h-[42px] md:h-[46px] relative overflow-hidden"
+        className="flex-shrink-0 flex items-stretch bg-sidebar h-[44px] md:h-[38px] relative overflow-hidden"
         role="tablist"
       >
-        {/* The content area's border-t provides the floor line; no extra line needed here */}
+        {/* Mobile: sidebar toggles */}
+        <div className="flex-shrink-0 flex items-center gap-0 pl-2 pr-1 md:hidden">
+          <button
+            onClick={() => { sidebar.setOpenMobile(true); }}
+            className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => { rightSidebar?.setOpenMobile(true); }}
+            className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+            aria-label="Quick actions"
+          >
+            <PanelRight className="h-4 w-4" />
+          </button>
+        </div>
+        {/* Desktop: Back/Forward navigation */}
+        <div className="flex-shrink-0 flex items-center gap-0 pl-2 pr-1 hidden md:flex">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => window.history.back()}
+                className="flex items-center justify-center w-6 h-6 rounded text-muted-foreground/50 hover:text-muted-foreground transition-colors cursor-pointer"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs">Back</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => window.history.forward()}
+                className="flex items-center justify-center w-6 h-6 rounded text-muted-foreground/50 hover:text-muted-foreground transition-colors cursor-pointer"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs">Forward</TooltipContent>
+          </Tooltip>
+        </div>
 
         <div
           ref={scrollRef}
           onWheel={handleWheel}
-          className="flex-1 flex items-end overflow-x-auto px-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
+          className="flex-1 flex items-stretch overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
         >
           {orderedTabs.map((tab, index) => {
             const pending = tab.type === 'session' ? getPendingCount(tab.id) : 0;
             const busy = tab.type === 'session' && pending === 0 && statuses[tab.id]?.type === 'busy';
             return (
-              <div key={tab.id} data-tab-id={tab.id} className={cn("flex items-end relative", tab.id === activeTabId ? "z-20" : "z-0")}>
+              <div key={tab.id} data-tab-id={tab.id} className="flex items-stretch relative">
                 <TabItem
                   tab={tab}
                   index={index}
@@ -1107,7 +1172,7 @@ export function TabBar() {
         </div>
 
         {/* Action buttons group — solid bg so tabs don't scroll behind */}
-        <div className="flex-shrink-0 flex items-center gap-px pr-1 relative z-20 bg-sidebar pl-2 h-full">
+        <div className="flex-shrink-0 flex items-center gap-px pr-2 relative z-20 bg-sidebar pl-1 h-full">
           {/* Fade edge — hidden when scrolled fully right */}
           <div ref={scrollFadeRef} className="absolute right-full top-0 bottom-0 w-3 bg-gradient-to-r from-transparent to-sidebar pointer-events-none transition-opacity duration-150" />
           {/* New tab button */}

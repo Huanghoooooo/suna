@@ -616,7 +616,7 @@ export const MermaidRenderer: React.FC<MermaidRendererProps> = React.memo(({
             <Button
               variant="secondary"
               size="sm"
-              className="h-8 w-8 p-0 bg-background/90 hover:bg-background border shadow-sm pointer-events-auto"
+              className="w-8 p-0 bg-background/90 hover:bg-background border shadow-sm pointer-events-auto"
               onClick={(e) => {
                 e.stopPropagation();
                 handleFullscreenOpen();

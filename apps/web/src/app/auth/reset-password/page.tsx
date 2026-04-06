@@ -60,7 +60,7 @@ function ResetPasswordContent() {
               <div className="relative z-10 pt-24 pb-8 max-w-xl mx-auto h-full w-full flex flex-col gap-2 items-center justify-center">
                 <div className="flex flex-col items-center text-center">
                   <div className="bg-green-50 dark:bg-green-950/20 rounded-full p-4 mb-6">
-                    <CheckCircle className="h-12 w-12 text-green-500 dark:text-green-400" />
+                    <CheckCircle className="h-12 w-12 text-emerald-500 dark:text-green-400" />
                   </div>
 
                   <h1 className="text-3xl md:text-4xl lg:text-5xl font-medium tracking-tighter text-center text-balance text-primary mb-4">
@@ -75,7 +75,7 @@ function ResetPasswordContent() {
                   <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
                     <Link
                       href="/auth"
-                      className="flex h-12 items-center justify-center w-full text-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md"
+                      className="flex h-12 items-center justify-center w-full text-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-md"
                     >
                       Go to sign in
                     </Link>
@@ -100,7 +100,7 @@ function ResetPasswordContent() {
             <div className="relative z-10 pt-24 pb-8 max-w-md mx-auto h-full w-full flex flex-col gap-2 items-center justify-center">
               <Link
                 href="/auth"
-                className="group border border-border/50 bg-background hover:bg-accent/20 rounded-full text-sm h-8 px-3 flex items-center gap-2 transition-all duration-200 shadow-sm mb-6"
+                className="group border border-border/50 bg-background hover:bg-accent/20 rounded-full text-sm h-8 px-3 flex items-center gap-2 transition-colors duration-200 shadow-sm mb-6"
               >
                 <ArrowLeft className="h-4 w-4 text-muted-foreground" />
                 <span className="font-medium text-muted-foreground text-xs tracking-wide">
@@ -154,7 +154,7 @@ function ResetPasswordContent() {
                   <div className="space-y-4 pt-4">
                     <SubmitButton
                       formAction={handleResetPassword}
-                      className="w-full h-12 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md"
+                      className="w-full h-12 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-md"
                       pendingText="Updating password..."
                     >
                       Reset Password
@@ -167,7 +167,7 @@ function ResetPasswordContent() {
                 <div className="mt-6 flex justify-center">
                   <Link
                     href="/auth"
-                    className="flex h-12 px-6 items-center justify-center text-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md"
+                    className="flex h-12 px-6 items-center justify-center text-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-md"
                   >
                     Return to sign in
                   </Link>

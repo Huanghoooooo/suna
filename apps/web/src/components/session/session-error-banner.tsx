@@ -4,6 +4,23 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ============================================================================
+// Abort detection — user-initiated stops get a lowkey treatment
+// ============================================================================
+
+const ABORT_PATTERNS = [
+  'operation was aborted',
+  'aborted',
+  'abort',
+  'cancelled',
+  'canceled',
+];
+
+function isAbortError(text: string): boolean {
+  const lower = text.toLowerCase();
+  return ABORT_PATTERNS.some((p) => lower.includes(p));
+}
+
+// ============================================================================
 // TurnErrorDisplay — simple inline error card (matches SolidJS reference)
 // ============================================================================
 
@@ -17,11 +34,22 @@ interface TurnErrorDisplayProps {
  * `AssistantMessage.error.data.message` via `getTurnError()` — no
  * classification, no severity levels, just the unwrapped error message.
  *
- * Matches the SolidJS reference: `<Card variant="error">{errorText()}</Card>`
+ * Abort errors (user-initiated stops) get a minimal, lowkey treatment —
+ * just muted text, no border/background card.
  */
 export function TurnErrorDisplay({ errorText, className }: TurnErrorDisplayProps) {
   if (!errorText) return null;
 
+  // Abort/cancelled → tiny muted note, no card
+  if (isAbortError(errorText)) {
+    return (
+      <p className={cn('text-[11px] text-muted-foreground/50 italic', className)}>
+        Interrupted
+      </p>
+    );
+  }
+
+  // Real errors → full card
   return (
     <div
       className={cn(

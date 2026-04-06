@@ -28,12 +28,15 @@ import connectorsRouter from './routes/connectors'
 import suggestionsRouter from './routes/suggestions'
 import coreRouter from './routes/core'
 import reloadRouter from './routes/reload'
-import cronRouter from './routes/cron'
 import triggersRouter from './routes/triggers'
+import shareRouter from './routes/share'
+import shareProxyRouter from './routes/share-proxy'
 import marketplaceRouter from './routes/marketplace'
+import preferencesRouter from './routes/preferences'
 import projectsRouter from './routes/projects'
+import { tasksRouter } from './routes/tasks'
+import { agentsRouter } from './routes/agents'
 import { serviceManager } from './services/service-manager'
-import { getCronManager } from './services/cron-manager'
 import { config } from './config'
 import { loadBootstrapEnv, saveBootstrapEnv } from './services/bootstrap-env'
 import { HealthResponse, PortsResponse } from './schemas/common'
@@ -71,6 +74,10 @@ loadBootstrapEnv()
 // Initialize secret store and load ENV variables
 const secretStore = new SecretStore()
 await secretStore.loadIntoProcessEnv()
+
+// Initialize share store (load persisted shares, start prune timer)
+import { initShareStore } from './services/share-store'
+initShareStore()
 
 // ─── Guarantee KORTIX_TOKEN + KORTIX_API_URL in s6 env dir ──────────────────
 // These are injected as Docker env vars at container creation but never written
@@ -126,7 +133,8 @@ if (process.env.KORTIX_DISABLE_CORE_SUPERVISOR !== 'true') {
   )
 }
 
-getCronManager().start()
+// Cron scheduling + webhook routing handled by unified triggers plugin.
+// TriggerManager starts cron jobs from .kortix/triggers.yaml + DB on boot.
 
 // Global middleware
 app.use('*', logger())
@@ -177,14 +185,18 @@ app.use('*', async (c, next) => {
   if (pathname === '/kortix/health') return next()
   // Skip docs endpoints — API docs should be accessible without auth
   if (pathname === '/docs' || pathname === '/docs/openapi.json') return next()
-  // Skip auth for channel webhook endpoints — external services (e.g. Telegram)
-  // send webhook POSTs that cannot carry our INTERNAL_SERVICE_KEY.
-  // The channel adapter verifies authenticity via its own secret token header.
-  if (pathname.startsWith('/channels/api/webhooks/')) return next()
+  // [channels v2] Channel webhooks now use /hooks/telegram/<id> and /hooks/slack/<id>
+  // which are already covered by the /hooks/* bypass below.
   // Skip auth for Pipedream event delivery — Pipedream POSTs events to
   // /events/pipedream/:listenerId. The listener ID acts as a secret token
-  // (UUID, not guessable). Events are forwarded to the agent-triggers webhook server.
+  // (UUID, not guessable). Events are forwarded to the triggers webhook server.
   if (pathname.startsWith('/events/pipedream/')) return next()
+  // Skip auth for user-defined webhook triggers at /hooks/* — external callers
+  // authenticate via the X-Kortix-Trigger-Secret header (per-trigger secret).
+  if (pathname.startsWith('/hooks/')) return next()
+  // Skip auth for share proxy at /s/{token}/* — the share token IS the auth.
+  // Token validity + TTL is checked by the share-proxy route handler.
+  if (pathname.startsWith('/s/')) return next()
 
   // Skip auth for requests from inside the sandbox (localhost/loopback)
   if (isLocalRequest(c)) return next()
@@ -339,9 +351,14 @@ if (config.KORTIX_DEPLOYMENTS_ENABLED) {
 // Services — unified "what's running" for the frontend
 app.route('/kortix/services', servicesRouter)
 
-// Scheduled tasks
-app.route('/kortix/cron', cronRouter)
+// Triggers — unified CRUD for all trigger types (cron, webhook, etc.)
 app.route('/kortix/triggers', triggersRouter)
+// Legacy compat: /kortix/cron/* → forwards to /kortix/triggers/*
+app.route('/kortix/cron', triggersRouter)
+
+// Channels — SQLite-backed channel management (Telegram, Slack)
+import { channelsRouter } from './routes/channels'
+app.route('/kortix/channels', channelsRouter)
 
 // Core supervisor management
 app.route('/kortix/core', coreRouter)
@@ -352,10 +369,20 @@ app.route('/kortix/reload', reloadRouter)
 // Marketplace — skill/component install from registry
 app.route('/kortix/marketplace', marketplaceRouter)
 
+// Preferences — default model management
+app.route('/kortix/preferences', preferencesRouter)
+
 // Projects + Tasks — Kortix project management (frontend source of truth)
 // Mount at both paths — Hono sub-routers don't match trailing slash from parent
 app.route('/kortix/projects', projectsRouter)
 app.route('/kortix/projects/', projectsRouter)
+app.route('/kortix/tasks', tasksRouter)
+app.route('/kortix/tasks/', tasksRouter)
+app.route('/kortix/agents', agentsRouter)
+app.route('/kortix/agents/', agentsRouter)
+
+// Public URL sharing — /kortix/share/:port returns the public URL for a sandbox port
+app.route('/kortix/share', shareRouter)
 
 // Connectors — SQLite-backed CRUD
 app.route('/kortix/connectors', connectorsRouter)
@@ -363,8 +390,42 @@ app.route('/kortix/connectors', connectorsRouter)
 // Pipedream integration proxy — forwards to kortix-api
 app.route('/api/pipedream', pipedreamRouter)
 
+// [channels v2] Channel webhooks — handles /hooks/telegram/<id> and /hooks/slack/<id>
+// directly in kortix-master. These are looked up in the channels SQLite DB,
+// verified, parsed, and dispatched to OpenCode sessions.
+// Must be mounted BEFORE the generic /hooks/* proxy to port 8099.
+import channelWebhooksRouter from './routes/channel-webhooks'
+app.route('', channelWebhooksRouter)
+
+// Webhook trigger proxy — forwards remaining /hooks/* to the triggers webhook server (port 8099).
+// Auth is skipped (see auth middleware) — per-trigger secret via X-Kortix-Trigger-Secret header.
+app.all('/hooks/*', async (c) => {
+  const pathname = new URL(c.req.url).pathname
+  try {
+    const body = ['GET', 'HEAD'].includes(c.req.method) ? undefined : await c.req.text()
+    const headers: Record<string, string> = {
+      'Content-Type': c.req.header('content-type') || 'application/json',
+    }
+    // Forward the trigger secret header
+    const secret = c.req.header('x-kortix-trigger-secret') ?? c.req.header('x-kortix-opencode-trigger-secret')
+    if (secret) headers['x-kortix-trigger-secret'] = secret
+
+    const res = await fetch(`http://localhost:8099${pathname}`, {
+      method: c.req.method,
+      headers,
+      body,
+      signal: AbortSignal.timeout(30_000),
+    })
+    const data = await res.json()
+    return c.json(data, res.status as any)
+  } catch (err) {
+    console.error(`[Kortix Master] Webhook proxy error for ${pathname}:`, err)
+    return c.json({ ok: false, error: 'Failed to forward webhook to trigger server' }, 502)
+  }
+})
+
 // Pipedream event receiver — forwards events from Pipedream to the
-// agent-triggers webhook server (port 8099). Auth is skipped for this
+// triggers webhook server (port 8099). Auth is skipped for this
 // path (see auth middleware above) — the listener ID (UUID) is the secret.
 app.post('/events/pipedream/:listenerId', async (c) => {
   const listenerId = c.req.param('listenerId')
@@ -385,9 +446,13 @@ app.post('/events/pipedream/:listenerId', async (c) => {
     return c.json(data, res.status as any)
   } catch (err) {
     console.error(`[Kortix Master] Pipedream event forward error for ${listenerId}:`, err)
-    return c.json({ ok: false, error: 'Failed to forward event to agent-triggers' }, 502)
+    return c.json({ ok: false, error: 'Failed to forward event to triggers webhook server' }, 502)
   }
 })
+
+// Share proxy — /s/:token/* validates share token + TTL, then proxies to the target port.
+// Public route (no auth) — the share token IS the authentication.
+app.route('/s', shareProxyRouter)
 
 // Dynamic port proxy — /proxy/:port/* forwards to localhost:{port} inside the sandbox
 app.route('/proxy', proxyRouter)
@@ -404,87 +469,9 @@ app.route('/file', filesRouter)
 import legacyMigrateRouter from './routes/legacy-migrate'
 app.route('/legacy', legacyMigrateRouter)
 
-// Proxy channel webhooks (and /reload) to opencode-channels on port 3456
-app.all('/channels/*', async (c) => {
-  const subPath = c.req.path.replace(/^\/channels/, '') || '/'
-  const targetUrl = `http://localhost:3456${subPath}`
-
-  // Read body once (avoids double-consume issues with streams)
-  let body: ArrayBuffer | undefined
-  if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
-    try {
-      body = await c.req.raw.arrayBuffer()
-    } catch {
-      return c.json({ error: 'Failed to read request body' }, 400)
-    }
-  }
-
-  // Build clean headers (strip hop-by-hop headers that break proxying)
-  const headers = new Headers()
-  for (const [key, value] of c.req.raw.headers.entries()) {
-    const lower = key.toLowerCase()
-    if (lower === 'host' || lower === 'connection' || lower === 'keep-alive' || lower === 'te' || lower === 'upgrade') continue
-    headers.set(key, value)
-  }
-  headers.set('Host', 'localhost:3456')
-
-  // Retry loop with proper error handling (matches /proxy/:port/* resilience)
-  const MAX_RETRIES = 2
-  const RETRY_DELAY_MS = 300
-  let lastError = ''
-
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const res = await fetch(targetUrl, {
-        method: c.req.method,
-        headers,
-        body,
-        signal: AbortSignal.timeout(30_000),
-      })
-      return new Response(res.body, {
-        status: res.status,
-        statusText: res.statusText,
-        headers: res.headers,
-      })
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error)
-      lastError = errMsg
-
-      // Timeout — no point retrying
-      if (error instanceof DOMException && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
-        console.error(`[channels-proxy] Timeout on ${c.req.method} ${subPath}`)
-        return c.json({ error: 'Channels service request timed out', hint: 'The channels service on port 3456 did not respond in time' }, 504)
-      }
-
-      // Connection refused — service is not running
-      if (errMsg.includes('ECONNREFUSED') || errMsg.includes('Unable to connect') || errMsg.includes('Connection refused')) {
-        console.error(`[channels-proxy] Port 3456 unreachable on ${c.req.method} ${subPath}: channels service is not running`)
-        return c.json({
-          error: 'Channels service is not running',
-          hint: 'Nothing listening on localhost:3456. The service may still be starting up — try again in a few seconds.',
-          details: errMsg,
-        }, 502)
-      }
-
-      // Transient error — retry
-      const isTransient = ['ECONNRESET', 'EPIPE', 'ECONNABORTED', 'socket hang up'].some(p => errMsg.includes(p))
-      if (isTransient && attempt < MAX_RETRIES) {
-        console.warn(`[channels-proxy] Transient error on attempt ${attempt + 1}/${MAX_RETRIES + 1}: ${errMsg}, retrying...`)
-        await Bun.sleep(RETRY_DELAY_MS * (attempt + 1))
-        continue
-      }
-
-      // Non-retryable or exhausted
-      console.error(`[channels-proxy] Error on ${c.req.method} ${subPath}: ${errMsg}`)
-    }
-  }
-
-  return c.json({
-    error: 'Failed to connect to channels service',
-    details: lastError,
-    hint: 'The channels service on port 3456 is unreachable after retries',
-  }, 502)
-})
+// [channels v2] The old channels proxy to port 3456 has been removed.
+// Channel CLIs (telegram.ts, slack.ts) are standalone scripts.
+// Channel webhooks are handled directly by channel-webhooks.ts (mounted above /hooks/* proxy).
 
 // Proxy all other requests to OpenCode
 app.all('*',

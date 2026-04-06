@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSandboxConnectionStore } from '@/stores/sandbox-connection-store';
 import { resolveServerUrl, useServerStore } from '@/stores/server-store';
+import { Button } from '@/components/ui/button';
 import { KortixLoader } from '@/components/ui/kortix-loader';
 import { useRouter } from 'next/navigation';
 import {
@@ -70,7 +71,7 @@ export function ConnectingScreen() {
         <button
           type="button"
           onClick={handleSwitch}
-          className="flex items-center gap-2 h-9 px-4 text-sm font-medium text-foreground/80 hover:text-foreground bg-muted/50 hover:bg-muted border border-border/40 rounded-lg transition-all cursor-pointer"
+          className="flex items-center gap-2 h-9 px-4 text-sm font-medium text-foreground/80 hover:text-foreground bg-muted/50 hover:bg-muted border border-border/40 rounded-lg transition-colors cursor-pointer"
         >
           <ArrowLeftRight className="h-3.5 w-3.5" />
           Switch Instance
@@ -230,14 +231,16 @@ function ReconnectPill({
           {elapsed && <span className="text-muted-foreground/40"> · {elapsed}</span>}
         </span>
 
-        <button
+        <Button
           type="button"
           onClick={onSwitchInstance}
-          className="flex items-center gap-1 h-6 px-2.5 text-[11px] font-medium text-foreground bg-muted/50 hover:bg-muted rounded-full transition-colors cursor-pointer"
+          variant="muted"
+          size="xs"
+          className="rounded-full"
         >
           <ArrowLeftRight className="h-2.5 w-2.5" />
           Switch
-        </button>
+        </Button>
       </div>
     </div>
   );

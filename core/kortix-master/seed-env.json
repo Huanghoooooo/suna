@@ -1,12 +1,9 @@
 {
-  "_description": "Template keys seeded into SecretStore on first run. Only keys with empty string values create placeholder entries; keys with actual values are treated as defaults.",
+  "_description": "Template keys seeded into SecretStore on first run. Only keys with empty string values create placeholder entries; keys with actual values are treated as defaults. NOTE: Do NOT add platform-injected URL vars here (TAVILY_API_URL, REPLICATE_API_URL, SERPER_API_URL) — they are set as Docker env vars at sandbox creation and seeding empty values overwrites them.",
   "TAVILY_API_KEY": "",
-  "TAVILY_API_URL": "",
   "FIRECRAWL_API_KEY": "",
   "SERPER_API_KEY": "",
-  "SERPER_API_URL": "",
   "REPLICATE_API_TOKEN": "",
-  "REPLICATE_API_URL": "",
   "CONTEXT7_API_KEY": "",
   "ELEVENLABS_API_KEY": "",
   "KORTIX_AGENT_EMAIL_INBOX_FROM_NAME": "",

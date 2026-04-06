@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import { useState, useEffect, Suspense, useCallback } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
@@ -50,28 +51,28 @@ function LegalContent() {
               <div className="flex space-x-4 border-b border-border">
                 <button
                   onClick={() => handleTabChange('imprint')}
-                  className={`pb-2 px-4 ${activeTab === 'imprint'
+                  className={cn('pb-2 px-4', activeTab === 'imprint'
                       ? 'border-b-2 border-primary font-medium text-primary'
                       : 'text-muted-foreground hover:text-primary/80 transition-colors'
-                    }`}
+                    )}
                 >
                   Imprint
                 </button>
                 <button
                   onClick={() => handleTabChange('terms')}
-                  className={`pb-2 px-4 ${activeTab === 'terms'
+                  className={cn('pb-2 px-4', activeTab === 'terms'
                       ? 'border-b-2 border-primary font-medium text-primary'
                       : 'text-muted-foreground hover:text-primary/80 transition-colors'
-                    }`}
+                    )}
                 >
                   Terms of Service
                 </button>
                 <button
                   onClick={() => handleTabChange('privacy')}
-                  className={`pb-2 px-4 ${activeTab === 'privacy'
+                  className={cn('pb-2 px-4', activeTab === 'privacy'
                       ? 'border-b-2 border-primary font-medium text-primary'
                       : 'text-muted-foreground hover:text-primary/80 transition-colors'
-                    }`}
+                    )}
                 >
                   Privacy Policy
                 </button>

@@ -217,24 +217,17 @@ export const useTabStore = create<TabState>()(
           if (tab.parentSessionId && remainingTabs[tab.parentSessionId]) {
             nextActiveId = tab.parentSessionId;
           } else {
-            // VS Code-like: walk the focus history to find the most recently focused tab that's still open
-            for (const historyId of newFocusHistory) {
-              if (remainingTabs[historyId]) {
-                nextActiveId = historyId;
-                // Remove it from history since it becomes the active tab now
-                newFocusHistory = newFocusHistory.filter((id) => id !== historyId);
-                break;
-              }
-            }
-            // Fallback: if no history available, activate the nearest tab (prefer left neighbor, then right)
-            if (!nextActiveId && newOrder.length > 0) {
-              const oldIndex = tabOrder.indexOf(tabId);
-              // Prefer left neighbor — browser-like: close tab, focus shifts left
-              if (oldIndex > 0) {
-                nextActiveId = newOrder[oldIndex - 1];
+            // Browser-style (Chrome/Firefox): activate positional neighbor
+            // 1. Prefer the tab to the RIGHT of the closed tab
+            // 2. If closed tab was rightmost, activate the one to the LEFT
+            const oldIndex = tabOrder.indexOf(tabId);
+            if (newOrder.length > 0) {
+              if (oldIndex < newOrder.length) {
+                // There's a tab at the same index (i.e. the one that was to the right)
+                nextActiveId = newOrder[oldIndex];
               } else {
-                // Already at left edge, fall back to right neighbor
-                nextActiveId = newOrder[Math.min(oldIndex, newOrder.length - 1)];
+                // Closed tab was rightmost — activate the new last tab
+                nextActiveId = newOrder[newOrder.length - 1];
               }
             }
           }

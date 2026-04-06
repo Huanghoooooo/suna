@@ -47,25 +47,27 @@ function StatusPill({
   // Running (live or behind) = pulsing primary pill
   if (isRunning) {
     return (
-      <button
+      <Button
         onClick={onJumpToLive}
-        className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-primary/10 text-[11px] font-medium text-primary hover:bg-primary/15 transition-colors cursor-pointer"
+        variant="subtle"
+        size="toolbar"
       >
         <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
         {isLiveMode ? 'Live' : 'Jump to Live'}
-      </button>
+      </Button>
     );
   }
 
   // Manual mode + idle = "Jump to Latest"
   return (
-    <button
+    <Button
       onClick={onJumpToLatest}
-      className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-muted/60 text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+      variant="muted"
+      size="toolbar"
     >
       <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
       Jump to Latest
-    </button>
+    </Button>
   );
 }
 

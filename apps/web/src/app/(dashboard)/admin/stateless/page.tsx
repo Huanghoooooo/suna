@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from '@/lib/utils';
 import { useState, useMemo, useEffect } from "react";
 import {
   Activity,
@@ -279,7 +280,7 @@ export default function StatelessAdminPage() {
                 disabled={isLoading}
                 className="gap-1.5 h-8"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
+                <RefreshCw className={cn('w-3.5 h-3.5', isLoading ? "animate-spin" : "")} />
                 Refresh
               </Button>
             </div>

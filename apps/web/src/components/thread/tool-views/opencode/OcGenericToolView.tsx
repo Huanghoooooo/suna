@@ -587,7 +587,7 @@ function ErrorSection({ message }: { message: string }) {
             onClick={() => setShowTrace((v) => !v)}
             className="flex items-center gap-1.5 px-3 py-1.5 w-full text-left border-t border-red-500/10 text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
           >
-            <ChevronRight className={`h-3 w-3 transition-transform ${showTrace ? 'rotate-90' : ''}`} />
+            <ChevronRight className={cn('h-3 w-3 transition-transform', showTrace ? 'rotate-90' : '')} />
             <span className="text-[10px] font-medium">Stack trace</span>
           </button>
           {showTrace && (

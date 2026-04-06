@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1248,7 +1249,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className={`text-2xl font-bold ${gapToTarget > 0 ? 'text-red-500' : 'text-green-500'}`}>
+            <div className={cn('text-2xl font-bold', gapToTarget > 0 ? 'text-red-500' : 'text-green-500')}>
               {gapToTarget > 0 ? `-${formatCurrency(gapToTarget)}` : `+${formatCurrency(Math.abs(gapToTarget))}`}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Gap to Target</p>
@@ -1260,7 +1261,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
             <p className="text-xs text-muted-foreground mt-1">Progress to Goal</p>
             <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
               <div 
-                className={`h-full transition-all ${progressPercent >= 100 ? 'bg-green-500' : 'bg-primary'}`}
+                className={cn('h-full transition-colors', progressPercent >= 100 ? 'bg-green-500' : 'bg-primary')}
                 style={{ width: `${Math.min(100, progressPercent)}%` }}
               />
             </div>
@@ -1284,7 +1285,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
               return (
                 <div
                   key={month.month}
-                  className="absolute h-full bg-primary transition-all"
+                  className="absolute h-full bg-primary transition-colors"
                   style={{
                     width: `${Math.min(100, width)}%`,
                     opacity,
@@ -1762,7 +1763,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                           ) : (
                             <button
                               onClick={() => enableMonthlyOverrideInstantly(month.monthIndex, platform, month.month, field, autoValue)}
-                              className={`text-xs font-medium hover:underline cursor-pointer ${hasActual && meetsGoal ? 'text-green-600' : hasActual ? 'text-red-500' : 'text-muted-foreground'}`}
+                              className={cn('text-xs font-medium hover:underline cursor-pointer', hasActual && meetsGoal ? 'text-green-600' : hasActual ? 'text-red-500' : 'text-muted-foreground')}
                               title="Click to edit and override"
                             >
                               {(effectiveValue as number) > 0 ? displayValue : '—'}
@@ -1774,10 +1775,10 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                   };
                   
                   return (
-                    <tr key={`${month.month}-${platform}`} className={`border-b ${isLastMonth ? 'bg-primary/5 font-medium' : ''}`}>
+                    <tr key={`${month.month}-${platform}`} className={cn('border-b', isLastMonth ? 'bg-primary/5 font-medium' : '')}>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
-                          <span className={`text-xs px-1.5 py-0.5 rounded ${platform === 'web' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'}`}>
+                          <span className={cn('text-xs px-1.5 py-0.5 rounded', platform === 'web' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300')}>
                             {platform}
                           </span>
                         </div>
@@ -1786,14 +1787,14 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                       <td className="text-right p-2"></td>
                       {renderEditableMonthlyCell('views', autoViews, month.visitors)}
                       {/* % Growth */}
-                      <td className={`text-right p-2 font-medium ${getGrowthColor(viewsGrowth)}`}>
+                      <td className={cn('text-right p-2 font-medium', getGrowthColor(viewsGrowth))}>
                         {platform === 'web' ? formatGrowth(viewsGrowth) : '—'}
                       </td>
                       {/* Signups */}
                       <td className="text-right p-2"></td>
                       {renderEditableMonthlyCell('signups', autoSignups, month.signups)}
                       {/* Signups Growth */}
-                      <td className={`text-right p-2 font-medium ${getGrowthColor(signupsGrowth)}`}>
+                      <td className={cn('text-right p-2 font-medium', getGrowthColor(signupsGrowth))}>
                         {platform === 'web' ? formatGrowth(signupsGrowth) : '—'}
                       </td>
                       {/* Signup Conv */}
@@ -1804,7 +1805,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                       <td className="text-right p-2"></td>
                       {renderEditableMonthlyCell('newPaid', autoNewPaid, month.newPaid)}
                       {/* New Paid Growth */}
-                      <td className={`text-right p-2 font-medium ${getGrowthColor(newPaidGrowth)}`}>
+                      <td className={cn('text-right p-2 font-medium', getGrowthColor(newPaidGrowth))}>
                         {platform === 'web' ? formatGrowth(newPaidGrowth) : '—'}
                       </td>
                       {/* Paid Conv */}
@@ -1814,7 +1815,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                       {/* Churn */}
                       {renderEditableMonthlyCell('churn', autoChurn, 0)}
                       {/* Churn Rate = Churn / Subs at 1st of month */}
-                      <td className={`text-right p-2 font-medium ${churnRate !== null && churnRate > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                      <td className={cn('text-right p-2 font-medium', churnRate !== null && churnRate > 0 ? 'text-red-500' : 'text-muted-foreground')}>
                         {churnRate !== null ? `${churnRate.toFixed(1)}%` : '—'}
                       </td>
                       {/* Total Subs */}
@@ -1832,7 +1833,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                   
                   // Total row
                   const totalRow = (
-                    <tr key={`${month.month}-total`} className={`border-b bg-muted/30 font-medium ${isLastMonth ? 'bg-primary/10' : ''}`}>
+                    <tr key={`${month.month}-total`} className={cn('border-b bg-muted/30 font-medium', isLastMonth ? 'bg-primary/10' : '')}>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           <span className="text-xs px-1.5 py-0.5 rounded bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
@@ -1870,7 +1871,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                       {/* Churn - total */}
                       <td className="text-right p-2 font-semibold">{totalChurn > 0 ? formatNumber(totalChurn) : '—'}</td>
                       {/* Churn Rate */}
-                      <td className={`text-right p-2 font-medium ${totalChurnRate !== null && totalChurnRate > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                      <td className={cn('text-right p-2 font-medium', totalChurnRate !== null && totalChurnRate > 0 ? 'text-red-500' : 'text-muted-foreground')}>
                         {totalChurnRate !== null ? `${totalChurnRate.toFixed(1)}%` : '—'}
                       </td>
                       {/* Total Subs Goal */}
@@ -2170,7 +2171,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                           {platformIdx === 0 ? `W${week.week}` : ''}
                         </td>
                         <td className="p-2 text-muted-foreground whitespace-nowrap">
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${platform === 'web' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'}`}>
+                          <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium', platform === 'web' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400')}>
                             {platform === 'web' ? '🌐 Web' : '📱 App'}
                           </span>
                         </td>
@@ -2199,7 +2200,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                             ) : (
                               <button
                                 onClick={() => enableOverrideInstantly(week.week, platform, 'views', autoViews)}
-                                className={`text-[10px] font-medium hover:underline ${effectiveViews > 0 ? 'text-foreground' : 'text-muted-foreground'}`}
+                                className={cn('text-[10px] font-medium hover:underline', effectiveViews > 0 ? 'text-foreground' : 'text-muted-foreground')}
                                 title="Click to edit and override"
                               >
                                 {effectiveViews > 0 ? formatNumber(effectiveViews) : '—'}
@@ -2208,7 +2209,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                           </div>
                         </td>
                         {/* % Growth */}
-                        <td className={`text-right p-1 text-[10px] font-medium ${getGrowthColor(viewsGrowth)}`}>
+                        <td className={cn('text-right p-1 text-[10px] font-medium', getGrowthColor(viewsGrowth))}>
                           {formatGrowth(viewsGrowth)}
                         </td>
                         {/* Signups */}
@@ -2236,7 +2237,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                             ) : (
                               <button
                                 onClick={() => enableOverrideInstantly(week.week, platform, 'signups', autoSignups)}
-                                className={`text-[10px] font-medium hover:underline ${effectiveSignups > 0 ? 'text-foreground' : 'text-muted-foreground'}`}
+                                className={cn('text-[10px] font-medium hover:underline', effectiveSignups > 0 ? 'text-foreground' : 'text-muted-foreground')}
                                 title="Click to edit and override"
                               >
                                 {effectiveSignups > 0 ? formatNumber(effectiveSignups) : '—'}
@@ -2245,7 +2246,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                           </div>
                         </td>
                         {/* Signups Growth */}
-                        <td className={`text-right p-1 text-[10px] font-medium ${getGrowthColor(signupsGrowth)}`}>
+                        <td className={cn('text-right p-1 text-[10px] font-medium', getGrowthColor(signupsGrowth))}>
                           {formatGrowth(signupsGrowth)}
                         </td>
                         {/* Signup Conv */}
@@ -2277,7 +2278,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                             ) : (
                               <button
                                 onClick={() => enableOverrideInstantly(week.week, platform, 'newPaid', autoNewPaid || actual?.newPaid || 0)}
-                                className={`text-[10px] font-medium hover:underline ${effectiveNewPaid > 0 ? 'text-foreground' : 'text-muted-foreground'}`}
+                                className={cn('text-[10px] font-medium hover:underline', effectiveNewPaid > 0 ? 'text-foreground' : 'text-muted-foreground')}
                                 title="Click to edit and override"
                               >
                                 {effectiveNewPaid > 0 ? formatNumber(effectiveNewPaid) : '—'}
@@ -2286,7 +2287,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                           </div>
                         </td>
                         {/* New Paid Growth */}
-                        <td className={`text-right p-1 text-[10px] font-medium ${getGrowthColor(newPaidGrowth)}`}>
+                        <td className={cn('text-right p-1 text-[10px] font-medium', getGrowthColor(newPaidGrowth))}>
                           {formatGrowth(newPaidGrowth)}
                         </td>
                         {/* Paid Conv */}
@@ -2317,7 +2318,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                             ) : (
                               <button
                                 onClick={() => enableOverrideInstantly(week.week, platform, 'churn', autoChurn)}
-                                className={`text-[10px] font-medium hover:underline ${effectiveChurn > 0 ? 'text-red-500' : 'text-muted-foreground'}`}
+                                className={cn('text-[10px] font-medium hover:underline', effectiveChurn > 0 ? 'text-red-500' : 'text-muted-foreground')}
                                 title="Click to edit and override"
                               >
                                 {effectiveChurn > 0 ? formatNumber(effectiveChurn) : '—'}
@@ -2336,7 +2337,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                             ? (weekChurn / monthStartSubs) * 100 
                             : null;
                           return (
-                            <td className={`text-right p-1 text-[10px] font-medium ${churnRate !== null && churnRate > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                            <td className={cn('text-right p-1 text-[10px] font-medium', churnRate !== null && churnRate > 0 ? 'text-red-500' : 'text-muted-foreground')}>
                               {churnRate !== null ? `${churnRate.toFixed(1)}%` : '—'}
                             </td>
                           );
@@ -2366,7 +2367,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                             ) : (
                               <button
                                 onClick={() => enableOverrideInstantly(week.week, platform, 'subscribers', calcSubs)}
-                                className={`text-[10px] font-medium hover:underline ${effectiveSubs > 0 ? 'text-foreground' : 'text-muted-foreground'}`}
+                                className={cn('text-[10px] font-medium hover:underline', effectiveSubs > 0 ? 'text-foreground' : 'text-muted-foreground')}
                                 title="Click to edit and override"
                               >
                                 {effectiveSubs > 0 ? formatNumber(effectiveSubs) : '—'}
@@ -2399,7 +2400,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                             ) : (
                               <button
                                 onClick={() => enableOverrideInstantly(week.week, platform, 'mrr', actual?.mrr || 0)}
-                                className={`text-[10px] font-medium hover:underline ${actual?.mrr && actual.mrr > 0 ? 'text-foreground' : 'text-muted-foreground'}`}
+                                className={cn('text-[10px] font-medium hover:underline', actual?.mrr && actual.mrr > 0 ? 'text-foreground' : 'text-muted-foreground')}
                                 title="Click to edit and override"
                               >
                                 {actual?.mrr && actual.mrr > 0 ? toShorthand(actual.mrr) : '—'}
@@ -2432,7 +2433,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                             ) : (
                               <button
                                 onClick={() => enableOverrideInstantly(week.week, platform, 'arr', actual?.arr || 0)}
-                                className={`text-[10px] font-medium hover:underline ${actual?.arr && actual.arr > 0 ? 'text-foreground' : 'text-muted-foreground'}`}
+                                className={cn('text-[10px] font-medium hover:underline', actual?.arr && actual.arr > 0 ? 'text-foreground' : 'text-muted-foreground')}
                                 title="Click to edit and override"
                               >
                                 {actual?.arr && actual.arr > 0 ? toShorthand(actual.arr) : '—'}
@@ -2458,7 +2459,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                     
                     // Total row
                     const totalRow = (
-                      <tr key={`${week.week}_total`} className={`border-b bg-muted/30 font-medium ${week.week === weeklyProjections.length ? 'bg-primary/10' : ''}`}>
+                      <tr key={`${week.week}_total`} className={cn('border-b bg-muted/30 font-medium', week.week === weeklyProjections.length ? 'bg-primary/10' : '')}>
                         <td className="p-2"></td>
                         <td className="p-2 whitespace-nowrap">
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
@@ -2501,7 +2502,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                         {/* Subscribers Actual - total */}
                         <td className="text-right p-1 font-semibold text-[10px]">{totalSubs > 0 ? formatNumber(totalSubs) : '—'}</td>
                         {/* Subs Var */}
-                        <td className={`text-right p-1 text-[10px] ${totalSubsVar.color}`}>
+                        <td className={cn('text-right p-1 text-[10px]', totalSubsVar.color)}>
                           {totalSubs > 0 ? `${totalSubsVar.value >= 0 ? '+' : ''}${totalSubsVar.value.toFixed(1)}%` : '—'}
                         </td>
                         {/* MRR Goal */}
@@ -2509,7 +2510,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                         {/* MRR Actual - total */}
                         <td className="text-right p-1 font-semibold text-[10px]">{totalMRR > 0 ? toShorthand(totalMRR) : '—'}</td>
                         {/* MRR Var */}
-                        <td className={`text-right p-1 text-[10px] ${totalMrrVar.color}`}>
+                        <td className={cn('text-right p-1 text-[10px]', totalMrrVar.color)}>
                           {totalMRR > 0 ? `${totalMrrVar.value >= 0 ? '+' : ''}${totalMrrVar.value.toFixed(1)}%` : '—'}
                         </td>
                         {/* ARR Goal */}
@@ -2517,7 +2518,7 @@ export function ARRSimulator({ analyticsSource }: ARRSimulatorProps) {
                         {/* ARR Actual - total */}
                         <td className="text-right p-1 font-semibold text-[10px]">{totalARR > 0 ? toShorthand(totalARR) : '—'}</td>
                         {/* ARR Var */}
-                        <td className={`text-right p-1 text-[10px] ${totalArrVar.color}`}>
+                        <td className={cn('text-right p-1 text-[10px]', totalArrVar.color)}>
                           {totalARR > 0 ? `${totalArrVar.value >= 0 ? '+' : ''}${totalArrVar.value.toFixed(1)}%` : '—'}
                         </td>
                         {/* Delete - empty */}

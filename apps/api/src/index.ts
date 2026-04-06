@@ -35,8 +35,7 @@ import { startAutoReplenish, stopAutoReplenish } from './pool';
 import { accessControlApp } from './access-control';
 import { startAccessControlCache, stopAccessControlCache } from './shared/access-control-cache';
 import { legacyApp } from './legacy';
-import { channelsApp } from './channels';
-import { channelWebhooksApp } from './channels/webhooks';
+// [channels v2] Old channel routes removed — channels now managed via sandbox CLI (kchannel, ktelegram, kslack)
 import { adminApp } from './admin';
 import { sandboxPoolAdminApp } from './platform/routes/sandbox-pool-admin';
 import { oauthApp } from './oauth';
@@ -263,15 +262,9 @@ app.route('/v1/access', accessControlApp); // /v1/access/signup-status, /v1/acce
 // Legacy thread migration — authenticated endpoints
 app.route('/v1/legacy', legacyApp); // /v1/legacy/threads, /v1/legacy/threads/:id/migrate
 
-// Channel Webhooks — PUBLIC (no auth), platforms can't send JWTs.
-// Security: each adapter verifies requests (Slack signing secret, Telegram secret token).
-// MUST be registered before the channels auth middleware.
-app.route('/webhooks', channelWebhooksApp); // /webhooks/slack, /webhooks/telegram, etc.
-
-// Channels — Slack/Discord/Telegram channel configs (authenticated CRUD)
-app.use('/v1/channels/*', combinedAuth);
-app.use('/v1/channels', combinedAuth);
-app.route('/v1/channels', channelsApp); // /v1/channels, /v1/channels/:id, etc.
+// [channels v2] Old webhook forwarding and channel CRUD removed.
+// Channels are now managed inside the sandbox via CLI (kchannel, ktelegram, kslack).
+// Webhooks go directly to the sandbox via share URLs.
 
 // Setup — local/self-hosted only. Disabled in cloud mode (not needed, exposes admin surface).
 if (config.isLocal()) {

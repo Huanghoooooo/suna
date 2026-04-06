@@ -29,7 +29,13 @@ import type {
 function unwrap<T>(result: { data?: T; error?: unknown }): T {
   if (result.error) {
     const err = result.error as any;
-    throw new Error(err?.data?.message || err?.message || 'SDK request failed');
+    // Server error responses may use { error: '...' }, { message: '...' }, or { data: { message: '...' } }
+    const message =
+      err?.data?.message ||
+      err?.message ||
+      (typeof err?.error === 'string' ? err.error : null) ||
+      'SDK request failed';
+    throw new Error(message);
   }
   return result.data as T;
 }
@@ -58,11 +64,25 @@ function normalizePath(filePath: string): string {
 /**
  * Read the content of a file.
  * Returns text content for text files, base64-encoded content for images/binaries.
+ *
+ * Uses authenticatedFetch directly (bypassing the SDK) so we can inspect the
+ * HTTP status code and throw a clear error for 404 / non-existent files.
  */
 export async function readFile(filePath: string): Promise<FileContent> {
-  const client = getClient();
-  const result = await client.file.read({ path: normalizePath(filePath) });
-  return unwrap(result) as FileContent;
+  const baseUrl = getActiveOpenCodeUrl();
+  const absolutePath = normalizePath(filePath);
+  const url = `${baseUrl}/file/content?path=${encodeURIComponent(absolutePath)}`;
+  const response = await authenticatedFetch(url);
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    let parsed: any = null;
+    try { parsed = JSON.parse(text); } catch { /* not JSON */ }
+    const message = parsed?.error || text || response.statusText || `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+
+  return response.json() as Promise<FileContent>;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,8 +114,17 @@ export async function readFileAsBlob(filePath: string): Promise<Blob> {
       return response.blob();
     }
 
-    // 404 = endpoint doesn't exist on this server version → fall through to SDK
+    // 404 — could be "file not found" (JSON body) or "route not found" (old server).
+    // Distinguish by checking if the response is JSON with an `error` field.
     if (response.status === 404) {
+      const text = await response.text().catch(() => '');
+      let parsed: any = null;
+      try { parsed = JSON.parse(text); } catch { /* not JSON */ }
+      if (parsed?.error) {
+        // Server explicitly says file doesn't exist
+        throw new Error(parsed.error);
+      }
+      // Route doesn't exist on this server version → fall through to SDK
       fallThroughToSdk = true;
     } else {
       // Non-404 HTTP error (403, 500, etc.) — throw with details

@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import { useState, useCallback, useEffect } from 'react';
 import { BackgroundAALChecker } from '@/components/auth/background-aal-checker';
 import { WallpaperBackground } from '@/components/ui/wallpaper-background';
@@ -8,9 +9,6 @@ import { Button } from '@/components/ui/button';
 import { trackCtaSignup } from '@/lib/analytics/gtm';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useAuth } from '@/components/AuthProvider';
-import { isBillingEnabled } from '@/lib/config';
-import { toast } from '@/lib/toast';
-import { useNewInstanceModalStore } from '@/stores/pricing-modal-store';
 import { Reveal } from '@/components/home/reveal';
 
 const INSTALL_CMD = 'curl -fsSL https://kortix.com/install | bash';
@@ -55,7 +53,6 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [showFloatingCta, setShowFloatingCta] = useState(false);
   const { user } = useAuth();
-  const openNewInstanceModal = useNewInstanceModalStore((s) => s.openNewInstanceModal);
 
   const { scrollY } = useScroll();
   const drawerRadius = useTransform(scrollY, [200, 600], [24, 0]);
@@ -74,18 +71,14 @@ export default function Home() {
     setTimeout(() => setCopied(false), 2000);
   }, []);
 
-  /** Open the machine picker modal — works for both guests and logged-in users. */
   const handleLaunch = useCallback(() => {
     trackCtaSignup();
-
-    if (!isBillingEnabled()) {
-      if (!user) { window.location.href = '/auth?mode=signup'; return; }
-      window.location.href = '/instances';
+    if (!user) {
+      window.location.href = '/auth';
       return;
     }
-
-    openNewInstanceModal();
-  }, [user, openNewInstanceModal]);
+    window.location.href = '/instances';
+  }, [user]);
 
   return (
     <BackgroundAALChecker>
@@ -107,7 +100,7 @@ export default function Home() {
             <div className="relative z-[1] pb-8 px-4 flex flex-col items-center gap-6">
               <Button
                 size="lg"
-                className="h-12 px-8 text-sm rounded-full transition-all"
+                className="h-12 px-8 text-sm rounded-full transition-colors"
                 onClick={handleLaunch}
               >
                 Launch Your Kortix<ArrowRight className="ml-1.5 size-3.5" />
@@ -120,7 +113,7 @@ export default function Home() {
                 <code className="text-[11px] font-mono text-foreground/60 tracking-tight">{INSTALL_CMD}</code>
                 <div className="pl-2.5 border-l border-foreground/[0.06]">
                   {copied
-                    ? <Check className="size-3 text-green-500" />
+                    ? <Check className="size-3 text-emerald-500" />
                     : <Copy className="size-3 text-muted-foreground/25 group-hover:text-muted-foreground/50 transition-colors" />
                   }
                 </div>
@@ -197,7 +190,7 @@ export default function Home() {
               { icon: <Bot className="size-4" />, title: 'Agents', desc: 'Markdown files with their own identity, permissions, tools, and triggers. A support agent, a bookkeeper, a recruiter — each a specialist.' },
               { icon: <Sparkles className="size-4" />, title: 'Skills', desc: 'Reusable knowledge packs that teach agents how to do real work. 60+ built-in: coding, browser automation, deep research, legal writing, spreadsheets, and more.' },
               { icon: <RefreshCw className="size-4" />, title: 'Autowork', desc: 'The autonomous execution loop. An agent works until the task is done, self-verifies, and only stops when it can prove the result is correct.' },
-              { icon: <Zap className="size-4" />, title: 'Triggers', desc: 'Time-driven or event-driven. Cron schedules and webhooks defined right in the agent markdown. Morning briefings, recurring jobs, real-time reactions. The machine works while you sleep.' },
+              { icon: <Zap className="size-4" />, title: 'Triggers', desc: 'Time-driven or event-driven. Cron schedules and webhooks with prompt, command, or HTTP actions. Git-versionable config. Morning briefings, recurring jobs, real-time reactions.' },
               { icon: <Brain className="size-4" />, title: 'Memory', desc: 'Persistent and filesystem-based. Semantic search across all sessions. Every decision, preference, and context is retained. The longer it runs, the smarter it gets.' },
               { icon: <GitFork className="size-4" />, title: 'Orchestration', desc: 'One agent delegates to many. Projects, background sessions, parallel sub-agents. A primary orchestrator decomposes work and tracks it to completion.' },
               { icon: <Blocks className="size-4" />, title: 'Open standards', desc: (<>Runs on <a href="https://opencode.ai" target="_blank" rel="noopener noreferrer" className="hover:text-foreground/80 transition-colors">OpenCode</a> — an open foundation for agent skills, tools, and commands.</>) },
@@ -320,9 +313,9 @@ export default function Home() {
 
         {/* ═══════════════ FLOATING CTA BAR ═══════════════ */}
         <div
-           className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-1.5 py-1.5 rounded-full border border-border/50 bg-background/95 backdrop-blur-md transition-all duration-300 ${
+           className={cn('fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-1.5 py-1.5 rounded-full border border-border/50 bg-background/95 backdrop-blur-md transition-colors duration-300', 
             showFloatingCta ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'
-          }`}
+          )}
         >
           <button
             onClick={handleCopy}
@@ -331,7 +324,7 @@ export default function Home() {
             <span className="font-mono text-[11px] text-muted-foreground/40 select-none">$</span>
             <code className="text-[11px] font-mono text-foreground/60 tracking-tight">curl -fsSL kortix.com/install</code>
             {copied
-              ? <Check className="size-3 text-green-500" />
+              ? <Check className="size-3 text-emerald-500" />
               : <Copy className="size-3 text-muted-foreground/30 group-hover:text-muted-foreground/50 transition-colors" />
             }
           </button>
@@ -347,7 +340,7 @@ export default function Home() {
           </a>
           <Button
             size="sm"
-            className="h-8 px-5 text-xs rounded-full font-medium"
+            className="px-5 text-xs rounded-full font-medium"
             onClick={handleLaunch}
           >
             Launch Your Kortix<ArrowRight className="ml-1.5 size-3" />

@@ -14,6 +14,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
+import {
   useRightSidebar,
   SIDEBAR_RIGHT_WIDTH,
   SIDEBAR_RIGHT_WIDTH_ICON,
@@ -47,6 +54,8 @@ export function SidebarRight() {
     state,
     open,
     setOpen,
+    openMobile,
+    setOpenMobile,
     toggleSidebar,
     isMobile,
   } = useRightSidebar();
@@ -148,7 +157,122 @@ export function SidebarRight() {
 
   const obHide = useOnboardingModeStore((s) => s.active && !s.morphing);
 
-  if (isMobile) return null;
+  if (isMobile) {
+    return (
+      <>
+        <Sheet open={openMobile} onOpenChange={setOpenMobile}>
+          <SheetContent
+            data-sidebar="sidebar"
+            data-slot="sidebar"
+            data-mobile="true"
+            className="bg-sidebar text-sidebar-foreground w-[min(85vw,400px)] p-0 [&>button]:hidden"
+            side="right"
+          >
+            <SheetHeader className="sr-only">
+              <SheetTitle>Quick Actions</SheetTitle>
+              <SheetDescription>Quick actions and navigation</SheetDescription>
+            </SheetHeader>
+            <div className="flex h-full w-full flex-col">
+              {/* ====== HEADER ====== */}
+              <div className="flex flex-col pt-3 pb-0 overflow-visible">
+                <div className="relative flex h-[32px] items-center px-3 justify-between">
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider select-none px-1">
+                      Quick Actions
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ====== CONTENT ====== */}
+              <div className="flex flex-col h-full">
+                <nav className="flex-1 px-3 pt-2 overflow-y-auto">
+                  {/* Quick action clusters with section labels */}
+                  {quickActionClusters.map((cluster, clusterIdx) => {
+                    const subGroup = cluster[0]?.subGroup as NavSubGroup | undefined;
+                    const label = subGroup ? navSubGroupLabels[subGroup] : undefined;
+                    return (
+                      <div key={subGroup ?? clusterIdx} className={clusterIdx === 0 ? 'mt-0' : 'mt-2'}>
+                        {label && (
+                          <div className="px-3 pb-1.5 pt-1">
+                            <span className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider select-none">
+                              {label}
+                            </span>
+                          </div>
+                        )}
+                        <div className="space-y-0.5">
+                          {cluster.map((item) => {
+                            const Icon = item.icon;
+                            const isTerminal = item.actionId === 'newTerminal';
+                            const isDisabled = isTerminal && createPty.isPending;
+                            const label = isTerminal && createPty.isPending ? 'Creating...' : item.label;
+                            return (
+                              <button
+                                key={item.id}
+                                onClick={() => handleItemAction(item)}
+                                disabled={isDisabled}
+                                className={cn(
+                                  'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] cursor-pointer',
+                                  'text-sidebar-foreground hover:bg-sidebar-accent transition-colors duration-150',
+                                  'disabled:opacity-50 disabled:cursor-not-allowed',
+                                )}
+                              >
+                                <Icon className="h-4 w-4 flex-shrink-0" />
+                                <span>{label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Navigation clusters with section labels */}
+                  {navClusters.map((cluster, clusterIdx) => {
+                    const subGroup = cluster[0]?.subGroup as NavSubGroup | undefined;
+                    const label = subGroup ? navSubGroupLabels[subGroup] : undefined;
+                    return (
+                      <div key={subGroup ?? clusterIdx} className="mt-3">
+                        {label && (
+                          <div className="px-3 pb-1.5 pt-1">
+                            <span className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider select-none">
+                              {label}
+                            </span>
+                          </div>
+                        )}
+                        <div className="space-y-0.5">
+                          {cluster.map((item) => {
+                            const Icon = item.icon;
+                            const active = isItemActive(item, pathname);
+                            return (
+                              <button
+                                key={item.id}
+                                onClick={() => handleItemAction(item)}
+                                className={cn(
+                                  'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] transition-colors duration-150 cursor-pointer',
+                                  active
+                                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                                    : 'text-sidebar-foreground hover:bg-sidebar-accent',
+                                )}
+                              >
+                                <Icon className="h-4 w-4 flex-shrink-0" />
+                                <span>{item.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </nav>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+        <SSHKeyDialog open={sshDialogOpen} onOpenChange={setSSHDialogOpen} />
+      </>
+    );
+  }
 
   const effectiveGap = obHide ? '0px' : (open ? SIDEBAR_RIGHT_WIDTH : SIDEBAR_RIGHT_WIDTH_ICON);
   const effectivePanel = obHide ? '0px' : (open ? SIDEBAR_RIGHT_WIDTH : SIDEBAR_RIGHT_WIDTH_ICON);
@@ -170,7 +294,7 @@ export function SidebarRight() {
           onClick={toggleSidebar}
           title="Toggle Sidebar"
           className={cn(
-            'hover:after:bg-sidebar-border absolute inset-y-0 left-0 z-20 hidden w-4 -translate-x-1/2 transition-all duration-300 ease-out after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex',
+            'hover:after:bg-sidebar-border absolute inset-y-0 left-0 z-20 hidden w-4 -translate-x-1/2 transition-colors duration-300 ease-out after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex',
             state === 'expanded' ? 'cursor-w-resize' : 'cursor-e-resize',
           )}
         />

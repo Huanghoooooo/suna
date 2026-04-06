@@ -84,7 +84,7 @@ export const UserTypeStep = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
                 <Button
                   variant="outline"
-                  className="h-32 flex flex-col items-center justify-center space-y-3 text-center hover:border-foreground/50 hover:bg-accent/50 transition-all duration-200"
+                  className="h-32 flex flex-col items-center justify-center space-y-3 text-center hover:border-foreground/50 hover:bg-accent/50 transition-colors duration-200"
                   onClick={() => handleTypeSelect('individual')}
                 >
                   <User className="h-8 w-8 text-primary" />
@@ -96,7 +96,7 @@ export const UserTypeStep = () => {
 
                 <Button
                   variant="outline"
-                  className="h-32 flex flex-col items-center justify-center space-y-3 text-center hover:border-foreground/50 hover:bg-accent/50 transition-all duration-200"
+                  className="h-32 flex flex-col items-center justify-center space-y-3 text-center hover:border-foreground/50 hover:bg-accent/50 transition-colors duration-200"
                   onClick={() => handleTypeSelect('company')}
                 >
                   <Building2 className="h-8 w-8 text-primary" />
@@ -126,7 +126,7 @@ export const UserTypeStep = () => {
                   <Button
                     key={size.id}
                     variant="outline"
-                    className="h-16 flex items-center justify-between px-6 hover:border-foreground/50 hover:bg-accent/50 transition-all duration-200"
+                    className="h-16 flex items-center justify-between px-6 hover:border-foreground/50 hover:bg-accent/50 transition-colors duration-200"
                     onClick={() => handleSizeSelect(size.id)}
                   >
                     <div className="text-left">
@@ -157,7 +157,7 @@ export const UserTypeStep = () => {
                   <Button
                     key={roleOption.id}
                     variant="outline"
-                    className="h-16 flex items-center justify-between px-6 hover:border-foreground/50 hover:bg-accent/50 transition-all duration-200"
+                    className="h-16 flex items-center justify-between px-6 hover:border-foreground/50 hover:bg-accent/50 transition-colors duration-200"
                     onClick={() => handleRoleSelect(roleOption.id)}
                   >
                     <div className="text-left">

@@ -543,7 +543,7 @@ export function FileExplorerPage() {
             <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{serverUrl}</code>
           </p>
         </div>
-        <Button variant="outline" size="sm" className="h-8 text-sm" onClick={() => refetch()}>
+        <Button variant="outline" size="sm" className="" onClick={() => refetch()}>
           <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
           Retry
         </Button>
@@ -629,17 +629,17 @@ export function FileExplorerPage() {
               <div className="space-y-6">
                 <div>
                   <Skeleton className="h-4 w-16 mb-3" />
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                      <Skeleton key={`f${i}`} className="h-11 rounded-xl" />
+                  <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <Skeleton key={`f${i}`} className="h-10 rounded-lg" />
                     ))}
                   </div>
                 </div>
                 <div>
                   <Skeleton className="h-4 w-12 mb-3" />
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                  <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
                     {Array.from({ length: 8 }).map((_, i) => (
-                      <Skeleton key={`fi${i}`} className="h-[168px] rounded-xl" />
+                      <Skeleton key={`fi${i}`} className="h-[138px] rounded-lg" />
                     ))}
                   </div>
                 </div>

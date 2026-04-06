@@ -73,18 +73,18 @@ export function OcProjectListToolView({
                       {project.name}
                     </span>
                     {project.sessions > 0 && (
-                      <Badge variant="outline" className="h-4 py-0 text-[9px] font-normal bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200/50 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-300">
+                      <Badge variant="outline" className="h-4 py-0 text-[0.5625rem] font-normal bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200/50 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-300">
                         <Users className="size-3 mr-0.5" />
                         {project.sessions}
                       </Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground/60">
-                    <span className="font-mono truncate max-w-[200px]" title={project.path}>
+                  <div className="text-[11px] text-muted-foreground/60 space-y-0.5">
+                    <span className="font-mono truncate block" title={project.path}>
                       {project.path}
                     </span>
                     {project.description && project.description !== '—' && (
-                      <span className="flex items-center gap-1 truncate max-w-[150px]" title={project.description}>
+                      <span className="flex items-center gap-1 truncate" title={project.description}>
                         <FileText className="size-3 flex-shrink-0" />
                         {project.description}
                       </span>

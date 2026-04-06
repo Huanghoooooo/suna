@@ -210,14 +210,16 @@ function CompactCommitRow({ commit, filePath }: { commit: GitCommit; filePath: s
             </span>
           </div>
         </div>
-        <button
+        <Button
           onClick={handleCopyHash}
-          className="flex items-center gap-0.5 text-[10px] font-mono px-1 py-0.5 rounded bg-muted/50 hover:bg-muted text-muted-foreground shrink-0"
+          variant="muted"
+          size="xs"
+          className="font-mono shrink-0"
           title="Copy hash"
         >
           {copied ? <Check className="size-2.5 text-emerald-500" /> : <Copy className="size-2.5" />}
           {commit.shortHash}
-        </button>
+        </Button>
       </button>
       {expanded && <CompactCommitDiff filePath={filePath} commitHash={commit.hash} />}
     </div>

@@ -49,3 +49,6 @@ infra/supabase/**/*.env
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Fumadocs MDX generated source
+.source/

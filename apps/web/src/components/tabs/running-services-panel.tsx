@@ -19,6 +19,8 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
+import { PageSearchBar } from '@/components/ui/page-search-bar';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -193,7 +195,7 @@ function ServiceCard({
               {canOpen && (
                 <Button
                   variant="ghost" size="sm"
-                  className="h-8 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={() => onOpen(service)}
                 >
                   <ExternalLink className="h-3.5 w-3.5 mr-1" />
@@ -204,7 +206,7 @@ function ServiceCard({
                 <>
                   <Button
                     variant="ghost" size="sm"
-                    className="h-8 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                     disabled={!!pendingAction}
                     onClick={() => onAction(service, mainAction)}
                   >
@@ -212,7 +214,7 @@ function ServiceCard({
                   </Button>
                   <Button
                     variant="ghost" size="sm"
-                    className="h-8 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                     disabled={!!pendingAction}
                     onClick={() => onAction(service, 'restart')}
                   >
@@ -220,7 +222,7 @@ function ServiceCard({
                   </Button>
                   <Button
                     variant="ghost" size="sm"
-                    className="h-8 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={() => onShowLogs(service.id)}
                   >
                     <Activity className="h-3.5 w-3.5" />
@@ -228,7 +230,7 @@ function ServiceCard({
                   {!service.builtin && (
                     <Button
                       variant="ghost" size="sm"
-                      className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="px-2 text-xs text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                       disabled={!!pendingAction}
                       onClick={() => onAction(service, 'delete')}
                     >
@@ -429,7 +431,7 @@ export function RunningServicesPanel() {
   return (
     <div className="flex-1 overflow-y-auto">
       {/* Page header */}
-      <div className="container mx-auto max-w-7xl px-3 sm:px-4 py-4 sm:py-8 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both">
+      <div className="container mx-auto max-w-7xl px-3 sm:px-4 py-3 sm:py-4 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both">
         <PageHeader icon={Server}>
           <div className="space-y-2 sm:space-y-4">
             <div className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
@@ -442,53 +444,32 @@ export function RunningServicesPanel() {
       <div className="container mx-auto max-w-7xl px-3 sm:px-4">
         {/* Search + filter + actions bar */}
         <div className="flex items-center justify-between gap-2 sm:gap-4 pb-3 sm:pb-4 pt-2 sm:pt-3 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both delay-75">
-          <div className="flex-1 max-w-md">
-            <div className="relative group">
-              <input
-                type="text"
-                placeholder="Search services..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-11 w-full rounded-2xl border border-input bg-card px-10 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-              />
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors">
-                <Search className="h-4 w-4" />
-              </div>
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-md p-0.5 transition-colors cursor-pointer"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
+          <PageSearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search services..."
+            className="max-w-md"
+          />
 
           {/* Filter segmented control */}
-          <div className="hidden sm:flex items-center gap-1 rounded-2xl border border-border bg-muted/30 p-1">
+          <FilterBar className="hidden sm:inline-flex">
             {filters.map((f) => (
-              <button
+              <FilterBarItem
                 key={f.key}
+                value={f.key}
                 onClick={() => setFilter(f.key)}
-                className={cn(
-                  'px-3 py-1.5 text-xs font-medium rounded-xl transition-all cursor-pointer',
-                  filter === f.key
-                    ? 'bg-background text-foreground border border-border/50 shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-background/70 border border-transparent',
-                )}
+                data-state={filter === f.key ? 'active' : 'inactive'}
               >
                 {f.label}
                 {f.count > 0 && <span className="ml-1 tabular-nums opacity-60">{f.count}</span>}
-              </button>
+              </FilterBarItem>
             ))}
-          </div>
+          </FilterBar>
 
           {/* Actions */}
           <div className="flex items-center gap-1.5">
             <Button
-              variant="outline" size="sm"
-              className="h-9 px-3 rounded-xl gap-1.5 text-sm"
+              variant="outline" size="default"
               disabled={pendingGlobal !== null}
               onClick={() => setRestartDialogOpen(true)}
             >
@@ -496,8 +477,7 @@ export function RunningServicesPanel() {
               <span className="hidden xs:inline">Restart</span>
             </Button>
             <Button
-              variant="default" size="sm"
-              className="h-9 px-3 sm:px-4 rounded-xl gap-1.5 text-sm"
+              variant="default" size="default"
               onClick={() => setIsRegisterOpen(true)}
             >
               <Plus className="h-4 w-4" />
@@ -590,19 +570,19 @@ export function RunningServicesPanel() {
           <form className="space-y-4" onSubmit={handleRegister}>
             <label className="space-y-2 text-sm font-medium">
               <span>Service ID</span>
-              <Input value={form.id} onChange={(e) => setForm((c) => ({ ...c, id: e.target.value }))} placeholder="my-web-app" />
+              <Input type="text" value={form.id} onChange={(e) => setForm((c) => ({ ...c, id: e.target.value }))} placeholder="my-web-app" />
             </label>
             <label className="space-y-2 text-sm font-medium">
               <span>Source path</span>
-              <Input value={form.sourcePath} onChange={(e) => setForm((c) => ({ ...c, sourcePath: e.target.value }))} placeholder="/workspace/my-app" />
+              <Input type="text" value={form.sourcePath} onChange={(e) => setForm((c) => ({ ...c, sourcePath: e.target.value }))} placeholder="/workspace/my-app" />
             </label>
             <label className="space-y-2 text-sm font-medium">
               <span>Start command</span>
-              <Input value={form.startCommand} onChange={(e) => setForm((c) => ({ ...c, startCommand: e.target.value }))} placeholder="bun server.js" />
+              <Input type="text" value={form.startCommand} onChange={(e) => setForm((c) => ({ ...c, startCommand: e.target.value }))} placeholder="bun server.js" />
             </label>
             <label className="space-y-2 text-sm font-medium">
               <span>Port <span className="text-muted-foreground font-normal">(optional — auto-assigned if empty)</span></span>
-              <Input value={form.port} onChange={(e) => setForm((c) => ({ ...c, port: e.target.value }))} placeholder="3000" inputMode="numeric" />
+              <Input type="text" value={form.port} onChange={(e) => setForm((c) => ({ ...c, port: e.target.value }))} placeholder="3000" inputMode="numeric" />
             </label>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsRegisterOpen(false)}>Cancel</Button>
@@ -620,8 +600,11 @@ export function RunningServicesPanel() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Restart Instance</AlertDialogTitle>
-            <AlertDialogDescription>
-              All managed services will be stopped and restarted. Active sessions will be interrupted.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p><strong>Config Only</strong> — Hot-reload agents, skills, commands, and config. Fast (~2s). Use after editing .md files or opencode.jsonc.</p>
+                <p><strong>Full Restart</strong> — Kill and restart every service (OpenCode, static server, kortix-master). Clears all module caches. Use after editing .ts plugin/route code. Active sessions will be interrupted.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">

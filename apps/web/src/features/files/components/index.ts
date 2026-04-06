@@ -4,7 +4,7 @@ export { FileContentRenderer } from './file-content-renderer';
 export type { FileContentRendererProps } from './file-content-renderer';
 export { getFileCategory, getLanguageFromExt } from './file-content-renderer';
 export { FileSearch } from './file-search';
-export { FileBreadcrumbs } from './file-breadcrumbs';
+export { FileBreadcrumbs, FilePathBreadcrumbs } from './file-breadcrumbs';
 export { FileTreeItem } from './file-tree-item';
 export { FileHistoryPanel } from './file-history-panel';
 export { FileHistoryPopoverContent } from './file-history-popover';

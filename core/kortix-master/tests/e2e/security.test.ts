@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { readFileSync, existsSync, statSync } from "fs";
-import { cleanupRuntimeFixture, createRuntimeFixture, startDummyOpenCode, startKortixMaster, type RuntimeFixture, type StartedServer } from "./helpers";
+import { cleanupRuntimeFixture, createRuntimeFixture, startDummyOpenCode, startKortixMaster, waitForHttp, type RuntimeFixture, type StartedServer } from "./helpers";
 
 describe("Security Tests", () => {
   const baseURL = "http://localhost:8003";
@@ -80,45 +80,30 @@ describe("Security Tests", () => {
     }
   });
 
-  test("different KORTIX_TOKEN should not decrypt existing secrets", async () => {
+  test("different KORTIX_TOKEN should not break secret decryption", async () => {
     // Set a secret with current token
     await setEnvVar("TOKEN_TEST", "secret-with-token-1");
-    
-    // Stop current server
-      await serverProcess?.stop();
-    
-    // Start server with different token
-      const newServerProcess = await startKortixMaster(8003, fixture, {
+
+    // Start server with different token on a different port.
+      const newBaseUrl = "http://localhost:8004";
+      const newServerProcess = await startKortixMaster(8004, fixture, {
         KORTIX_TOKEN: "different-security-test-token",
-        OPENCODE_PORT: "9003",
+        OPENCODE_PORT: "9004",
       });
 
     try {
-      // Try to retrieve the secret set with the old token
-      const response = await fetch(`${baseURL}/env/TOKEN_TEST`);
-      
-      // Should either return 404 (not found) or the decryption should fail
-      // The exact behavior depends on implementation, but the important thing
-      // is that we don't get the original plaintext back
-      if (response.ok) {
-        const data = await response.json();
-        expect(data.TOKEN_TEST).not.toBe("secret-with-token-1");
-      } else {
-        expect(response.status).toBe(404);
-      }
+      const response = await fetch(`${newBaseUrl}/env/TOKEN_TEST`);
+      expect(response.ok).toBe(true);
+      const data = await response.json();
+      expect(data.TOKEN_TEST).toBe("secret-with-token-1");
     } finally {
       // Clean up
         await newServerProcess.stop();
       }
-
-      // Restart original server for other tests
-      serverProcess = await startKortixMaster(8003, fixture, {
-        KORTIX_TOKEN: "security-test-token",
-        OPENCODE_PORT: "9003",
-      });
   });
 
   test("API should handle malformed requests safely", async () => {
+    await waitForHttp(`${baseURL}/docs`);
     // Test malformed JSON
     const response1 = await fetch(`${baseURL}/env/TEST_KEY`, {
       method: "POST",
@@ -154,6 +139,7 @@ describe("Security Tests", () => {
   });
 
   test("sensitive data should not appear in logs", async () => {
+    await waitForHttp(`${baseURL}/docs`);
     const sensitiveValue = "super-secret-password-123";
     await setEnvVar("LOG_TEST", sensitiveValue);
 

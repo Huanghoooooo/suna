@@ -29,7 +29,7 @@ export function CtaSection({ onLaunch, launching = false }: { onLaunch: () => vo
           <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
             <Button
               size="lg"
-              className="h-12 px-8 text-base rounded-full transition-all w-full sm:w-auto"
+              className="h-12 px-8 text-base rounded-full transition-colors w-full sm:w-auto"
               disabled={launching}
               onClick={() => {
                 trackCtaSignup();
@@ -64,7 +64,7 @@ export function CtaSection({ onLaunch, launching = false }: { onLaunch: () => vo
               </code>
               <span className="shrink-0 text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors">
                 {copied ? (
-                  <Check className="size-4 text-green-500" />
+                  <Check className="size-4 text-emerald-500" />
                 ) : (
                   <Copy className="size-4" />
                 )}

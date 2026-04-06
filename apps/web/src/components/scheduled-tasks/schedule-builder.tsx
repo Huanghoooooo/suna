@@ -10,6 +10,8 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { ChevronDown, Clock } from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -206,7 +208,7 @@ export function ScheduleBuilder({ value, onChange, disabled }: ScheduleBuilderPr
     return (
       <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
         <p className="text-sm text-muted-foreground">Custom cron expression</p>
-        <Input
+        <Input type="text"
           value={rawCron}
           onChange={(e) => onRawCronEdit(e.target.value)}
           className="font-mono text-sm h-9"
@@ -216,14 +218,16 @@ export function ScheduleBuilder({ value, onChange, disabled }: ScheduleBuilderPr
         <p className="text-[11px] text-muted-foreground">
           6-field: second minute hour day month weekday
         </p>
-        <button
+        <Button
           type="button"
+          variant="link"
+          size="sm"
           onClick={() => update({ frequency: 'daily' })}
-          className="text-xs text-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
           disabled={disabled}
+          className="h-auto p-0 text-xs"
         >
           Switch to visual editor
-        </button>
+        </Button>
       </div>
     );
   }
@@ -233,25 +237,19 @@ export function ScheduleBuilder({ value, onChange, disabled }: ScheduleBuilderPr
   return (
     <div className={cn("space-y-3", disabled && "opacity-60 pointer-events-none select-none")}>
       {/* Frequency tabs */}
-      <div className="flex gap-1">
+      <FilterBar className="w-full">
         {FREQUENCY_TABS.map(({ value: freq, label }) => (
-          <button
+          <FilterBarItem
             key={freq}
-            type="button"
             onClick={() => update({ frequency: freq })}
             disabled={disabled}
-            className={cn(
-              "flex-1 px-1 py-1.5 rounded-lg text-xs font-medium transition-colors",
-              disabled ? "cursor-not-allowed" : "cursor-pointer",
-              state.frequency === freq
-                ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            )}
+            data-state={state.frequency === freq ? 'active' : 'inactive'}
+            className="flex-1"
           >
             {label}
-          </button>
+          </FilterBarItem>
         ))}
-      </div>
+      </FilterBar>
 
       {/* Controls card */}
       <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-3">
@@ -308,21 +306,17 @@ export function ScheduleBuilder({ value, onChange, disabled }: ScheduleBuilderPr
         {state.frequency === 'weekly' && (
           <div className="flex items-center gap-1">
             {WEEKDAY_BUTTONS.map(({ value: day, label }, idx) => (
-              <button
+              <Button
                 key={`${day}-${idx}`}
                 type="button"
                 onClick={() => toggleWeekday(day)}
                 disabled={disabled}
-                className={cn(
-                  "flex-1 h-8 rounded-lg text-xs font-medium transition-all",
-                  disabled ? "cursor-not-allowed" : "cursor-pointer",
-                  state.weekdays.includes(day)
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "bg-background text-muted-foreground border border-border hover:border-foreground/30 hover:text-foreground"
-                )}
+                variant={state.weekdays.includes(day) ? "default" : "outline"}
+                size="sm"
+                className="flex-1"
               >
                 {label}
-              </button>
+              </Button>
             ))}
           </div>
         )}
@@ -400,18 +394,19 @@ export function ScheduleBuilder({ value, onChange, disabled }: ScheduleBuilderPr
 
       {/* Cron expression toggle */}
       <div>
-        <button
+        <Button
           type="button"
+          variant="muted"
+          size="xs"
           onClick={() => setShowCron(!showCron)}
           disabled={disabled}
-          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:pointer-events-none"
         >
           <ChevronDown className={cn("h-3 w-3 transition-transform", showCron && "rotate-180")} />
           {showCron ? 'Hide' : 'Edit'} cron expression
-        </button>
+        </Button>
         {showCron && (
           <div className="mt-2 space-y-1">
-            <Input
+            <Input type="text"
               value={rawCron}
               onChange={(e) => onRawCronEdit(e.target.value)}
               className="font-mono text-xs h-8"

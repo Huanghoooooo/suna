@@ -89,22 +89,16 @@ export function useSessionSync(sessionId: string) {
 	useEffect(() => {
 		if (!sessionId) return;
 
-		// Skip if the store already has messages for this session
-		// (e.g. populated by SSE events before this effect ran).
-		const store = useSyncStore.getState();
-		if (store.messages[sessionId]?.length) {
-			// Ensure isLoading resolves even if we skip the fetch.
-			// The key must exist in s.messages for isLoading to be false.
-			if (!(sessionId in store.messages)) {
-				// This shouldn't happen if .length > 0, but guard anyway.
-			}
-			fetchedRef.current = sessionId;
-			return;
-		}
-
 		// Guard against duplicate concurrent fetches for the same session.
 		if (fetchedRef.current === sessionId) return;
 		fetchedRef.current = sessionId;
+
+		// NOTE: We intentionally do NOT skip the fetch when the store already
+		// has messages from SSE. SSE only delivers events from the connection
+		// point forward — it doesn't replay history. If the agent is actively
+		// streaming when the user navigates to a session, SSE stub messages
+		// would be the only messages in the store, missing the full thread
+		// history. Always fetch and let hydrate() merge safely.
 
 		let cancelled = false;
 		const fetchWithRetry = async (attempt = 0) => {

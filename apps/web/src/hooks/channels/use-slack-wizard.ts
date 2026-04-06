@@ -1,45 +1,29 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { backendApi } from '@/lib/api-client';
+import { useMutation } from '@tanstack/react-query';
+import { authenticatedFetch } from '@/lib/auth-token';
+import { getActiveOpenCodeUrl } from '@/stores/server-store';
 
-export interface DetectUrlResult {
-  url: string;
-  source: 'ngrok' | 'config' | 'none';
-  detected: boolean;
-}
-
-export interface GenerateManifestResult {
-  manifest: Record<string, unknown>;
-}
-
-export function useDetectPublicUrl() {
-  return useQuery({
-    queryKey: ['slack-wizard', 'detect-url'],
-    queryFn: async () => {
-      const res = await backendApi.get<DetectUrlResult>(
-        '/channels/slack-wizard/detect-url',
-        { showErrors: false },
-      );
-      if (!res.success || !res.data) {
-        throw new Error('Failed to detect public URL');
-      }
-      return res.data;
-    },
-    staleTime: 0,
-    retry: false,
-  });
-}
-
-export function useGenerateManifest() {
+export function useSlackConnect() {
   return useMutation({
-    mutationFn: async ({ publicUrl, botName }: { publicUrl: string; botName?: string }) => {
-      const res = await backendApi.post<GenerateManifestResult>(
-        '/channels/slack-wizard/generate-manifest',
-        { publicUrl, botName },
-      );
-      if (!res.success || !res.data) {
-        throw new Error('Failed to generate manifest');
-      }
-      return res.data;
+    mutationFn: async ({ botToken, signingSecret, publicUrl, name, createdBy, channelId, defaultAgent, defaultModel }: {
+      botToken: string;
+      signingSecret?: string;
+      publicUrl?: string;
+      name?: string;
+      createdBy?: string;
+      channelId?: string;
+      defaultAgent?: string;
+      defaultModel?: string;
+    }) => {
+      const baseUrl = getActiveOpenCodeUrl();
+      if (!baseUrl) throw new Error('No active instance');
+      const res = await authenticatedFetch(`${baseUrl}/kortix/channels/setup/slack`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ botToken, signingSecret, publicUrl, name, createdBy, channelId, defaultAgent, defaultModel }),
+      });
+      const data = await res.json() as any;
+      if (!data.ok) throw new Error(data.error || 'Setup failed');
+      return data;
     },
   });
 }

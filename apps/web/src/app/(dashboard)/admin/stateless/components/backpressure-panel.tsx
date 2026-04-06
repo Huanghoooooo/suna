@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from '@/lib/utils';
 import { Gauge, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -69,12 +70,12 @@ export function BackpressurePanel({ backpressure }: BackpressurePanelProps) {
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="text-center">
-          <p className={`text-4xl font-bold ${getLevelColor(backpressure.level)}`}>
+          <p className={cn('text-4xl font-bold', getLevelColor(backpressure.level))}>
             {backpressure.level.charAt(0).toUpperCase() + backpressure.level.slice(1)}
           </p>
           <Progress
             value={levelProgress[backpressure.level]}
-            className={`mt-3 h-2 ${getLevelBgColor(backpressure.level)}`}
+            className={cn('mt-3 h-2', getLevelBgColor(backpressure.level))}
           />
         </div>
 

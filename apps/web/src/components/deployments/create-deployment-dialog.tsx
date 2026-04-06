@@ -173,14 +173,16 @@ function FolderBrowserItem({
         onSelect();
       }}
     >
-      {node.type === 'directory' && (
-        <button
+        {node.type === 'directory' && (
+        <Button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onToggleExpand();
           }}
-          className="p-0.5 rounded hover:bg-muted/50 cursor-pointer shrink-0"
+          variant="ghost"
+          size="icon-xs"
+          className="shrink-0"
         >
           <ChevronRight
             className={cn(
@@ -188,7 +190,7 @@ function FolderBrowserItem({
               isExpanded && 'rotate-90',
             )}
           />
-        </button>
+        </Button>
       )}
       {node.type === 'directory' ? (
         <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -840,20 +842,21 @@ export function CreateDeploymentDialog({
               {sourceTypes.map((st) => {
                 const Icon = st.icon;
                 return (
-                  <button
+                  <Button
                     key={st.value}
                     type="button"
                     onClick={() => setSourceType(st.value)}
+                    variant="outline"
                     className={cn(
-                      'flex flex-col items-center gap-1.5 p-3 rounded-xl border text-sm transition-colors cursor-pointer',
+                      'flex flex-col items-center gap-1.5 p-3 h-auto',
                       sourceType === st.value
                         ? 'border-primary bg-primary/5 text-primary'
-                        : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
+                        : 'text-muted-foreground',
                     )}
                   >
                     <Icon className="h-5 w-5" />
                     <span className="font-medium">{st.label}</span>
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -872,14 +875,15 @@ export function CreateDeploymentDialog({
                 placeholder="my-app.style.dev"
                 className={cn(inputClass, 'flex-1')}
               />
-              <button
+              <Button
                 type="button"
                 onClick={() => setDomains(generateSubdomain())}
-                className="h-9 px-2.5 rounded-xl border border-input bg-background text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer shrink-0"
+                variant="outline"
+                size="icon"
                 title="Generate random subdomain"
-              >
+                >
                 <Wand2 className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Free subdomains available under <span className="font-medium text-foreground/70">*.style.dev</span>. Use your own verified domain for production.
@@ -1035,13 +1039,15 @@ export function CreateDeploymentDialog({
                         className={cn(inputClass, 'flex-1')}
                       />
                       {files.length > 1 && (
-                        <button
+                        <Button
                           type="button"
                           onClick={() => removeFile(i)}
-                          className="p-2 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
-                        >
+                          variant="ghost"
+                          size="icon"
+                          className="hover:text-red-500 hover:bg-red-500/10"
+                          >
                           <Trash2 className="h-4 w-4" />
-                        </button>
+                        </Button>
                       )}
                     </div>
                     <textarea
@@ -1074,11 +1080,13 @@ export function CreateDeploymentDialog({
 
           {/* Advanced config (collapsible) */}
           <div>
-            <button
+            <Button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            >
+              variant="muted"
+              size="sm"
+              className="justify-start"
+              >
               <ChevronDown
                 className={cn(
                   'h-4 w-4 transition-transform',
@@ -1089,7 +1097,7 @@ export function CreateDeploymentDialog({
               {(entrypoint || framework || buildCommand || envVars.length > 0 || staticOnly) && (
                 <Badge variant="secondary" className="text-xs">configured</Badge>
               )}
-            </button>
+            </Button>
 
             {showAdvanced && (
               <div className="mt-4 space-y-4 pl-6 border-l-2 border-border/40">
@@ -1177,13 +1185,15 @@ export function CreateDeploymentDialog({
                             placeholder="value"
                             className={cn(inputClass, 'flex-1')}
                           />
-                          <button
+                          <Button
                             type="button"
                             onClick={() => removeEnvVar(i)}
-                            className="p-2 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                            variant="ghost"
+                            size="icon"
+                            className="hover:text-red-500 hover:bg-red-500/10"
                           >
                             <Trash2 className="h-4 w-4" />
-                          </button>
+                          </Button>
                         </div>
                       ))}
                     </div>

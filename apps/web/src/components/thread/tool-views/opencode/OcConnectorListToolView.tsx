@@ -6,7 +6,6 @@ import {
   AlertCircle,
   Plug,
   Hash,
-  Key,
 } from 'lucide-react';
 import { ToolViewProps } from '../types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -70,22 +69,23 @@ export function OcConnectorListToolView({
                     <Badge 
                       variant="outline" 
                       className={cn(
-                        "h-4 py-0 text-[9px] font-normal capitalize",
-                        conn.status === 'connected' && 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400',
+                        "h-4 py-0 text-[0.5625rem] font-normal capitalize",
+                        conn.source === 'pipedream' && 'border-indigo-500/50 text-indigo-600 dark:text-indigo-400',
+                        conn.source === 'api-key' && 'border-amber-500/50 text-amber-600 dark:text-amber-400',
+                        conn.source === 'cli' && 'border-gray-500/50 text-gray-600 dark:text-gray-400',
+                        conn.source === 'channel' && 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400',
+                        conn.source === 'custom' && 'border-purple-500/50 text-purple-600 dark:text-purple-400',
+                        conn.source === 'file' && 'border-slate-500/50 text-slate-600 dark:text-slate-400',
                       )}
                     >
-                      {conn.status}
+                      {conn.source}
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground/60">
-                    <span className="capitalize">{conn.type}</span>
-                    {conn.secrets !== 'none' && (
-                      <span className="flex items-center gap-1">
-                        <Key className="size-3" />
-                        {conn.secrets}
-                      </span>
-                    )}
-                  </div>
+                  {conn.description && (
+                    <div className="text-[11px] text-muted-foreground/60">
+                      {conn.description}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

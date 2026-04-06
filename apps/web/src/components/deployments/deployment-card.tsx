@@ -34,7 +34,7 @@ export const statusConfig: Record<DeploymentStatus, {
   variant: 'highlight' | 'secondary' | 'destructive' | 'outline' | 'beta';
   dotColor: string;
 }> = {
-  active: { label: 'Active', variant: 'highlight', dotColor: 'bg-green-500' },
+  active: { label: 'Active', variant: 'highlight', dotColor: 'bg-emerald-500' },
   pending: { label: 'Pending', variant: 'beta', dotColor: 'bg-blue-500 animate-pulse' },
   building: { label: 'Building', variant: 'beta', dotColor: 'bg-blue-500 animate-pulse' },
   deploying: { label: 'Deploying', variant: 'beta', dotColor: 'bg-blue-500 animate-pulse' },
@@ -177,28 +177,27 @@ export function DeploymentCard({
           )}
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
+              <Button
                 onClick={() => onViewLogs(deployment)}
-                className="p-1.5 rounded-lg cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                variant="ghost"
+                size="icon-sm"
               >
                 <ScrollText className="h-3.5 w-3.5" />
-              </button>
+              </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs">View logs</TooltipContent>
           </Tooltip>
            {canRedeploy && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
+                <Button
                   onClick={() => onRedeploy(deployment)}
                   disabled={isRedeployPending}
-                  className={cn(
-                    'p-1.5 rounded-lg cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors',
-                    isRedeployPending && 'opacity-50 !cursor-not-allowed',
-                  )}
+                  variant="ghost"
+                  size="icon-sm"
                 >
                   <RotateCcw className={cn('h-3.5 w-3.5', isRedeployPending && 'animate-spin')} />
-                </button>
+                </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">Redeploy</TooltipContent>
             </Tooltip>
@@ -206,32 +205,30 @@ export function DeploymentCard({
           {(deployment.status === 'active' || isInProgress) && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
+                <Button
                   onClick={() => onStop(deployment)}
                   disabled={isStopPending}
-                  className={cn(
-                    'p-1.5 rounded-lg cursor-pointer text-muted-foreground hover:text-orange-500 hover:bg-orange-500/10 transition-colors',
-                    isStopPending && 'opacity-50 !cursor-not-allowed',
-                  )}
+                  variant="ghost"
+                  size="icon-sm"
+                  className="hover:text-orange-500 hover:bg-orange-500/10"
                 >
                   <Square className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">Stop</TooltipContent>
             </Tooltip>
           )}
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
+              <Button
                 onClick={() => onDelete(deployment)}
                 disabled={isDeletePending}
-                className={cn(
-                  'p-1.5 rounded-lg cursor-pointer text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors',
-                  isDeletePending && 'opacity-50 !cursor-not-allowed',
-                )}
+                variant="ghost"
+                size="icon-sm"
+                className="hover:text-red-500 hover:bg-red-500/10"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs">Delete</TooltipContent>
           </Tooltip>
@@ -307,24 +304,26 @@ export function DeploymentCard({
             )}
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
+                <Button
                   onClick={() => onViewLogs(deployment)}
-                  className="p-2 rounded-lg cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  variant="ghost"
+                  size="icon"
                 >
                   <ScrollText className="h-4 w-4" />
-                </button>
+                </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">View logs</TooltipContent>
             </Tooltip>
             {canRedeploy && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button
+                  <Button
                     onClick={() => onEditRedeploy(deployment)}
-                    className="p-2 rounded-lg cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    variant="ghost"
+                    size="icon"
                   >
                     <Pencil className="h-4 w-4" />
-                  </button>
+                  </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs">Edit &amp; Redeploy</TooltipContent>
               </Tooltip>
@@ -332,16 +331,14 @@ export function DeploymentCard({
             {canRedeploy && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button
+                  <Button
                     onClick={() => onRedeploy(deployment)}
                     disabled={isRedeployPending}
-                    className={cn(
-                      'p-2 rounded-lg cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors',
-                      isRedeployPending && 'opacity-50 !cursor-not-allowed',
-                    )}
+                    variant="ghost"
+                    size="icon"
                   >
                     <RotateCcw className={cn('h-4 w-4', isRedeployPending && 'animate-spin')} />
-                  </button>
+                  </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs">Redeploy</TooltipContent>
               </Tooltip>
@@ -349,32 +346,30 @@ export function DeploymentCard({
             {(deployment.status === 'active' || isInProgress) && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button
+                  <Button
                     onClick={() => onStop(deployment)}
                     disabled={isStopPending}
-                    className={cn(
-                      'p-2 rounded-lg cursor-pointer text-muted-foreground hover:text-orange-500 hover:bg-orange-500/10 transition-colors',
-                      isStopPending && 'opacity-50 !cursor-not-allowed',
-                    )}
+                    variant="ghost"
+                    size="icon"
+                    className="hover:text-orange-500 hover:bg-orange-500/10"
                   >
                     <Square className="h-4 w-4" />
-                  </button>
+                  </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs">Stop</TooltipContent>
               </Tooltip>
             )}
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
+                <Button
                   onClick={() => onDelete(deployment)}
                   disabled={isDeletePending}
-                  className={cn(
-                    'p-2 rounded-lg cursor-pointer text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors',
-                    isDeletePending && 'opacity-50 !cursor-not-allowed',
-                  )}
+                  variant="ghost"
+                  size="icon"
+                  className="hover:text-red-500 hover:bg-red-500/10"
                 >
                   <Trash2 className="h-4 w-4" />
-                </button>
+                </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">Delete</TooltipContent>
             </Tooltip>
@@ -403,31 +398,31 @@ export function DeploymentCard({
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span className="flex-1 line-clamp-2">{deployment.error}</span>
               {isFreestyleKeyError(deployment.error) && onConfigureApiKey && (
-                <button
+                <Button
                   onClick={onConfigureApiKey}
-                  className="inline-flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer bg-red-500/10 hover:bg-red-500/20 text-red-500 dark:text-red-400 transition-colors"
+                  size="xs"
+                  variant="muted"
+                  className="shrink-0 hover:text-red-500 hover:bg-red-500/10"
                 >
                   <Settings className="h-3 w-3" />
                   Configure
-                </button>
+                </Button>
               )}
             </div>
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
                 onClick={() => onEditRedeploy(deployment)}
-                className="h-8 gap-1.5 text-xs cursor-pointer"
               >
                 <Pencil className="h-3.5 w-3.5" />
                 Edit &amp; Redeploy
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
                 onClick={() => onRedeploy(deployment)}
                 disabled={isRedeployPending}
-                className="h-8 gap-1.5 text-xs cursor-pointer"
               >
                 <RotateCcw className={cn('h-3.5 w-3.5', isRedeployPending && 'animate-spin')} />
                 {isRedeployPending ? 'Redeploying...' : 'Redeploy'}

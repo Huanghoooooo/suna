@@ -36,7 +36,7 @@ DIM=$'\033[2m'; NC=$'\033[0m'
 INSTALL_DIR="${KORTIX_HOME:-$HOME/.kortix}"
 OWNER_EMAIL="${OWNER_EMAIL:-e2e@kortix.ai}"
 OWNER_PASSWORD="${OWNER_PASSWORD:-e2e-test-pass-42}"
-INSTALLER_URL="${INSTALLER_URL:-https://raw.githubusercontent.com/kortix-ai/computer/main/scripts/get-kortix.sh}"
+INSTALLER_URL="${INSTALLER_URL:-https://raw.githubusercontent.com/kortix-ai/suna/main/scripts/get-kortix.sh}"
 IP_ONLY=false
 SKIP_INSTALL=false
 KEEP_INSTALL=false

@@ -15,9 +15,9 @@ import {
 import { getClient } from '@/lib/opencode-sdk';
 import { openTabAndNavigate } from '@/stores/tab-store';
 import { useServerStore } from '@/stores/server-store';
-import { SessionChatInput } from '@/components/session/session-chat-input';
+import { type AttachedFile, SessionChatInput } from '@/components/session/session-chat-input';
+import { usePendingFilesStore } from '@/stores/pending-files-store';
 import { WallpaperBackground } from '@/components/ui/wallpaper-background';
-import { PersonalisedSuggestions } from '@/components/dashboard/personalised-suggestions';
 import { useOpenCodeLocal, formatModelString } from '@/hooks/opencode/use-opencode-local';
 import { useOpenCodeConfig } from '@/hooks/opencode/use-opencode-config';
 import { Menu } from 'lucide-react';
@@ -26,7 +26,7 @@ import { playSound } from '@/lib/sounds';
 import { cn } from '@/lib/utils';
 
 // ============================================================================
-// Dashboard Content — identical to the session empty state
+// Dashboard Content
 // ============================================================================
 
 export function DashboardContent() {
@@ -50,8 +50,8 @@ export function DashboardContent() {
   const local = useOpenCodeLocal({ agents, providers, config });
 
   const handleSend = useCallback(
-    async (text: string, _files?: unknown) => {
-      if (!text.trim() || isSubmitting) return;
+    async (text: string, files?: AttachedFile[]) => {
+      if ((!text.trim() && (!files || files.length === 0)) || isSubmitting) return;
       playSound('send');
       setIsSubmitting(true);
       setIsFadingOutWelcome(true);
@@ -61,18 +61,28 @@ export function DashboardContent() {
           setTimeout(resolve, DASHBOARD_WELCOME_FADE_MS);
         });
 
-        // Build options from selections
         const options: Record<string, unknown> = {};
         if (local.agent.current) options.agent = local.agent.current.name;
         if (local.model.currentKey) options.model = local.model.currentKey;
         if (local.model.variant.current) options.variant = local.model.variant.current;
 
-        // Step 1: Create the session
         const session = await createSession.mutateAsync();
         await fadeDelay;
         createdSessionId = session.id;
 
-        // Step 2: Open tab and navigate immediately (optimistic)
+        // Store the prompt text BEFORE navigating so the session page can
+        // read it immediately when its useEffect fires. Placing this after
+        // openTabAndNavigate caused a race where sessionStorage was empty
+        // when the session page's pending-prompt useEffect ran.
+        sessionStorage.setItem(`opencode_pending_prompt:${session.id}`, text);
+        if (files && files.length > 0) {
+          usePendingFilesStore.getState().setPendingFiles(files);
+        }
+        if (Object.keys(options).length > 0) {
+          sessionStorage.setItem(`opencode_pending_options:${session.id}`, JSON.stringify(options));
+        }
+
+        // Step 2: Open tab and navigate (optimistic) — AFTER sessionStorage is set
         openTabAndNavigate({
           id: session.id,
           title: 'New session',
@@ -80,22 +90,9 @@ export function DashboardContent() {
           href: `/sessions/${session.id}`,
           serverId: useServerStore.getState().activeServerId,
         });
-
-        // Store the prompt text so the session page can send it and display it
-        // optimistically. Use session-specific keys so multiple sessions don't conflict.
-        // The session page will handle actually sending the message — this avoids a
-        // race condition where the send fires before the session page mounts its
-        // SSE listeners and polling, causing missed responses.
-        sessionStorage.setItem(`opencode_pending_prompt:${session.id}`, text);
-        if (Object.keys(options).length > 0) {
-          sessionStorage.setItem(`opencode_pending_options:${session.id}`, JSON.stringify(options));
-        }
         // Reset submitting since the dashboard stays mounted (hidden) with pushState
         setIsSubmitting(false);
-        // Reset fade state after navigation so returning to the dashboard
-        // shows wallpaper + suggestions again.
         setTimeout(() => setIsFadingOutWelcome(false), 0);
-        // Focus the textarea in the newly visible session tab
         requestAnimationFrame(() => {
           window.dispatchEvent(new CustomEvent('focus-session-textarea'));
         });
@@ -104,6 +101,7 @@ export function DashboardContent() {
           sessionStorage.removeItem(`opencode_pending_prompt:${createdSessionId}`);
           sessionStorage.removeItem(`opencode_pending_options:${createdSessionId}`);
         }
+        usePendingFilesStore.getState().setPendingFiles([]);
         setIsFadingOutWelcome(false);
         setIsSubmitting(false);
         toast.warning('Failed to create session');
@@ -124,8 +122,6 @@ export function DashboardContent() {
           href: `/sessions/${session.id}`,
           serverId: useServerStore.getState().activeServerId,
         });
-        // Fire command directly via SDK — no TanStack Query, no retry.
-        // Matches SolidJS reference (submit.ts:265-287).
         const client = getClient();
         void client.session.command({
           sessionID: session.id,
@@ -163,7 +159,7 @@ export function DashboardContent() {
         </div>
       )}
 
-      {/* Wallpaper + personalised suggestions (dashboard only) */}
+      {/* Wallpaper background with brandmark */}
       <div
         className={cn(
           "flex-1 relative overflow-hidden transition-[opacity,transform] ease-out",
@@ -173,10 +169,9 @@ export function DashboardContent() {
         )}
       >
         <WallpaperBackground />
-        {/* <PersonalisedSuggestions onSuggestionClick={handleSend} /> */}
       </div>
 
-      {/* Chat Input — identical to session empty state */}
+      {/* Chat Input — pinned to bottom */}
       <SessionChatInput
         onSend={handleSend}
         disabled={isSubmitting}

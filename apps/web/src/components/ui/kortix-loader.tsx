@@ -162,20 +162,13 @@ export function KortixLoader({
           border: `${borderWidth}px solid ${borderColor}`,
           borderTopColor: spinnerColor,
           borderRadius: '50%',
-          animation: autoPlay && loop 
-            ? `kortix-spin ${animationDuration}s linear infinite` 
-            : autoPlay 
-              ? `kortix-spin ${animationDuration}s linear` 
+          animation: autoPlay && loop
+            ? `kortix-spin ${animationDuration}s linear infinite`
+            : autoPlay
+              ? `kortix-spin ${animationDuration}s linear`
               : 'none',
         }}
       />
-      <style jsx>{`
-        @keyframes kortix-spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-      `}</style>
     </div>
   );
 }

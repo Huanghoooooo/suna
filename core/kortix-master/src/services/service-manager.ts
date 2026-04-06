@@ -168,7 +168,7 @@ const LOG_DIR = join(SERVICE_STATE_DIR, 'logs')
 
 const INSTALL_TIMEOUT_MS = 120_000
 const BUILD_TIMEOUT_MS = 120_000
-const START_WAIT_MS = 15_000
+const START_WAIT_MS = 30_000  // Must cover run-opencode-serve.sh waits (~20s worst case) + startup
 const PORT_MIN = 10_000
 const PORT_MAX = 60_000
 const PERSISTED_SOURCE_ROOT = WORKSPACE_ROOT
@@ -199,10 +199,6 @@ const BUILTIN_SERVICES: RegisteredServiceSpec[] = [
     healthCheck: { type: 'none' }, createdAt: '', updatedAt: '',
   },
   // All other system services: s6 supervised, controlled via s6-svc
-  s6svc('opencode-web', 'Runtime Web UI', 'core', 'svc-opencode-web',
-    { port: 3111, deps: ['opencode-serve'], processPatterns: ['opencode web --port 3111'] }),
-  s6svc('opencode-channels', 'Channels Service', 'core', 'svc-opencode-channels',
-    { port: 3456, deps: ['opencode-serve'], processPatterns: ['channels/src/index.ts'] }),
   s6svc('chromium-persistent', 'Chromium', 'core', 'svc-chromium-persistent',
     { port: 9222, processPatterns: ['chromium-browser'] }),
   s6svc('agent-browser-session', 'Agent Browser Session', 'core', 'svc-agent-browser-session',

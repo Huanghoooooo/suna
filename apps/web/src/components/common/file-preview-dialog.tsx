@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ExternalLink, Maximize2, Minimize2 } from 'lucide-react';
+import { ExternalLink, FileX, Maximize2, Minimize2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -79,7 +79,7 @@ export function FilePreviewDialog() {
       <DialogContent
         hideCloseButton
         className={cn(
-          'flex flex-col p-0 gap-0 overflow-hidden transition-all duration-200',
+          'flex flex-col p-0 gap-0 overflow-hidden transition-colors duration-200',
           isFullscreen
             ? 'sm:max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] h-[calc(100vh-2rem)]'
             : 'sm:max-w-4xl max-h-[80vh] h-[80vh]',
@@ -140,24 +140,45 @@ export function FilePreviewDialog() {
           <FileContentRenderer
             filePath={filePath}
             showHeader={false}
+            readOnly
             className="h-full"
-            errorFallback={(error, path) => (
-              <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Cannot preview <span className="font-mono text-foreground">{path}</span>
-                </p>
-                <p className="text-xs text-muted-foreground/60">{error}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleOpenInTab}
-                  className="mt-2"
-                >
-                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                  Open in tab instead
-                </Button>
-              </div>
-            )}
+            errorFallback={(error, path) => {
+              const isNotFound = error.includes('404') || error.toLowerCase().includes('not found') || error.toLowerCase().includes('no such file');
+              return (
+                <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
+                  {isNotFound ? (
+                    <>
+                      <FileX className="h-8 w-8 text-muted-foreground/30" />
+                      <p className="text-sm text-muted-foreground">
+                        File does not exist
+                      </p>
+                      <p className="text-xs font-mono text-muted-foreground/60 max-w-sm break-all">
+                        {path}
+                      </p>
+                      <p className="text-xs text-muted-foreground/40 mt-1">
+                        This path may be relative or from a different session. Files must use absolute paths to be accessible.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-muted-foreground">
+                        Cannot preview <span className="font-mono text-foreground">{path}</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground/60">{error}</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleOpenInTab}
+                        className="mt-2"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                        Open in tab instead
+                      </Button>
+                    </>
+                  )}
+                </div>
+              );
+            }}
           />
         </div>
       </DialogContent>

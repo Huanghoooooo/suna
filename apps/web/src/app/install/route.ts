@@ -2,9 +2,9 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { NextRequest, NextResponse } from 'next/server';
 
-const REPO_URL = 'https://github.com/kortix-ai/computer';
+const REPO_URL = 'https://github.com/kortix-ai/suna';
 const REPO_SCRIPT_URL = `${REPO_URL}/blob/main/scripts/get-kortix.sh`;
-const RAW_SCRIPT_URL = 'https://raw.githubusercontent.com/kortix-ai/computer/main/scripts/get-kortix.sh';
+const RAW_SCRIPT_URL = 'https://raw.githubusercontent.com/kortix-ai/suna/main/scripts/get-kortix.sh';
 const LOCAL_SCRIPT_CANDIDATES = [
   path.join(process.cwd(), '../../scripts/get-kortix.sh'),
   path.join(process.cwd(), '../scripts/get-kortix.sh'),
@@ -19,7 +19,7 @@ function prefersHtml(request: NextRequest): boolean {
 function scriptHeaders(upstreamHeaders: Headers): Headers {
   const headers = new Headers(upstreamHeaders);
   headers.set('Content-Type', 'text/x-shellscript; charset=utf-8');
-  headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+  headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
   headers.set('Access-Control-Allow-Origin', '*');
   headers.set('X-Kortix-Install-Source', RAW_SCRIPT_URL);
   return headers;

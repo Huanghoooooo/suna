@@ -1,7 +1,7 @@
 {
-  "name": "@kortix/opencode-agent-triggers",
-  "version": "0.1.0",
-  "description": "Declarative cron and webhook triggers for OpenCode agents",
+  "name": "@kortix/triggers",
+  "version": "1.0.0",
+  "description": "Unified trigger system: cron schedules, webhooks, with prompt/command/http actions",
   "license": "MIT",
   "private": false,
   "type": "module",

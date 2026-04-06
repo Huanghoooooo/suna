@@ -458,7 +458,7 @@ export function MarkdownToolbar({
         );
       case 'saved':
         return (
-          <Button variant="ghost" size="sm" disabled className="gap-1.5 h-8 px-2 text-green-600">
+          <Button variant="ghost" size="sm" disabled className="gap-1.5 h-8 px-2 text-emerald-600">
             <Check className="h-4 w-4" />
             <span className="text-xs">Saved</span>
           </Button>
@@ -568,7 +568,7 @@ export function MarkdownToolbar({
         <>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1 h-8 px-2 min-w-[70px] justify-between shrink-0">
+              <Button variant="ghost" size="sm" className="gap-1 px-2 min-w-[70px] justify-between shrink-0">
                 <span className="text-xs truncate">{currentHeading}</span>
                 <ChevronDown className="h-3 w-3 opacity-50 shrink-0" />
               </Button>
@@ -788,7 +788,7 @@ export function MarkdownToolbar({
           {!hideActions && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={isExporting}>
+                <Button variant="ghost" size="sm" className="w-8 p-0" disabled={isExporting}>
                   {isExporting ? (
                     <KortixLoader size="small" />
                   ) : (
@@ -865,7 +865,7 @@ export function MarkdownToolbar({
                     className="max-h-40 mx-auto rounded-lg object-contain"
                   />
                   <p className="text-sm text-muted-foreground">Click to change image</p>
-                  <p className="text-xs text-green-600 dark:text-green-400">
+                  <p className="text-xs text-emerald-600 dark:text-green-400">
                     Will be uploaded to workspace
                   </p>
                 </div>
@@ -874,7 +874,7 @@ export function MarkdownToolbar({
                   <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
                   <p className="text-sm font-medium">Click to upload an image</p>
                   <p className="text-xs text-muted-foreground">PNG, JPG, GIF up to 50MB</p>
-                  <p className="text-xs text-green-600 dark:text-green-400">
+                  <p className="text-xs text-emerald-600 dark:text-green-400">
                     Image will be uploaded to workspace
                   </p>
                 </div>
@@ -884,7 +884,7 @@ export function MarkdownToolbar({
           <TabsContent value="url" className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label htmlFor="image-url">Image URL</Label>
-              <Input
+              <Input type="text"
                 id="image-url"
                 placeholder="https://example.com/image.png"
                 value={imageUrl}

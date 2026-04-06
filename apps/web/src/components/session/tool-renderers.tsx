@@ -6,11 +6,13 @@ import { SubSessionModal } from "@/components/session/sub-session-modal";
 import {
 	AlertTriangle,
 	Ban,
+	StopCircle,
 	Brain,
 	BookOpen,
 
 	Check,
 	CheckCircle,
+	Circle,
 	CheckSquare,
 	Clock,
 	ChevronDown,
@@ -43,9 +45,12 @@ import {
 	RefreshCw,
 	Scissors,
 	Search,
+	ListTodo,
+	Plus,
 	SquareKanban,
 	Tags,
 	Terminal,
+	Trash2,
 	Type,
 	Video,
 	X,
@@ -88,6 +93,7 @@ import {
 	renderHighlightedLine,
 	useDiffHighlight,
 } from "@/hooks/use-diff-highlight";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
 	hasStructuredContent,
@@ -103,6 +109,7 @@ import {
 	isProxiableLocalhostUrl,
 	parseLocalhostUrl,
 } from "@/lib/utils/sandbox-url";
+import { useFilePreviewStore } from "@/stores/file-preview-store";
 import { useOpenCodePendingStore } from "@/stores/opencode-pending-store";
 import { useServerStore } from "@/stores/server-store";
 import { openTabAndNavigate } from "@/stores/tab-store";
@@ -143,7 +150,7 @@ import {
 // the BasicTool body wrapper to avoid the double-border look.
 // ============================================================================
 const MD_FLUSH_CLASSES =
-	"[&_.relative.group]:my-0 [&_pre]:my-0 [&_pre]:border-0 [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:rounded-none [&_pre]:text-[12px] [&_code]:text-[12px]";
+	"[&_.relative.group]:my-0 [&_pre]:my-0 [&_pre]:border-0 [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:rounded-none [&_pre]:text-xs [&_code]:text-xs";
 
 // ============================================================================
 // InlineServicePreview — reusable embedded iframe preview for localhost URLs
@@ -180,6 +187,12 @@ function isLocalSandboxFilePath(value: string): boolean {
 	if (!value) return false;
 	if (/^(https?:|data:|blob:)/i.test(value)) return false;
 	return value.startsWith('/');
+}
+
+/** Ensure a sandbox file path starts with /workspace/ for the static file server. */
+function ensureWorkspacePath(filePath: string): string {
+	if (filePath.startsWith('/workspace/')) return filePath;
+	return '/workspace/' + filePath.replace(/^\/+/, '');
 }
 
 function InlineServicePreview({
@@ -281,14 +294,15 @@ function InlineServicePreview({
 				{proxy && (
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<button
+							<Button
 								type="button"
 								onClick={navigateToPreviewTab}
-							 className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-medium hover:bg-primary/20 transition-colors"
+								variant="subtle"
+								size="xs"
 							>
 								<MonitorPlay className="h-3 w-3" />
 								Preview
-							</button>
+							</Button>
 						</TooltipTrigger>
 						<TooltipContent side="top">Open as tab</TooltipContent>
 					</Tooltip>
@@ -782,7 +796,7 @@ function ToolOutputFallback({
 	return (
 		<div
 			data-scrollable
-			className={`p-2 max-h-72 overflow-auto ${MD_FLUSH_CLASSES}`}
+			className={cn('p-2 max-h-72 overflow-auto', MD_FLUSH_CLASSES)}
 		>
 			<UnifiedMarkdown content={output} isStreaming={isStreaming} />
 		</div>
@@ -1385,7 +1399,7 @@ function GetMemTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 											<FileText className="size-3" />
 											Narrative
 										</div>
-										<p className="text-[12px] leading-relaxed text-foreground/85">{report.narrative}</p>
+										<p className="text-xs leading-relaxed text-foreground/85">{report.narrative}</p>
 									</div>
 								)}
 								{report.facts.length > 0 && (
@@ -1401,7 +1415,7 @@ function GetMemTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 										</div>
 										<ul className="space-y-1">
 											{report.facts.map((fact, index) => (
-												<li key={`${report.id}-${index}`} className="flex items-start gap-1.5 text-[12px] leading-relaxed text-foreground/90">
+												<li key={`${report.id}-${index}`} className="flex items-start gap-1.5 text-xs leading-relaxed text-foreground/90">
 													<span className="mt-[6px] size-1.5 rounded-full bg-emerald-500/90 flex-shrink-0" />
 													<span>{fact}</span>
 												</li>
@@ -1471,7 +1485,7 @@ function GetMemTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 											<FileText className="size-3" />
 											Caption
 										</div>
-										<p className="text-[12px] leading-relaxed text-foreground/85">{report.caption}</p>
+										<p className="text-xs leading-relaxed text-foreground/85">{report.caption}</p>
 									</div>
 								)}
 								{report.content && (
@@ -1480,7 +1494,7 @@ function GetMemTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 											<ListTree className="size-3" />
 											Content
 										</div>
-										<p className="text-[12px] leading-relaxed text-foreground/90">{report.content}</p>
+										<p className="text-xs leading-relaxed text-foreground/90">{report.content}</p>
 									</div>
 								)}
 								{report.tags.length > 0 && (
@@ -1598,7 +1612,7 @@ function MemorySearchTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 											</span>
 										)}
 									</div>
-									<p className="text-[12px] leading-relaxed text-foreground/90">
+									<p className="text-xs leading-relaxed text-foreground/90">
 										{hit.content}
 									</p>
 									{hit.files.length > 0 && (
@@ -1932,7 +1946,7 @@ function InlineSessionMessagesList({
 										<span
 											key={i}
 											className={cn(
-												"text-[9px] px-1 py-0.5 rounded border",
+												"text-[0.5625rem] px-1 py-0.5 rounded border",
 												toolStatus === "completed"
 													? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
 													: "bg-muted/50 border-border/50 text-muted-foreground",
@@ -2014,7 +2028,7 @@ function BashTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 		>
 			<div data-scrollable className="max-h-96 overflow-auto">
 				{/* Command */}
-				<div className="px-3 py-2.5 [&_code]:text-[12px] [&_code]:leading-relaxed [&_code]:whitespace-pre-wrap [&_code]:break-words [&_pre]:contents">
+				<div className="px-3 py-2.5 [&_code]:text-xs [&_code]:leading-relaxed [&_code]:whitespace-pre-wrap [&_code]:break-words [&_pre]:contents">
 					{isWaiting ? (
 						<div className="rounded-md border border-border/40 bg-background/50 px-2.5 py-2">
 							<div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
@@ -2038,7 +2052,7 @@ function BashTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 						{/* Output label */}
 						<div className="flex items-center gap-1.5 px-2.5 py-1 border-b border-border/30">
 							<div className="size-1.5 rounded-full bg-muted-foreground/25" />
-							<span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/40">
+							<span className="text-[0.5625rem] font-medium uppercase tracking-wider text-muted-foreground/40">
 								Output
 							</span>
 						</div>
@@ -2055,7 +2069,7 @@ function BashTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 								<StructuredOutput sections={structuredSections} />
 							</div>
 						) : outputBlock ? (
-							<div className={`p-2 ${MD_FLUSH_CLASSES}`}>
+							<div className={cn('p-2', MD_FLUSH_CLASSES)}>
 								<UnifiedMarkdown
 									content={outputBlock}
 									isStreaming={status === "running"}
@@ -2108,7 +2122,7 @@ function PtySpawnTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 		>
 			<div className="space-y-0">
 				{command && (
-					<div className="px-3 py-2.5 [&_code]:text-[12px] [&_code]:leading-relaxed [&_code]:whitespace-pre-wrap [&_code]:break-words [&_pre]:contents">
+					<div className="px-3 py-2.5 [&_code]:text-xs [&_code]:leading-relaxed [&_code]:whitespace-pre-wrap [&_code]:break-words [&_pre]:contents">
 						<HighlightedCode code={`$ ${command}`} language="bash">
 							{`$ ${command}`}
 						</HighlightedCode>
@@ -2271,7 +2285,7 @@ function PtyWriteTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 		>
 			{ptyInput && (
 				<div className="px-3 py-2.5">
-					<pre className="font-mono text-[12px] leading-relaxed text-foreground/90 whitespace-pre-wrap break-all">
+					<pre className="font-mono text-xs leading-relaxed text-foreground/90 whitespace-pre-wrap break-all">
 						<span className="text-muted-foreground/60 select-none">&gt; </span>
 						{ptyInput}
 					</pre>
@@ -2378,7 +2392,7 @@ function EditTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 					/>
 				</div>
 			) : codeEdit ? (
-				<div data-scrollable className={`max-h-96 overflow-auto ${MD_FLUSH_CLASSES}`}>
+				<div data-scrollable className={cn('max-h-96 overflow-auto', MD_FLUSH_CLASSES)}>
 					<div className="p-2">
 						{morphInstructions && (
 							<div className="mb-2 text-[11px] text-muted-foreground italic">
@@ -2452,7 +2466,7 @@ function WriteTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 			{content ? (
 				<div
 					data-scrollable
-					className={`max-h-96 overflow-auto ${MD_FLUSH_CLASSES}`}
+					className={cn('max-h-96 overflow-auto', MD_FLUSH_CLASSES)}
 				>
 					<div className="p-2">
 						<UnifiedMarkdown
@@ -2480,6 +2494,8 @@ function ReadTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 	const status = partStatus(part);
 	const filePath = (input.filePath as string) || (streamingInput.filePath as string) || undefined;
 	const filename = getFilename(filePath) || "";
+	const { openPreview } = useFilePreviewStore();
+	const { toDisplayPath } = useOcFileOpen();
 
 	const args: string[] = [];
 	if (input.offset) args.push("offset=" + String(input.offset));
@@ -2500,16 +2516,21 @@ function ReadTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 				defaultOpen={defaultOpen}
 				forceOpen={forceOpen}
 				locked={locked}
+				onSubtitleClick={filePath ? () => openPreview(filePath) : undefined}
 			/>
 			{loaded.length > 0 && (
 				<div className="mt-1 space-y-0.5 pl-2">
 					{loaded.map((filepath, i) => (
 						<div
 							key={i}
-							className="flex items-center gap-1.5 text-xs text-muted-foreground"
+							role="button"
+							tabIndex={0}
+							onClick={() => openPreview(filepath)}
+							onKeyDown={(e) => e.key === "Enter" && openPreview(filepath)}
+							className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors group"
 						>
 							<span className="text-emerald-500">+</span>
-							<span className="truncate font-mono text-[10px]">{filepath}</span>
+							<span className="truncate font-mono text-[10px] group-hover:underline underline-offset-2">{toDisplayPath(filepath)}</span>
 						</div>
 					))}
 				</div>
@@ -3158,7 +3179,7 @@ function WebSearchTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 											{qr.query}
 										</span>
 										{qr.sources.length > 0 && (
-											<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground flex-shrink-0">
+											<span className="text-[0.5625rem] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground flex-shrink-0">
 												{qr.sources.length}
 											</span>
 										)}
@@ -3187,7 +3208,7 @@ function WebSearchTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 										{qr.sources.length > 0 && (
 											<div className="space-y-1">
 												{qr.answer && (
-													<div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1.5">
+													<div className="text-[0.5625rem] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1.5">
 														Sources
 													</div>
 												)}
@@ -3584,7 +3605,7 @@ function ImageSearchTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 										}}
 									/>
 									<div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/50 to-transparent flex items-end p-1">
-										<span className="text-[9px] text-white truncate">
+										<span className="text-[0.5625rem] text-white truncate">
 											{title}
 										</span>
 									</div>
@@ -4030,7 +4051,7 @@ function useShowOpenInTab(props: { type: string; url: string; path: string; titl
 	const isHtmlFilePath = !!path && SHOW_HTML_EXT_RE.test(path) && (type === 'file' || type === 'html');
 	const staticFilePort = parseInt(SANDBOX_PORTS.STATIC_FILE_SERVER ?? '3211', 10);
 	const htmlStaticUrl = isHtmlFilePath
-		? `http://localhost:${staticFilePort}/open?path=${encodeURIComponent(path)}`
+		? `http://localhost:${staticFilePort}/open?path=${encodeURIComponent(ensureWorkspacePath(path))}`
 		: '';
 	const htmlStaticProxy = useProxyUrl(htmlStaticUrl);
 
@@ -4108,13 +4129,23 @@ function ShowTool({ part }: ToolProps) {
 
 	const isCarousel = !!items && items.length > 0;
 
-	const borderStyle = SHOW_BORDER_STYLES[theme] || SHOW_BORDER_STYLES.default;
-	const hasLocalhostUrl = !!parseLocalhostUrl(url) && !isAppRouteUrl(url);
+	// ── Track current carousel item so we can open it ──
+	const [carouselIndex, setCarouselIndex] = useState(0);
+	const currentItem = isCarousel ? items![carouselIndex] || items![0] : null;
 
-	const openInTab = useShowOpenInTab({ type, url, path, title });
-	const canOpenInTab = !isCarousel && !!(url || path);
-	const isHtmlFilePath = !!path && SHOW_HTML_EXT_RE.test(path) && (type === 'file' || type === 'html');
-	const openInTabLabel = isHtmlFilePath ? "Open Preview" : hasLocalhostUrl ? "Open in Tab" : url ? "Open Link" : "Open File";
+	// Derive the "active" item props — either the single item or the current carousel item
+	const activeType  = isCarousel ? (currentItem?.type  || '') : type;
+	const activeUrl   = isCarousel ? (currentItem?.url   || '') : url;
+	const activePath  = isCarousel ? (currentItem?.path  || '') : path;
+	const activeTitle = isCarousel ? (currentItem?.title || '') : title;
+
+	const borderStyle = SHOW_BORDER_STYLES[theme] || SHOW_BORDER_STYLES.default;
+	const activeHasLocalhostUrl = !!parseLocalhostUrl(activeUrl) && !isAppRouteUrl(activeUrl);
+
+	const openInTab = useShowOpenInTab({ type: activeType, url: activeUrl, path: activePath, title: activeTitle });
+	const canOpenInTab = !!(activeUrl || activePath);
+	const activeIsHtmlFilePath = !!activePath && SHOW_HTML_EXT_RE.test(activePath) && (activeType === 'file' || activeType === 'html');
+	const openInTabLabel = activeIsHtmlFilePath ? "Open Preview" : activeHasLocalhostUrl ? "Open in Tab" : activeUrl ? "Open Link" : "Open File";
 
 	// Loading state
 	if (running && !type && !items) {
@@ -4134,7 +4165,7 @@ function ShowTool({ part }: ToolProps) {
 		? (title || `${items!.length} items`)
 		: (title || (type === "error" ? "Error" : type === "url" ? (showDomain(url) || "Link") : "Output"));
 
-	const headerIcon = isCarousel ? "image" : type;
+	const headerIcon = isCarousel ? (currentItem?.type || "image") : type;
 
 	return (
 		<div className={cn("rounded-xl border overflow-hidden bg-card", borderStyle)}>
@@ -4164,7 +4195,7 @@ function ShowTool({ part }: ToolProps) {
 						onClick={openInTab}
 					 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors flex-shrink-0 bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
 					>
-						{(isHtmlFilePath || hasLocalhostUrl) ? <MonitorPlay className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+						{(activeIsHtmlFilePath || activeHasLocalhostUrl) ? <MonitorPlay className="size-3.5" /> : <Maximize2 className="size-3.5" />}
 						{openInTabLabel}
 					</button>
 				)}
@@ -4172,7 +4203,7 @@ function ShowTool({ part }: ToolProps) {
 
 			{/* ── Content — carousel or single ── */}
 			{isCarousel ? (
-				<ShowCarousel items={items!} LocalhostPreview={InlineServicePreview} />
+				<ShowCarousel items={items!} LocalhostPreview={InlineServicePreview} onIndexChange={setCarouselIndex} />
 			) : (
 				<>
 					<ShowContentRenderer
@@ -4421,7 +4452,7 @@ function IntegrationListTool({ part, defaultOpen, forceOpen, locked }: ToolProps
 							</div>
 							{intg.status && (
 								<span className={cn(
-									"text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0",
+									"text-[0.5625rem] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0",
 									intg.status === "connected"
 										? "bg-emerald-500/10 text-emerald-600"
 										: "bg-muted/60 text-muted-foreground",
@@ -4595,7 +4626,7 @@ function IntegrationSearchTool({ part, defaultOpen, forceOpen, locked }: ToolPro
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center gap-1.5">
 									<span className="text-[11px] font-medium text-foreground">{app.name}</span>
-									<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/70 font-mono">{app.slug}</span>
+									<span className="text-[0.5625rem] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/70 font-mono">{app.slug}</span>
 								</div>
 								{app.description && (
 									<p className="text-[10px] text-muted-foreground/60 leading-relaxed line-clamp-2 mt-0.5">{app.description}</p>
@@ -4679,10 +4710,10 @@ function IntegrationActionsTool({ part, defaultOpen, forceOpen, locked }: ToolPr
 								>
 									<div className="min-w-0 flex-1">
 										<div className="text-[11px] font-medium text-foreground">{action.name}</div>
-										<div className="text-[9px] font-mono text-muted-foreground/50 mt-0.5">{action.key}</div>
+										<div className="text-[0.5625rem] font-mono text-muted-foreground/50 mt-0.5">{action.key}</div>
 									</div>
 									{action.required_params && action.required_params.length > 0 && (
-										<span className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/60 flex-shrink-0">
+										<span className="text-[0.5625rem] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/60 flex-shrink-0">
 											{action.required_params.length} req
 										</span>
 									)}
@@ -4700,20 +4731,20 @@ function IntegrationActionsTool({ part, defaultOpen, forceOpen, locked }: ToolPr
 										)}
 										{action.required_params && action.required_params.length > 0 && (
 											<div>
-												<div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Required</div>
+												<div className="text-[0.5625rem] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Required</div>
 												<div className="flex flex-wrap gap-1">
 													{action.required_params.map((p, pi) => (
-														<span key={pi} className="text-[9px] px-1.5 py-0.5 rounded bg-muted/60 font-mono text-foreground/70">{p}</span>
+														<span key={pi} className="text-[0.5625rem] px-1.5 py-0.5 rounded bg-muted/60 font-mono text-foreground/70">{p}</span>
 													))}
 												</div>
 											</div>
 										)}
 										{action.optional_params && action.optional_params.length > 0 && (
 											<div>
-												<div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Optional</div>
+												<div className="text-[0.5625rem] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Optional</div>
 												<div className="flex flex-wrap gap-1">
 													{action.optional_params.map((p, pi) => (
-														<span key={pi} className="text-[9px] px-1.5 py-0.5 rounded bg-muted/40 font-mono text-muted-foreground/60">{p}</span>
+														<span key={pi} className="text-[0.5625rem] px-1.5 py-0.5 rounded bg-muted/40 font-mono text-muted-foreground/60">{p}</span>
 													))}
 												</div>
 											</div>
@@ -4885,7 +4916,7 @@ function IntegrationRequestTool({ part, defaultOpen, forceOpen, locked }: ToolPr
 							)}
 						</>
 					) : body !== undefined ? (
-						<div className={`max-h-[300px] overflow-auto rounded-lg bg-muted/40 border border-border/40 p-2 ${MD_FLUSH_CLASSES}`}>
+						<div className={cn('max-h-[300px] overflow-auto rounded-lg bg-muted/40 border border-border/40 p-2', MD_FLUSH_CLASSES)}>
 							<pre className="text-[10px] font-mono text-foreground/80 whitespace-pre-wrap break-all">
 								{typeof body === "string" ? body : JSON.stringify(body, null, 2)}
 							</pre>
@@ -4960,8 +4991,8 @@ function IntegrationExecTool({ part, defaultOpen, forceOpen, locked }: ToolProps
 				{/* Code input */}
 				{!!input.code && (
 					<div className="px-3 pt-2.5 pb-1">
-						<div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Code</div>
-						<div className={`rounded-lg bg-muted/40 border border-border/40 p-2 max-h-[200px] overflow-auto ${MD_FLUSH_CLASSES}`}>
+						<div className="text-[0.5625rem] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Code</div>
+						<div className={cn('rounded-lg bg-muted/40 border border-border/40 p-2 max-h-[200px] overflow-auto', MD_FLUSH_CLASSES)}>
 							<pre className="text-[10px] font-mono text-foreground/80 whitespace-pre-wrap">{String(input.code)}</pre>
 						</div>
 					</div>
@@ -4969,7 +5000,7 @@ function IntegrationExecTool({ part, defaultOpen, forceOpen, locked }: ToolProps
 					{/* stdout */}
 					{stdout && (
 						<div className="px-3 pt-1.5 pb-1">
-							<div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Output</div>
+							<div className="text-[0.5625rem] font-semibold uppercase tracking-wider text-muted-foreground/40 mb-1">Output</div>
 							<div className="rounded-lg bg-muted/40 border border-border/40 p-2 max-h-[200px] overflow-auto">
 								<pre className="text-[10px] font-mono text-foreground/80 whitespace-pre-wrap">{stdout}</pre>
 							</div>
@@ -4978,7 +5009,7 @@ function IntegrationExecTool({ part, defaultOpen, forceOpen, locked }: ToolProps
 					{/* stderr */}
 					{stderr && (
 						<div className="px-3 pt-1.5 pb-2.5">
-							<div className="text-[9px] font-semibold uppercase tracking-wider text-destructive/50 mb-1">Stderr</div>
+							<div className="text-[0.5625rem] font-semibold uppercase tracking-wider text-destructive/50 mb-1">Stderr</div>
 							<div className="rounded-lg bg-destructive/5 border border-destructive/20 p-2 max-h-[150px] overflow-auto">
 								<pre className="text-[10px] font-mono text-destructive/80 whitespace-pre-wrap">{stderr}</pre>
 							</div>
@@ -5123,20 +5154,19 @@ function TaskTool({ part, forceOpen }: ToolProps) {
 ToolRegistry.register("task", TaskTool);
 
 // ============================================================================
-// SessionSpawnTool — Kortix Orchestrator session spawning
-// Shows full streaming input (prompt) as it's generated, expandable body with
-// prompt + child session activity, click header to open SubSessionModal
+// SessionSpawnTool — Background session spawning
+// IDENTICAL to TaskTool UX: compact clickable card, live activity shimmer,
+// step count badge, SubSessionModal on click.
 // ============================================================================
 
 function SessionSpawnTool({ part, forceOpen }: ToolProps) {
 	const input = partInput(part);
 	const status = partStatus(part);
 
-	const agentName = (input.agent as string) || "KortixWorker";
-	const fullPrompt = (input.prompt as string) || "";
+	const agentName = (input.agent as string) || "kortix";
+	const description = (input.description as string) || "";
 	const projectName = (input.project as string) || "";
-	const modelName = (input.model as string) || "";
-	const commandName = (input.command as string) || "/autowork";
+	const fullPrompt = (input.prompt as string) || "";
 
 	// Extract child session ID from output text
 	const childSessionId: string | undefined = useMemo(
@@ -5155,9 +5185,8 @@ function SessionSpawnTool({ part, forceOpen }: ToolProps) {
 
 	const isRunning = status === "running" || status === "pending";
 	const isCompleted = status === "completed";
-	const isError = status === "error";
 
-	// Show last activity from child session
+	// Running: show last active tool as shimmer subtitle
 	const lastActivity = useMemo(() => {
 		if (childToolParts.length === 0) return null;
 		const last = childToolParts[childToolParts.length - 1];
@@ -5167,92 +5196,982 @@ function SessionSpawnTool({ part, forceOpen }: ToolProps) {
 
 	const running = useContext(ToolRunningContext);
 
-	// Subtitle: last activity while running, prompt preview when done
-	const subtitle = isRunning && lastActivity
-		? lastActivity
-		: fullPrompt.split("\n")[0]?.slice(0, 80) || "";
+	// Label: project name or description or first line of prompt
+	const label = description || projectName || fullPrompt.split("\n")[0]?.slice(0, 80) || "";
 
 	return (
 		<>
-			<BasicTool
-				icon={<SquareKanban className="size-3.5 text-muted-foreground" />}
-				trigger={{
-					title: `${agentName}${projectName ? ` · ${projectName}` : ""}`,
-					subtitle,
-					args: [
-						...(modelName ? [modelName] : []),
-						...(isCompleted && childToolParts.length > 0 ? [`${childToolParts.length} steps`] : []),
-						...(isError ? ["failed"] : []),
-					],
-				}}
-				defaultOpen={isRunning || !!forceOpen}
-				forceOpen={forceOpen}
-				onSubtitleClick={childSessionId ? () => setModalOpen(true) : undefined}
+			{/* Clickable card — identical to TaskTool */}
+			<div
+				role="button"
+				tabIndex={0}
+				onClick={() => childSessionId && setModalOpen(true)}
+				onKeyDown={(e) => e.key === "Enter" && childSessionId && setModalOpen(true)}
+				className={cn(
+					"flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg",
+					"bg-muted/20 border border-border/40",
+					"text-xs transition-colors select-none",
+					childSessionId ? "cursor-pointer hover:bg-muted/40" : "cursor-default",
+					"max-w-full group",
+				)}
 			>
-				<div className="px-3 py-2 space-y-2">
-					{/* Full prompt — visible as it streams in */}
-					{fullPrompt && (
-						<div className="text-xs text-muted-foreground font-mono whitespace-pre-wrap max-h-48 overflow-y-auto bg-muted/30 rounded-md p-2 border border-border/20">
-							{fullPrompt}
-						</div>
-					)}
+				{/* Icon */}
+				<Cpu className="size-3.5 flex-shrink-0 text-muted-foreground" />
 
-					{/* Child session activity list */}
-					{childToolParts.length > 0 && (
-						<div className="space-y-0.5">
-							<div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium mb-1">
-								Activity
-							</div>
-							{childToolParts.slice(-8).map((tp, i) => {
-								const info = getToolInfo(tp.tool, (tp.state.input ?? {}) as Record<string, any>);
-								const tpRunning = tp.state.status === "running" || tp.state.status === "pending";
-								return (
-									<div key={i} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-										{tpRunning ? (
-											<Loader2 className="size-2.5 animate-spin flex-shrink-0" />
-										) : (
-											<span className="size-2.5 flex-shrink-0 text-center opacity-40">·</span>
-										)}
-										<span className={cn("truncate", tpRunning && "text-foreground")}>
-											{info.title}{info.subtitle ? ` · ${info.subtitle}` : ""}
-										</span>
-									</div>
-								);
-							})}
-							{childToolParts.length > 8 && (
-								<div className="text-[10px] text-muted-foreground/40 pl-4">
-									+{childToolParts.length - 8} more
-								</div>
-							)}
-						</div>
-					)}
+				{/* Title + subtitle */}
+				<div className="flex items-center gap-1.5 min-w-0 flex-1">
+					<span className="font-medium text-xs text-foreground whitespace-nowrap">
+						Worker · {agentName}
+					</span>
 
-					{/* Click to open full session */}
-					{childSessionId && (
-						<button
-							type="button"
-							onClick={(e) => { e.stopPropagation(); setModalOpen(true); }}
-						 className="flex items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-foreground transition-colors"
-						>
-							<ExternalLink className="size-2.5" />
-							Open session
-						</button>
+					{isRunning && lastActivity ? (
+						<TextShimmer duration={1} spread={2} className="text-xs truncate font-mono">
+							{lastActivity}
+						</TextShimmer>
+					) : isRunning && label ? (
+						<TextShimmer duration={1} spread={2} className="text-xs truncate font-mono">
+							{label}
+						</TextShimmer>
+					) : label ? (
+						<span className="text-muted-foreground text-xs truncate font-mono">
+							{label}
+						</span>
+					) : null}
+
+					{/* Step count badge when done */}
+					{isCompleted && childToolParts.length > 0 && (
+						<span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/70 font-mono whitespace-nowrap flex-shrink-0">
+							{childToolParts.length} steps
+						</span>
 					)}
 				</div>
-			</BasicTool>
 
+				{/* Right side */}
+				{running && (
+					<Loader2 className="size-3 animate-spin text-muted-foreground/40 flex-shrink-0" />
+				)}
+				{childSessionId && !running && (
+					<ExternalLink className="size-3 flex-shrink-0 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
+				)}
+			</div>
+
+			{/* Modal */}
 			{childSessionId && (
 				<SubSessionModal
 					open={modalOpen}
 					onOpenChange={setModalOpen}
 					sessionId={childSessionId}
-					title={`${agentName}${projectName ? ` · ${projectName}` : ""}`}
+					title={`Worker · ${agentName}${label ? `: ${label}` : ""}`}
 				/>
 			)}
 		</>
 	);
 }
 ToolRegistry.register("session_spawn", SessionSpawnTool);
+ToolRegistry.register("session_start_background", SessionSpawnTool);
+ToolRegistry.register("session-start-background", SessionSpawnTool);
+ToolRegistry.register("session-spawn", SessionSpawnTool);
+
+// ============================================================================
+// SessionReadTool — structured session read with parsed metadata
+// ============================================================================
+
+function SessionReadTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
+	const input = partInput(part);
+	const output = partOutput(part);
+	const status = partStatus(part);
+	const sessionId = (input.session_id as string) || "";
+	const mode = (input.mode as string) || "summary";
+	const pattern = (input.pattern as string) || "";
+	const sid = sessionId.length > 16 ? `…${sessionId.slice(-12)}` : sessionId;
+	const modeLabel = mode === "tools" ? "tools" : mode === "full" ? "full" : mode === "search" ? "search" : "summary";
+
+	// Parse structured metadata from output
+	const parsed = useMemo(() => {
+		if (!output) return null;
+		const statusM = output.match(/\*\*Status:\*\*\s*(\w+)/);
+		const agentM = output.match(/\*\*Agent:\*\*\s*(\w+)/);
+		const msgsM = output.match(/\*\*Messages:\*\*\s*(\d+)/);
+		const toolsM = output.match(/\*\*Tool calls:\*\*\s*(\d+)/);
+		const toolListM = output.match(/\*\*Tools:\*\*\s*(.+)/);
+		return {
+			status: statusM?.[1] || null,
+			agent: agentM?.[1] || null,
+			messages: msgsM?.[1] || null,
+			toolCalls: toolsM?.[1] || null,
+			toolList: toolListM?.[1]?.split(", ").map(t => t.trim()) || [],
+		};
+	}, [output]);
+
+	// Parse tool call entries for "tools" mode
+	const toolEntries = useMemo(() => {
+		if (mode !== "tools" || !output) return [];
+		const entries: Array<{ status: string; tool: string; summary: string }> = [];
+		const re = /^\[(\w+)\]\s+\*\*(\w+)\*\*:\s*(.+)/gm;
+		let m;
+		while ((m = re.exec(output)) !== null) {
+			entries.push({ status: m[1], tool: m[2], summary: m[3].slice(0, 120) });
+		}
+		return entries;
+	}, [mode, output]);
+
+	const statusArgs: string[] = [];
+	if (parsed?.status) statusArgs.push(parsed.status);
+	if (parsed?.messages) statusArgs.push(`${parsed.messages} msgs`);
+	if (parsed?.toolCalls && parsed.toolCalls !== "0") statusArgs.push(`${parsed.toolCalls} tools`);
+	if (mode === "search" && pattern) statusArgs.push(`/${pattern}/`);
+
+	return (
+		<BasicTool
+			icon={<Glasses className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: `Session · ${modeLabel}`, subtitle: sid, args: statusArgs }}
+			defaultOpen={defaultOpen}
+			forceOpen={forceOpen}
+			locked={locked}
+		>
+			{/* Tools mode: render structured tool call list */}
+			{mode === "tools" && toolEntries.length > 0 ? (
+				<div data-scrollable className="max-h-72 overflow-auto">
+					{toolEntries.map((entry, i) => (
+						<div key={i} className="flex items-start gap-0 border-b last:border-b-0 border-border/10">
+							<span className="text-[10px] font-mono w-6 text-center py-1 flex-shrink-0 select-none">
+								{entry.status === "completed" ? (
+									<Check className="size-2.5 text-emerald-500 inline" />
+								) : entry.status === "pending" ? (
+									<Clock className="size-2.5 text-muted-foreground/50 inline" />
+								) : (
+									<CircleAlert className="size-2.5 text-red-400 inline" />
+								)}
+							</span>
+							<span className="text-[10px] font-mono text-foreground/80 font-medium w-24 py-1 flex-shrink-0 truncate">{entry.tool}</span>
+							<span className="text-[10px] font-mono text-muted-foreground/60 py-1 pr-2 truncate">{entry.summary}</span>
+						</div>
+					))}
+				</div>
+			) : output ? (
+				<div data-scrollable className="max-h-72 overflow-auto px-3 py-2">
+					<div className="text-[11px] font-mono text-muted-foreground whitespace-pre-wrap">
+						<UnifiedMarkdown content={output} isStreaming={false} />
+					</div>
+				</div>
+			) : null}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("session_read", SessionReadTool);
+ToolRegistry.register("session-read", SessionReadTool);
+
+// ============================================================================
+// SessionSearchTool — structured search results with hit list
+// ============================================================================
+
+function SessionSearchTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
+	const input = partInput(part);
+	const output = partOutput(part);
+	const status = partStatus(part);
+	const query = (input.query as string) || "";
+
+	// Parse search hits
+	const hits = useMemo(() => {
+		if (!output) return [];
+		const results: Array<{ id: string; title: string; updated: string; score: string; snippet: string }> = [];
+		const lines = output.split("\n");
+		for (let i = 0; i < lines.length; i++) {
+			const m = lines[i].match(/^(ses_\S+)\s*\|\s*"([^"]*)"\s*\|\s*(\S+.*?)\s*\|\s*score=(\d+)/);
+			if (m) {
+				const snippetLine = lines[i + 1]?.match(/^Snippet:\s*(.+)/);
+				results.push({ id: m[1], title: m[2], updated: m[3].trim(), score: m[4], snippet: snippetLine?.[1]?.trim() || "" });
+			}
+		}
+		return results;
+	}, [output]);
+
+	const noResults = status === "completed" && hits.length === 0;
+
+	return (
+		<BasicTool
+			icon={<Search className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: "Session Search", subtitle: query ? `"${query}"` : "", args: hits.length > 0 ? [`${hits.length} results`] : noResults ? ["no matches"] : [] }}
+			defaultOpen={defaultOpen}
+			forceOpen={forceOpen}
+			locked={locked}
+		>
+			{hits.length > 0 ? (
+				<div data-scrollable className="max-h-72 overflow-auto divide-y divide-border/20">
+					{hits.map((h) => (
+						<div key={h.id} className="px-3 py-2 hover:bg-muted/20 transition-colors">
+							<div className="flex items-center gap-2 mb-0.5">
+								<span className="text-[11px] font-medium text-foreground truncate flex-1">{h.title || "(untitled)"}</span>
+								<span className="text-[0.5625rem] font-mono text-muted-foreground/40 bg-muted/40 px-1 rounded flex-shrink-0">{h.score}</span>
+							</div>
+							{h.snippet && <p className="text-[10px] text-muted-foreground/60 line-clamp-1">{h.snippet}</p>}
+							<div className="flex items-center gap-2 text-[0.5625rem] text-muted-foreground/40 mt-0.5">
+								<span className="font-mono">{h.id.slice(-12)}</span>
+								<span>{h.updated}</span>
+							</div>
+						</div>
+					))}
+				</div>
+			) : noResults ? (
+				<ToolEmptyState message={`No sessions matched "${query}"`} />
+			) : output ? (
+				<ToolOutputFallback output={output} toolName="session_search" />
+			) : null}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("session_search", SessionSearchTool);
+ToolRegistry.register("session-search", SessionSearchTool);
+
+// ============================================================================
+// SessionMessageTool — message sent indicator
+// ============================================================================
+
+function SessionMessageTool({ part }: ToolProps) {
+	const input = partInput(part);
+	const output = partOutput(part);
+	const status = partStatus(part);
+	const sessionId = (input.session_id as string) || "";
+	const message = (input.message as string) || "";
+	const sid = sessionId.length > 16 ? `…${sessionId.slice(-12)}` : sessionId;
+	const isOk = status === "completed";
+
+	return (
+		<BasicTool
+			icon={<MessageCircle className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: "Message → Session", subtitle: sid, args: isOk ? ["sent"] : status === "error" ? ["failed"] : [] }}
+			defaultOpen={false}
+		>
+			{message && (
+				<div className="px-3 py-2">
+					<div className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-1">Message</div>
+					<div className="text-[11px] text-foreground/70 whitespace-pre-wrap bg-muted/20 rounded p-2 border border-border/20">{message.slice(0, 500)}</div>
+				</div>
+			)}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("session_message", SessionMessageTool);
+ToolRegistry.register("session-message", SessionMessageTool);
+
+// ============================================================================
+// SessionLineageTool — tree visualization
+// ============================================================================
+
+function SessionLineageTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
+	const input = partInput(part);
+	const output = partOutput(part);
+	const sessionId = (input.session_id as string) || "";
+	const sid = sessionId.length > 16 ? `…${sessionId.slice(-12)}` : sessionId;
+
+	// Count sessions in lineage
+	const sessionCount = useMemo(() => {
+		if (!output) return 0;
+		return (output.match(/ses_/g) || []).length;
+	}, [output]);
+
+	return (
+		<BasicTool
+			icon={<ListTree className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: "Session Lineage", subtitle: sid, args: sessionCount > 0 ? [`${sessionCount} sessions`] : [] }}
+			defaultOpen={defaultOpen}
+			forceOpen={forceOpen}
+			locked={locked}
+		>
+			{output ? (
+				<div data-scrollable className="max-h-56 overflow-auto px-3 py-2">
+					<div className="text-[11px] font-mono text-muted-foreground whitespace-pre-wrap">
+						<UnifiedMarkdown content={output} isStreaming={false} />
+					</div>
+				</div>
+			) : null}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("session_lineage", SessionLineageTool);
+ToolRegistry.register("session-lineage", SessionLineageTool);
+
+// ============================================================================
+// SessionStatsTool
+// ============================================================================
+
+function SessionStatsTool({ part }: ToolProps) {
+	const output = partOutput(part);
+
+	return (
+		<BasicTool
+			icon={<Layers className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: "Session Stats", subtitle: "", args: [] }}
+			defaultOpen={true}
+		>
+			{output && (
+				<div data-scrollable className="max-h-72 overflow-auto px-3 py-2">
+					<div className="text-[11px] font-mono text-foreground whitespace-pre-wrap">
+						<UnifiedMarkdown content={output} isStreaming={false} />
+					</div>
+				</div>
+			)}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("session_stats", SessionStatsTool);
+ToolRegistry.register("session-stats", SessionStatsTool);
+
+// ============================================================================
+// SessionListBackgroundTool — structured worker list
+// ============================================================================
+
+function SessionListBackgroundTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
+	const input = partInput(part);
+	const output = partOutput(part);
+	const status = partStatus(part);
+	const project = (input.project as string) || "";
+
+	// Parse worker entries
+	const workers = useMemo(() => {
+		if (!output) return [];
+		const entries: Array<{ id: string; status: string; project: string; prompt: string }> = [];
+		const re = /\*\*(ses_\S+)\*\*.*?status:\s*(\w+).*?project:\s*(\S+)/gi;
+		let m;
+		while ((m = re.exec(output)) !== null) {
+			entries.push({ id: m[1], status: m[2], project: m[3], prompt: "" });
+		}
+		return entries;
+	}, [output]);
+
+	const noWorkers = status === "completed" && workers.length === 0 && !output.includes("ses_");
+
+	return (
+		<BasicTool
+			icon={<Layers className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: "Background Sessions", subtitle: project || "all projects", args: workers.length > 0 ? [`${workers.length} workers`] : noWorkers ? ["none"] : [] }}
+			defaultOpen={defaultOpen}
+			forceOpen={forceOpen}
+			locked={locked}
+		>
+			{workers.length > 0 ? (
+				<div data-scrollable className="max-h-56 overflow-auto divide-y divide-border/20">
+					{workers.map((w) => (
+						<div key={w.id} className="flex items-center gap-2 px-3 py-1.5">
+							<span className={cn("size-1.5 rounded-full flex-shrink-0",
+								w.status === "running" ? "bg-blue-400" : w.status === "complete" ? "bg-emerald-400" : "bg-muted-foreground/30"
+							)} />
+							<span className="text-[10px] font-mono text-foreground/70 truncate">{w.id.slice(-12)}</span>
+							<span className="text-[10px] text-muted-foreground/50 truncate flex-1">{w.project}</span>
+							<span className="text-[0.5625rem] text-muted-foreground/40">{w.status}</span>
+						</div>
+					))}
+				</div>
+			) : output ? (
+				<div data-scrollable className="max-h-56 overflow-auto px-3 py-2">
+					<div className="text-[11px] font-mono text-muted-foreground whitespace-pre-wrap">
+						<UnifiedMarkdown content={output} isStreaming={false} />
+					</div>
+				</div>
+			) : noWorkers ? (
+				<ToolEmptyState message="No background sessions" />
+			) : null}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("session_list_background", SessionListBackgroundTool);
+ToolRegistry.register("session-list-background", SessionListBackgroundTool);
+ToolRegistry.register("session_list_spawned", SessionListBackgroundTool);
+ToolRegistry.register("session-list-spawned", SessionListBackgroundTool);
+
+// ============================================================================
+// ProjectDeleteTool
+// ============================================================================
+
+function ProjectDeleteTool({ part }: ToolProps) {
+	const input = partInput(part);
+	const project = (input.project as string) || "";
+	return (
+		<div className="flex items-center gap-2 px-2.5 py-1 text-xs text-muted-foreground/40">
+			<Trash2 className="size-3 flex-shrink-0" />
+			<span>Deleted {project}</span>
+		</div>
+	);
+}
+ToolRegistry.register("project_delete", ProjectDeleteTool);
+ToolRegistry.register("project-delete", ProjectDeleteTool);
+ToolRegistry.register("oc-project_delete", ProjectDeleteTool);
+ToolRegistry.register("oc-project-delete", ProjectDeleteTool);
+
+// ============================================================================
+// AgentSpawnTool — Kortix agent delegation (replaces native task tool)
+// Same UX as TaskTool: compact card, live shimmer, SubSessionModal
+// ============================================================================
+
+/** Clean agent_spawn output for display (strip ## Worker Result header, agent/session metadata) */
+function cleanWorkerOutput(raw: string): string {
+	if (!raw) return "";
+	let text = raw;
+	// Strip common agent output artifacts
+	text = text.replace(/^##\s*Worker Result\s*\n/i, "");
+	text = text.replace(/^\*\*Agent:\*\*.*\n?/m, "");
+	text = text.replace(/^\*\*Task:\*\*.*\n?/m, "");
+	text = text.replace(/^\*\*Status:\*\*.*\n?/m, "");
+	text = text.replace(/^\*\*Session:\*\*.*\n?/m, "");
+	text = text.replace(/^\*\*Duration:\*\*.*\n?/m, "");
+	text = text.replace(/<promise>[^]*?<\/promise>/g, "");
+	text = text.replace(/<DONE>/g, "");
+	// Strip leading/trailing horizontal rules
+	text = text.replace(/^---\s*\n/gm, "");
+	text = text.trim();
+	// If only whitespace/empty after cleaning, return ""
+	return text || "";
+}
+
+/** Check if output is short enough to show inline (≤ 3 non-empty lines) */
+function isShortOutput(cleaned: string): boolean {
+	if (!cleaned) return false;
+	const lines = cleaned.split("\n").filter(l => l.trim());
+	return lines.length <= 3;
+}
+
+/** Extract a one-line preview from cleaned worker output */
+function extractWorkerPreview(cleaned: string): string | null {
+	if (!cleaned) return null;
+	// Grab the first non-empty, non-heading line
+	const lines = cleaned.split("\n").filter(l => l.trim() && !l.startsWith("#"));
+	const first = lines[0]?.replace(/^\*\*.*?\*\*\s*/, "").trim();
+	if (!first) return null;
+	return first.length > 120 ? first.slice(0, 120).trim() + "…" : first;
+}
+
+function AgentSpawnTool({ part, forceOpen }: ToolProps) {
+	const input = partInput(part);
+	const status = partStatus(part);
+	const output = partOutput(part);
+	const description = (input.description as string) || "";
+	const isRunning = status === "running" || status === "pending";
+	const isCompleted = status === "completed";
+	const isError = status === "error";
+
+	const childSessionId: string | undefined = useMemo(
+		() => getChildSessionId(part),
+		[part],
+	);
+
+	const { data: childMessages } = useOpenCodeMessages(childSessionId ?? "");
+	const childToolParts = useMemo(() => {
+		if (!childMessages) return [];
+		return getChildSessionToolParts(childMessages as any);
+	}, [childMessages]);
+
+	const [modalOpen, setModalOpen] = useState(false);
+	const [outputExpanded, setOutputExpanded] = useState(false);
+
+	const lastActivity = useMemo(() => {
+		if (childToolParts.length === 0) return null;
+		const last = childToolParts[childToolParts.length - 1];
+		const info = getToolInfo(last.tool, (last.state.input ?? {}) as Record<string, any>);
+		return info.title + (info.subtitle ? ` · ${info.subtitle}` : "");
+	}, [childToolParts]);
+
+	const cleanedOutput = useMemo(() => cleanWorkerOutput(output), [output]);
+	const workerPreview = useMemo(() => extractWorkerPreview(cleanedOutput), [cleanedOutput]);
+
+	const hasSession = !!childSessionId;
+
+	return (
+		<>
+			<div
+				className={cn(
+					"rounded-lg border border-border/40 bg-muted/20 transition-colors select-none w-full group overflow-hidden",
+				)}
+			>
+				{/* Clickable header area */}
+				<div
+					role="button"
+					tabIndex={0}
+					onClick={() => hasSession && setModalOpen(true)}
+					onKeyDown={(e) => e.key === "Enter" && hasSession && setModalOpen(true)}
+					className={cn(
+						"p-3",
+						hasSession ? "cursor-pointer hover:bg-accent/50" : "",
+					)}
+				>
+					{/* Row 1: icon + description + status */}
+					<div className="flex items-center gap-2.5">
+						<Cpu className="size-4 text-muted-foreground flex-shrink-0" />
+
+						<span className="text-[13px] font-medium text-foreground truncate flex-1">{description}</span>
+
+						{isRunning && (
+							<span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium flex-shrink-0 flex items-center gap-1">
+								<Loader2 className="size-2.5 animate-spin" />
+								Running
+							</span>
+						)}
+						{isCompleted && childToolParts.length > 0 && (
+							<span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono flex-shrink-0">{childToolParts.length} steps</span>
+						)}
+						{isCompleted && childToolParts.length === 0 && !cleanedOutput && (
+							<span className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-medium flex-shrink-0 flex items-center gap-1">
+								<Check className="size-2.5" />
+								Done
+							</span>
+						)}
+						{isError && (
+							<span className="text-[10px] text-destructive bg-destructive/10 px-1.5 py-0.5 rounded font-medium flex-shrink-0">Failed</span>
+						)}
+
+						{hasSession && (
+							<ChevronRight className="size-3.5 text-muted-foreground/20 group-hover:text-muted-foreground/50 transition-colors flex-shrink-0" />
+						)}
+					</div>
+
+					{/* Row 2: live activity */}
+					{isRunning && (
+						<div className="mt-2 pl-[26px]">
+							{lastActivity ? (
+								<TextShimmer duration={1.5} spread={2} className="text-[11px] truncate font-mono text-muted-foreground">
+									{lastActivity}
+								</TextShimmer>
+							) : (
+								<span className="text-[11px] text-muted-foreground">Starting…</span>
+							)}
+						</div>
+					)}
+
+					{/* Row 2: completed step summary (only when no worker output) */}
+					{isCompleted && childToolParts.length > 0 && !cleanedOutput && (
+						<div className="mt-2 pl-[26px] space-y-0.5">
+							{childToolParts.slice(-3).map((tp, i) => {
+								const info = getToolInfo(tp.tool, (tp.state.input ?? {}) as Record<string, any>);
+								return (
+									<div key={i} className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
+										<Check className="size-2.5 text-muted-foreground/50 flex-shrink-0" />
+										{info.title}{info.subtitle ? ` · ${info.subtitle}` : ""}
+									</div>
+								);
+							})}
+							{childToolParts.length > 3 && (
+								<div className="text-[11px] text-muted-foreground/50 pl-4">+{childToolParts.length - 3} more</div>
+							)}
+						</div>
+					)}
+
+					{/* Fallback: completed with no steps or output */}
+					{isCompleted && childToolParts.length === 0 && !cleanedOutput && (
+						<div className="mt-1.5 pl-[26px]">
+							<span className="text-[11px] text-muted-foreground/50 flex items-center gap-1.5">
+								<Check className="size-2.5" />
+								Completed
+							</span>
+						</div>
+					)}
+				</div>
+
+				{/* Worker result section */}
+				{isCompleted && cleanedOutput && (
+					<div className="border-t border-border/30">
+						{isShortOutput(cleanedOutput) ? (
+							/* Short result: show inline, no collapse */
+							<div className="px-3 py-2.5">
+								<div className="text-xs text-foreground/80 leading-relaxed border-l-2 border-border/40 pl-3 prose-sm [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-foreground [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_table]:text-[11px] [&_code]:text-[11px] [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:rounded [&_hr]:border-border/30 [&_hr]:my-3">
+									<UnifiedMarkdown content={cleanedOutput} isStreaming={false} />
+								</div>
+							</div>
+						) : (
+							/* Long result: collapsible */
+							<>
+								<button
+									type="button"
+									onClick={(e) => { e.stopPropagation(); setOutputExpanded(!outputExpanded); }}
+									className="flex items-center gap-2 w-full px-3 py-2 text-left cursor-pointer hover:bg-muted/30 transition-colors"
+								>
+									<ChevronRight className={cn("size-3 text-muted-foreground/40 transition-transform flex-shrink-0", outputExpanded && "rotate-90")} />
+									<span className="text-[11px] text-muted-foreground font-medium flex-shrink-0">Result</span>
+									{!outputExpanded && workerPreview && (
+										<span className="text-[11px] text-muted-foreground/40 truncate">{workerPreview}</span>
+									)}
+								</button>
+								{outputExpanded && (
+									<div data-scrollable className="px-3 pb-3 max-h-80 overflow-y-auto">
+										<div className="text-xs text-foreground/80 leading-relaxed border-l-2 border-border/40 pl-3 prose-sm [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-foreground [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_table]:text-[11px] [&_code]:text-[11px] [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:rounded [&_hr]:border-border/30 [&_hr]:my-3">
+											<UnifiedMarkdown content={cleanedOutput} isStreaming={false} />
+										</div>
+									</div>
+								)}
+							</>
+						)}
+					</div>
+				)}
+			</div>
+
+			{hasSession && (
+				<SubSessionModal
+					open={modalOpen}
+					onOpenChange={setModalOpen}
+					sessionId={childSessionId}
+					title={description}
+				/>
+			)}
+		</>
+	);
+}
+ToolRegistry.register("agent_spawn", AgentSpawnTool);
+ToolRegistry.register("agent-spawn", AgentSpawnTool);
+
+// ============================================================================
+// Agent utility tools — card components matching AgentSpawnTool visual standard
+// ============================================================================
+
+function AgentMessageTool({ part }: ToolProps) {
+	const input = partInput(part);
+	const status = partStatus(part);
+	const output = partOutput(part);
+	const message = (input.message as string) || "";
+	const description = message
+		? message.length > 80 ? message.slice(0, 80).trim() + "…" : message
+		: "Message sent to agent";
+	const isRunning = status === "running" || status === "pending";
+	const isCompleted = status === "completed";
+	const isError = status === "error";
+
+	const childSessionId: string | undefined = useMemo(
+		() => getChildSessionId(part),
+		[part],
+	);
+
+	const { data: childMessages } = useOpenCodeMessages(childSessionId ?? "");
+	const childToolParts = useMemo(() => {
+		if (!childMessages) return [];
+		return getChildSessionToolParts(childMessages as any);
+	}, [childMessages]);
+
+	const [modalOpen, setModalOpen] = useState(false);
+	const [outputExpanded, setOutputExpanded] = useState(false);
+
+	const lastActivity = useMemo(() => {
+		if (childToolParts.length === 0) return null;
+		const last = childToolParts[childToolParts.length - 1];
+		const info = getToolInfo(last.tool, (last.state.input ?? {}) as Record<string, any>);
+		return info.title + (info.subtitle ? ` · ${info.subtitle}` : "");
+	}, [childToolParts]);
+
+	const cleanedOutput = useMemo(() => cleanWorkerOutput(output), [output]);
+	const workerPreview = useMemo(() => extractWorkerPreview(cleanedOutput), [cleanedOutput]);
+
+	const hasSession = !!childSessionId;
+
+	return (
+		<>
+			<div
+				className={cn(
+					"rounded-lg border border-border/40 bg-muted/20 transition-colors select-none w-full group overflow-hidden",
+				)}
+			>
+				{/* Clickable header area */}
+				<div
+					role="button"
+					tabIndex={0}
+					onClick={() => hasSession && setModalOpen(true)}
+					onKeyDown={(e) => e.key === "Enter" && hasSession && setModalOpen(true)}
+					className={cn(
+						"p-3",
+						hasSession ? "cursor-pointer hover:bg-accent/50" : "",
+					)}
+				>
+					{/* Row 1: icon + description + status */}
+					<div className="flex items-center gap-2.5">
+						<MessageCircle className="size-4 text-muted-foreground flex-shrink-0" />
+
+						<span className="text-[13px] font-medium text-foreground truncate flex-1">{description}</span>
+
+						{isRunning && (
+							<span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium flex-shrink-0 flex items-center gap-1">
+								<Loader2 className="size-2.5 animate-spin" />
+								Running
+							</span>
+						)}
+						{isCompleted && childToolParts.length > 0 && (
+							<span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono flex-shrink-0">{childToolParts.length} steps</span>
+						)}
+						{isCompleted && childToolParts.length === 0 && !cleanedOutput && (
+							<span className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-medium flex-shrink-0 flex items-center gap-1">
+								<Check className="size-2.5" />
+								Done
+							</span>
+						)}
+						{isError && (
+							<span className="text-[10px] text-destructive bg-destructive/10 px-1.5 py-0.5 rounded font-medium flex-shrink-0">Failed</span>
+						)}
+
+						{hasSession && (
+							<ChevronRight className="size-3.5 text-muted-foreground/20 group-hover:text-muted-foreground/50 transition-colors flex-shrink-0" />
+						)}
+					</div>
+
+					{/* Row 2: live activity */}
+					{isRunning && (
+						<div className="mt-2 pl-[26px]">
+							{lastActivity ? (
+								<TextShimmer duration={1.5} spread={2} className="text-[11px] truncate font-mono text-muted-foreground">
+									{lastActivity}
+								</TextShimmer>
+							) : (
+								<span className="text-[11px] text-muted-foreground">Starting…</span>
+							)}
+						</div>
+					)}
+
+					{/* Row 2: completed step summary (only when no worker output) */}
+					{isCompleted && childToolParts.length > 0 && !cleanedOutput && (
+						<div className="mt-2 pl-[26px] space-y-0.5">
+							{childToolParts.slice(-3).map((tp, i) => {
+								const info = getToolInfo(tp.tool, (tp.state.input ?? {}) as Record<string, any>);
+								return (
+									<div key={i} className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
+										<Check className="size-2.5 text-muted-foreground/50 flex-shrink-0" />
+										{info.title}{info.subtitle ? ` · ${info.subtitle}` : ""}
+									</div>
+								);
+							})}
+							{childToolParts.length > 3 && (
+								<div className="text-[11px] text-muted-foreground/50 pl-4">+{childToolParts.length - 3} more</div>
+							)}
+						</div>
+					)}
+
+					{/* Fallback: completed with no steps or output */}
+					{isCompleted && childToolParts.length === 0 && !cleanedOutput && (
+						<div className="mt-1.5 pl-[26px]">
+							<span className="text-[11px] text-muted-foreground/50 flex items-center gap-1.5">
+								<Check className="size-2.5" />
+								Completed
+							</span>
+						</div>
+					)}
+				</div>
+
+				{/* Worker result section */}
+				{isCompleted && cleanedOutput && (
+					<div className="border-t border-border/30">
+						{isShortOutput(cleanedOutput) ? (
+							/* Short result: show inline, no collapse */
+							<div className="px-3 py-2.5">
+								<div className="text-xs text-foreground/80 leading-relaxed border-l-2 border-border/40 pl-3 prose-sm [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-foreground [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_table]:text-[11px] [&_code]:text-[11px] [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:rounded [&_hr]:border-border/30 [&_hr]:my-3">
+									<UnifiedMarkdown content={cleanedOutput} isStreaming={false} />
+								</div>
+							</div>
+						) : (
+							/* Long result: collapsible */
+							<>
+								<button
+									type="button"
+									onClick={(e) => { e.stopPropagation(); setOutputExpanded(!outputExpanded); }}
+									className="flex items-center gap-2 w-full px-3 py-2 text-left cursor-pointer hover:bg-muted/30 transition-colors"
+								>
+									<ChevronRight className={cn("size-3 text-muted-foreground/40 transition-transform flex-shrink-0", outputExpanded && "rotate-90")} />
+									<span className="text-[11px] text-muted-foreground font-medium flex-shrink-0">Result</span>
+									{!outputExpanded && workerPreview && (
+										<span className="text-[11px] text-muted-foreground/40 truncate">{workerPreview}</span>
+									)}
+								</button>
+								{outputExpanded && (
+									<div data-scrollable className="px-3 pb-3 max-h-80 overflow-y-auto">
+										<div className="text-xs text-foreground/80 leading-relaxed border-l-2 border-border/40 pl-3 prose-sm [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-foreground [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_table]:text-[11px] [&_code]:text-[11px] [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:rounded [&_hr]:border-border/30 [&_hr]:my-3">
+											<UnifiedMarkdown content={cleanedOutput} isStreaming={false} />
+										</div>
+									</div>
+								)}
+							</>
+						)}
+					</div>
+				)}
+			</div>
+
+			{hasSession && (
+				<SubSessionModal
+					open={modalOpen}
+					onOpenChange={setModalOpen}
+					sessionId={childSessionId}
+					title={description}
+				/>
+			)}
+		</>
+	);
+}
+ToolRegistry.register("agent_message", AgentMessageTool);
+ToolRegistry.register("agent-message", AgentMessageTool);
+
+function AgentStopTool({ part }: ToolProps) {
+	const input = partInput(part);
+	const agentId = (input.agent_id as string) || "";
+	return (
+		<div className="rounded-lg border border-border/40 bg-muted/20 w-full overflow-hidden">
+			<div className="p-3">
+				<div className="flex items-center gap-2.5">
+					<StopCircle className="size-4 text-muted-foreground flex-shrink-0" />
+					<span className="text-[13px] font-medium text-foreground truncate flex-1">
+						Agent stopped
+					</span>
+					{agentId && (
+						<span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono flex-shrink-0">
+							{agentId.slice(-12)}
+						</span>
+					)}
+					<span className="text-[10px] text-muted-foreground/60 bg-muted/60 px-1.5 py-0.5 rounded font-medium flex-shrink-0">
+						Stopped
+					</span>
+				</div>
+			</div>
+		</div>
+	);
+}
+ToolRegistry.register("agent_stop", AgentStopTool);
+ToolRegistry.register("agent-stop", AgentStopTool);
+
+function AgentStatusTool({ part }: ToolProps) {
+	const status = partStatus(part);
+	const output = partOutput(part);
+	const isRunning = status === "running" || status === "pending";
+	const [expanded, setExpanded] = useState(false);
+
+	// Try to parse worker count from output
+	const workerCount = useMemo(() => {
+		if (!output) return 0;
+		const matches = output.match(/ag-[a-zA-Z0-9]+/g);
+		return matches ? matches.length : 0;
+	}, [output]);
+
+	const cleanedOutput = useMemo(() => cleanWorkerOutput(output), [output]);
+
+	return (
+		<div className="rounded-lg border border-border/40 bg-muted/20 w-full overflow-hidden">
+			<div className="p-3">
+				<div className="flex items-center gap-2.5">
+					<Layers className="size-4 text-muted-foreground flex-shrink-0" />
+					<span className="text-[13px] font-medium text-foreground truncate flex-1">
+						Agent status
+					</span>
+					{isRunning && (
+						<span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium flex-shrink-0 flex items-center gap-1">
+							<Loader2 className="size-2.5 animate-spin" />
+							Checking
+						</span>
+					)}
+					{!isRunning && workerCount > 0 && (
+						<span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono flex-shrink-0">
+							{workerCount} agent{workerCount !== 1 ? "s" : ""}
+						</span>
+					)}
+				</div>
+			</div>
+
+			{/* Details section */}
+			{!isRunning && cleanedOutput && (
+				<div className="border-t border-border/30">
+					{isShortOutput(cleanedOutput) ? (
+						/* Short output: show inline, no collapse */
+						<div className="px-3 py-2.5">
+							<div className="text-xs text-foreground/80 leading-relaxed border-l-2 border-border/40 pl-3 prose-sm [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-foreground [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_table]:text-[11px] [&_code]:text-[11px] [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:rounded [&_hr]:border-border/30 [&_hr]:my-3">
+								<UnifiedMarkdown content={cleanedOutput} isStreaming={false} />
+							</div>
+						</div>
+					) : (
+						/* Long output: collapsible */
+						<>
+							<button
+								type="button"
+								onClick={() => setExpanded(!expanded)}
+								className="flex items-center gap-2 w-full px-3 py-2 text-left cursor-pointer hover:bg-muted/30 transition-colors"
+							>
+								<ChevronRight className={cn("size-3 text-muted-foreground/40 transition-transform flex-shrink-0", expanded && "rotate-90")} />
+								<span className="text-[11px] text-muted-foreground font-medium flex-shrink-0">Details</span>
+							</button>
+							{expanded && (
+								<div data-scrollable className="px-3 pb-3 max-h-80 overflow-y-auto">
+									<div className="text-xs text-foreground/80 leading-relaxed border-l-2 border-border/40 pl-3 prose-sm [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-foreground [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_table]:text-[11px] [&_code]:text-[11px] [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:rounded [&_hr]:border-border/30 [&_hr]:my-3">
+										<UnifiedMarkdown content={cleanedOutput} isStreaming={false} />
+									</div>
+								</div>
+							)}
+						</>
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+ToolRegistry.register("agent_status", AgentStatusTool);
+ToolRegistry.register("agent-status", AgentStatusTool);
+
+// ============================================================================
+// Task Tools — inline compact chips, visible at a glance
+// ============================================================================
+
+function TaskCreateTool({ part }: ToolProps) {
+	const input = partInput(part);
+	const title = (input.title as string) || "";
+	const priority = (input.priority as string) || "medium";
+	return (
+		<div className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg bg-muted/20 border border-border/40">
+			<Circle className="size-3 text-muted-foreground/40 flex-shrink-0" />
+			<span className="text-foreground/80 truncate flex-1">{title}</span>
+			{priority === "high" && <span className="text-[0.5625rem] font-medium text-foreground/50 bg-muted/60 px-1.5 py-px rounded">high</span>}
+		</div>
+	);
+}
+ToolRegistry.register("task_create", TaskCreateTool);
+ToolRegistry.register("task-create", TaskCreateTool);
+
+function TaskListTool({ part }: ToolProps) {
+	const output = partOutput(part);
+	return (
+		<BasicTool
+			icon={<ListTodo className="size-3.5 flex-shrink-0" />}
+			trigger={{ title: "Tasks", subtitle: "", args: [] }}
+			defaultOpen={false}
+		>
+			{output && (
+				<div data-scrollable className="max-h-48 overflow-auto px-3 py-2">
+					<div className="text-[11px] text-muted-foreground whitespace-pre-wrap">
+						<UnifiedMarkdown content={output} isStreaming={false} />
+					</div>
+				</div>
+			)}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("task_list", TaskListTool);
+ToolRegistry.register("task-list", TaskListTool);
+
+function TaskUpdateTool({ part }: ToolProps) {
+	// task_update is internal bookkeeping — hide it entirely.
+	// The agent_spawn card already shows task status and description.
+	return null;
+}
+ToolRegistry.register("task_update", TaskUpdateTool);
+ToolRegistry.register("task-update", TaskUpdateTool);
+
+function TaskDoneTool({ part }: ToolProps) {
+	const input = partInput(part);
+	const result = (input.result as string) || "";
+	return (
+		<div className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg bg-muted/20 border border-border/40">
+			<Check className="size-3 text-muted-foreground/50 flex-shrink-0" />
+			<span className="text-muted-foreground truncate flex-1">{result || "Completed"}</span>
+		</div>
+	);
+}
+ToolRegistry.register("task_done", TaskDoneTool);
+ToolRegistry.register("task-done", TaskDoneTool);
+
+function TaskDeleteTool({ part }: ToolProps) {
+	return (
+		<div className="flex items-center gap-2 px-2.5 py-1 text-xs text-muted-foreground/40">
+			<Trash2 className="size-3 flex-shrink-0" />
+			<span>Task removed</span>
+		</div>
+	);
+}
+ToolRegistry.register("task_delete", TaskDeleteTool);
+ToolRegistry.register("task-delete", TaskDeleteTool);
 
 // ============================================================================
 // SkillTool — Skill loading
@@ -5466,6 +6385,9 @@ function ProjectListTool({ part, defaultOpen, forceOpen }: ToolProps) {
 							<div className="min-w-0 flex-1">
 								<div className="font-medium text-foreground truncate">{project.name}</div>
 								<div className="text-muted-foreground/60 font-mono truncate">{project.path}</div>
+								{project.description && project.description !== '—' && (
+									<div className="text-muted-foreground/50 truncate">{project.description}</div>
+								)}
 							</div>
 							{project.sessions > 0 && (
 								<Badge variant="outline" className="h-5 py-0 text-[10px] flex-shrink-0">
@@ -5475,9 +6397,13 @@ function ProjectListTool({ part, defaultOpen, forceOpen }: ToolProps) {
 						</div>
 					))}
 				</div>
+			) : output ? (
+				<div className="p-3 text-xs text-muted-foreground whitespace-pre-wrap">
+					{output.slice(0, 2000)}
+				</div>
 			) : (
 				<div className="p-3 text-xs text-muted-foreground">
-					{output ? 'No projects found' : 'Loading...'}
+					Loading...
 				</div>
 			)}
 		</BasicTool>
@@ -5524,33 +6450,30 @@ ToolRegistry.register("project-update", ProjectGetTool);
 ToolRegistry.register("oc-project_update", ProjectGetTool);
 ToolRegistry.register("oc-project-update", ProjectGetTool);
 
-function ProjectSelectTool({ part, defaultOpen, forceOpen }: ToolProps) {
+function ProjectSelectTool({ part }: ToolProps) {
 	const input = partInput(part);
 	const output = partOutput(part);
 	const project = (input.project as string) || '';
 	const data = useMemo(() => parseProjectSelectOutput(output || ''), [output]);
+	const name = data?.name || project;
+	const path = data?.path || '';
+	const projectId = useMemo(() => {
+		const m = (output || '').match(/\(proj-[a-z0-9-]+\)/);
+		return m ? m[0].slice(1, -1) : name;
+	}, [output, name]);
 
 	return (
-		<BasicTool
-			icon={<Folder className="size-3.5 text-muted-foreground" />}
-			trigger={{
-				title: 'Project Select',
-				subtitle: project || (data?.name ? `${data.name} selected` : 'Selecting...'),
-				args: data?.success ? ['selected'] : undefined,
-			}}
-			defaultOpen={defaultOpen}
-			forceOpen={forceOpen}
+		<div
+			role="button"
+			tabIndex={0}
+			onClick={() => openTabAndNavigate({ id: `project:${projectId}`, title: name, type: 'page' as any, href: `/projects/${encodeURIComponent(projectId)}` })}
+			className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg bg-muted/20 border border-border/40 cursor-pointer hover:bg-accent/50 transition-colors group"
 		>
-			<div className="p-2">
-				{output ? (
-					<div className="text-xs text-muted-foreground whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">
-						{output}
-					</div>
-				) : (
-					<div className="p-3 text-xs text-muted-foreground">Loading...</div>
-				)}
-			</div>
-		</BasicTool>
+			<Folder className="size-3.5 text-muted-foreground/50 flex-shrink-0" />
+			<span className="text-[13px] font-medium text-foreground truncate flex-1">{name}</span>
+			{path && <span className="text-[10px] text-muted-foreground/40 font-mono truncate hidden group-hover:inline">{path}</span>}
+			<ChevronRight className="size-3 text-muted-foreground/20 group-hover:text-muted-foreground/40 flex-shrink-0" />
+		</div>
 	);
 }
 ToolRegistry.register("project_select", ProjectSelectTool);
@@ -5558,33 +6481,30 @@ ToolRegistry.register("project-select", ProjectSelectTool);
 ToolRegistry.register("oc-project_select", ProjectSelectTool);
 ToolRegistry.register("oc-project-select", ProjectSelectTool);
 
-function ProjectCreateTool({ part, defaultOpen, forceOpen }: ToolProps) {
+function ProjectCreateTool({ part }: ToolProps) {
 	const input = partInput(part);
 	const output = partOutput(part);
 	const name = (input.name as string) || '';
 	const data = useMemo(() => parseProjectCreateOutput(output || ''), [output]);
+	const displayName = data?.name || name;
+	const path = data?.path || (input.path as string) || '';
+	const projectId = useMemo(() => {
+		const m = (output || '').match(/proj-[a-z0-9-]+/);
+		return m ? m[0] : displayName;
+	}, [output, displayName]);
 
 	return (
-		<BasicTool
-			icon={<Folder className="size-3.5 text-muted-foreground" />}
-			trigger={{
-				title: 'Project Create',
-				subtitle: name || (data?.name || 'Creating...'),
-				args: data?.success ? ['created'] : undefined,
-			}}
-			defaultOpen={defaultOpen}
-			forceOpen={forceOpen}
+		<div
+			role="button"
+			tabIndex={0}
+			onClick={() => openTabAndNavigate({ id: `project:${projectId}`, title: displayName, type: 'page' as any, href: `/projects/${encodeURIComponent(projectId)}` })}
+			className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg bg-muted/20 border border-border/40 cursor-pointer hover:bg-accent/50 transition-colors group"
 		>
-			<div className="p-2">
-				{output ? (
-					<div className="text-xs text-muted-foreground whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">
-						{output}
-					</div>
-				) : (
-					<div className="p-3 text-xs text-muted-foreground">Creating project...</div>
-				)}
-			</div>
-		</BasicTool>
+			<Plus className="size-3.5 text-muted-foreground/50 flex-shrink-0" />
+			<span className="text-[13px] font-medium text-foreground truncate flex-1">{displayName}</span>
+			{path && <span className="text-[10px] text-muted-foreground/40 font-mono truncate hidden group-hover:inline">{path}</span>}
+			<ChevronRight className="size-3 text-muted-foreground/20 group-hover:text-muted-foreground/40 flex-shrink-0" />
+		</div>
 	);
 }
 ToolRegistry.register("project_create", ProjectCreateTool);
@@ -5626,16 +6546,13 @@ function ConnectorListTool({ part, defaultOpen, forceOpen }: ToolProps) {
 							<Plug className="size-3.5 mt-0.5 flex-shrink-0 text-muted-foreground" />
 							<div className="min-w-0 flex-1">
 								<div className="font-medium text-foreground truncate">{conn.name}</div>
-								<div className="text-muted-foreground/60 flex gap-2">
-									<span className="capitalize">{conn.type}</span>
-									<span>{conn.status}</span>
-								</div>
+								{conn.description && (
+									<div className="text-muted-foreground/60">{conn.description}</div>
+								)}
 							</div>
-							{conn.secrets !== 'none' && (
-								<Badge variant="outline" className="h-5 py-0 text-[10px] flex-shrink-0 font-mono">
-									{conn.secrets}
-								</Badge>
-							)}
+							<Badge variant="outline" className="h-5 py-0 text-[10px] flex-shrink-0 capitalize">
+								{conn.source}
+							</Badge>
 						</div>
 					))}
 				</div>
@@ -5663,7 +6580,7 @@ function ConnectorGetTool({ part, defaultOpen, forceOpen }: ToolProps) {
 			icon={<Plug className="size-3.5 text-muted-foreground" />}
 			trigger={{
 				title: data?.name || 'Connector Details',
-				subtitle: name && name !== data?.name ? name : (data?.type || 'Fetching...'),
+				subtitle: name && name !== data?.name ? name : (data?.description || 'Fetching...'),
 			}}
 			defaultOpen={defaultOpen}
 			forceOpen={forceOpen}
@@ -5673,14 +6590,22 @@ function ConnectorGetTool({ part, defaultOpen, forceOpen }: ToolProps) {
 					<div className="space-y-2">
 						{data ? (
 							<>
+								{data.description && (
+									<div className="text-xs text-muted-foreground mb-1">{data.description}</div>
+								)}
 								<div className="flex gap-2 text-xs">
-									<Badge variant="outline" className="h-5 py-0 capitalize">{data.type}</Badge>
-									<Badge variant="outline" className="h-5 py-0">{data.status}</Badge>
+									<Badge variant="outline" className="h-5 py-0 capitalize">{data.source}</Badge>
 								</div>
-								{data.secrets !== 'none' && (
+								{data.pipedream_slug && (
 									<div className="text-xs">
-										<span className="text-muted-foreground/60">Secrets: </span>
-										<code className="bg-muted px-1 rounded text-[10px]">{data.secrets}</code>
+										<span className="text-muted-foreground/60">Pipedream: </span>
+										<code className="bg-muted px-1 rounded text-[10px]">{data.pipedream_slug}</code>
+									</div>
+								)}
+								{data.env && (
+									<div className="text-xs">
+										<span className="text-muted-foreground/60">Env: </span>
+										<code className="bg-muted px-1 rounded text-[10px]">{data.env}</code>
 									</div>
 								)}
 								{data.notes && (
@@ -5717,8 +6642,8 @@ function ConnectorSetupTool({ part, defaultOpen, forceOpen }: ToolProps) {
 			icon={<Plug className="size-3.5 text-muted-foreground" />}
 			trigger={{
 				title: 'Connector Setup',
-				subtitle: data ? `${data.count} connector${data.count !== 1 ? 's' : ''} scaffolded` : 'Setting up...',
-				args: data?.success ? ['scaffolded'] : undefined,
+				subtitle: data ? `${data.count} connector${data.count !== 1 ? 's' : ''} configured` : 'Setting up...',
+				args: data?.success ? ['configured'] : undefined,
 			}}
 			defaultOpen={defaultOpen}
 			forceOpen={forceOpen}
@@ -5729,9 +6654,7 @@ function ConnectorSetupTool({ part, defaultOpen, forceOpen }: ToolProps) {
 						{data?.connectors.map((conn, i) => (
 							<div key={i} className="flex items-center gap-2 text-xs py-1">
 								<Plug className="size-3.5 flex-shrink-0 text-muted-foreground" />
-								<span className="font-medium">{conn.name}</span>
-								<Badge variant="outline" className="h-4 py-0 text-[9px] capitalize">{conn.type}</Badge>
-								<span className="text-muted-foreground/60">{conn.status}</span>
+								<span className="font-medium">{conn}</span>
 							</div>
 						))}
 						{!data && (
@@ -6139,27 +7062,31 @@ function PermissionPromptInline({
 				Permission: <span className="font-medium">{label}</span>
 			</span>
 			<div className="flex items-center gap-1.5">
-				<button
+				<Button
 					disabled={replying}
 					onClick={() => handleReply("reject")}
-				 className="px-2 py-1 text-[11px] rounded-md text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+					variant="muted"
+					size="xs"
+					className="hover:text-destructive hover:bg-destructive/10"
 				>
 					Deny
-				</button>
-				<button
+				</Button>
+				<Button
 					disabled={replying}
 					onClick={() => handleReply("always")}
-				 className="px-2 py-1 text-[11px] rounded-md text-foreground hover:bg-muted transition-colors border border-border disabled:opacity-50"
+					variant="outline"
+					size="xs"
 				>
 					Allow always
-				</button>
-				<button
+				</Button>
+				<Button
 					disabled={replying}
 					onClick={() => handleReply("once")}
-				 className="px-2 py-1 text-[11px] rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+					variant="default"
+					size="xs"
 				>
 					Allow once
-				</button>
+				</Button>
 			</div>
 		</div>
 	);

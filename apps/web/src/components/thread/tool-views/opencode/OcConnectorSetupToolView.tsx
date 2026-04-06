@@ -32,7 +32,7 @@ export function OcConnectorSetupToolView({
   const data = useMemo(() => parseConnectorSetupOutput(output), [output]);
 
   if (isStreaming && !toolResult) {
-    return <LoadingState title="Setting up connectors" subtitle="Scaffolding connectors..." />;
+    return <LoadingState title="Setting up connectors" subtitle="Configuring connectors..." />;
   }
 
   return (
@@ -42,7 +42,7 @@ export function OcConnectorSetupToolView({
           <ToolViewIconTitle
             icon={data?.success ? CheckCircle : Plug}
             title={data?.success ? 'Connectors Setup' : 'Connector Setup'}
-            subtitle={data ? `${data.count} connector${data.count !== 1 ? 's' : ''} scaffolded` : 'Setting up...'}
+            subtitle={data ? `${data.count} connector${data.count !== 1 ? 's' : ''} configured` : 'Setting up...'}
           />
           {data?.success && (
             <Badge variant="outline" className="h-6 py-0.5 flex-shrink-0 ml-2">
@@ -63,20 +63,10 @@ export function OcConnectorSetupToolView({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-foreground truncate">
-                      {conn.name}
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground/60">
-                      <Badge variant="outline" className="h-4 py-0 text-[9px] capitalize">
-                        {conn.type}
-                      </Badge>
-                      <span>
-                        {conn.status}
-                      </span>
+                      {conn}
                     </div>
                   </div>
-                  {conn.status === 'connected' && (
-                    <CheckCircle className="size-4 flex-shrink-0" />
-                  )}
+                  <CheckCircle className="size-4 flex-shrink-0 text-emerald-500" />
                 </div>
               ))}
             </div>
@@ -113,7 +103,7 @@ export function OcConnectorSetupToolView({
             </Badge>
           ) : data?.success ? (
             <Badge variant="outline" className="h-6 py-0.5 bg-muted">
-              {data.count} scaffolded
+              {data.count} configured
             </Badge>
           ) : null
         )}

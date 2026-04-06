@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,16 +43,13 @@ import {
   type Execution,
   type SessionMode,
   type ExecutionStatus,
-  useSandboxAgents,
 } from '@/hooks/scheduled-tasks';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useSandbox } from '@/hooks/platform/use-sandbox';
-import { useServerStore } from '@/stores/server-store';
-import { ensureSandbox } from '@/lib/platform-client';
-import { ScheduledTaskAgentSelector } from './agent-selector';
-import { useFilePreviewStore } from '@/stores/file-preview-store';
-import { FileText } from 'lucide-react';
+import { getSandboxUrl } from '@/lib/platform-client';
+import { AgentSelector } from '@/components/session/session-chat-input';
+import { useOpenCodeAgents } from '@/hooks/opencode/use-opencode-sessions';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -130,55 +128,32 @@ interface TaskDetailPanelProps {
 export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
   const router = useRouter();
   const { sandbox } = useSandbox();
-  const [sandboxId, setSandboxId] = useState<string | null>(trigger.sandboxId ?? null);
+  const webhookBaseUrl = useMemo(() => {
+    try { if (sandbox) return getSandboxUrl(sandbox); } catch {}
+    return 'https://<sandbox-url>';
+  }, [sandbox]);
   const [tab, setTab] = useState<'settings' | 'executions'>('settings');
   const [name, setName] = useState(trigger.name);
   const [cronExpr, setCronExpr] = useState(trigger.cronExpr || '');
   const [timezone, setTimezone] = useState(trigger.timezone || 'UTC');
   const [prompt, setPrompt] = useState(trigger.prompt);
   const [sessionMode, setSessionMode] = useState<SessionMode>(trigger.sessionMode as SessionMode);
-  const [agentName, setAgentName] = useState(trigger.agentName || '');
+  const [agentName, setAgentName] = useState<string | null>(trigger.agentName || null);
+  const [webhookPath, setWebhookPath] = useState(trigger.webhook?.path || '');
+  // Webhook method is always POST (standard webhook convention)
   const [isDirty, setIsDirty] = useState(false);
-
-  const openFilePreview = useFilePreviewStore((s) => s.openPreview);
 
   const updateMutation = useUpdateTrigger();
   const deleteMutation = useDeleteTrigger();
   const toggleMutation = useToggleTrigger();
   const runMutation = useRunTrigger();
-  const { data: agents = [], isLoading: agentsLoading } = useSandboxAgents(sandboxId);
+
+  // Use shared hooks (same as ChatInput / channels)
+  const { data: agents = [], isLoading: agentsLoading } = useOpenCodeAgents();
+
   const { data: executions = [] } = useTriggerExecutions(
     tab === 'executions' && trigger.triggerId ? trigger.triggerId : '',
   );
-
-  useEffect(() => {
-    if (!trigger.sandboxId && sandboxId) return;
-    if (trigger.sandboxId) {
-      setSandboxId(trigger.sandboxId);
-      return;
-    }
-
-    void (async () => {
-      try {
-        const result = await ensureSandbox();
-        setSandboxId(result.sandbox.sandbox_id);
-        return;
-      } catch {}
-
-      if (sandbox?.sandbox_id) {
-        setSandboxId(sandbox.sandbox_id);
-        return;
-      }
-
-      const store = useServerStore.getState();
-      for (const server of store.servers) {
-        if (server.sandboxId) {
-          setSandboxId(server.sandboxId);
-          return;
-        }
-      }
-    })();
-  }, [sandbox?.sandbox_id, sandboxId, trigger.sandboxId]);
 
   // Sync state when trigger prop changes
   React.useEffect(() => {
@@ -187,27 +162,29 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
     setTimezone(trigger.timezone || 'UTC');
     setPrompt(trigger.prompt);
     setSessionMode(trigger.sessionMode as SessionMode);
-    setAgentName(trigger.agentName || '');
+    setAgentName(trigger.agentName || null);
+    setWebhookPath(trigger.webhook?.path || '');
     setIsDirty(false);
-  }, [trigger.id, trigger.name, trigger.cronExpr, trigger.timezone, trigger.prompt, trigger.sessionMode, trigger.agentName]);
+  }, [trigger.id, trigger.name, trigger.cronExpr, trigger.timezone, trigger.prompt, trigger.sessionMode, trigger.agentName, trigger.webhook?.path]);
 
   const markDirty = () => setIsDirty(true);
 
   const handleSave = async () => {
     if (!trigger.triggerId) return;
     try {
-      await updateMutation.mutateAsync({
-        id: trigger.triggerId,
-        data: {
-          name,
-          cron_expr: cronExpr,
-          timezone,
-          prompt,
-          session_mode: sessionMode,
-          agent_name: agentName.trim() || null,
-        },
-      });
-      toast.success('Task updated');
+      const data: any = { name, session_mode: sessionMode, agent_name: agentName || null };
+      if (trigger.type === 'cron') {
+        data.cron_expr = cronExpr;
+        data.timezone = timezone;
+      }
+      if (trigger.type === 'webhook') {
+        data.source = { path: webhookPath };
+      }
+      if (trigger.action_type === 'prompt' || !trigger.action_type) {
+        data.prompt = prompt;
+      }
+      await updateMutation.mutateAsync({ id: trigger.triggerId, data });
+      toast.success('Trigger updated');
       setIsDirty(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update');
@@ -276,30 +253,22 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b">
-        <button
+      <FilterBar className="w-full px-2">
+        <FilterBarItem
           onClick={() => setTab('settings')}
-          className={cn(
-            "flex-1 py-2.5 text-sm font-medium text-center border-b-2 transition-colors",
-            tab === 'settings'
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
+          data-state={tab === 'settings' ? 'active' : 'inactive'}
+          className="flex-1"
         >
           Settings
-        </button>
-        <button
+        </FilterBarItem>
+        <FilterBarItem
           onClick={() => setTab('executions')}
-          className={cn(
-            "flex-1 py-2.5 text-sm font-medium text-center border-b-2 transition-colors",
-            tab === 'executions'
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
+          data-state={tab === 'executions' ? 'active' : 'inactive'}
+          className="flex-1"
         >
           Executions
-        </button>
-      </div>
+        </FilterBarItem>
+      </FilterBar>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 pb-12">
@@ -308,11 +277,11 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
             {/* Name */}
             <div className="space-y-2">
               <Label htmlFor="edit-name">Name</Label>
-              <Input
+              <Input type="text"
                 id="edit-name"
                 value={name}
                 onChange={(e) => { setName(e.target.value); markDirty(); }}
-                disabled={!trigger.editable}
+                className="rounded-xl"
               />
             </div>
 
@@ -324,39 +293,55 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
                     value={cronExpr}
                     onChange={(v) => { setCronExpr(v); markDirty(); }}
                     compact
-                    disabled={!trigger.editable}
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label>Timezone</Label>
-                  <Select value={timezone} onValueChange={(v) => { setTimezone(v); markDirty(); }} disabled={!trigger.editable}>
-                    <SelectTrigger>
+                   <Select value={timezone} onValueChange={(v) => { setTimezone(v); markDirty(); }}>
+                    <SelectTrigger className="cursor-pointer rounded-xl hover:bg-muted/40 transition-colors">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {TIMEZONES.map((tz) => (
-                        <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+                        <SelectItem key={tz} value={tz} className="cursor-pointer">{tz}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               </>
             ) : (
-              <div className="rounded-lg bg-muted/50 p-3 space-y-2 text-sm">
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Endpoint</span>
-                  <span className="font-medium break-all text-right">{trigger.webhook?.method || 'POST'} {trigger.webhook?.path || ''}</span>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Webhook Path</Label>
+                  <Input type="text" value={webhookPath} onChange={(e) => { setWebhookPath(e.target.value); markDirty(); }} placeholder="/hooks/my-endpoint" className="rounded-xl" />
                 </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Secret</span>
-                  <span className="font-medium">{trigger.webhook?.secretProtected ? 'Protected' : 'None'}</span>
+
+                {/* Full external URL + curl example */}
+                <div className="rounded-xl bg-muted/50 border p-3 space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground">External URL</div>
+                  <code className="text-xs font-mono text-foreground break-all block select-all">
+                    {webhookBaseUrl}{trigger.webhook?.path || webhookPath || '/hooks/...'}
+                  </code>
+                  <div className="text-xs font-medium text-muted-foreground pt-1">Example curl</div>
+                  <code className="text-[11px] font-mono text-foreground/70 break-all block select-all whitespace-pre-wrap">
+{`curl -X POST "${webhookBaseUrl}${trigger.webhook?.path || webhookPath}"${trigger.webhook?.secretProtected ? ` \\\n  -H "X-Kortix-Trigger-Secret: <secret>"` : ''} \\
+  -H "Content-Type: application/json" \\
+  -d '{"key": "value"}'`}
+                  </code>
                 </div>
-                <div className="text-xs text-muted-foreground">Webhook triggers are defined in the agent markdown source and are view-only here.</div>
+
+                <div className="space-y-2">
+                  <Label>Secret</Label>
+                  <div className="h-9 px-3 flex items-center rounded-xl border border-input bg-muted/50 text-sm text-muted-foreground">
+                    {trigger.webhook?.secretProtected ? 'Protected' : 'None'}
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* Prompt */}
+            {/* Prompt (for prompt actions) */}
+            {(trigger.action_type === 'prompt' || !trigger.action_type) && (
             <div className="space-y-2">
               <Label htmlFor="edit-prompt">Prompt</Label>
               <Textarea
@@ -365,29 +350,32 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
                 onChange={(e) => { setPrompt(e.target.value); markDirty(); }}
                 placeholder="The instruction sent to your agent..."
                 rows={4}
-                disabled={!trigger.editable}
+                className="rounded-xl"
               />
             </div>
+            )}
 
             {/* Session Mode */}
+            {(trigger.action_type === 'prompt' || !trigger.action_type) && (
             <div className="space-y-2">
               <Label>Session Mode</Label>
               <Select
                 value={sessionMode}
                 onValueChange={(v) => { setSessionMode(v as SessionMode); markDirty(); }}
-                disabled={!trigger.editable}
               >
-                <SelectTrigger>
+                <SelectTrigger className="cursor-pointer rounded-xl hover:bg-muted/40 transition-colors">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="new">New Session</SelectItem>
-                  <SelectItem value="reuse">Reuse Session</SelectItem>
+                  <SelectItem value="new" className="cursor-pointer">New Session</SelectItem>
+                  <SelectItem value="reuse" className="cursor-pointer">Reuse Session</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            )}
 
-            {/* Agent Name */}
+            {/* Agent Name (for prompt actions) */}
+            {(trigger.action_type === 'prompt' || !trigger.action_type) && (
             <div className="space-y-2">
               <Label>Agent</Label>
               {agentsLoading ? (
@@ -395,24 +383,24 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
                   <Loader2 className="h-3 w-3 animate-spin" />
                   Loading agents...
                 </div>
-              ) : trigger.editable ? (
-                <ScheduledTaskAgentSelector
-                  agents={agents}
-                  selectedAgent={agentName}
-                  onSelect={(value) => {
-                    setAgentName(value);
-                    markDirty();
-                  }}
-                />
               ) : (
-                <div className="h-9 px-3 flex items-center rounded-md border border-input bg-muted/50 text-sm text-muted-foreground">
-                  {trigger.agentName || 'Default'}
+                <div className="rounded-xl border bg-card px-2 py-1">
+                  <AgentSelector
+                    agents={agents}
+                    selectedAgent={agentName}
+                    onSelect={(next) => { setAgentName(next); markDirty(); }}
+                  />
                 </div>
               )}
             </div>
+            )}
 
             {/* Info */}
             <div className="rounded-lg bg-muted/50 p-3 space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Type</span>
+                <span className="font-medium capitalize">{trigger.type} → {trigger.action_type ?? 'prompt'}</span>
+              </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Next run</span>
                  <span className="font-medium">
@@ -423,99 +411,76 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
                 <span className="text-muted-foreground">Last run</span>
                 <span className="font-medium">{formatDateTime(trigger.lastRunAt)}</span>
               </div>
+              {(trigger.action_type === 'prompt' || !trigger.action_type) && (
+              <>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Model</span>
-                <span className="font-medium">
-                  {trigger.modelId || 'Default (Sonnet)'}
-                </span>
+                <span className="font-medium">{trigger.modelId || 'Default (Sonnet)'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Agent</span>
-                <span className="font-medium">
-                  {trigger.agentName || 'Default'}
-                </span>
+                <span className="font-medium">{trigger.agentName || 'Default'}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Retries</span>
-                <span className="font-medium">{trigger.maxRetries}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Timeout</span>
-                <span className="font-medium">{formatDuration(trigger.timeoutMs)}</span>
-              </div>
+              </>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Created</span>
                 <span className="font-medium">{new Date(trigger.createdAt).toLocaleDateString()}</span>
               </div>
-              {trigger.sourceType === 'agent' && trigger.agentFilePath && (
-                <div className="flex flex-col gap-1.5 pt-2 border-t border-border/50">
-                  <span className="text-muted-foreground text-xs font-medium">Defined in agent file</span>
-                  <button
-                    type="button"
-                    onClick={() => openFilePreview(trigger.agentFilePath!)}
-                    className="flex items-center gap-2 w-full rounded-md border border-border bg-background px-2.5 py-2 text-left hover:bg-muted/50 transition-colors group"
-                  >
-                    <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <code className="text-xs font-mono text-foreground/80 break-all flex-1 leading-relaxed">{trigger.agentFilePath}</code>
-                    <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                  </button>
-                  <p className="text-xs text-muted-foreground">Click to open. Set <code className="font-mono text-xs">enabled: false</code> to disable this trigger.</p>
-                </div>
-              )}
             </div>
 
             {/* Actions */}
             <div className="space-y-2 pt-2">
-               {trigger.editable && isDirty && (
+               {isDirty && (
                  <Button
                   onClick={handleSave}
                   disabled={updateMutation.isPending}
-                  className="w-full"
+                  className="w-full cursor-pointer "
                 >
                   <Save className="h-4 w-4 mr-2" />
                   {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
                 </Button>
               )}
-              {trigger.type === 'cron' && trigger.triggerId && (
+              {trigger.triggerId && (
               <Button
                 variant="outline"
                 onClick={handleRun}
                 disabled={runMutation.isPending}
-                className="w-full"
+                className="w-full cursor-pointer "
               >
                 <Play className="h-4 w-4 mr-2" />
                 {runMutation.isPending ? 'Running...' : 'Run Now'}
               </Button>
               )}
-              {trigger.editable && trigger.triggerId && (
+              {trigger.triggerId && (
               <Button
                 variant="outline"
                 onClick={handleToggle}
                 disabled={toggleMutation.isPending}
-                className="w-full"
+                className="w-full cursor-pointer "
               >
                 {trigger.isActive ? (
                   <>
                     <PowerOff className="h-4 w-4 mr-2" />
-                    Pause Task
+                    Pause Trigger
                   </>
                 ) : (
                   <>
                     <Power className="h-4 w-4 mr-2" />
-                    Resume Task
+                    Resume Trigger
                   </>
                 )}
               </Button>
               )}
-              {trigger.editable && trigger.triggerId && (
+              {trigger.triggerId && (
               <Button
                 variant="destructive"
                 onClick={handleDelete}
                 disabled={deleteMutation.isPending}
-                className="w-full"
+                className="w-full cursor-pointer "
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                {deleteMutation.isPending ? 'Deleting...' : 'Delete Task'}
+                {deleteMutation.isPending ? 'Deleting...' : 'Delete Trigger'}
               </Button>
               )}
             </div>
@@ -523,17 +488,12 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
         ) : (
           /* Executions Tab */
           <div className="space-y-3">
-            {trigger.type !== 'cron' ? (
-              <div className="text-center py-8">
-                <Webhook className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Webhook triggers do not have sandbox execution history here yet</p>
-              </div>
-            ) : executions.length === 0 ? (
+            {executions.length === 0 ? (
               <div className="text-center py-8">
                 <Clock className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">No executions yet</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Executions will appear here once the task runs
+                  Executions will appear here once the trigger runs
                 </p>
               </div>
             ) : (
@@ -593,6 +553,16 @@ function ExecutionItem({
       {execution.sessionId && (
         <div className="mt-2 text-xs text-muted-foreground">
           Open session `{execution.sessionId}`
+        </div>
+      )}
+      {execution.exitCode !== undefined && execution.exitCode !== null && (
+        <div className="mt-1 text-xs text-muted-foreground">
+          Exit code: <span className={execution.exitCode === 0 ? 'text-emerald-500' : 'text-amber-500'}>{execution.exitCode}</span>
+        </div>
+      )}
+      {execution.httpStatus !== undefined && execution.httpStatus !== null && (
+        <div className="mt-1 text-xs text-muted-foreground">
+          HTTP {execution.httpStatus}
         </div>
       )}
       {expanded && execution.errorMessage && (

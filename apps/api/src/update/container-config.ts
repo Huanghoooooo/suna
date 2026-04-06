@@ -15,12 +15,10 @@ export interface ContainerConfig {
 
 const CONFIG_PATH = '/workspace/.kortix/container.json';
 
-// Do NOT bind host port 3456 for cloud/JustAVPS sandboxes.
-// The host runs opencode-web on 3456 already, and binding the container to the
-// same port prevents the sandbox workload from starting at all.
+// Port mapping for cloud/JustAVPS sandboxes.
 export const DEFAULT_PORTS = [
   '3000:3000', '8000:8000', '8080:8080',
-  '6080:6080', '6081:6081', '3111:3111', '3210:3210',
+  '6080:6080', '6081:6081', '3210:3210',
   '3211:3211', '9223:9223', '9224:9224', '22222:22',
 ];
 

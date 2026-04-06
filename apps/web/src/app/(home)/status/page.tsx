@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import { Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -41,7 +42,7 @@ const getStatusIcon = (status: string) => {
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'operational':
-      return 'bg-green-500/10 text-green-700 dark:text-green-400';
+      return 'bg-emerald-500/10 text-green-700 dark:text-green-400';
     case 'degraded':
       return 'bg-destructive/10 text-destructive';
     case 'outage':
@@ -104,13 +105,13 @@ function StatusPageContent() {
                 Real-time status of all Kortix services
               </p>
             </div>
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-sm border ${
+            <div className={cn('flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-sm border', 
                 overallStatus === 'operational' 
-                  ? 'bg-green-500/10 border-green-200 dark:border-green-800' 
+                  ? 'bg-emerald-500/10 border-green-200 dark:border-green-800' 
                   : overallStatus === 'degraded'
                   ? 'bg-destructive/10 border-destructive/20'
                   : 'bg-destructive/20 border-destructive/30'
-              }`}
+              )}
             >
               {getStatusIcon(overallStatus)}
               <span className="text-sm font-medium">

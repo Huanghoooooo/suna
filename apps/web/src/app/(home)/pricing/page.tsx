@@ -24,7 +24,7 @@ export default function PricingPage() {
           <p className="text-muted-foreground/60 text-lg max-w-xl mx-auto">
             One machine, one subscription. Priced by the specs you need.
           </p>
-          <Button size="lg" className="h-12 px-10 rounded-xl" onClick={() => openNewInstanceModal()}>
+          <Button size="lg" className="px-10" onClick={() => openNewInstanceModal()}>
             Get Your Kortix <ArrowRight className="ml-2 size-4" />
           </Button>
         </motion.div>

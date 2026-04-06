@@ -3,13 +3,16 @@
 import {
 	ArrowDown,
 	ArrowUp,
+	AlertTriangle,
 	ArrowUpLeft,
 	Brain,
 	Check,
+	CheckCircle,
 	ChevronDown,
 	ChevronRight,
 	ChevronUp,
 	Copy,
+	Cpu,
 	ExternalLink,
 	FileText,
 	GitFork,
@@ -28,7 +31,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UnifiedMarkdown } from "@/components/markdown/unified-markdown";
-import { ImagePreview } from "@/components/session/image-preview";
+import { SandboxImage } from "@/components/session/sandbox-image";
 
 import { ConnectProviderDialog } from "@/components/session/model-selector";
 import {
@@ -41,7 +44,7 @@ import { SessionRetryDisplay, TurnErrorDisplay } from "@/components/session/sess
 import { SessionSiteHeader } from "@/components/session/session-site-header";
 import { QuestionPrompt, type QuestionPromptHandle, type QuestionAction } from "@/components/session/question-prompt";
 import { SessionWelcome } from "@/components/session/session-welcome";
-import { FileCard } from "@/components/file-previews/FileCard";
+import { GridFileCard } from "@/components/thread/file-attachment/GridFileCard";
 
 import { ToolPartRenderer } from "@/components/session/tool-renderers";
 import { SandboxUrlDetector } from "@/components/thread/content/sandbox-url-detector";
@@ -71,7 +74,7 @@ import { uploadFile } from "@/features/files/api/opencode-files";
 import { searchWorkspaceFiles } from "@/features/files";
 import { useOpenCodeConfig } from "@/hooks/opencode/use-opencode-config";
 import { useOpenCodeLocal, parseModelKey, formatModelString } from "@/hooks/opencode/use-opencode-local";
-import type { ProviderListResponse } from "@/hooks/opencode/use-opencode-sessions";
+import type { PromptPart, ProviderListResponse } from "@/hooks/opencode/use-opencode-sessions";
 import {
 	ascendingId,
 	rejectQuestion,
@@ -84,7 +87,6 @@ import {
 	useOpenCodeProviders,
 	useOpenCodeSession,
 	useOpenCodeSessions,
-	useSendOpenCodeMessage,
 
 } from "@/hooks/opencode/use-opencode-sessions";
 import { useSessionSync } from "@/hooks/opencode/use-session-sync";
@@ -93,10 +95,14 @@ import { getClient } from "@/lib/opencode-sdk";
 // billingApi / invalidateAccountState / useQueryClient removed — billing is handled server-side by the router
 import { playSound } from "@/lib/sounds";
 import { cn } from "@/lib/utils";
-import { stripKortixSystemTags } from "@/lib/utils/kortix-system-tags";
+import { stripKortixSystemTags, extractSessionReport, type SessionReport } from "@/lib/utils/kortix-system-tags";
+import { SubSessionModal } from "@/components/session/sub-session-modal";
+import { ChatMinimap } from "@/components/session/chat-minimap";
+import { useMessageJumpStore } from "@/stores/message-jump-store";
 import { toast as sonnerToast } from "sonner";
 import { useKortixComputerStore } from "@/stores/kortix-computer-store";
 import { useMessageQueueStore } from "@/stores/message-queue-store";
+import { usePendingFilesStore } from "@/stores/pending-files-store";
 import { useOpenCodePendingStore } from "@/stores/opencode-pending-store";
 import { useOpenCodeCompactionStore } from "@/stores/opencode-compaction-store";
 import { useFilePreviewStore } from "@/stores/file-preview-store";
@@ -169,48 +175,32 @@ export interface ReplyToContext {
 
 // SubSessionBar removed — subsessions now use SessionSiteHeader + chat input indicator
 
-// ============================================================================
-// Fork Context Divider — shown at the top of the message list in forked sessions
-// ============================================================================
+function forkDraftKey(sessionId: string) {
+	return `opencode_fork_prompt:${sessionId}`;
+}
 
-function ForkContextDivider({ parentID }: { parentID: string }) {
-	const { data: parentSession } = useOpenCodeSession(parentID);
-	const parentTitle = parentSession?.title || "Parent session";
+function buildForkPrompt(parts: Part[], text?: string): PromptPart[] {
+	const next: PromptPart[] = [];
+	const value =
+		text ??
+		parts.find((part): part is TextPart => isTextPart(part) && !part.synthetic && !part.ignored)?.text ??
+		"";
+	if (value) next.push({ type: "text", text: value });
+	for (const part of parts) {
+		if (!isFilePart(part) || !part.url) continue;
+		next.push({
+			type: "file",
+			mime: part.mime || "application/octet-stream",
+			url: part.url,
+			filename: part.filename,
+		});
+	}
+	return next;
+}
 
-	return (
-		<div className="flex items-center gap-3 py-2 mb-2">
-			<div className="flex-1 h-px bg-border/50" />
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<button
-						onClick={() =>
-							parentSession &&
-							openTabAndNavigate({
-								id: parentSession.id,
-								title: parentSession.title || "Parent session",
-								type: "session",
-								href: `/sessions/${parentSession.id}`,
-								serverId: useServerStore.getState().activeServerId,
-							})
-						}
-						className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/50 border border-border/40 hover:bg-muted/80 transition-colors cursor-pointer"
-					>
-						<GitFork className="size-3 text-muted-foreground/60" />
-						<span className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">
-							Forked from
-						</span>
-						<span className="text-[10px] font-medium text-muted-foreground max-w-[150px] truncate">
-							{parentTitle}
-						</span>
-					</button>
-				</TooltipTrigger>
-				<TooltipContent side="bottom" className="text-xs">
-					Go to parent session: {parentTitle}
-				</TooltipContent>
-			</Tooltip>
-			<div className="flex-1 h-px bg-border/50" />
-		</div>
-	);
+function stashForkPrompt(sessionId: string, prompt: PromptPart[]) {
+	if (typeof window === "undefined" || prompt.length === 0) return;
+	sessionStorage.setItem(forkDraftKey(sessionId), JSON.stringify(prompt));
 }
 
 // ============================================================================
@@ -332,15 +322,16 @@ function AnsweredQuestionCard({ part, defaultExpanded = false }: { part: ToolPar
 		<Collapsible open={expanded} onOpenChange={setExpanded}>
 			<div className="rounded-lg border border-border/40 bg-muted/20 overflow-hidden">
 				<CollapsibleTrigger asChild>
-					<button
+					<Button
 						type="button"
-						className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left cursor-pointer hover:bg-muted/40 transition-colors"
+						variant="ghost"
+						className="flex items-center gap-1.5 w-full px-2.5 py-1.5 h-auto text-left rounded-none justify-start hover:bg-muted/40"
 					>
 						<MessageSquare className="size-3.5 text-muted-foreground shrink-0" />
 						<span className="text-xs font-medium text-foreground">Questions</span>
 						<span className="text-[11px] text-muted-foreground/70">{answeredCount} answered</span>
 						<ChevronDown className={cn('size-3 text-muted-foreground ml-auto transition-transform', expanded && 'rotate-180')} />
-					</button>
+					</Button>
 				</CollapsibleTrigger>
 				<CollapsibleContent>
 					<div className="border-t border-border/30">
@@ -640,6 +631,45 @@ const PTY_EXITED_BLOCK_REGEX = /<pty_exited>[\s\S]*?<\/pty_exited>/gi;
 const PTY_FAILURE_HINT_REGEX =
 	/Process failed\.\s*Use pty_read with the pattern parameter to search for errors in the output\.?/gi;
 
+// ── agent_completed notifications ──────────────────────────────────────
+const AGENT_COMPLETED_BLOCK_REGEX = /<agent_(?:completed|failed|stopped)>[\s\S]*?<\/agent_(?:completed|failed|stopped)>/gi;
+
+interface AgentCompletedNotification {
+	agentId?: string;
+	task?: string;
+	sessionId?: string;
+	status?: string;
+	error?: string;
+	summary?: string;
+}
+
+function parseAgentCompletedNotifications(text: string): {
+	cleanText: string;
+	notifications: AgentCompletedNotification[];
+} {
+	const notifications: AgentCompletedNotification[] = [];
+	const cleanText = text
+		.replace(AGENT_COMPLETED_BLOCK_REGEX, (full) => {
+			const body = full.replace(/<\/?agent_(?:completed|failed|stopped)>/gi, "").trim();
+			const getField = (label: string) => {
+				const m = body.match(new RegExp(`^${label}:\\s*(.+)$`, "mi"));
+				return m?.[1]?.trim();
+			};
+			notifications.push({
+				agentId: getField("Agent"),
+				task: getField("Task"),
+				sessionId: getField("Session"),
+				status: getField("Status"),
+				error: getField("Error"),
+				summary: body,
+			});
+			return "";
+		})
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+	return { cleanText, notifications };
+}
+
 interface PtyExitedNotification {
 	id?: string;
 	description?: string;
@@ -681,6 +711,7 @@ function stripSystemPtyText(text: string): string {
 	return stripKortixSystemTags(text)
 		.replace(PTY_EXITED_BLOCK_REGEX, " ")
 		.replace(PTY_FAILURE_HINT_REGEX, " ")
+		.replace(AGENT_COMPLETED_BLOCK_REGEX, " ")
 		.replace(/\n{3,}/g, "\n\n")
 		.trim();
 }
@@ -841,11 +872,12 @@ function DCPNotificationCard({
 	return (
 		<div className="rounded-lg border border-border/60 bg-card/50 overflow-hidden">
 			{/* Header */}
-			<button
+			<Button
 				onClick={() => hasDetails && setExpanded(!expanded)}
+				variant="ghost"
 				className={cn(
-					"flex items-center gap-2 w-full px-3 py-2 border-b border-border/40 bg-muted/30",
-					hasDetails && "cursor-pointer hover:bg-muted/50 transition-colors",
+					"flex items-center gap-2 w-full px-3 py-2 h-auto border-b border-border/40 bg-muted/30 rounded-none justify-start",
+					!hasDetails && "pointer-events-none",
 				)}
 			>
 				<Scissors className="size-3.5 text-muted-foreground/70 flex-shrink-0" />
@@ -873,7 +905,7 @@ function DCPNotificationCard({
 							</span>
 						)}
 					{notification.batchSaved > 0 && (
-						<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-500 font-medium">
+						<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 font-medium">
 							-{formatDCPTokens(notification.batchSaved)} tokens
 						</span>
 					)}
@@ -889,7 +921,7 @@ function DCPNotificationCard({
 						/>
 					)}
 				</div>
-			</button>
+			</Button>
 
 			{/* Expandable details */}
 			{expanded && hasDetails && (
@@ -995,6 +1027,72 @@ function PtyExitedNotificationCard({
 	);
 }
 
+function AgentCompletedNotificationCard({
+	notification,
+}: {
+	notification: AgentCompletedNotification;
+}) {
+	const statusColor = notification.status === "completed"
+		? "text-emerald-600 dark:text-emerald-400"
+		: notification.status === "failed"
+		? "text-destructive"
+		: "text-amber-600 dark:text-amber-400";
+
+	const headerLabel = notification.status === "failed"
+		? "Agent failed"
+		: notification.status === "stopped"
+		? "Agent stopped"
+		: "Agent completed";
+
+	return (
+		<div className="rounded-lg border border-border/60 bg-card/50 overflow-hidden">
+			<div className="flex items-center gap-2 px-3 py-2 border-b border-border/40 bg-muted/30">
+				<Cpu className={cn("size-3.5 flex-shrink-0",
+					notification.status === "failed" ? "text-destructive/70" :
+					notification.status === "stopped" ? "text-amber-500/70" :
+					"text-muted-foreground/70"
+				)} />
+				<span className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider">
+					{headerLabel}
+				</span>
+				{notification.status && (
+					<span className={cn("text-[10px] ml-auto font-medium", statusColor)}>
+						{notification.status}
+					</span>
+				)}
+			</div>
+			<div className="px-3 py-2 text-xs text-muted-foreground space-y-1">
+				{notification.task && (
+					<div>
+						<span className="text-muted-foreground/60">Task:</span>{" "}
+						{notification.task}
+					</div>
+				)}
+				{notification.error && (
+					<div className="text-destructive/80">
+						<span className="text-muted-foreground/60">Error:</span>{" "}
+						<span className="font-mono text-[11px]">{notification.error.slice(0, 200)}</span>
+					</div>
+				)}
+				<div className="flex flex-wrap gap-x-3 gap-y-1">
+					{notification.agentId && (
+						<span>
+							<span className="text-muted-foreground/60">Agent:</span>{" "}
+							<span className="font-mono">{notification.agentId}</span>
+						</span>
+					)}
+					{notification.sessionId && (
+						<span>
+							<span className="text-muted-foreground/60">Session:</span>{" "}
+							<span className="font-mono">{notification.sessionId}</span>
+						</span>
+					)}
+				</div>
+			</div>
+		</div>
+	);
+}
+
 // ============================================================================
 // Edit Part Dialog — inline editing for text parts
 // ============================================================================
@@ -1032,9 +1130,9 @@ function EditPartDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
 				<DialogHeader className="flex-shrink-0">
-					<DialogTitle>Edit & resend</DialogTitle>
+					<DialogTitle>Edit fork prompt</DialogTitle>
 					<DialogDescription>
-						This will fork the session at this point and resend with your edited message. Files changed after this point may already be modified.
+						This creates a native fork at this message and opens the new session with your edited prompt restored in the composer.
 					</DialogDescription>
 				</DialogHeader>
 				<div className="flex-1 min-h-0 py-2">
@@ -1066,7 +1164,48 @@ function EditPartDialog({
 						{loading ? (
 							<Loader2 className="size-3.5 animate-spin mr-1.5" />
 						) : null}
-						Fork & resend
+						Fork with edits
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+function ConfirmForkDialog({
+	open,
+	onOpenChange,
+	onConfirm,
+	loading,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	onConfirm: () => void;
+	loading?: boolean;
+}) {
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>Fork session?</DialogTitle>
+					<DialogDescription>
+						This will create a new session from this point in the conversation.
+						 The fork opens separately and won&apos;t change this session.
+					</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<Button
+						variant="outline"
+						onClick={() => onOpenChange(false)}
+						disabled={loading}
+					>
+						Cancel
+					</Button>
+					<Button onClick={onConfirm} disabled={loading}>
+						{loading ? (
+							<Loader2 className="size-3.5 animate-spin mr-1.5" />
+						) : null}
+						Fork session
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -1105,20 +1244,12 @@ function PartActions({
 				{/* Edit & fork button */}
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<button
-							onClick={() => setEditOpen(true)}
-							disabled={isBusy}
-							className={cn(
-								"p-1.5 rounded-md transition-colors cursor-pointer",
-								"text-muted-foreground/50 hover:text-foreground hover:bg-muted/60",
-								"disabled:opacity-30 disabled:cursor-not-allowed",
-							)}
-						>
+						<Button variant="ghost" size="icon-xs" className="text-muted-foreground/50" onClick={() => setEditOpen(true)}>
 							<Pencil className="size-3.5" />
-						</button>
+						</Button>
 					</TooltipTrigger>
 					<TooltipContent side="top" className="text-xs">
-						Edit & resend
+						Edit fork prompt
 					</TooltipContent>
 				</Tooltip>
 			</div>
@@ -1286,7 +1417,11 @@ function UserMessageRow({
 		() => parsePtyExitedNotifications(rawVisibleText),
 		[rawVisibleText],
 	);
-	const rawText = stripSystemPtyText(textAfterPty);
+	const { cleanText: textAfterAgent, notifications: agentCompletedNotifications } = useMemo(
+		() => parseAgentCompletedNotifications(textAfterPty),
+		[textAfterPty],
+	);
+	const rawText = stripSystemPtyText(textAfterAgent);
 	const { cleanText: textAfterReply, replyContext } = useMemo(
 		() => parseReplyContext(rawText),
 		[rawText],
@@ -1479,14 +1614,18 @@ function UserMessageRow({
 		uploadedFiles.length > 0 ||
 		sessionRefs.length > 0 ||
 		ptyNotifications.length > 0 ||
+		agentCompletedNotifications.length > 0 ||
 		attachments.length > 0
 	);
 
-	if (!hasUserContent && (dcpNotifications.length > 0 || ptyNotifications.length > 0)) {
+	if (!hasUserContent && (dcpNotifications.length > 0 || ptyNotifications.length > 0 || agentCompletedNotifications.length > 0)) {
 		return (
 			<div className="flex flex-col gap-1.5 w-full">
 				{ptyNotifications.map((n, i) => (
 					<PtyExitedNotificationCard key={`pty-${i}`} notification={n} />
+				))}
+				{agentCompletedNotifications.map((n, i) => (
+					<AgentCompletedNotificationCard key={`agent-${i}`} notification={n} />
 				))}
 				{dcpNotifications.map((n, i) => (
 					<DCPNotificationCard key={i} notification={n} />
@@ -1559,6 +1698,13 @@ function UserMessageRow({
 						))}
 					</div>
 				)}
+				{agentCompletedNotifications.length > 0 && (
+					<div className="flex flex-col gap-1.5 w-full mt-1">
+						{agentCompletedNotifications.map((n, i) => (
+							<AgentCompletedNotificationCard key={`cmd-agent-${i}`} notification={n} />
+						))}
+					</div>
+				)}
 			</div>
 		);
 	}
@@ -1581,17 +1727,12 @@ function UserMessageRow({
 								className="rounded-lg overflow-hidden border border-border/50"
 							>
 								{file.mime?.startsWith("image/") && file.url ? (
-									<ImagePreview
+									<SandboxImage
 										src={file.url}
 										alt={file.filename ?? "Attachment"}
-									>
-										{/* eslint-disable-next-line @next/next/no-img-element */}
-										<img
-											src={file.url}
-											alt={file.filename ?? "Attachment"}
-											className="max-h-32 max-w-48 object-cover"
-										/>
-									</ImagePreview>
+										className="max-h-32 max-w-48 object-cover"
+										preview
+									/>
 								) : file.mime === "application/pdf" ? (
 									<div className="flex items-center gap-2 px-3 py-2 bg-muted/30">
 										<FileText className="size-4 text-muted-foreground" />
@@ -1620,10 +1761,11 @@ function UserMessageRow({
 								key={i}
 								onClick={(e) => e.stopPropagation()}
 							>
-								<FileCard
-									filepath={f.path}
-									onClick={() => openPreview(f.path)}
-								/>
+							<GridFileCard
+								filePath={f.path}
+								fileName={f.path.split('/').pop() || f.path}
+								onClick={() => openPreview(f.path)}
+							/>
 							</div>
 						))}
 					</div>
@@ -1747,6 +1889,13 @@ function UserMessageRow({
 				<div className="flex flex-col gap-1.5 w-full mt-1">
 					{ptyNotifications.map((n, i) => (
 						<PtyExitedNotificationCard key={`pty-mixed-${i}`} notification={n} />
+					))}
+				</div>
+			)}
+			{agentCompletedNotifications.length > 0 && (
+				<div className="flex flex-col gap-1.5 w-full mt-1">
+					{agentCompletedNotifications.map((n, i) => (
+						<AgentCompletedNotificationCard key={`agent-mixed-${i}`} notification={n} />
 					))}
 				</div>
 			)}
@@ -1933,7 +2082,7 @@ interface SessionTurnProps {
 	isCompaction?: boolean;
 	/** Fork the session at a user message (copies messages before this point) */
 	onFork: (userMessageId: string) => Promise<void>;
-	/** Fork the session at a user message and resend with edited text */
+	/** Fork the session at a user message and prefill with edited text */
 	onEditFork: (userMessageId: string, newText: string) => Promise<void>;
 	/** Providers data for the Connect Provider dialog */
 	providers?: ProviderListResponse;
@@ -2282,7 +2431,21 @@ function SessionTurn({
 	// Whether the user message has any visible content (non-synthetic, non-ignored
 	// text, or attachments). Background task notifications inject synthetic-only
 	// user messages that should not render a user bubble.
+	// Extract session report from user message (if present)
+	const sessionReport = useMemo<SessionReport | null>(() => {
+		for (const p of turn.userMessage.parts) {
+			if (isTextPart(p)) {
+				const report = extractSessionReport((p as TextPart).text || "");
+				if (report) return report;
+			}
+		}
+		return null;
+	}, [turn.userMessage.parts]);
+	const [sessionReportModalOpen, setSessionReportModalOpen] = useState(false);
+
 	const hasVisibleUserContent = useMemo(() => {
+		// Session reports render as their own card — don't show as user bubble
+		if (sessionReport) return false;
 		const parts = turn.userMessage.parts;
 		// Parts not loaded yet (bridging / transient state) — assume visible
 		// to prevent a flash where the bubble disappears momentarily.
@@ -2294,7 +2457,10 @@ function SessionTurn({
 				!(p as TextPart).synthetic &&
 				!(p as any).ignored &&
 				(!!stripSystemPtyText((p as TextPart).text || "") ||
-					(p as TextPart).text?.includes("<pty_exited>")),
+					(p as TextPart).text?.includes("<pty_exited>") ||
+					(p as TextPart).text?.includes("<agent_completed>") ||
+					(p as TextPart).text?.includes("<agent_failed>") ||
+					(p as TextPart).text?.includes("<agent_stopped>")),
 		);
 		if (hasVisibleText) return true;
 		// Has any attachment (image/PDF)?
@@ -2302,7 +2468,7 @@ function SessionTurn({
 		// Has any agent part?
 		if (parts.some(isAgentPart)) return true;
 		return false;
-	}, [turn.userMessage.parts]);
+	}, [turn.userMessage.parts, sessionReport]);
 
 	// User message text — for copy action
 	const userMessageText = useMemo(() => {
@@ -2485,6 +2651,49 @@ function SessionTurn({
 
 	return (
 		<div className="space-y-3 group/turn">
+			{/* ── Session report card — clickable, opens worker session modal ── */}
+			{sessionReport && (
+				<>
+					<div
+						role="button"
+						tabIndex={0}
+						onClick={() => setSessionReportModalOpen(true)}
+						onKeyDown={(e) => e.key === "Enter" && setSessionReportModalOpen(true)}
+						className={cn(
+							"flex items-center gap-2 px-3 py-2 rounded-lg text-xs",
+							"border select-none cursor-pointer transition-colors group/report",
+							sessionReport.status === "COMPLETE"
+								? "bg-emerald-500/5 border-emerald-500/20 hover:bg-emerald-500/10"
+								: "bg-destructive/5 border-destructive/20 hover:bg-destructive/10",
+						)}
+					>
+						{sessionReport.status === "COMPLETE" ? (
+							<CheckCircle className="size-3.5 text-emerald-500 flex-shrink-0" />
+						) : (
+							<AlertTriangle className="size-3.5 text-destructive flex-shrink-0" />
+						)}
+						<div className="flex items-center gap-1.5 min-w-0 flex-1">
+							<span className={cn("font-medium", sessionReport.status === "COMPLETE" ? "text-emerald-700 dark:text-emerald-400" : "text-destructive")}>
+								Worker {sessionReport.status === "COMPLETE" ? "Complete" : "Failed"}
+							</span>
+							{sessionReport.project && (
+								<span className="text-muted-foreground/60">· {sessionReport.project}</span>
+							)}
+							{sessionReport.prompt && (
+								<span className="text-muted-foreground/40 truncate">{sessionReport.prompt.slice(0, 60)}</span>
+							)}
+						</div>
+						<ExternalLink className="size-3 flex-shrink-0 text-muted-foreground/30 group-hover/report:text-muted-foreground/60 transition-colors" />
+					</div>
+					<SubSessionModal
+						open={sessionReportModalOpen}
+						onOpenChange={setSessionReportModalOpen}
+						sessionId={sessionReport.sessionId}
+						title={`Worker${sessionReport.project ? ` · ${sessionReport.project}` : ""}`}
+					/>
+				</>
+			)}
+
 			{/* ── User message ── */}
 			{/* Hide the user bubble when the user message has no visible content
 			    (e.g. background task notification with only synthetic parts). */}
@@ -2500,16 +2709,13 @@ function SessionTurn({
 					<div className="flex justify-end mt-1 opacity-0 group-hover/turn:opacity-100 transition-opacity duration-150">
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<button
-									onClick={handleCopyUser}
-									className="p-1.5 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
-								>
+								<Button variant="ghost" size="icon-xs" onClick={handleCopyUser}>
 									{userCopied ? (
 										<Check className="size-3.5" />
 									) : (
 										<Copy className="size-3.5" />
 									)}
-								</button>
+								</Button>
 							</TooltipTrigger>
 							<TooltipContent>{userCopied ? "Copied!" : "Copy"}</TooltipContent>
 						</Tooltip>
@@ -2534,13 +2740,10 @@ function SessionTurn({
 						{/* Fork button — on user messages */}
 						{!isBusy && (
 							<Tooltip>
-								<TooltipTrigger asChild>
-									<button
-										onClick={() => onFork(turn.userMessage.info.id)}
-										className="p-1.5 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
-									>
-										<GitFork className="size-3.5" />
-									</button>
+							<TooltipTrigger asChild>
+							<Button variant="ghost" size="icon-xs" onClick={() => onFork(turn.userMessage.info.id)}>
+									<GitFork className="size-3.5" />
+								</Button>
 								</TooltipTrigger>
 								<TooltipContent>Fork to new session</TooltipContent>
 							</Tooltip>
@@ -2557,8 +2760,7 @@ function SessionTurn({
 					<img
 						src="/kortix-logomark-white.svg"
 						alt="Kortix"
-						className={cn("dark:invert-0 invert flex-shrink-0")}
-						style={{ height: "14px", width: "auto" }}
+						className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
 					/>
 				</div>
 			)}
@@ -2672,8 +2874,7 @@ function SessionTurn({
 					<img
 						src="/kortix-logomark-white.svg"
 						alt="Kortix"
-						className="dark:invert-0 invert flex-shrink-0"
-						style={{ height: '14px', width: 'auto' }}
+						className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
 					/>
 				</div>
 			)}
@@ -2814,16 +3015,13 @@ function SessionTurn({
 					)}
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<button
-								onClick={handleCopy}
-								className="p-1.5 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
-							>
+							<Button variant="ghost" size="icon-xs" onClick={handleCopy}>
 								{copied ? (
 									<Check className="size-3.5" />
 								) : (
 									<Copy className="size-3.5" />
 								)}
-							</button>
+							</Button>
 						</TooltipTrigger>
 						<TooltipContent>{copied ? "Copied!" : "Copy"}</TooltipContent>
 					</Tooltip>
@@ -2958,7 +3156,6 @@ export function SessionChat({
 	const { data: providers } = useOpenCodeProviders();
 	const { data: allSessions } = useOpenCodeSessions();
 	const { data: config } = useOpenCodeConfig();
-	const sendMessage = useSendOpenCodeMessage();
 	const abortSession = useAbortOpenCodeSession();
 	const forkSession = useForkSession();
 
@@ -2976,6 +3173,7 @@ export function SessionChat({
 	const [pendingUserMessageId, setPendingUserMessageId] = useState<
 		string | null
 	>(null);
+	const [confirmForkMessageId, setConfirmForkMessageId] = useState<string | null>(null);
 	const [pendingCommand, setPendingCommand] = useState<{
 		name: string;
 		description?: string;
@@ -3050,16 +3248,33 @@ export function SessionChat({
 	// We send the message from here (not the dashboard) so that SSE listeners and polling
 	// are already active when the response starts streaming back.
 	// Retries up to 3 times on failure (e.g. "Unable to connect" errors).
+	// Uses a retry loop (up to 5 attempts, 50ms apart) when reading sessionStorage
+	// to handle the race condition where the effect fires before the dashboard
+	// has written the pending prompt.
 	useEffect(() => {
 		if (pendingPromptHandled.current) return;
-		const pendingPrompt = sessionStorage.getItem(
-			`opencode_pending_prompt:${sessionId}`,
-		);
-		console.log("[session-chat] pending prompt check", { sessionId, hasPending: !!pendingPrompt });
-		if (pendingPrompt) {
+		let cancelled = false;
+		let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+		const attemptSend = (attempt: number) => {
+			if (cancelled) return;
+			const pendingPrompt = sessionStorage.getItem(
+				`opencode_pending_prompt:${sessionId}`,
+			);
+			console.log("[session-chat] pending prompt check", { sessionId, hasPending: !!pendingPrompt, attempt });
+			if (!pendingPrompt) {
+				// Retry up to 5 times with 50ms delay to handle race condition
+				if (attempt < 5) {
+					retryTimer = setTimeout(() => attemptSend(attempt + 1), 50);
+					return;
+				}
+				// Exhausted retries — no pending prompt
+				return;
+			}
 			pendingPromptHandled.current = true;
 			setPollingActive(true);
 			setPendingSendInFlight(true);
+			useSyncStore.getState().setStatus(sessionId, { type: "busy" });
 			sessionStorage.removeItem(`opencode_pending_prompt:${sessionId}`);
 			sessionStorage.removeItem(`opencode_pending_send_failed:${sessionId}`);
 
@@ -3106,7 +3321,20 @@ export function SessionChat({
 
 			// Fire-and-forget via promptAsync. Don't send messageID — let the
 			// server generate it with its own clock to avoid clock-skew issues.
-			const client = getClient();
+			let client: ReturnType<typeof getClient>;
+			try {
+				client = getClient();
+			} catch {
+				// SDK client failed to initialize — restore sessionStorage so the
+				// user can retry (e.g. by refreshing). Reset all pending state.
+				sessionStorage.setItem(`opencode_pending_prompt:${sessionId}`, pendingPrompt);
+				pendingPromptHandled.current = false;
+				setPollingActive(false);
+				setPendingSendInFlight(false);
+				useSyncStore.getState().setStatus(sessionId, { type: "idle" });
+				removeOptimisticUserMessage(messageID);
+				return;
+			}
 			const handlePromptError = () => {
 				setIsRetrying(false);
 				setPendingSendInFlight(false);
@@ -3136,15 +3364,72 @@ export function SessionChat({
 						removeOptimisticUserMessage(messageID);
 					});
 			};
-			console.log("[session-chat] sending promptAsync for pending prompt", { sessionId });
-			void client.session
-				.promptAsync({
-					sessionID: sessionId,
-					parts: [{ type: "text", text: pendingPrompt }],
-					...(sendOpts?.agent && { agent: sendOpts.agent }),
-					...(sendOpts?.model && { model: sendOpts.model }),
-					...(sendOpts?.variant && { variant: sendOpts.variant }),
-				} as any)
+			// Consume any pending files stored by the dashboard (File objects
+			// can't survive sessionStorage, so they're in a Zustand store).
+			const pendingFiles = usePendingFilesStore.getState().consumePendingFiles();
+
+			console.log("[session-chat] sending promptAsync for pending prompt", { sessionId, pendingFileCount: pendingFiles.length });
+
+			// Upload local files and build the parts array (text + file refs)
+			const sendPendingPrompt = async () => {
+				const parts: Array<
+					| { type: "text"; text: string }
+					| { type: "file"; mime: string; url: string; filename: string }
+				> = [{ type: "text", text: pendingPrompt }];
+
+				const localFiles = pendingFiles.filter(
+					(f): f is Extract<typeof f, { kind: "local" }> => f.kind === "local",
+				);
+				const remoteFiles = pendingFiles.filter(
+					(f): f is Extract<typeof f, { kind: "remote" }> => f.kind === "remote",
+				);
+
+				// Include remote files (from fork drafts etc.)
+				for (const file of remoteFiles) {
+					parts.push({ type: "file", mime: file.mime, url: file.url, filename: file.filename });
+				}
+
+				// Upload local files
+				if (localFiles.length > 0) {
+					const uploadBatchTs = Date.now();
+					const uploadResults = await Promise.all(
+						localFiles.map(async (af, index) => {
+							const safeName = af.file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+							const uniqueName = `${uploadBatchTs}-${index}-${safeName}`;
+							const uploadBlob = new File([af.file], uniqueName, { type: af.file.type });
+							const results = await uploadFile(uploadBlob, "/workspace/uploads");
+							if (!results || results.length === 0) {
+								throw new Error(`Failed to upload file: ${af.file.name}`);
+							}
+							return {
+								path: results[0].path,
+								mime: af.file.type || "application/octet-stream",
+								filename: af.file.name,
+							};
+						}),
+					);
+					const uploadedFileRefs = uploadResults
+						.map(
+							(f) =>
+								`<file path="${f.path}" mime="${f.mime}" filename="${f.filename}">\nThis file has been uploaded and is available at the path above.\n</file>`,
+						)
+						.join("\n");
+					(parts[0] as { type: "text"; text: string }).text += `\n\n${uploadedFileRefs}`;
+				}
+
+				return parts;
+			};
+
+			void sendPendingPrompt()
+				.then((parts) =>
+					client.session.promptAsync({
+						sessionID: sessionId,
+						parts,
+						...(sendOpts?.agent && { agent: sendOpts.agent }),
+						...(sendOpts?.model && { model: sendOpts.model }),
+						...(sendOpts?.variant && { variant: sendOpts.variant }),
+					} as any),
+				)
 				.then((res: any) => {
 					console.log("[session-chat] promptAsync resolved", { sessionId, status: res?.response?.status, hasError: !!res?.error, res });
 					// The SDK resolves (not rejects) on HTTP errors, returning
@@ -3156,7 +3441,14 @@ export function SessionChat({
 					console.error("[session-chat] promptAsync rejected", { sessionId, err });
 					handlePromptError();
 				});
-		}
+		};
+
+		attemptSend(0);
+
+		return () => {
+			cancelled = true;
+			if (retryTimer) clearTimeout(retryTimer);
+		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [sessionId, addOptimisticUserMessage, removeOptimisticUserMessage]);
 
@@ -4071,6 +4363,28 @@ export function SessionChat({
 		[turns],
 	);
 
+	// ---- Jump-to-message (from CMD+K or minimap) ----
+	const targetMessageId = useMessageJumpStore((s) => s.targetMessageId);
+	const clearJumpTarget = useMessageJumpStore((s) => s.clearTarget);
+	useEffect(() => {
+		if (!targetMessageId) return;
+		const contentEl = contentRef.current;
+		const scrollEl = scrollRef.current;
+		if (!contentEl || !scrollEl) return;
+
+		const target = contentEl.querySelector<HTMLElement>(`[data-turn-id="${targetMessageId}"]`);
+		if (!target) {
+			clearJumpTarget();
+			return;
+		}
+
+		const scrollRect = scrollEl.getBoundingClientRect();
+		const targetRect = target.getBoundingClientRect();
+		const offset = targetRect.top - scrollRect.top + scrollEl.scrollTop - 24;
+		scrollEl.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+		clearJumpTarget();
+	}, [targetMessageId, clearJumpTarget, contentRef, scrollRef]);
+
 	// Reset on session change
 	useEffect(() => {
 		setPollingActive(false);
@@ -4096,61 +4410,49 @@ export function SessionChat({
 
 	const handleFork = useCallback(
 		async (userMessageId: string) => {
-			// Fork at a user message. The server copies all messages BEFORE the
-			// given messageID (exclusive: msg.id >= messageID → break).
-			// Passing the user message ID forks the conversation up to (but not
-			// including) that user turn — matching OpenCode's fork-from-user-message UX.
+			setConfirmForkMessageId(null);
+			const msg = messages?.find((item) => item.info.id === userMessageId)
 			const forkedSession = await forkSession.mutateAsync({
 				sessionId,
 				messageId: userMessageId,
+				directory: session?.directory,
+				workspace: session?.workspaceID,
 			});
+			if (msg) stashForkPrompt(forkedSession.id, buildForkPrompt(msg.parts))
 
-			// Open the forked session in a new tab and navigate
 			const title = forkedSession.title || "Forked session";
 			openTabAndNavigate({
 				id: forkedSession.id,
 				title,
 				type: "session",
 				href: `/sessions/${forkedSession.id}`,
-				parentSessionId: sessionId,
 				serverId: useServerStore.getState().activeServerId,
 			});
-			// Store fork origin in localStorage (survives refresh) so the forked
-			// session can show the "Forked from" indicator.
-			localStorage.setItem(`fork_origin_${forkedSession.id}`, sessionId);
 		},
-		[sessionId, forkSession],
+		[sessionId, forkSession, messages, session?.directory, session?.workspaceID],
 	);
 
 	const handleEditFork = useCallback(
 		async (userMessageId: string, newText: string) => {
-			// Fork at the user message — the server copies all messages BEFORE
-			// the given messageID, so passing the user message ID gives us the
-			// conversation up to (but not including) that user turn.
+			const msg = messages?.find((item) => item.info.id === userMessageId)
 			const forkedSession = await forkSession.mutateAsync({
 				sessionId,
 				messageId: userMessageId,
+				directory: session?.directory,
+				workspace: session?.workspaceID,
 			});
+			if (msg) stashForkPrompt(forkedSession.id, buildForkPrompt(msg.parts, newText))
 
-			// Open the forked session in a new tab and navigate
 			const title = forkedSession.title || "Forked session";
 			openTabAndNavigate({
 				id: forkedSession.id,
 				title,
 				type: "session",
 				href: `/sessions/${forkedSession.id}`,
-				parentSessionId: sessionId,
 				serverId: useServerStore.getState().activeServerId,
 			});
-			localStorage.setItem(`fork_origin_${forkedSession.id}`, sessionId);
-
-			// Auto-send the edited text in the forked session
-			sendMessage.mutate({
-				sessionId: forkedSession.id,
-				parts: [{ type: "text", text: newText }],
-			});
 		},
-		[sessionId, forkSession, sendMessage],
+		[sessionId, forkSession, messages, session?.directory, session?.workspaceID],
 	);
 
 	// ============================================================================
@@ -4182,8 +4484,16 @@ export function SessionChat({
 			// (not duplicate) the optimistic parts. This matches OpenCode's
 			// SolidJS approach where part IDs are sent with the prompt request.
 			const textPartId = ascendingId("prt");
+			const remoteFiles = (files ?? []).filter(
+				(file): file is Extract<AttachedFile, { kind: "remote" }> =>
+					file.kind === "remote",
+			)
+			const localFiles = (files ?? []).filter(
+				(file): file is Extract<AttachedFile, { kind: "local" }> =>
+					file.kind === "local",
+			)
 			const uploadBatchTs = Date.now();
-			const uploadPlans = (files ?? []).map((af, index) => {
+			const uploadPlans = localFiles.map((af, index) => {
 				const safeName = af.file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
 				const uniqueName = `${uploadBatchTs}-${index}-${safeName}`;
 				return {
@@ -4224,6 +4534,15 @@ export function SessionChat({
 					.join("\n");
 				optimisticText = `${optimisticText}\n\n${optimisticFileRefs}`;
 			}
+			if (remoteFiles.length > 0) {
+				const optimisticFileRefs = remoteFiles
+					.map(
+						(file) =>
+							`<file path="${file.filename}" mime="${file.mime}" filename="${file.filename}">\nThis file will be restored from the forked prompt.\n</file>`,
+					)
+					.join("\n");
+				optimisticText = `${optimisticText}\n\n${optimisticFileRefs}`;
+			}
 			if (allOptimisticSessionMentions.length > 0) {
 				const refs = allOptimisticSessionMentions
 					.map((m) => `<session_ref id="${m.value}" title="${m.label}" />`)
@@ -4251,9 +4570,19 @@ export function SessionChat({
 
 			// Build parts: text first, then upload attached files to /workspace/uploads/
 			// and send as XML text references (agent reads from disk on demand, not loaded into context)
-			const parts: Array<{ id: string; type: "text"; text: string }> = [
-				{ id: textPartId, type: "text", text },
-			];
+			const textPrompt = { id: textPartId, type: "text" as const, text }
+			const parts: Array<
+				| typeof textPrompt
+				| { type: "file"; mime: string; url: string; filename: string }
+			> = [textPrompt];
+			parts.push(
+				...remoteFiles.map((file) => ({
+					type: "file" as const,
+					mime: file.mime,
+					url: file.url,
+					filename: file.filename,
+				})),
+			)
 
 			if (uploadPlans.length > 0) {
 				const uploadResults = await Promise.all(
@@ -4278,7 +4607,7 @@ export function SessionChat({
 							`<file path="${f.path}" mime="${f.mime}" filename="${f.filename}">\nThis file has been uploaded and is available at the path above.\n</file>`,
 					)
 					.join("\n");
-				parts[0].text = `${parts[0].text}\n\n${uploadedFileRefs}`;
+				textPrompt.text = `${textPrompt.text}\n\n${uploadedFileRefs}`;
 			}
 
 			// Append session reference hints for @session mentions.
@@ -4291,7 +4620,7 @@ export function SessionChat({
 			const rawSessionIdMentions: TrackedMention[] = [];
 			const rawSessionIdRegex = /@(ses_[A-Za-z0-9]+)/g;
 			let rawMatch: RegExpExecArray | null;
-			while ((rawMatch = rawSessionIdRegex.exec(parts[0].text)) !== null) {
+			while ((rawMatch = rawSessionIdRegex.exec(textPrompt.text)) !== null) {
 				const rawId = rawMatch[1];
 				// Skip if already covered by a tracked mention
 				if (trackedSessionMentions.some((m) => m.value === rawId)) continue;
@@ -4310,7 +4639,7 @@ export function SessionChat({
 				const refs = allSessionMentions
 					.map((m) => `<session_ref id="${m.value}" title="${m.label}" />`)
 					.join("\n");
-				parts[0].text = `${parts[0].text}\n\nReferenced sessions (use the session_context tool to fetch details when needed):\n${refs}`;
+				textPrompt.text = `${textPrompt.text}\n\nReferenced sessions (use the session_context tool to fetch details when needed):\n${refs}`;
 			}
 
 			// Fire-and-forget via session.prompt (matching OpenCode app's approach).
@@ -4377,7 +4706,6 @@ export function SessionChat({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[
 			sessionId,
-			sendMessage,
 			local.agent.current,
 			local.model.currentKey,
 			local.model.variant.current,
@@ -4401,8 +4729,90 @@ export function SessionChat({
 		useSyncStore.getState().setStatus(sessionId, { type: "idle" });
 		clearTimeout(busyTimerRef.current);
 		setIsBusy(false);
+
+		// Optimistically patch an abort error onto the last assistant message
+		// so the "Interrupted" label appears instantly — no waiting for the SSE
+		// session.error round-trip.
+		const store = useSyncStore.getState();
+		const msgs = store.messages[sessionId];
+		if (msgs) {
+			for (let i = msgs.length - 1; i >= 0; i--) {
+				if (msgs[i].role === "assistant" && !(msgs[i] as any).error) {
+					store.upsertMessage(sessionId, {
+						...msgs[i],
+						error: { name: "AbortError", data: { message: "The operation was aborted." } },
+					} as any);
+					break;
+				}
+			}
+		}
+
 		abortSession.mutate(sessionId);
 	}, [sessionId, abortSession]);
+
+	// ---- Triple-ESC to stop ----
+	// ESC 1 → show hint (2 more). ESC 2 → show hint (1 more). ESC 3 → stop.
+	// 4s cooloff window — resets if you wait too long between presses.
+	const [escCount, setEscCount] = useState(0); // 0 = idle, 1 = first press, 2 = second press
+	const escDeadlineRef = useRef(0);
+	const escFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	const clearEscHint = useCallback(() => {
+		escDeadlineRef.current = 0;
+		setEscCount(0);
+		if (escFadeTimerRef.current) {
+			clearTimeout(escFadeTimerRef.current);
+			escFadeTimerRef.current = null;
+		}
+	}, []);
+
+	useEffect(() => {
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (e.key !== 'Escape' || !isBusy) return;
+
+			// Don't intercept inside dialogs/modals
+			const active = document.activeElement;
+			if (active?.closest('[role="dialog"]') || active?.closest('[data-radix-popper-content-wrapper]')) return;
+
+			e.preventDefault();
+
+			const now = Date.now();
+			const withinWindow = now < escDeadlineRef.current;
+
+			if (withinWindow) {
+				const currentCount = escDeadlineRef.current ? Math.max(1, escCount) : 0;
+				if (currentCount >= 2) {
+					// Third ESC → stop
+					clearEscHint();
+					handleStop();
+				} else {
+					// Second ESC → advance count, refresh cooloff
+					setEscCount(2);
+					escDeadlineRef.current = now + 4000;
+					if (escFadeTimerRef.current) clearTimeout(escFadeTimerRef.current);
+					escFadeTimerRef.current = setTimeout(() => {
+						escDeadlineRef.current = 0;
+						setEscCount(0);
+					}, 4000);
+				}
+			} else {
+				// First ESC (or cooloff expired) → start fresh
+				setEscCount(1);
+				escDeadlineRef.current = now + 4000;
+				if (escFadeTimerRef.current) clearTimeout(escFadeTimerRef.current);
+				escFadeTimerRef.current = setTimeout(() => {
+					escDeadlineRef.current = 0;
+					setEscCount(0);
+				}, 4000);
+			}
+		};
+
+		window.addEventListener('keydown', onKeyDown);
+		return () => window.removeEventListener('keydown', onKeyDown);
+	}, [isBusy, handleStop, clearEscHint, escCount]);
+
+	// Reset when session goes idle
+	useEffect(() => { if (!isBusy) clearEscHint(); }, [isBusy, clearEscHint]);
 
 	// Ref-based guard against rapid double-fire of commands (replaces
 	// the old executeCommand.isPending check from the TQ mutation).
@@ -4483,17 +4893,7 @@ export function SessionChat({
 		[],
 	);
 
-	// Detect if this session was forked and resolve its parent.
-	// Only used for the ForkContextDivider at the top of the message list.
-	const forkParentId = useMemo(() => {
-		if (typeof window === "undefined") return null;
-		return localStorage.getItem(`fork_origin_${sessionId}`);
-	}, [sessionId]);
-	const isFork = !!forkParentId;
-	const effectiveParentId = session?.parentID || forkParentId;
-
-	// Thread context for subsessions only (real parentID, NOT forks).
-	// Forks are independent sessions — no indicator in the chat input.
+	// Thread context for subsessions only (real parentID).
 	const { data: parentSessionData } = useOpenCodeSession(
 		session?.parentID || "",
 	);
@@ -4589,14 +4989,9 @@ export function SessionChat({
 						<div
 							ref={contentRef}
 							role="log"
-							className="mx-auto max-w-4xl min-w-0 w-full px-3 sm:px-6"
+							className="mx-auto max-w-3xl min-w-0 w-full px-3 sm:px-6"
 						>
 							<div className="flex flex-col gap-12 min-w-0">
-								{/* Fork context divider — shown at the top of forked sessions */}
-								{isFork && effectiveParentId && (
-									<ForkContextDivider parentID={effectiveParentId} />
-								)}
-
 							{/* Optimistic user message */}
 							{showOptimistic && (
 								<div data-turn-id="optimistic">
@@ -4624,10 +5019,11 @@ export function SessionChat({
 													key={i}
 													onClick={(e) => e.stopPropagation()}
 												>
-													<FileCard
-														filepath={f.path}
-														onClick={() => openPreview(f.path)}
-													/>
+												<GridFileCard
+													filePath={f.path}
+													fileName={f.path.split('/').pop() || f.path}
+													onClick={() => openPreview(f.path)}
+												/>
 												</div>
 											))}
 										</div>
@@ -4651,8 +5047,7 @@ export function SessionChat({
 											<img
 												src="/kortix-logomark-white.svg"
 												alt="Kortix"
-												className="dark:invert-0 invert flex-shrink-0"
-												style={{ height: "14px", width: "auto" }}
+												className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
 											/>
 											{isRetrying && (
 												<span className="text-xs text-amber-500">
@@ -4680,8 +5075,7 @@ export function SessionChat({
 													<img
 														src="/kortix-logomark-white.svg"
 														alt="Kortix"
-														className="dark:invert-0 invert flex-shrink-0"
-														style={{ height: "14px", width: "auto" }}
+														className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
 													/>
 													<div className="text-sm text-muted-foreground">
 														Compacting session...
@@ -4717,8 +5111,8 @@ export function SessionChat({
 													<div className="flex-1 h-px bg-border" />
 												</div>
 											)}
-											<SessionTurn
-												turn={turn}
+									<SessionTurn
+										turn={turn}
 												allMessages={messages!}
 												sessionId={sessionId}
 												sessionStatus={sessionStatus}
@@ -4728,8 +5122,10 @@ export function SessionChat({
 												isFirstTurn={turnIndex === 0}
 												isBusy={isBusy}
 												isCompaction={hasCompaction}
-											onFork={handleFork}
-											onEditFork={handleEditFork}
+										onFork={async (userMessageId) => {
+											setConfirmForkMessageId(userMessageId);
+										}}
+										onEditFork={handleEditFork}
 												providers={providers}
 												commandMessages={commandMessagesRef.current}
 												commands={commands}
@@ -4747,8 +5143,7 @@ export function SessionChat({
 										<img
 											src="/kortix-logomark-white.svg"
 											alt="Kortix"
-											className="dark:invert-0 invert flex-shrink-0"
-											style={{ height: "14px", width: "auto" }}
+											className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
 										/>
 									</div>
 								)}
@@ -4773,20 +5168,30 @@ export function SessionChat({
 								transform: "translate(-50%, -100%)",
 							}}
 						>
-							<button
-								onClick={handleSelectionReply}
-								className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-popover border border-border shadow-md text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
-							>
-								<Reply className="size-3.5" />
-								Reply
-							</button>
+						<Button
+							onClick={handleSelectionReply}
+							variant="outline"
+							size="toolbar"
+							className="bg-popover shadow-md"
+						>
+							<Reply className="size-3.5" />
+							Reply
+						</Button>
 						</div>
 					)}
+
+					{/* Chat Minimap */}
+					<ChatMinimap
+						turns={turns}
+						scrollRef={scrollRef}
+						contentRef={contentRef}
+						messages={messages || []}
+					/>
 
 					{/* Scroll to bottom FAB */}
 					<div
 						className={cn(
-							"absolute bottom-4 left-1/2 -translate-x-1/2 transition-all duration-300 ease-out",
+							"absolute bottom-4 left-1/2 -translate-x-1/2 transition-colors duration-300 ease-out",
 							showScrollButton
 								? "opacity-100 translate-y-0 scale-100"
 								: "opacity-0 translate-y-4 scale-95 pointer-events-none",
@@ -4795,7 +5200,7 @@ export function SessionChat({
 						<Button
 							variant="outline"
 							size="sm"
-							className="rounded-full h-7 text-xs bg-background/90 backdrop-blur-sm border-border/60 shadow-lg"
+							className="rounded-full h-7 text-xs bg-background/90 border-border/60 shadow-lg"
 							onClick={smoothScrollToAbsoluteBottom}
 						>
 							<ArrowDown className="size-3 mr-1" />
@@ -4813,6 +5218,7 @@ export function SessionChat({
 				}}
 				isBusy={isBusy}
 				onStop={handleStop}
+				escCount={escCount}
 				agents={local.agent.list}
 				selectedAgent={local.agent.current?.name ?? null}
 				onAgentChange={(name) => local.agent.set(name ?? undefined)}
@@ -4865,11 +5271,12 @@ export function SessionChat({
 							{queuedMessages.length > 0 && (
 								<div className="rounded-xl bg-muted/50 overflow-hidden">
 							{/* Compact header row */}
-							<button
-								type="button"
-								onClick={() => setQueueExpanded((v) => !v)}
-								className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted/80 transition-colors cursor-pointer"
-							>
+						<Button
+							type="button"
+							onClick={() => setQueueExpanded((v) => !v)}
+							variant="ghost"
+							className="flex items-center gap-2 w-full px-3 py-1.5 h-auto rounded-none justify-start hover:bg-muted/80"
+						>
 								<ListPlus className="size-3.5 text-muted-foreground flex-shrink-0" />
 							<span className="text-xs text-muted-foreground flex-1 text-left truncate">
 								{queuedMessages.length} message
@@ -4924,11 +5331,11 @@ export function SessionChat({
 											"size-3 text-muted-foreground/40 transition-transform",
 											!queueExpanded && "rotate-180",
 										)}
-									/>
-								</div>
-							</button>
+								/>
+							</div>
+						</Button>
 
-						{/* Expanded list — show for any number of queued messages */}
+					{/* Expanded list — show for any number of queued messages */}
 						{queueExpanded && queuedMessages.length > 0 && (
 							<div className="border-t border-border/30 max-h-[160px] overflow-y-auto scrollbar-hide">
 								<div className="flex flex-col px-1.5 py-1">
@@ -4946,43 +5353,48 @@ export function SessionChat({
 											<div className="flex items-center gap-0.5 opacity-0 group-hover/q:opacity-100 transition-opacity shrink-0">
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<button
-															type="button"
-															onClick={() => handleQueueSendNow(qm.id)}
-															className="inline-flex items-center justify-center size-5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-														>
-															<Send className="size-2.5" />
-														</button>
-													</TooltipTrigger>
-													<TooltipContent side="top">
-														<p className="text-xs">Send now</p>
-													</TooltipContent>
-												</Tooltip>
-												{idx > 0 && (
-													<button
-														type="button"
-														onClick={() => queueMoveUp(qm.id)}
-														className="inline-flex items-center justify-center size-5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-													>
-														<ArrowUp className="size-2.5" />
-													</button>
-												)}
-												{idx < queuedMessages.length - 1 && (
-													<button
-														type="button"
-														onClick={() => queueMoveDown(qm.id)}
-														className="inline-flex items-center justify-center size-5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-													>
-														<ArrowDown className="size-2.5" />
-													</button>
-												)}
-												<button
+								<Button
 													type="button"
-													onClick={() => queueRemove(qm.id)}
-													className="inline-flex items-center justify-center size-5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+													onClick={() => handleQueueSendNow(qm.id)}
+													variant="ghost"
+													size="icon-xs"
 												>
-													<X className="size-2.5" />
-												</button>
+													<Send className="size-2.5" />
+												</Button>
+												</TooltipTrigger>
+												<TooltipContent side="top">
+													<p className="text-xs">Send now</p>
+												</TooltipContent>
+											</Tooltip>
+											{idx > 0 && (
+												<Button
+													type="button"
+													onClick={() => queueMoveUp(qm.id)}
+													variant="ghost"
+													size="icon-xs"
+												>
+													<ArrowUp className="size-2.5" />
+												</Button>
+											)}
+											{idx < queuedMessages.length - 1 && (
+												<Button
+													type="button"
+													onClick={() => queueMoveDown(qm.id)}
+													variant="ghost"
+													size="icon-xs"
+												>
+													<ArrowDown className="size-2.5" />
+												</Button>
+											)}
+											<Button
+												type="button"
+												onClick={() => queueRemove(qm.id)}
+												variant="ghost"
+												size="icon-xs"
+												className="hover:text-destructive hover:bg-destructive/10"
+											>
+												<X className="size-2.5" />
+											</Button>
 											</div>
 										</div>
 									))}
@@ -4996,6 +5408,17 @@ export function SessionChat({
 				}
 			/>
 			)}
+			<ConfirmForkDialog
+				open={!!confirmForkMessageId}
+				onOpenChange={(open) => {
+					if (!open) setConfirmForkMessageId(null);
+				}}
+				onConfirm={() => {
+					if (!confirmForkMessageId) return;
+					void handleFork(confirmForkMessageId);
+				}}
+				loading={forkSession.isPending}
+			/>
 		</div>
 	);
 }

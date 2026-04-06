@@ -1,3 +1,280 @@
+// ─── Unified Trigger System Types ────────────────────────────────────────────
+
+export type SourceType = "cron" | "webhook"
+export type ActionType = "prompt" | "command" | "http"
+export type ExecutionStatus = "running" | "completed" | "failed" | "skipped"
+
+// ─── Trigger Record (DB row) ────────────────────────────────────────────────
+
+export interface TriggerRecord {
+  id: string
+  name: string
+  description: string | null
+
+  // Source
+  source_type: SourceType
+  source_config: string // JSON
+
+  // Action
+  action_type: ActionType
+  action_config: string // JSON
+
+  // Context extraction (for prompt actions with webhook payloads)
+  context_config: string // JSON
+
+  // Prompt-action shorthand (denormalized)
+  agent_name: string | null
+  model_id: string | null
+  session_mode: string // "new" | "reuse"
+  session_id: string | null
+
+  // Pipedream metadata
+  pipedream_app: string | null
+  pipedream_component: string | null
+  pipedream_deployed_id: string | null
+  pipedream_webhook_url: string | null
+  pipedream_props: string // JSON
+
+  // Runtime state (DB only)
+  is_active: number // SQLite boolean
+  last_run_at: string | null
+  next_run_at: string | null
+  last_event_at: string | null
+  event_count: number
+
+  metadata: string // JSON
+  created_at: string
+  updated_at: string
+}
+
+// ─── Execution Record (DB row) ──────────────────────────────────────────────
+
+export interface ExecutionRecord {
+  id: string
+  trigger_id: string
+  status: ExecutionStatus
+  session_id: string | null
+  error_message: string | null
+  stdout: string | null
+  stderr: string | null
+  exit_code: number | null
+  http_status: number | null
+  http_body: string | null
+  retry_count: number
+  metadata: string // JSON
+  started_at: string
+  completed_at: string | null
+  duration_ms: number | null
+  created_at: string
+}
+
+// ─── Source Configs (parsed from JSON) ──────────────────────────────────────
+
+export interface CronSourceConfig {
+  cron_expr: string
+  timezone?: string
+}
+
+export interface WebhookSourceConfig {
+  path: string
+  method?: string
+  secret?: string
+}
+
+// ─── Action Configs (parsed from JSON) ──────────────────────────────────────
+
+export interface PromptActionConfig {
+  prompt: string
+  agent?: string
+  model?: string
+  session_mode?: "new" | "reuse"
+}
+
+export interface CommandActionConfig {
+  command: string
+  args?: string[]
+  workdir?: string
+  env?: Record<string, string>
+  timeout_ms?: number
+}
+
+export interface HttpActionConfig {
+  url: string
+  method?: string
+  headers?: Record<string, string>
+  body_template?: string
+  timeout_ms?: number
+}
+
+// ─── Context Config ─────────────────────────────────────────────────────────
+
+export interface ContextConfig {
+  extract?: Record<string, string>
+  include_raw?: boolean
+  /** Template for session reuse key, rendered with extracted values.
+   *  E.g. "telegram:user:{{ user_id }}" → per-user sessions.
+   *  Falls back to "trigger:{name}" when unset. */
+  session_key?: string
+}
+
+// ─── Pipedream Config (from YAML) ───────────────────────────────────────────
+
+export interface PipedreamConfig {
+  app: string
+  component_key: string
+  configured_props?: Record<string, unknown>
+}
+
+// ─── YAML trigger entry ─────────────────────────────────────────────────────
+
+export interface YamlTriggerEntry {
+  name: string
+  description?: string
+  source: {
+    type: SourceType
+    // cron fields
+    cron_expr?: string
+    timezone?: string
+    // webhook fields
+    path?: string
+    method?: string
+    secret?: string
+  }
+  action: {
+    type?: ActionType // default: prompt
+    // prompt fields
+    prompt?: string
+    agent?: string
+    model?: string
+    session_mode?: string
+    // command fields
+    command?: string
+    args?: string[]
+    workdir?: string
+    env?: Record<string, string>
+    timeout_ms?: number
+    // http fields
+    url?: string
+    method?: string
+    headers?: Record<string, string>
+    body_template?: string
+  }
+  context?: ContextConfig
+  pipedream?: PipedreamConfig
+}
+
+export interface TriggersYamlFile {
+  triggers: YamlTriggerEntry[]
+}
+
+// ─── API types ──────────────────────────────────────────────────────────────
+
+export interface TriggerResponse {
+  id: string
+  name: string
+  description: string | null
+  source_type: SourceType
+  source_config: Record<string, unknown>
+  action_type: ActionType
+  action_config: Record<string, unknown>
+  context_config: Record<string, unknown>
+  agent_name: string | null
+  model_id: string | null
+  session_mode: string
+  session_id: string | null
+  pipedream: {
+    app: string | null
+    component: string | null
+    deployed_id: string | null
+    webhook_url: string | null
+    props: Record<string, unknown>
+  } | null
+  is_active: boolean
+  last_run_at: string | null
+  next_run_at: string | null
+  last_event_at: string | null
+  event_count: number
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+  // Compat fields for frontend
+  triggerId: string
+  type: string
+  sourceType: string
+  prompt: string
+  enabled: boolean
+  isActive: boolean
+  editable: boolean
+  cronExpr: string | null
+  timezone: string | null
+  nextRunAt: string | null
+  lastRunAt: string | null
+  sessionMode: string
+  agentName: string | null
+  modelId: string | null
+  modelProviderId: string | null
+  webhook: { path: string; method: string; secretProtected: boolean } | null
+  agentFilePath: string | null
+  maxRetries: number
+  timeoutMs: number
+}
+
+export interface ExecutionResponse {
+  executionId: string
+  triggerId: string
+  status: ExecutionStatus
+  sessionId: string | null
+  errorMessage: string | null
+  stdout: string | null
+  stderr: string | null
+  exitCode: number | null
+  httpStatus: number | null
+  retryCount: number
+  metadata: Record<string, unknown>
+  startedAt: string
+  completedAt: string | null
+  durationMs: number | null
+  createdAt: string
+  trigger_name?: string
+}
+
+// ─── Plugin types ───────────────────────────────────────────────────────────
+
+export interface TriggerPluginOptions {
+  directory?: string
+  homeDir?: string
+  webhookPort?: number
+  webhookHost?: string
+  publicBaseUrl?: string
+  autoSync?: boolean
+  logger?: (level: "info" | "warn" | "error", message: string) => void
+}
+
+export interface MinimalOpenCodeClient {
+  app?: {
+    log?: (input: { body: { service: string; level: string; message: string } }) => Promise<unknown>
+  }
+  session: {
+    create: (parameters?: { body?: { directory?: string; title?: string } }) => Promise<{ data?: { id: string } } | { id: string }>
+    promptAsync: (parameters: {
+      path?: { id: string }
+      body?: {
+        agent?: string
+        model?: { providerID: string; modelID: string }
+        parts: Array<{ type: "text"; text: string }>
+      }
+    }) => Promise<unknown>
+  }
+}
+
+export interface PluginContextShape {
+  client: MinimalOpenCodeClient
+  directory?: string
+}
+
+// ─── Legacy compat types (kept for backward compat exports) ─────────────────
+
+/** @deprecated Use SourceType instead */
 export type TriggerKind = "cron" | "webhook" | "pipedream"
 
 export interface TriggerExecutionConfig {
@@ -19,35 +296,19 @@ export interface TriggerBase {
   context?: TriggerContextConfig
 }
 
-export interface CronSourceConfig {
-  type: "cron"
-  expr: string
-  timezone?: string
-}
-
 export interface CronTriggerConfig extends TriggerBase {
-  source: CronSourceConfig
+  source: { type: "cron"; expr: string; timezone?: string }
 }
 
-export interface WebhookSourceConfig {
-  type: "webhook"
-  path: string
-  method?: string
-  secret?: string
+export interface WebhookTriggerConfig extends TriggerBase {
+  source: { type: "webhook"; path: string; method?: string; secret?: string }
 }
 
 export interface PipedreamSourceConfig {
   type: "pipedream"
-  /** Pipedream trigger component key, e.g. "github-new-pull-request" */
   componentKey: string
-  /** App slug, e.g. "github", "gmail", "slack" */
   app: string
-  /** Component-specific configuration props */
   configuredProps?: Record<string, unknown>
-}
-
-export interface WebhookTriggerConfig extends TriggerBase {
-  source: WebhookSourceConfig
 }
 
 export interface PipedreamTriggerConfig extends TriggerBase {
@@ -96,14 +357,10 @@ export interface CronExecutionRecord {
 }
 
 export interface TriggerSyncResult {
-  discoveredAgents: number
-  cronRegistered: number
-  cronUpdated: number
-  cronRemoved: number
-  webhookRegistered: number
-  pipedreamDeployed: number
-  pipedreamUpdated: number
-  pipedreamRemoved: number
+  total: number
+  created: number
+  updated: number
+  removed: number
   details: string[]
 }
 
@@ -120,72 +377,29 @@ export interface AgentTriggersPluginOptions {
   logger?: (level: "info" | "warn" | "error", message: string) => void
 }
 
-export interface MinimalOpenCodeClient {
-  app?: {
-    log?: (input: { body: { service: string; level: string; message: string } }) => Promise<unknown>
-  }
-  session: {
-    create: (parameters?: { body?: { directory?: string; title?: string } }) => Promise<{ data?: { id: string } } | { id: string }>
-    promptAsync: (parameters: {
-      path?: { id: string }
-      body?: {
-        agent?: string
-        model?: { providerID: string; modelID: string }
-        parts: Array<{ type: "text"; text: string }>
-      }
-    }) => Promise<unknown>
-  }
-}
-
-export interface PluginContextShape {
-  client: MinimalOpenCodeClient
-  directory?: string
+export interface EventListenerRecord {
+  id: string
+  name: string
+  agentName: string
+  app: string
+  componentKey: string
+  deployedTriggerId: string
+  configuredProps?: Record<string, unknown>
+  prompt: string
+  context?: TriggerContextConfig
+  sessionMode?: "new" | "reuse"
+  executionAgentName?: string
+  modelId?: string
+  isActive: boolean
+  source: string
+  externalUserId: string
+  webhookUrl: string
+  createdAt: string
+  updatedAt: string
+  lastEventAt?: string | null
+  eventCount: number
 }
 
 export interface WebhookDispatchResult {
   sessionId: string
-}
-
-/** Persisted record for an active Pipedream event listener */
-export interface EventListenerRecord {
-  /** Internal listener ID (UUID) */
-  id: string
-  /** Human-readable name */
-  name: string
-  /** Agent that receives events */
-  agentName: string
-  /** Pipedream app slug */
-  app: string
-  /** Pipedream trigger component key */
-  componentKey: string
-  /** Pipedream deployed trigger ID (dc_xxx, hi_xxx, etc.) */
-  deployedTriggerId: string
-  /** Configured props passed to Pipedream */
-  configuredProps?: Record<string, unknown>
-  /** Prompt template with {{ var }} placeholders */
-  prompt: string
-  /** Context extraction config */
-  context?: TriggerContextConfig
-  /** Session mode */
-  sessionMode?: "new" | "reuse"
-  /** Override agent name for execution */
-  executionAgentName?: string
-  /** Override model ID for execution */
-  modelId?: string
-  /** Whether listener is active */
-  isActive: boolean
-  /** Source: "manual" (tool call) or "agent:<name>" (markdown) */
-  source: string
-  /** External user ID used with Pipedream */
-  externalUserId: string
-  /** Webhook URL registered with Pipedream */
-  webhookUrl: string
-  /** ISO timestamp */
-  createdAt: string
-  /** ISO timestamp */
-  updatedAt: string
-  /** Last event received ISO timestamp */
-  lastEventAt?: string | null
-  /** Total events received */
-  eventCount: number
 }

@@ -42,7 +42,7 @@ export function ThemeToggle({ variant = 'icon' }: ThemeToggleProps) {
         <Select value={theme} onValueChange={setTheme}>
           <SelectTrigger
             size="sm"
-            className="h-7 px-2.5 w-fit min-w-[72px] border-0 bg-transparent hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 text-muted-foreground/60 transition-all duration-200 shadow-none"
+            className="h-7 px-2.5 w-fit min-w-[72px] border-0 bg-transparent hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 text-muted-foreground/60 transition-colors duration-200 shadow-none"
           >
             <div className="flex items-center gap-1.5">
               {resolvedTheme === 'dark' ? (
@@ -88,8 +88,8 @@ export function ThemeToggle({ variant = 'icon' }: ThemeToggleProps) {
         onClick={() => setTheme(resolvedTheme === 'light' ? 'dark' : 'light')}
         className="cursor-pointer rounded-full h-8 w-8"
       >
-        <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 text-primary" />
-        <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 text-primary" />
+        <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-colors dark:-rotate-90 dark:scale-0 text-primary" />
+        <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-colors dark:rotate-0 dark:scale-100 text-primary" />
         <span className="sr-only">Toggle theme</span>
       </Button>
     </div>

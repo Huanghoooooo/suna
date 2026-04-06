@@ -98,8 +98,8 @@ const UnifiedDiffView: React.FC<{ lineDiff: LineDiff[]; fileName?: string }> = (
           line.type === 'removed' && "text-red-500 dark:text-red-400",
           line.type === 'added' && "text-zinc-500 dark:text-zinc-400",
         )}>
-          {line.type === 'removed' && <span className="font-bold">−</span>}
-          {line.type === 'added' && <span className="font-bold">+</span>}
+          {line.type === 'removed' && <span className="font-semibold">−</span>}
+          {line.type === 'added' && <span className="font-semibold">+</span>}
         </div>
         <div className="flex-1 py-1 pr-4 min-w-0">
           <code className={cn(
@@ -1235,7 +1235,7 @@ export function FileOperationToolView({
                       <button
                         onClick={() => setDiffViewMode('unified')}
                         className={cn(
-                          "px-2.5 py-1 text-xs font-medium rounded transition-all",
+                          "px-2.5 py-1 text-xs font-medium rounded transition-colors",
                           diffViewMode === 'unified' 
                             ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm" 
                             : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
@@ -1246,7 +1246,7 @@ export function FileOperationToolView({
                       <button
                         onClick={() => setDiffViewMode('split')}
                         className={cn(
-                          "px-2.5 py-1 text-xs font-medium rounded transition-all",
+                          "px-2.5 py-1 text-xs font-medium rounded transition-colors",
                           diffViewMode === 'split' 
                             ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm" 
                             : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"

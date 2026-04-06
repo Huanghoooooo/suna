@@ -171,7 +171,7 @@ export const DesktopIcons = memo(function DesktopIcons({
                 className={cn(
                   "flex flex-col items-center justify-start gap-1.5 p-2 rounded-xl pointer-events-auto w-[84px]",
                   "hover:bg-white/10 active:bg-white/20 backdrop-blur-sm",
-                  "transition-all duration-100 cursor-default select-none group",
+                  "transition-colors duration-100 cursor-default select-none group",
                   activeContextPath === file.path && "bg-white/20 ring-2 ring-white/30",
                   clipboard?.operation === 'cut' && clipboard.path === file.path && "opacity-40"
                 )}

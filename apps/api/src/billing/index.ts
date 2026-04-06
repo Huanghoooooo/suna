@@ -88,8 +88,7 @@ billingApp.post('/setup/initialize', async (c: any) => {
       planType: 'monthly',
       balance: '0',
       dailyCreditsBalance: '0',
-      // Auto-topup on by default: charge $20 when balance drops below $5
-      autoTopupEnabled: true,
+      autoTopupEnabled: false,
       autoTopupThreshold: '5',
       autoTopupAmount: '20',
     });

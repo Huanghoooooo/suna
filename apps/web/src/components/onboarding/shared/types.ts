@@ -15,6 +15,7 @@ export interface UserContext {
   };
   invitedTeammates?: string[];
   selectedAgents?: string[];
+  autoTopupEnabled?: boolean;
 }
 
 export interface OnboardingStep {

@@ -5,7 +5,7 @@ description: "Use for distinctive production-grade websites, landing pages, and 
 
 # Website Building
 
-Build distinctive, production-grade websites that avoid generic "AI slop" aesthetics. Every choice — type, color, motion, layout — must be intentional. Default to Kortix-inspired black/white neutrals plus a single accent only when the user gives no better direction.
+Build distinctive, production-grade websites where every site looks DIFFERENT. Every choice — type, color, motion, layout — must be derived from the subject matter. Run the palette generator (`bun run shared/generate-palette.ts "keywords"`) to create a unique color scheme for each project. NEVER reuse the same palette across sites.
 
 **This skill covers everything for web projects.** Read the sub-files in this directory as needed based on your project type. For web applications, also read `skills/GENERAL-KNOWLEDGE-WORKER/website-building/webapp/SKILL.md`.
 
@@ -51,7 +51,7 @@ If the user says just "website" or "site" with no detail, ask what type or defau
 | `shared/11-web-technologies.md` | Framework versions, browser compatibility | When checking compat |
 | `shared/12-playwright-interactive.md` | Persistent Playwright browser QA, screenshots, visual testing | When testing |
 | `shared/19-backend.md` | FastAPI/Express/Flask servers, WebSocket, SSE, port forwarding | When backend needed |
-| `shared/20-llm-api.md` | LLM chat, image/video/audio generation, transcription — models, credentials, SDK helpers | When site uses AI/LLM APIs |
+| `shared/20-llm-api.md` | LLM/AI API integration reference | When site uses AI APIs |
 
 All paths are relative to `skills/GENERAL-KNOWLEDGE-WORKER/website-building/`.
 
@@ -74,9 +74,34 @@ All paths are relative to `skills/GENERAL-KNOWLEDGE-WORKER/website-building/`.
 
 ## Workflow
 
-1. **Design Direction**: Clarify purpose, pick aesthetic direction
-2. **Build**: Build the site page by page, screenshotting via Playwright for QA
-3. **Preview or publish**: use a real local preview command first, then the target project's actual deploy workflow if one exists
+### Step 0: Load ALL mandatory files (do this FIRST, in parallel)
+
+Read ALL of these in one batch — they are mandatory for every project:
+```
+read("skills/GENERAL-KNOWLEDGE-WORKER/website-building/shared/01-design-tokens.md")
+read("skills/GENERAL-KNOWLEDGE-WORKER/website-building/shared/02-typography.md")
+read("skills/GENERAL-KNOWLEDGE-WORKER/website-building/shared/04-layout.md")
+read("skills/GENERAL-KNOWLEDGE-WORKER/website-building/shared/05-taste.md")
+read("skills/GENERAL-KNOWLEDGE-WORKER/website-building/shared/08-standards.md")
+```
+
+Then load the domain-specific file (informational, webapp, or game) from Step 1 below.
+
+### Step 1: Generate unique palette
+
+Run the palette generator with keywords describing the subject:
+```bash
+bun run skills/GENERAL-KNOWLEDGE-WORKER/website-building/shared/generate-palette.ts "subject keywords here"
+```
+Pick the best harmony, customize if needed.
+
+### Step 2: Design & Build
+
+Build the site with the generated palette, following all the loaded design guidance.
+
+### Step 3: Preview
+
+Show via static server: `show(type: "url", url: "http://localhost:3211/open?path=/workspace/project/index.html")`
 
 ---
 
