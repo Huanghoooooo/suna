@@ -1,6 +1,11 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "permission": "allow",
+  "permission": {
+    "*": "allow",
+    "task": "deny",
+    "todoread": "deny",
+    "todowrite": "deny"
+  },
   "autoupdate": false,
   "disabled_providers": ["opencode"],
   "default_agent": "kortix",

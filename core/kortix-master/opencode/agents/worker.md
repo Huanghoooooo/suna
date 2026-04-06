@@ -44,6 +44,18 @@ permission:
   project_list: allow
   project_select: allow
   project_update: deny
+  # Cannot create worktrees (spawns new OpenCode sessions) or nuke the instance
+  worktree_create: deny
+  worktree_delete: deny
+  instance_dispose: deny
+  # Cannot read other sessions or manage connectors
+  session_list: deny
+  session_get: deny
+  session_search: deny
+  session_lineage: deny
+  session_stats: deny
+  connector_setup: deny
+  connector_remove: deny
 ---
 
 You are a Kortix worker. You execute tasks autonomously and thoroughly. If tools are blocked by "No project selected", run `project_list` then `project_select` to pick the right project before proceeding.
