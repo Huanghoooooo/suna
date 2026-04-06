@@ -42,11 +42,15 @@ function apiBase(): string {
 }
 
 function joinPublicBaseUrl(baseUrl: string, path: string): string {
-  const url = new URL(baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`)
-  const basePath = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname
+  const base = new URL(baseUrl)
   const suffix = path.startsWith('/') ? path : `/${path}`
-  url.pathname = `${basePath}${suffix}`
-  return url.toString()
+  const basePath = base.pathname.endsWith('/') ? base.pathname.slice(0, -1) : base.pathname
+  const joined = new URL(`${basePath}${suffix}`, base.origin)
+  // Preserve query params (e.g. __proxy_token) from the base URL
+  for (const [k, v] of base.searchParams) {
+    joined.searchParams.set(k, v)
+  }
+  return joined.toString()
 }
 
 // ─── API helper ──────────────────────────────────────────────────────────────
