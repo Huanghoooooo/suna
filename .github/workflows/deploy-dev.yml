@@ -1,0 +1,273 @@
+name: Deploy Dev
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'apps/web/**'
+      - 'core/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # ── Detect which components changed ────────────────────────────────────────
+  detect-changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      api_changed: ${{ steps.filter.outputs.api }}
+      frontend_changed: ${{ steps.filter.outputs.frontend }}
+      computer_changed: ${{ steps.filter.outputs.computer }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Path filter
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'apps/api/**'
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            frontend:
+              - 'apps/web/**'
+              - 'packages/shared/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            computer:
+              - 'core/**'
+
+      - name: Summary
+        run: |
+          echo "### Change Detection" >> "$GITHUB_STEP_SUMMARY"
+          echo "- API: \`${{ steps.filter.outputs.api }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Frontend: \`${{ steps.filter.outputs.frontend }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Computer: \`${{ steps.filter.outputs.computer }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Build API Docker image ─────────────────────────────────────────────────
+  build-api:
+    name: Build API image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.api_changed == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Sync submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive --remote
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Compute image tag
+        id: meta
+        run: |
+          SHA8="${GITHUB_SHA::8}"
+          IMAGE="kortix/kortix-api:dev-${SHA8}"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "sha8=$SHA8" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        run: |
+          docker build \
+            --file apps/api/Dockerfile \
+            --build-arg SERVICE=apps/api \
+            --tag "${{ steps.meta.outputs.image }}" \
+            --tag "kortix/kortix-api:dev-latest" \
+            .
+          docker push "${{ steps.meta.outputs.image }}"
+          docker push "kortix/kortix-api:dev-latest"
+
+      - name: Summary
+        run: |
+          echo "### API Image Built" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`${{ steps.meta.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`kortix/kortix-api:dev-latest\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Build Frontend Docker image ────────────────────────────────────────────
+  build-frontend:
+    name: Build Frontend image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend_changed == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Sync submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive --remote
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: corepack enable pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend (Next.js standalone)
+        run: pnpm --filter web build
+        env:
+          NEXT_OUTPUT: standalone
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Compute image tag
+        id: meta
+        run: |
+          SHA8="${GITHUB_SHA::8}"
+          IMAGE="kortix/kortix-frontend:dev-${SHA8}"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        run: |
+          docker build \
+            --file apps/web/Dockerfile \
+            --tag "${{ steps.meta.outputs.image }}" \
+            --tag "kortix/kortix-frontend:dev-latest" \
+            .
+          docker push "${{ steps.meta.outputs.image }}"
+          docker push "kortix/kortix-frontend:dev-latest"
+
+      - name: Summary
+        run: |
+          echo "### Frontend Image Built" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`${{ steps.meta.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`kortix/kortix-frontend:dev-latest\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Build Computer/Sandbox Docker image ────────────────────────────────────
+  build-computer:
+    name: Build Computer image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.computer_changed == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Sync submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive --remote
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Compute image tag
+        id: meta
+        run: |
+          SHA8="${GITHUB_SHA::8}"
+          TAG="dev-${SHA8}"
+          IMAGE="kortix/computer:${TAG}"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        run: |
+          docker build \
+            --file core/docker/Dockerfile \
+            --tag "${{ steps.meta.outputs.image }}" \
+            --tag "kortix/computer:dev-latest" \
+            .
+          docker push "${{ steps.meta.outputs.image }}"
+          docker push "kortix/computer:dev-latest"
+
+      - name: Summary
+        run: |
+          echo "### Computer Image Built" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`${{ steps.meta.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`kortix/computer:dev-latest\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Deploy API to dev VPS ──────────────────────────────────────────────────
+  deploy-api:
+    name: Deploy API to dev
+    needs: build-api
+    if: needs.build-api.result == 'success'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Zero-downtime deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME || 'ubuntu' }}
+          key: ${{ secrets.AWS_DEV_KEY }}
+          port: 22
+          timeout: 600s
+          script: |
+            set -e
+            # First-run: clone if ~/suna doesn't exist yet
+            if [ ! -d ~/suna ]; then
+              git clone https://github.com/kortix-ai/suna.git ~/suna
+              [ -f ~/computer/apps/api/.env ] && cp ~/computer/apps/api/.env ~/suna/apps/api/.env && echo "Migrated API .env"
+            fi
+            cd ~/suna
+            # Always deploy from main — main IS the dev branch
+            git -c fetch.recurseSubmodules=false fetch origin main
+            git reset --hard origin/main
+            git submodule sync --recursive
+            git submodule update --init --recursive --remote
+            PREBUILT_IMAGE="${{ needs.build-api.outputs.image }}" bash scripts/deploy-zero-downtime.sh
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Deployed API → **dev**" >> "$GITHUB_STEP_SUMMARY"
+          echo "Image: \`${{ needs.build-api.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: \`${GITHUB_SHA::8}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Build dev snapshot (async, non-blocking) ───────────────────────────────
+  build-dev-snapshot:
+    name: Build dev snapshot
+    needs: build-computer
+    if: needs.build-computer.result == 'success'
+    uses: ./.github/workflows/build-snapshot.yml
+    with:
+      version: ${{ needs.build-computer.outputs.tag }}
+      target: dev
+    secrets: inherit

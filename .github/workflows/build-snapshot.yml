@@ -3,10 +3,11 @@ name: Build JustAVPS Snapshot
 on:
   release:
     types: [published]
+
   workflow_dispatch:
     inputs:
       version:
-        description: 'Docker image version (e.g. 0.8.26)'
+        description: 'Docker image version (e.g. 0.8.26 or dev-abc12345)'
         required: true
       target:
         description: 'Target environment'
@@ -14,6 +15,18 @@ on:
         options:
           - dev
           - prod
+        default: dev
+
+  workflow_call:
+    inputs:
+      version:
+        description: 'Docker image version'
+        required: true
+        type: string
+      target:
+        description: 'Target environment (dev or prod)'
+        required: false
+        type: string
         default: dev
 
 concurrency:
