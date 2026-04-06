@@ -929,6 +929,9 @@ importers:
       gsap:
         specifier: ^3.13.0
         version: 3.14.2
+      heic2any:
+        specifier: 0.0.4
+        version: 0.0.4
       hjson:
         specifier: ^3.2.2
         version: 3.2.2
@@ -21546,6 +21549,10 @@ packages:
       hast-util-parse-selector: 4.0.0
       property-information: 7.1.0
       space-separated-tokens: 2.0.2
+    dev: false
+
+  /heic2any@0.0.4:
+    resolution: {integrity: sha512-3lLnZiDELfabVH87htnRolZ2iehX9zwpRyGNz22GKXIu0fznlblf0/ftppXKNqS26dqFSeqfIBhAmAj/uSp0cA==}
     dev: false
 
   /hermes-estree@0.29.1:

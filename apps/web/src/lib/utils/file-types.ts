@@ -26,7 +26,7 @@ export const PREVIEWABLE_EXTENSIONS = [
 
 // Image extensions
 export const IMAGE_EXTENSIONS = [
-  'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'heif',
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'heif', 'avif',
 ] as const;
 
 // Video extensions

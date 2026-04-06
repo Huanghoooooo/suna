@@ -240,7 +240,7 @@ export function getFileIconByName(fileName: string, isDirectory: boolean = false
     ? fileName.split('.').pop()?.toLowerCase() || ''
     : '';
   
-  if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'ico', 'bmp', 'tiff'].includes(ext)) {
+  if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'ico', 'bmp', 'tiff', 'heic', 'heif', 'avif'].includes(ext)) {
     return <ImageFileIcon />;
   }
   

@@ -30,6 +30,8 @@ import { useSandboxProxy } from '@/hooks/use-sandbox-proxy';
 import { SANDBOX_PORTS } from '@/lib/platform-client';
 import { useAuthenticatedPreviewUrl } from '@/hooks/use-authenticated-preview-url';
 import { FilePathBreadcrumbs } from './file-breadcrumbs';
+import { isHeicFile } from '@/lib/utils/heic-convert';
+import { useHeicBlob } from '@/hooks/use-heic-url';
 
 // ---------------------------------------------------------------------------
 // Lazy-load heavy renderers to keep initial bundle small
@@ -92,7 +94,7 @@ export type FileCategory =
 export function getFileCategory(filename: string, mimeType?: string): FileCategory {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
 
-  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'avif', 'tiff', 'tif'].includes(ext)) return 'image';
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'avif', 'tiff', 'tif', 'heic', 'heif'].includes(ext)) return 'image';
   if (ext === 'pdf') return 'pdf';
   if (ext === 'docx') return 'docx';
   if (['pptx', 'ppt'].includes(ext)) return 'pptx';
@@ -223,8 +225,15 @@ export function FileContentRenderer({
   targetLine,
   readOnly = false,
 }: FileContentRendererProps) {
-  // Text content (for code/text files, CSV, images)
-  const { data: fileContent, isLoading, error, refetch } = useFileContent(filePath);
+  const fileName = filePath.split('/').pop() || '';
+  const isHeicImage = isHeicFile(fileName);
+
+  // Text content (for code/text files, CSV, non-HEIC images).
+  // HEIC files are loaded exclusively via the blob pipeline — the text/base64
+  // endpoint often returns 500 for HEIC because the server can't encode them.
+  const { data: fileContent, isLoading, error, refetch } = useFileContent(
+    isHeicImage ? null : filePath,
+  );
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -234,7 +243,6 @@ export function FileContentRenderer({
   // Bumped on discard to force-remount the CodeEditor and reset its internal state.
   const [discardKey, setDiscardKey] = useState(0);
 
-  const fileName = filePath.split('/').pop() || '';
   const language = getLanguageFromExt(fileName);
   const fileCategory = getFileCategory(fileName, fileContent?.mimeType);
   const isMarkdownFile = language === 'markdown';
@@ -319,9 +327,15 @@ export function FileContentRenderer({
     [fileDiagnostics],
   );
 
-  // Binary blob for PDF, DOCX, video, audio, PPTX
-  const blobPath = isBlobCategory(fileCategory) ? filePath : null;
+  // Binary blob for PDF, DOCX, video, audio, PPTX — AND HEIC images
+  const blobPath = (isBlobCategory(fileCategory) || isHeicImage) ? filePath : null;
   const { blobUrl, blob: rawBlob, isLoading: blobLoading, error: blobError } = useBinaryBlob(blobPath);
+
+  // HEIC conversion — converts the raw HEIC blob to a renderable JPEG URL
+  const { url: heicImageUrl, isConverting: heicConverting } = useHeicBlob(
+    isHeicImage ? rawBlob : null,
+    fileName,
+  );
 
   const displayContent = fileContent?.content ?? '';
 
@@ -424,8 +438,9 @@ export function FileContentRenderer({
     return () => window.removeEventListener('beforeunload', handler);
   }, [readOnly, hasUnsavedChanges]);
 
-  // Image rendering
+  // Image rendering — skip HEIC (handled separately via blob pipeline)
   const imageDataUrl = useMemo(() => {
+    if (isHeicImage) return null;
     if (
       fileContent?.encoding === 'base64' &&
       isImageMime(fileContent.mimeType)
@@ -433,10 +448,10 @@ export function FileContentRenderer({
       return `data:${fileContent.mimeType};base64,${fileContent.content}`;
     }
     return null;
-  }, [fileContent]);
+  }, [fileContent, isHeicImage]);
 
   // Determine loading state
-  const needsBlob = isBlobCategory(fileCategory);
+  const needsBlob = isBlobCategory(fileCategory) || isHeicImage;
   const isContentReady = needsBlob
     ? (!blobLoading && !blobError)
     : (!isLoading && !error);
@@ -652,10 +667,18 @@ export function FileContentRenderer({
           )
         )}
 
-        {/* Image content */}
+        {/* Image content (non-HEIC) */}
         {!isLoading && !error && imageDataUrl && (
           <Suspense fallback={<RendererFallback />}>
-            <ImageRenderer url={imageDataUrl} className="h-full" />
+            <ImageRenderer url={imageDataUrl} className="h-full" fileName={fileName} />
+          </Suspense>
+        )}
+
+        {/* HEIC image — loaded as raw blob, converted to JPEG client-side */}
+        {isHeicImage && (blobLoading || heicConverting) && <RendererFallback />}
+        {isHeicImage && !blobLoading && !blobError && heicImageUrl && !heicConverting && (
+          <Suspense fallback={<RendererFallback />}>
+            <ImageRenderer url={heicImageUrl} className="h-full" fileName={fileName} />
           </Suspense>
         )}
 
@@ -775,6 +798,7 @@ export function FileContentRenderer({
           fileContent &&
           fileContent.type === 'binary' &&
           !imageDataUrl &&
+          !isHeicImage &&
           !['pdf', 'docx', 'pptx', 'xlsx', 'sqlite', 'video', 'audio'].includes(fileCategory) && (
             <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
               <div className="h-12 w-12 rounded-xl bg-muted/50 flex items-center justify-center">

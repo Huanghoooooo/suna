@@ -129,7 +129,7 @@ function getMonochromeIcon(fileName: string, ic: string, isDirectory?: boolean, 
   }
 
   // Images
-  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'avif', 'tiff', 'tif'].includes(ext)) {
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'avif', 'tiff', 'tif', 'heic', 'heif'].includes(ext)) {
     return <FileImage className={mono} />;
   }
 
@@ -265,7 +265,7 @@ function getColoredIcon(fileName: string, ic: string, isDirectory?: boolean) {
   if (['md', 'mdx', 'txt', 'rst', 'rtf'].includes(ext)) return <FileText className={cn(ic, 'text-muted-foreground')} />;
 
   // Media
-  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'avif', 'tiff', 'tif'].includes(ext)) return <FileImage className={cn(ic, 'text-purple-400')} />;
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'avif', 'tiff', 'tif', 'heic', 'heif'].includes(ext)) return <FileImage className={cn(ic, 'text-purple-400')} />;
   if (['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv', 'wmv', 'ogv'].includes(ext)) return <FileVideo className={cn(ic, 'text-pink-400')} />;
   if (['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'opus'].includes(ext)) return <FileAudio className={cn(ic, 'text-teal-400')} />;
   if (['mid', 'midi'].includes(ext)) return <FileMusic className={cn(ic, 'text-teal-400')} />;

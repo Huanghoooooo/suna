@@ -9,6 +9,9 @@ import { getFileCategory, getLanguageFromExt } from './file-content-renderer';
 import { getFileIcon } from './file-icon';
 import { useSandboxProxy } from '@/hooks/use-sandbox-proxy';
 import { SANDBOX_PORTS } from '@/lib/platform-client';
+import { isHeicFile } from '@/lib/utils/heic-convert';
+import { useBinaryBlob } from '../hooks/use-binary-blob';
+import { useHeicBlob } from '@/hooks/use-heic-url';
 
 /** Ensure a sandbox file path starts with /workspace/ for the static file server. */
 function ensureWorkspacePath(filePath: string): string {
@@ -21,27 +24,26 @@ function ensureWorkspacePath(filePath: string): string {
 // ---------------------------------------------------------------------------
 
 function ImageThumbnail({ filePath }: { filePath: string }) {
-  const { data: fileContent } = useFileContent(filePath, { staleTime: 60_000 });
+  const fileName = filePath.split('/').pop() || '';
+  const isHeic = isHeicFile(fileName);
   const [imgError, setImgError] = useState(false);
 
-  const dataUrl = useMemo(() => {
-    if (fileContent?.encoding === 'base64' && fileContent.mimeType?.startsWith('image/')) {
+  // Non-HEIC: text/base64 API. HEIC: raw blob API + conversion.
+  const { data: fileContent } = useFileContent(filePath, { staleTime: 60_000, enabled: !isHeic });
+  const { blob: rawBlob } = useBinaryBlob(isHeic ? filePath : null);
+  const { url: heicUrl } = useHeicBlob(isHeic ? rawBlob : null, fileName);
+
+  const src = useMemo(() => {
+    if (isHeic) return heicUrl;
+    if (fileContent?.encoding === 'base64' && fileContent.mimeType?.startsWith('image/'))
       return `data:${fileContent.mimeType};base64,${fileContent.content}`;
-    }
     return null;
-  }, [fileContent]);
+  }, [fileContent, isHeic, heicUrl]);
 
-  if (!dataUrl || imgError) return null;
-
+  if (!src || imgError) return null;
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={dataUrl}
-      alt=""
-      className="absolute inset-0 w-full h-full object-cover"
-      onError={() => setImgError(true)}
-      draggable={false}
-    />
+    <img src={src} alt="" className="absolute inset-0 w-full h-full object-cover" onError={() => setImgError(true)} draggable={false} />
   );
 }
 

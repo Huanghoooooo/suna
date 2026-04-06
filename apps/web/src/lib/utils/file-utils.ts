@@ -22,7 +22,7 @@ export type FileType =
 export function getFileType(filename: string): FileType {
     const ext = getExtension(filename);
 
-    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return 'image';
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'heic', 'heif', 'avif'].includes(ext)) return 'image';
     if (['js', 'jsx', 'ts', 'tsx', 'html', 'css', 'json', 'py', 'java', 'c', 'cpp'].includes(ext)) return 'code';
     if (['txt', 'log', 'env'].includes(ext)) return 'text';
     if (['md', 'markdown'].includes(ext)) return 'markdown';

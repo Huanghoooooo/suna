@@ -129,7 +129,7 @@ function isImageUrl(url: string): boolean {
     try {
         const urlObj = new URL(url);
         const pathname = urlObj.pathname.toLowerCase();
-        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico', '.heic', '.heif'];
+        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico', '.heic', '.heif', '.avif'];
         return imageExtensions.some(ext => pathname.endsWith(ext));
     } catch {
         return false;

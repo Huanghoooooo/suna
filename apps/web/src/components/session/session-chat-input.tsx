@@ -833,7 +833,7 @@ function isImageFile(file: File): boolean {
   if (file.type.startsWith('image/')) return true;
   // Fallback: check extension for when MIME type is missing (e.g. pasted files)
   const ext = file.name.split('.').pop()?.toLowerCase() || '';
-  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'avif'].includes(ext);
+  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'heif', 'avif'].includes(ext);
 }
 
 // ============================================================================
@@ -848,12 +848,28 @@ function AttachmentThumbnail({ af, name }: { af: AttachedFile; name: string }) {
   // Check if this is an image — be generous with detection
   const isImg = af.isImage ||
     (af.kind === 'local' && af.file.type.startsWith('image/')) ||
-    ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'avif'].includes(ext);
+    ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'heif', 'avif'].includes(ext);
+
+  // HEIC: convert to JPEG for preview (browsers can't render HEIC natively)
+  const isHeic = ext === 'heic' || ext === 'heif';
+  const [heicUrl, setHeicUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isHeic || !isImg || af.kind !== 'local') return;
+    let cancelled = false;
+    let u: string | null = null;
+    import('@/lib/utils/heic-convert').then(({ convertHeicBlobToJpeg }) =>
+      convertHeicBlobToJpeg(af.file).then((jpeg) => {
+        if (cancelled) return;
+        u = URL.createObjectURL(jpeg);
+        setHeicUrl(u);
+      }),
+    ).catch(() => {});
+    return () => { cancelled = true; if (u) URL.revokeObjectURL(u); };
+  }, [af, isHeic, isImg]);
 
   // For local text/code files, read first ~12 lines for preview
   useEffect(() => {
     if (af.kind !== 'local' || isImg) return;
-
     const textExts = [
       'js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp',
       'css', 'scss', 'html', 'vue', 'svelte', 'json', 'yaml', 'yml', 'toml', 'xml',
@@ -861,29 +877,18 @@ function AttachmentThumbnail({ af, name }: { af: AttachedFile; name: string }) {
       'lua', 'r', 'php', 'pl', 'ini', 'conf', 'env', 'gitignore', 'dockerfile',
     ];
     if (!textExts.includes(ext)) return;
-
     const reader = new FileReader();
-    reader.onload = () => {
-      const text = reader.result as string;
-      const lines = text.split('\n').slice(0, 12).join('\n');
-      setTextPreview(lines);
-    };
-    // Read only first 2KB to avoid loading huge files
-    const slice = af.file.slice(0, 2048);
-    reader.readAsText(slice);
+    reader.onload = () => setTextPreview((reader.result as string).split('\n').slice(0, 12).join('\n'));
+    reader.readAsText(af.file.slice(0, 2048));
   }, [af, ext, isImg]);
 
-  // Image thumbnail
+  // Image thumbnail — HEIC uses converted URL, everything else uses original
   if (isImg) {
-    const src = af.kind === 'local' ? af.localUrl : af.url;
+    const src = isHeic ? heicUrl : (af.kind === 'local' ? af.localUrl : af.url);
+    if (!src) return null; // HEIC still converting — show nothing briefly
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={src}
-        alt={name}
-        className="absolute inset-0 w-full h-full object-cover"
-        draggable={false}
-      />
+      <img src={src} alt={name} className="absolute inset-0 w-full h-full object-cover" draggable={false} />
     );
   }
 

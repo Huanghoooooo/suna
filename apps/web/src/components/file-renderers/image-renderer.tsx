@@ -15,12 +15,14 @@ import {
 interface ImageRendererProps {
   url: string;
   className?: string;
+  /** Optional file name — shown in the info panel type field */
+  fileName?: string;
 }
 
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [500, 1500, 3000]; // ms — escalating backoff
 
-export function ImageRenderer({ url, className }: ImageRendererProps) {
+export function ImageRenderer({ url, className, fileName }: ImageRendererProps) {
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
@@ -47,6 +49,17 @@ export function ImageRenderer({ url, className }: ImageRendererProps) {
   // Check if the url is an SVG
   const isSvg =
     url?.toLowerCase().endsWith('.svg') || url?.includes('image/svg');
+
+  // Derive the display file type for the info panel
+  const displayFileType = (() => {
+    if (isSvg) return 'SVG';
+    if (fileName) {
+      const ext = fileName.split('.').pop()?.toUpperCase();
+      if (ext) return ext;
+    }
+    const ext = url.split('.').pop()?.toUpperCase();
+    return ext || 'Image';
+  })();
 
   // When the parent passes a new URL, reset everything
   useEffect(() => {
@@ -86,10 +99,10 @@ export function ImageRenderer({ url, className }: ImageRendererProps) {
       setImgInfo({
         width: imageRef.current.naturalWidth,
         height: imageRef.current.naturalHeight,
-        type: isSvg ? 'SVG' : url.split('.').pop()?.toUpperCase() || 'Image',
+        type: displayFileType,
       });
     }
-  }, [isSvg, url]);
+  }, [displayFileType]);
 
   // Handle image load error — auto-retry with backoff
   const handleImageError = useCallback(() => {

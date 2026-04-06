@@ -54,7 +54,7 @@ export function getFileTypeFromExtension(fileName: string): string {
     'sql', 'graphql', 'swift', 'kotlin', 'dart', 'r', 'lua',
     'scala', 'perl', 'haskell', 'rust',
   ];
-  const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'];
+  const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'heif', 'avif'];
   const pdfExtensions = ['pdf'];
   const csvExtensions = ['csv', 'tsv'];
   const xlsxExtensions = ['xlsx', 'xls'];

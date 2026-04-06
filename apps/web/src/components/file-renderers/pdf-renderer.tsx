@@ -53,14 +53,22 @@ export function PdfRenderer({ url, blob, className, compact = false }: PdfRender
   // We pass this URL to pdfjs with disableRange + disableStream so it does
   // a simple GET fetch — no range-request headers (which fail on blob URLs)
   // and no ArrayBuffer transfer (which causes "detached ArrayBuffer" on re-render).
+  // NOTE: We do NOT revoke on unmount — pdfjs loads asynchronously and crashes
+  // with "Unexpected response (0)" if the URL is revoked while it's still
+  // fetching. The URL is only revoked when the blob itself changes.
+  const prevBlobRef = useRef<Blob | null>(null);
   useEffect(() => {
     if (!blob) {
-      setBlobUrl(null);
+      setBlobUrl((old) => { if (old) URL.revokeObjectURL(old); return null; });
+      prevBlobRef.current = null;
       return;
     }
-    const objectUrl = URL.createObjectURL(blob);
-    setBlobUrl(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
+    if (blob === prevBlobRef.current) return;
+    prevBlobRef.current = blob;
+    setBlobUrl((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return URL.createObjectURL(blob);
+    });
   }, [blob]);
 
   const zoomLevel = ZOOM_LEVELS[zoomIndex];
