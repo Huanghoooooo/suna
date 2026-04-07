@@ -247,9 +247,10 @@ function ChannelsContent() {
   return (
     <View style={{ flex: 1 }}>
       {/* Search Bar */}
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 8, gap: 10 }}>
         <View
           style={{
+            flex: 1,
             flexDirection: 'row',
             alignItems: 'center',
             backgroundColor: inputBg,
@@ -272,6 +273,17 @@ function ChannelsContent() {
             </Pressable>
           )}
         </View>
+        <TouchableOpacity
+          onPress={handleOpenAdd}
+          activeOpacity={0.8}
+          style={{
+            width: 40, height: 40, borderRadius: 12,
+            backgroundColor: theme.primary,
+            alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <Plus size={20} color={theme.primaryForeground} />
+        </TouchableOpacity>
       </View>
 
       {/* Channel List */}
@@ -312,20 +324,6 @@ function ChannelsContent() {
         />
       )}
 
-      {/* FAB */}
-      <View style={{ position: 'absolute', bottom: insets.bottom + 24, right: 20 }}>
-        <Pressable
-          onPress={handleOpenAdd}
-          style={{
-            width: 56, height: 56, borderRadius: 28,
-            backgroundColor: theme.primary,
-            alignItems: 'center', justifyContent: 'center',
-            shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6,
-          }}
-        >
-          <Plus size={24} color={theme.primaryForeground} />
-        </Pressable>
-      </View>
 
       {/* Detail Sheet */}
       <ChannelDetailSheet
