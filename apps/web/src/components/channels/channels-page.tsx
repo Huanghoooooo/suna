@@ -50,10 +50,36 @@ async function channelFetch(path: string, opts?: RequestInit): Promise<any> {
   if (!url) return null;
   try {
     const res = await authenticatedFetch(`${url}/kortix/channels${path}`, opts);
-    return await res.json();
+    const text = await res.text();
+    try { return JSON.parse(text); } catch { return null; }
   } catch {
     return null;
   }
+}
+
+async function detectChannelsFromEnv(): Promise<Channel[]> {
+  const url = getActiveOpenCodeUrl();
+  if (!url) return [];
+  const channels: Channel[] = [];
+  try {
+    const res = await authenticatedFetch(`${url}/env/TELEGRAM_BOT_TOKEN`);
+    if (res.ok) {
+      const data = await res.json() as Record<string, string>;
+      if (data?.TELEGRAM_BOT_TOKEN) {
+        channels.push({ id: 'env-telegram', platform: 'telegram', name: 'Telegram Bot', enabled: true, bot_username: null, default_agent: '', default_model: '', webhook_path: '', created_by: null, created_at: new Date().toISOString() });
+      }
+    }
+  } catch { /* ignore */ }
+  try {
+    const res = await authenticatedFetch(`${url}/env/SLACK_BOT_TOKEN`);
+    if (res.ok) {
+      const data = await res.json() as Record<string, string>;
+      if (data?.SLACK_BOT_TOKEN) {
+        channels.push({ id: 'env-slack', platform: 'slack', name: 'Slack Bot', enabled: true, bot_username: null, default_agent: '', default_model: '', webhook_path: '', created_by: null, created_at: new Date().toISOString() });
+      }
+    }
+  } catch { /* ignore */ }
+  return channels;
 }
 
 // ─── Channel Card ───────────────────────────────────────────────────────────
@@ -145,10 +171,12 @@ export function ChannelsPage() {
 
   const load = useCallback(async () => {
     const data = await channelFetch('');
-    if (data?.ok) {
+    if (data?.ok && data.channels?.length > 0) {
       setChannels(data.channels);
     } else {
-      setChannels([]);
+      // Fallback: detect from env vars
+      const envChannels = await detectChannelsFromEnv();
+      setChannels(envChannels);
     }
     setLoading(false);
     setLoaded(true);
@@ -180,6 +208,39 @@ export function ChannelsPage() {
     const ch = channels.find(c => c.id === id);
     if (!confirm(`Remove ${ch?.name}?`)) return;
     setChannels(prev => prev.filter(c => c.id !== id));
+
+    // Env-based channels: remove env vars
+    if (id === 'env-telegram') {
+      const url = getActiveOpenCodeUrl();
+      if (url) {
+        try {
+          const envRes = await authenticatedFetch(`${url}/env/TELEGRAM_BOT_TOKEN`);
+          if (envRes.ok) {
+            const data = await envRes.json() as Record<string, string>;
+            if (data?.TELEGRAM_BOT_TOKEN) {
+              await fetch(`https://api.telegram.org/bot${data.TELEGRAM_BOT_TOKEN}/deleteWebhook`, { method: 'POST' });
+            }
+          }
+        } catch { /* ignore */ }
+        for (const key of ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_WEBHOOK_SECRET_TOKEN']) {
+          try { await authenticatedFetch(`${url}/env/${key}`, { method: 'DELETE' }); } catch { /* ignore */ }
+        }
+      }
+      toast.success('Removed');
+      return;
+    }
+    if (id === 'env-slack') {
+      const url = getActiveOpenCodeUrl();
+      if (url) {
+        for (const key of ['SLACK_BOT_TOKEN', 'SLACK_SIGNING_SECRET']) {
+          try { await authenticatedFetch(`${url}/env/${key}`, { method: 'DELETE' }); } catch { /* ignore */ }
+        }
+      }
+      toast.success('Removed');
+      return;
+    }
+
+    // Regular DB-backed channels
     const data = await channelFetch(`/${id}`, { method: 'DELETE' });
     if (data?.ok) {
       toast.success('Removed');

@@ -76,7 +76,9 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ publicUrl: '', botName: botName.trim() || undefined }),
       });
-      const data = await res.json() as any;
+      const text = await res.text();
+      let data: any;
+      try { data = JSON.parse(text); } catch { toast.error('Server returned invalid response'); return; }
       if (data.ok && data.manifest) {
         setManifest(data.manifest);
         setWebhookUrl(data.webhookUrl || '');
