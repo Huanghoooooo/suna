@@ -121,8 +121,10 @@ export default withSentryConfig(withBetterStack(withMDX(nextConfig())), {
   // Disable Sentry CLI telemetry
   telemetry: false,
 
-  // Automatically tree-shake Sentry logger statements to reduce bundle size
-  disableLogger: true,
+  // Tree-shake Sentry debug logger statements to reduce bundle size
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+  },
 
   // Route Sentry envelopes through our server to bypass ad-blockers.
   // Creates an auto-generated route at /monitoring that forwards to the DSN host.

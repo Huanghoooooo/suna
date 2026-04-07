@@ -19,6 +19,7 @@ export function SimpleFooter() {
             <Link href="/support" className="hover:text-muted-foreground/60 transition-colors">Support</Link>
             <Link href="/legal?tab=privacy" className="hover:text-muted-foreground/60 transition-colors">Privacy</Link>
             <Link href="/legal?tab=terms" className="hover:text-muted-foreground/60 transition-colors">Terms</Link>
+            <a href="https://status.kortix.com" target="_blank" rel="noopener noreferrer" className="hover:text-muted-foreground/60 transition-colors">Status</a>
           </div>
 
           <div className="flex items-center gap-1.5">
