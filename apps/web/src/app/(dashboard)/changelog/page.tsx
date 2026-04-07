@@ -267,18 +267,17 @@ export default function ChangelogPage() {
 
   // Install a specific version
   const handleInstall = useCallback(async (version: string) => {
-    if (!activeServer?.sandboxId) {
+    const isLocal = activeServer?.provider === 'local_docker' || activeServer?.sandboxId === 'kortix-sandbox';
+    // Cloud sandboxes use instanceId (DB sandbox_id UUID), NOT sandboxId (external_id)
+    const idForUpdate = isLocal ? undefined : activeServer?.instanceId;
+    if (!isLocal && !idForUpdate) {
       toast.error('No active sandbox found');
       return;
     }
     setInstallingVersion(version);
     try {
-      // For local_docker / fallback sandboxId: use the legacy route (no DB lookup).
-      // For cloud sandboxes: use the per-sandbox route.
-      const isLocal = activeServer.provider === 'local_docker' || activeServer.sandboxId === 'kortix-sandbox';
-      const sandboxIdForUpdate = isLocal ? undefined : activeServer.sandboxId;
       await triggerSandboxUpdate(
-        { sandbox_id: sandboxIdForUpdate } as SandboxInfo,
+        { sandbox_id: idForUpdate } as SandboxInfo,
         version,
       );
       toast.success(`Installing ${version.startsWith('dev-') ? version : `v${version}`}...`, {
@@ -291,7 +290,7 @@ export default function ChangelogPage() {
     } finally {
       setInstallingVersion(null);
     }
-  }, [activeServer?.sandboxId, activeServer?.provider]);
+  }, [activeServer?.sandboxId, activeServer?.instanceId, activeServer?.provider]);
 
   // Filter versions based on selected tab
   const filteredVersions = useMemo(() => {

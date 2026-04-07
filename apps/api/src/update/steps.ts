@@ -24,8 +24,8 @@ export async function pullImage(endpoint: ResolvedEndpoint, image: string): Prom
     15,
   );
 
-  // Poll until the image exists or timeout (5 minutes)
-  for (let i = 0; i < 60; i++) {
+  // Poll until the image exists or timeout (15 minutes — computer image is ~5GB)
+  for (let i = 0; i < 180; i++) {
     await new Promise((r) => setTimeout(r, 5000));
     const check = await execOnHost(endpoint, `docker image inspect ${image} >/dev/null 2>&1 && echo ready`, 10);
     if (check.stdout?.trim() === 'ready') {
@@ -33,7 +33,7 @@ export async function pullImage(endpoint: ResolvedEndpoint, image: string): Prom
     }
   }
 
-  return { success: false, stdout: '', stderr: `Pull timed out after 5 minutes for ${image}`, exitCode: -1, durationMs: 300000 };
+  return { success: false, stdout: '', stderr: `Pull timed out after 15 minutes for ${image}`, exitCode: -1, durationMs: 900000 };
 }
 
 export async function checkpointSqlite(endpoint: ResolvedEndpoint, containerName: string): Promise<StepResult> {
