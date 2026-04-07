@@ -79,15 +79,72 @@ async function sandboxChannelFetch<T>(sandboxUrl: string, path: string, options?
 // ─── API Functions ───────────────────────────────────────────────────────────
 
 async function listChannels(sandboxUrl: string): Promise<ChannelConfig[]> {
+  // Try the channels API first
   try {
     const data = await sandboxChannelFetch<{ ok?: boolean; channels?: ChannelConfig[]; data?: ChannelConfig[] }>(
       sandboxUrl, '',
     );
-    return data.channels || data.data || [];
+    const channels = data.channels || data.data || [];
+    if (channels.length > 0) return channels;
   } catch {
-    // Channels service may not be running — return empty list
-    return [];
+    // Channels API may not be available
   }
+
+  // Fallback: detect configured channels from env vars
+  const channels: ChannelConfig[] = [];
+  const token = await getAuthToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+
+  try {
+    const telegramRes = await fetch(`${sandboxUrl}/env/TELEGRAM_BOT_TOKEN`, { headers });
+    if (telegramRes.ok) {
+      const telegramData = await telegramRes.json() as Record<string, string>;
+      if (telegramData?.TELEGRAM_BOT_TOKEN) {
+        channels.push({
+          id: 'env-telegram',
+          platform: 'telegram',
+          name: 'Telegram Bot',
+          enabled: true,
+          bot_username: null,
+          default_agent: null,
+          default_model: null,
+          instructions: null,
+          webhook_path: null,
+          webhook_url: null,
+          created_by: null,
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
+  } catch { /* ignore */ }
+
+  try {
+    const slackRes = await fetch(`${sandboxUrl}/env/SLACK_BOT_TOKEN`, { headers });
+    if (slackRes.ok) {
+      const slackData = await slackRes.json() as Record<string, string>;
+      if (slackData?.SLACK_BOT_TOKEN) {
+        channels.push({
+          id: 'env-slack',
+          platform: 'slack',
+          name: 'Slack Bot',
+          enabled: true,
+          bot_username: null,
+          default_agent: null,
+          default_model: null,
+          instructions: null,
+          webhook_path: null,
+          webhook_url: null,
+          created_by: null,
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
+  } catch { /* ignore */ }
+
+  return channels;
 }
 
 async function getChannel(sandboxUrl: string, id: string): Promise<ChannelConfig> {
@@ -106,7 +163,44 @@ async function updateChannel(sandboxUrl: string, id: string, body: UpdateChannel
 }
 
 async function deleteChannel(sandboxUrl: string, id: string): Promise<void> {
-  await sandboxChannelFetch(sandboxUrl, `/${id}`, { method: 'DELETE' });
+  // Env-based channels: remove the env vars instead
+  if (id === 'env-telegram') {
+    const token = await getAuthToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    // Delete webhook from Telegram
+    try {
+      const envRes = await fetch(`${sandboxUrl}/env/TELEGRAM_BOT_TOKEN`, { headers });
+      if (envRes.ok) {
+        const data = await envRes.json() as Record<string, string>;
+        if (data?.TELEGRAM_BOT_TOKEN) {
+          await fetch(`https://api.telegram.org/bot${data.TELEGRAM_BOT_TOKEN}/deleteWebhook`, { method: 'POST' });
+        }
+      }
+    } catch { /* ignore */ }
+    // Remove env vars
+    for (const key of ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_WEBHOOK_SECRET_TOKEN']) {
+      try { await fetch(`${sandboxUrl}/env/${key}`, { method: 'DELETE', headers }); } catch { /* ignore */ }
+    }
+    return;
+  }
+  if (id === 'env-slack') {
+    const token = await getAuthToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    for (const key of ['SLACK_BOT_TOKEN', 'SLACK_SIGNING_SECRET']) {
+      try { await fetch(`${sandboxUrl}/env/${key}`, { method: 'DELETE', headers }); } catch { /* ignore */ }
+    }
+    return;
+  }
+  // Regular DB-backed channels
+  try {
+    await sandboxChannelFetch(sandboxUrl, `/${id}`, { method: 'DELETE' });
+  } catch { /* ignore if endpoint unavailable */ }
 }
 
 async function enableChannel(sandboxUrl: string, id: string): Promise<ChannelConfig> {
