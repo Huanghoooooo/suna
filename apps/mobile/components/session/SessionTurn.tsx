@@ -2317,6 +2317,22 @@ export function SessionTurn({
     [userText, commands],
   );
 
+  // Detect channel message (Telegram/Slack) in user message
+  const channelMessageInfo = useMemo(() => {
+    if (!userText) return undefined;
+    // Match pattern: [Telegram · DM · message from Name] or [Slack · #channel · message from Name]
+    const headerMatch = userText.match(/^\[(\w+)\s*·\s*([^·]+?)\s*·\s*message from\s+([^\]]+)\]\s*/);
+    if (!headerMatch) return undefined;
+    const platform = headerMatch[1] as 'Telegram' | 'Slack';
+    const context = headerMatch[2].trim();
+    const userName = headerMatch[3].trim();
+    // Extract the actual message (between header and Chat ID/instructions)
+    const afterHeader = userText.slice(headerMatch[0].length);
+    const instrStart = afterHeader.search(/\n\s*(Chat ID:|── Telegram instructions|── Slack instructions)/);
+    const messageText = instrStart >= 0 ? afterHeader.slice(0, instrStart).trim() : afterHeader.trim();
+    return { platform, context, userName, messageText };
+  }, [userText]);
+
   // Detect trigger_event in user message
   const triggerEventInfo = useMemo(() => {
     if (!userText) return undefined;
@@ -2403,7 +2419,48 @@ export function SessionTurn({
     <View className="mb-4">
       {/* User message */}
       <View className="flex-row justify-end mb-2 px-4">
-        {triggerEventInfo ? (
+        {channelMessageInfo ? (
+          <View
+            style={{
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+              backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              maxWidth: '85%',
+            }}
+          >
+            {/* Channel badge + user name */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <Ionicons
+                name={channelMessageInfo.platform === 'Telegram' ? 'paper-plane-outline' : 'logo-slack'}
+                size={14}
+                color={channelMessageInfo.platform === 'Telegram' ? '#29B6F6' : '#E91E63'}
+              />
+              <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: channelMessageInfo.platform === 'Telegram' ? '#29B6F6' : '#E91E63' }}>
+                {channelMessageInfo.platform}
+              </Text>
+              <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: isDark ? '#71717a' : '#a1a1aa' }}>·</Text>
+              <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: isDark ? '#F8F8F8' : '#121215' }}>
+                {channelMessageInfo.userName}
+              </Text>
+            </View>
+            {/* Message text */}
+            {channelMessageInfo.messageText ? (
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontFamily: 'Roobert',
+                  color: isDark ? '#F8F8F8' : '#121215',
+                  lineHeight: 20,
+                }}
+              >
+                {channelMessageInfo.messageText}
+              </Text>
+            ) : null}
+          </View>
+        ) : triggerEventInfo ? (
           <View
             style={{
               borderRadius: 16,
