@@ -2,6 +2,7 @@
 import './lib/sentry';
 import { captureException, flushSentry, addBreadcrumb } from './lib/sentry';
 import { logger as appLogger } from './lib/logger';
+import { runWithContext, setContextField } from './lib/request-context';
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -93,17 +94,36 @@ app.use(
   })
 );
 
+// ─── Request context (AsyncLocalStorage) ────────────────────────────────────
+// Must be FIRST — wraps the entire request lifecycle so all downstream code
+// (auth, route handlers, console.error calls) automatically gets context fields
+// (requestId, userId, accountId, sandboxId) attached to every log.
+app.use('*', async (c, next) => {
+  await runWithContext(c.req.method, c.req.path, async () => {
+    // Auto-extract sandboxId from common URL patterns
+    const path = c.req.path;
+    const sbMatch = path.match(/\/sandbox(?:es)?\/([^/]+)/) ||
+                    path.match(/\/p\/([^/]+)/);
+    if (sbMatch) setContextField('sandboxId', sbMatch[1]);
+    await next();
+  });
+});
+
 // Request logger — uses Hono's built-in logger for stdout (Docker captures these)
-// and adds Sentry breadcrumbs for request context on future errors.
 app.use('*', logger());
 
-// Add Sentry breadcrumbs for every request — when an error occurs later in the
-// request lifecycle, these breadcrumbs provide the HTTP context (method, path, etc.)
+// Post-request: Sentry breadcrumbs + slow/error request logging
 app.use('*', async (c, next) => {
   const start = Date.now();
   await next();
   const duration = Date.now() - start;
   const status = c.res.status;
+
+  // Propagate userId/accountId to request context (set by auth middleware)
+  const userId = c.get('userId');
+  const accountId = c.get('accountId');
+  if (userId) setContextField('userId', userId);
+  if (accountId) setContextField('accountId', accountId);
 
   // Add breadcrumb to Sentry for request context on future errors
   addBreadcrumb(`${c.req.method} ${c.req.path} ${status}`, {
@@ -117,11 +137,8 @@ app.use('*', async (c, next) => {
   // Log slow requests (>5s) and server errors to structured logger
   if (status >= 500 || duration > 5000) {
     appLogger.warn(`Slow/error request: ${c.req.method} ${c.req.path} ${status} ${duration}ms`, {
-      method: c.req.method,
-      path: c.req.path,
       status,
       duration,
-      userId: c.get('userId'),
     });
   }
 });

@@ -2,19 +2,20 @@
  * Structured logger for Kortix API.
  *
  * Uses @logtail/node to ship structured logs to Better Stack Telemetry.
- * Falls back to console.log in development or when BETTERSTACK_API_LOG_TOKEN is not set.
+ * Automatically enriches every log with request context (userId, accountId,
+ * sandboxId, requestId) via AsyncLocalStorage — zero manual passing needed.
  *
- * IMPORTANT: This module also patches console.error and console.warn globally
- * so that ALL existing console.error/warn calls across the codebase automatically
- * ship to Better Stack — no per-file refactor needed.
+ * Also patches console.error/warn globally so ALL existing calls across
+ * the codebase ship to Better Stack with request context attached.
  *
  * Usage:
  *   import { logger } from './lib/logger';
- *   logger.info('User logged in', { userId: '123', method: 'oauth' });
- *   logger.error('Payment failed', { orderId: '456', error: err });
+ *   logger.info('User logged in', { method: 'oauth' });
+ *   // → automatically includes userId, accountId, requestId, path, etc.
  */
 
 import { Logtail } from '@logtail/node';
+import { getContextFields } from './request-context';
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ if (LOG_TOKEN) {
   });
 }
 
-// ─── Enrichment ─────────────────────────────────────────────────────────────
+// ─── Static enrichment (same for every log) ─────────────────────────────────
 
 const BASE_CONTEXT = {
   service: 'kortix-api',
@@ -53,7 +54,11 @@ const BASE_CONTEXT = {
 
 function shipToBetterStack(level: LogLevel, message: string, context?: Record<string, unknown>): void {
   if (!logtail) return;
-  const enriched = { ...BASE_CONTEXT, ...context };
+
+  // Merge: base static context + async request context + explicit context
+  const requestCtx = getContextFields();
+  const enriched = { ...BASE_CONTEXT, ...requestCtx, ...context };
+
   switch (level) {
     case 'debug': logtail.debug(message, enriched); break;
     case 'info':  logtail.info(message, enriched);  break;
@@ -87,39 +92,34 @@ function log(level: LogLevel, message: string, context?: Record<string, unknown>
     console.log(formatted);
   }
 
-  // Ship to Better Stack
+  // Ship to Better Stack (request context auto-attached)
   shipToBetterStack(level, message, context);
 }
 
 // ─── Global console.error/warn patch ────────────────────────────────────────
 //
 // Intercepts ALL console.error() and console.warn() calls across the entire
-// codebase and ships them to Better Stack as structured logs. This captures
-// the 290+ existing console.error/warn calls in catch blocks, provider code,
-// startup logic, etc. — without touching any of those files.
-//
-// The original console methods are preserved for stdout/stderr output.
+// codebase and ships them to Better Stack with request context automatically
+// attached. This captures the 290+ existing console.error/warn calls in
+// catch blocks, provider code, startup logic, etc.
 
 const originalConsoleError = console.error.bind(console);
 const originalConsoleWarn = console.warn.bind(console);
 
 if (logtail) {
   console.error = (...args: unknown[]) => {
-    // Write to stderr as normal
     originalConsoleError(...args);
-    // Ship to Better Stack
     const message = args.map(a =>
       a instanceof Error ? `${a.message}\n${a.stack}` :
       typeof a === 'string' ? a :
       JSON.stringify(a)
     ).join(' ');
+    // Request context (userId, accountId, sandboxId, requestId) auto-attached
     shipToBetterStack('error', message);
   };
 
   console.warn = (...args: unknown[]) => {
-    // Write to stderr as normal
     originalConsoleWarn(...args);
-    // Ship to Better Stack
     const message = args.map(a =>
       typeof a === 'string' ? a : JSON.stringify(a)
     ).join(' ');
