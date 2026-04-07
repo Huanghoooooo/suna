@@ -231,12 +231,18 @@ export function useSlackConnect() {
       botToken,
       signingSecret,
       publicUrl,
+      name,
+      defaultAgent,
+      defaultModel,
     }: {
       sandboxUrl: string;
       sandboxId: string | null;
       botToken: string;
       signingSecret: string;
       publicUrl: string;
+      name?: string;
+      defaultAgent?: string;
+      defaultModel?: string;
     }) => {
       // 1. Push env vars to sandbox
       for (const [key, value] of Object.entries({
@@ -264,8 +270,10 @@ export function useSlackConnect() {
           body: JSON.stringify({
             sandbox_id: sandboxId,
             channel_type: 'slack',
-            name: 'Slack Bot',
+            name: name || 'Slack Bot',
             enabled: true,
+            default_agent: defaultAgent,
+            default_model: defaultModel,
             platform_config: { webhook_url: `${publicUrl.replace(/\/$/, '')}/webhooks/slack/events` },
           }),
         });

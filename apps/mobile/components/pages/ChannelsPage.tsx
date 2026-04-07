@@ -65,10 +65,10 @@ import {
 import {
   useTelegramVerifyToken,
   useTelegramConnect,
-  useSlackDetectUrl,
   useSlackGenerateManifest,
   useSlackConnect,
 } from '@/hooks/useChannelWizards';
+import { useOpenCodeAgents, useOpenCodeProviders, flattenModels, filterToLatestModels } from '@/lib/opencode/hooks/use-opencode-data';
 
 // ─── Channel Type Icons ─────────────────────────────────────────────────────
 
@@ -974,6 +974,16 @@ function TelegramWizard({
 
 // ─── Slack Setup Wizard (3 steps) ────────────────────────────────────────────
 
+const BOT_NAMES = [
+  'Atlas', 'Nova', 'Sage', 'Echo', 'Bolt', 'Iris', 'Dash', 'Cleo',
+  'Finn', 'Luna', 'Juno', 'Axel', 'Niko', 'Zara', 'Milo', 'Ruby',
+  'Hugo', 'Aria', 'Leo', 'Ivy', 'Rex', 'Mae', 'Kai', 'Pia',
+];
+
+function randomBotName(): string {
+  return `Kortix ${BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)]}`;
+}
+
 function SlackWizard({
   isDark, theme, fg, muted, inputBg, borderColor,
   sandboxUrl, sandboxId, onBack, onCreated,
@@ -987,27 +997,33 @@ function SlackWizard({
   onCreated: () => void;
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [publicUrl, setPublicUrl] = useState('');
+
+  // Step 1: Configure
+  const [botName, setBotName] = useState(() => randomBotName());
+  const [agentName, setAgentName] = useState('kortix');
+  const [selectedModelIdx, setSelectedModelIdx] = useState(0);
+
+  // Step 2: Manifest
   const [manifestJson, setManifestJson] = useState('');
-  const [botToken, setBotToken] = useState('');
-  const [signingSecret, setSigningSecret] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const detectUrl = useSlackDetectUrl();
+  // Step 3: Credentials
+  const [botToken, setBotToken] = useState('');
+  const [signingSecret, setSigningSecret] = useState('');
+
   const generateManifest = useSlackGenerateManifest();
   const connectMutation = useSlackConnect();
 
-  // Auto-detect URL on mount
-  useEffect(() => {
-    detectUrl.mutateAsync().then((result) => {
-      if (result.detected && result.url) setPublicUrl(result.url);
-    }).catch(() => {});
-  }, []);
+  // Load agents & models
+  const { data: agents = [] } = useOpenCodeAgents(sandboxUrl);
+  const { data: providers } = useOpenCodeProviders(sandboxUrl);
+  const models = useMemo(() => (providers ? flattenModels(providers) : []), [providers]);
+  const filteredModels = useMemo(() => filterToLatestModels(models), [models]);
 
   const handleGenerateManifest = async () => {
-    if (!publicUrl.trim() || !sandboxUrl) return;
+    if (!sandboxUrl) return;
     try {
-      const result = await generateManifest.mutateAsync({ publicUrl: publicUrl.trim() });
+      const result = await generateManifest.mutateAsync({ publicUrl: '', botName: botName.trim() || undefined });
       setManifestJson(result.manifestJson);
       setStep(2);
     } catch (err: any) {
@@ -1032,13 +1048,18 @@ function SlackWizard({
       Alert.alert('Invalid Secret', 'Signing secret must be at least 10 characters');
       return;
     }
+    const selModel = filteredModels[selectedModelIdx];
+    const modelStr = selModel ? `${selModel.providerID}/${selModel.modelID}` : undefined;
     try {
       await connectMutation.mutateAsync({
         sandboxUrl,
         sandboxId,
         botToken: botToken.trim(),
         signingSecret: signingSecret.trim(),
-        publicUrl: publicUrl.trim(),
+        publicUrl: '',
+        name: botName.trim() || undefined,
+        defaultAgent: agentName || undefined,
+        defaultModel: modelStr,
       });
       onCreated();
     } catch (err: any) {
@@ -1046,72 +1067,106 @@ function SlackWizard({
     }
   };
 
+  const inputStyle = { backgroundColor: inputBg, borderWidth: 1, borderColor, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, fontFamily: 'Roobert', color: fg };
+
   return (
     <>
-      <StepIndicator steps={['Public URL', 'Create App', 'Credentials']} current={step} theme={theme} fg={fg} muted={muted} />
+      <StepIndicator steps={['Configure', 'Create App', 'Connect']} current={step} theme={theme} fg={fg} muted={muted} />
 
+      {/* ─── Step 1: Configure ─── */}
       {step === 1 && (
         <>
-          <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted, marginBottom: 12 }}>
-            Enter the public URL where Slack will send webhook events. This should point to kortix-api (port 8008).
-          </Text>
+          {/* Bot Name */}
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Bot Name</Text>
+          <BottomSheetTextInput
+            value={botName}
+            onChangeText={setBotName}
+            placeholder="Kortix Agent"
+            placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
+            style={{ ...inputStyle, marginBottom: 4 }}
+          />
+          <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted, marginBottom: 16 }}>Display name in Slack.</Text>
 
-          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Public URL</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: inputBg, borderWidth: 1, borderColor, borderRadius: 14, paddingHorizontal: 12, marginBottom: 16 }}>
-            <Globe size={16} color={muted} />
-            <BottomSheetTextInput
-              value={publicUrl}
-              onChangeText={setPublicUrl}
-              placeholder="https://yourdomain.com"
-              placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={{ flex: 1, marginLeft: 8, paddingVertical: 14, fontSize: 14, fontFamily: 'Roobert', color: fg }}
-            />
+          {/* Agent */}
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Agent</Text>
+          <View style={{ borderRadius: 14, borderWidth: 1, borderColor, backgroundColor: inputBg, marginBottom: 16, overflow: 'hidden' }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 8, gap: 6 }}>
+              {agents.map((agent) => {
+                const active = agentName === agent.name;
+                return (
+                  <Pressable
+                    key={agent.name}
+                    onPress={() => { setAgentName(agent.name); Haptics.selectionAsync(); }}
+                    style={{
+                      paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
+                      backgroundColor: active ? theme.primary : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontFamily: active ? 'Roobert-Medium' : 'Roobert', color: active ? theme.primaryForeground : muted }}>
+                      {agent.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Pressable onPress={onBack} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor }}>
-              <ArrowLeft size={16} color={fg} />
-              <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>Back</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleGenerateManifest}
-              disabled={!publicUrl.trim() || generateManifest.isPending}
-              style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, backgroundColor: !publicUrl.trim() ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)') : theme.primary }}
-            >
-              {generateManifest.isPending ? (
-                <ActivityIndicator size="small" color={theme.primaryForeground} />
-              ) : (
-                <>
-                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: !publicUrl.trim() ? muted : theme.primaryForeground }}>Next</Text>
-                  <ArrowRight size={16} color={!publicUrl.trim() ? muted : theme.primaryForeground} />
-                </>
-              )}
-            </Pressable>
+          {/* Model */}
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Model</Text>
+          <View style={{ borderRadius: 14, borderWidth: 1, borderColor, backgroundColor: inputBg, marginBottom: 20, overflow: 'hidden' }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 8, gap: 6 }}>
+              {filteredModels.map((m, i) => {
+                const active = selectedModelIdx === i;
+                return (
+                  <Pressable
+                    key={`${m.providerID}:${m.modelID}`}
+                    onPress={() => { setSelectedModelIdx(i); Haptics.selectionAsync(); }}
+                    style={{
+                      paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
+                      backgroundColor: active ? theme.primary : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontFamily: active ? 'Roobert-Medium' : 'Roobert', color: active ? theme.primaryForeground : muted }} numberOfLines={1}>
+                      {m.modelName}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
 
-          {/* Skip option */}
-          <Pressable onPress={() => setStep(3)} style={{ alignItems: 'center', paddingVertical: 12, marginTop: 8 }}>
-            <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted }}>Skip — enter credentials manually</Text>
+          {/* Generate Manifest */}
+          <Pressable
+            onPress={handleGenerateManifest}
+            disabled={generateManifest.isPending}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, backgroundColor: theme.primary, alignSelf: 'flex-end', paddingHorizontal: 20 }}
+          >
+            {generateManifest.isPending ? (
+              <ActivityIndicator size="small" color={theme.primaryForeground} />
+            ) : (
+              <>
+                <ArrowRight size={16} color={theme.primaryForeground} />
+                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: theme.primaryForeground }}>Generate Manifest</Text>
+              </>
+            )}
           </Pressable>
         </>
       )}
 
+      {/* ─── Step 2: Create App ─── */}
       {step === 2 && (
         <>
           <View style={{ borderRadius: 14, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', padding: 14, marginBottom: 16 }}>
-            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: fg, marginBottom: 8 }}>Create a Slack app:</Text>
+            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: fg, marginBottom: 8 }}>Create your Slack app:</Text>
             <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, lineHeight: 20 }}>
-              {'1. Copy the manifest below\n2. Go to api.slack.com/apps\n3. Click "Create New App" → "From a manifest"\n4. Paste the manifest and create the app'}
+              {'1. Go to api.slack.com/apps → Create New App → From an app manifest\n2. Select your workspace, paste the manifest below\n3. After creating, Install to Workspace from OAuth & Permissions'}
             </Text>
-            <Pressable onPress={() => Linking.openURL('https://api.slack.com/apps?new_app=1&manifest_yaml=')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
+            <Pressable onPress={() => Linking.openURL('https://api.slack.com/apps')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
               <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: theme.primary }}>Open Slack API</Text>
               <ExternalLink size={12} color={theme.primary} />
             </Pressable>
           </View>
 
-          {/* Manifest preview */}
           <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>App Manifest (JSON)</Text>
           <View style={{ borderRadius: 12, backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.04)', padding: 12, marginBottom: 8, maxHeight: 120 }}>
             <ScrollView horizontal={false} showsVerticalScrollIndicator>
@@ -1136,6 +1191,7 @@ function SlackWizard({
         </>
       )}
 
+      {/* ─── Step 3: Connect ─── */}
       {step === 3 && (
         <>
           <View style={{ borderRadius: 14, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', padding: 14, marginBottom: 16 }}>
@@ -1144,7 +1200,7 @@ function SlackWizard({
             </Text>
           </View>
 
-          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Bot Token</Text>
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Bot User OAuth Token</Text>
           <BottomSheetTextInput
             value={botToken}
             onChangeText={setBotToken}
@@ -1155,7 +1211,7 @@ function SlackWizard({
             autoComplete="off"
             autoCapitalize="none"
             autoCorrect={false}
-            style={{ backgroundColor: inputBg, borderWidth: 1, borderColor, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, fontFamily: 'Roobert', color: fg, marginBottom: 12 }}
+            style={{ ...inputStyle, marginBottom: 12 }}
           />
 
           <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Signing Secret</Text>
@@ -1169,7 +1225,7 @@ function SlackWizard({
             autoComplete="off"
             autoCapitalize="none"
             autoCorrect={false}
-            style={{ backgroundColor: inputBg, borderWidth: 1, borderColor, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, fontFamily: 'Roobert', color: fg, marginBottom: 16 }}
+            style={{ ...inputStyle, marginBottom: 16 }}
           />
 
           <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -1188,7 +1244,7 @@ function SlackWizard({
               {connectMutation.isPending ? (
                 <ActivityIndicator size="small" color={theme.primaryForeground} />
               ) : (
-                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: (!botToken.trim() || !signingSecret.trim()) ? muted : theme.primaryForeground }}>Connect Slack</Text>
+                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: (!botToken.trim() || !signingSecret.trim()) ? muted : theme.primaryForeground }}>Connect Bot</Text>
               )}
             </Pressable>
           </View>
