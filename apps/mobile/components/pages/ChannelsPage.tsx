@@ -54,7 +54,6 @@ import { useSandboxContext } from '@/contexts/SandboxContext';
 import type { PageTab } from '@/stores/tab-store';
 import {
   useChannels,
-  useCreateChannel,
   useUpdateChannel,
   useDeleteChannel,
   useToggleChannel,
@@ -163,7 +162,6 @@ function ChannelsContent() {
   const { sandboxUrl, sandboxUuid } = useSandboxContext();
 
   const { data: channels, isLoading, error, refetch } = useChannels();
-  const createChannel = useCreateChannel();
   const deleteChannelMut = useDeleteChannel();
   const toggleChannel = useToggleChannel();
   const updateChannel = useUpdateChannel();
@@ -188,13 +186,13 @@ function ChannelsContent() {
       list = list.filter(
         (c) =>
           c.name.toLowerCase().includes(q) ||
-          c.channelType.toLowerCase().includes(q) ||
-          getChannelTypeLabel(c.channelType).toLowerCase().includes(q),
+          (c.platform || c.channelType!).toLowerCase().includes(q) ||
+          getChannelTypeLabel((c.platform || c.channelType!)).toLowerCase().includes(q),
       );
     }
     list.sort((a, b) => {
       if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      return new Date(b.updated_at || b.updatedAt || 0).getTime() - new Date(a.updated_at || a.updatedAt || 0).getTime();
     });
     return list;
   }, [channels, searchQuery]);
@@ -218,7 +216,7 @@ function ChannelsContent() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteChannelMut.mutateAsync(channel.channelConfigId);
+              await deleteChannelMut.mutateAsync((channel.id || channel.channelConfigId!));
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               detailSheetRef.current?.dismiss();
               setSelectedChannel(null);
@@ -340,7 +338,7 @@ function ChannelsContent() {
         theme={theme}
         onToggle={async (channel, enabled) => {
           try {
-            await toggleChannel.mutateAsync({ id: channel.channelConfigId, enabled });
+            await toggleChannel.mutateAsync({ id: (channel.id || channel.channelConfigId!), enabled });
             setSelectedChannel((prev) => prev ? { ...prev, enabled } : null);
           } catch {
             Alert.alert('Error', 'Failed to toggle channel');
@@ -348,7 +346,7 @@ function ChannelsContent() {
         }}
         onSave={async (channel, name) => {
           try {
-            await updateChannel.mutateAsync({ id: channel.channelConfigId, data: { name } });
+            await updateChannel.mutateAsync({ id: (channel.id || channel.channelConfigId!), data: { name } });
             setSelectedChannel((prev) => prev ? { ...prev, name } : null);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           } catch {
@@ -367,20 +365,17 @@ function ChannelsContent() {
         renderBackdrop={renderBackdrop}
         sandboxUrl={sandboxUrl}
         sandboxUuid={sandboxUuid}
-        onCreate={async (data) => {
-          try {
-            await createChannel.mutateAsync(data);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            addSheetRef.current?.dismiss();
-          } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Failed to create channel');
-          }
+        onCreate={async () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          addSheetRef.current?.dismiss();
+          refetch();
         }}
         onCreated={() => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           addSheetRef.current?.dismiss();
+          refetch();
         }}
-        isCreating={createChannel.isPending}
+        isCreating={false}
       />
     </View>
   );
@@ -402,7 +397,7 @@ function ChannelRow({ channel, isDark, onPress }: { channel: ChannelConfig; isDa
       }}
     >
       <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name={getChannelIcon(channel.channelType) as any} size={18} color={muted} />
+        <Ionicons name={getChannelIcon((channel.platform || channel.channelType!)) as any} size={18} color={muted} />
       </View>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -410,7 +405,7 @@ function ChannelRow({ channel, isDark, onPress }: { channel: ChannelConfig; isDa
           <ChannelStatusDot enabled={channel.enabled} isDark={isDark} />
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-          <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>{getChannelTypeLabel(channel.channelType)}</Text>
+          <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>{getChannelTypeLabel((channel.platform || channel.channelType!))}</Text>
           <Text style={{ fontSize: 11, color: muted }}>·</Text>
           <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>{channel.sandbox?.name || 'No instance'}</Text>
         </View>
@@ -467,8 +462,8 @@ function ChannelDetailSheet({
     [],
   );
 
-  const createdDate = channel ? new Date(channel.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
-  const updatedDate = channel ? new Date(channel.updatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+  const createdDate = channel ? new Date(channel.created_at || channel.createdAt!).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+  const updatedDate = channel ? new Date(channel.updated_at || channel.updatedAt!).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
 
   return (
     <BottomSheetModal
@@ -485,7 +480,7 @@ function ChannelDetailSheet({
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
           <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-            <Ionicons name={getChannelIcon(channel.channelType) as any} size={22} color={fg} />
+            <Ionicons name={getChannelIcon((channel.platform || channel.channelType!)) as any} size={22} color={fg} />
             {channel.enabled && (
               <View style={{ position: 'absolute', top: -2, right: -2, width: 12, height: 12, borderRadius: 6, backgroundColor: '#34d399', borderWidth: 2, borderColor: isDark ? '#161618' : '#FFFFFF' }} />
             )}
@@ -497,7 +492,7 @@ function ChannelDetailSheet({
                 <Text style={{ fontSize: 10, fontFamily: 'Roobert-Medium', color: channel.enabled ? '#34d399' : muted }}>{channel.enabled ? 'Active' : 'Disabled'}</Text>
               </View>
             </View>
-            <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginTop: 2 }}>{getChannelTypeLabel(channel.channelType)}</Text>
+            <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginTop: 2 }}>{getChannelTypeLabel((channel.platform || channel.channelType!))}</Text>
           </View>
           <Switch
             value={channel.enabled}
@@ -540,9 +535,9 @@ function ChannelDetailSheet({
         {/* Metadata */}
         <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Details</Text>
         <View style={{ borderRadius: 14, backgroundColor: subtleBg, borderWidth: StyleSheet.hairlineWidth, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', marginBottom: 16, overflow: 'hidden' }}>
-          <DetailRow label="Type" value={getChannelTypeLabel(channel.channelType)} isDark={isDark} fg={fg} muted={muted} />
+          <DetailRow label="Type" value={getChannelTypeLabel((channel.platform || channel.channelType!))} isDark={isDark} fg={fg} muted={muted} />
           {channel.instructions && <DetailRow label="Instructions" value={channel.instructions} isDark={isDark} fg={fg} muted={muted} />}
-          {channel.agentName && <DetailRow label="Agent" value={channel.agentName} isDark={isDark} fg={fg} muted={muted} />}
+          {(channel.default_agent || channel.agentName) && <DetailRow label="Agent" value={(channel.default_agent || channel.agentName)!} isDark={isDark} fg={fg} muted={muted} />}
           <DetailRow label="Created" value={createdDate} isDark={isDark} fg={fg} muted={muted} />
           <DetailRow label="Updated" value={updatedDate} isDark={isDark} fg={fg} muted={muted} last />
         </View>
