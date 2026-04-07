@@ -2,191 +2,239 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDownToLine, Loader2, Sparkles, Bug, Zap, AlertTriangle, Shield, RefreshCw, Check, Package, Container, Github, Cloud, GitCommit, Tag } from 'lucide-react';
-import { getAllVersions, triggerSandboxUpdate, type VersionEntry, type VersionChannel, type ChangelogChange, type ChangelogArtifact, type SandboxInfo } from '@/lib/platform-client';
+import { ArrowDownToLine, Loader2, GitCommit, Tag } from 'lucide-react';
+import { getAllVersions, type VersionEntry, type VersionChannel } from '@/lib/platform-client';
 import { useGlobalSandboxUpdate, detectChannel } from '@/hooks/platform/use-global-sandbox-update';
 import { useSandboxConnectionStore } from '@/stores/sandbox-connection-store';
-import { useServerStore } from '@/stores/server-store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { FilterBar, FilterBarItem } from '@/components/ui/tabs';
 import { useUpdateDialogStore } from '@/stores/update-dialog-store';
-import { toast } from 'sonner';
+import { UnifiedMarkdown } from '@/components/markdown/unified-markdown';
 
-// ─── Change type icons + colors ───────────────────────────────────────────
+// ─── Version type classification ──────────────────────────────────────────
 
-const changeTypeConfig: Record<string, { icon: typeof Sparkles; color: string; label: string }> = {
-  feature:      { icon: Sparkles,       color: 'text-emerald-500', label: 'Feature' },
-  fix:          { icon: Bug,            color: 'text-red-400',     label: 'Fix' },
-  improvement:  { icon: Zap,            color: 'text-blue-400',    label: 'Improvement' },
-  breaking:     { icon: AlertTriangle,  color: 'text-amber-500',   label: 'Breaking' },
-  upstream:     { icon: RefreshCw,      color: 'text-violet-400',  label: 'Upstream' },
-  security:     { icon: Shield,         color: 'text-rose-400',    label: 'Security' },
-  deprecation:  { icon: AlertTriangle,  color: 'text-orange-400',  label: 'Deprecated' },
-};
+type VersionType = 'major' | 'minor' | 'patch' | 'dev';
 
-function ChangeItem({ change }: { change: ChangelogChange }) {
-  const config = changeTypeConfig[change.type] ?? changeTypeConfig.improvement;
-  const Icon = config.icon;
-  return (
-    <div className="flex items-start gap-2.5 py-1">
-      <Icon className={cn('h-3.5 w-3.5 mt-0.5 flex-shrink-0', config.color)} />
-      <span className="text-sm text-foreground/80">{change.text}</span>
-    </div>
-  );
+function parseVersionType(version: string): VersionType {
+  if (version.startsWith('dev-')) return 'dev';
+  const parts = version.split('.');
+  if (parts.length < 3) return 'patch';
+  if (parts[2] === '0' && parts[1] === '0') return 'major';
+  if (parts[2] === '0') return 'minor';
+  return 'patch';
+}
+
+function normalizeReleaseTitle(title: string | undefined, version: string): string | undefined {
+  if (!title) return title;
+  if (version.startsWith('dev-')) return title;
+  const escaped = version.replace(/\./g, '\\.');
+  const patterns = [
+    new RegExp(`^v${escaped}\\s*[—–:-]\\s*`, 'i'),
+    new RegExp(`^${escaped}\\s*[—–:-]\\s*`, 'i'),
+    new RegExp(`^v${escaped}\\s+`, 'i'),
+    new RegExp(`^${escaped}\\s+`, 'i'),
+  ];
+  let normalized = title;
+  for (const pattern of patterns) {
+    normalized = normalized.replace(pattern, '');
+  }
+  return normalized.trim() || title;
 }
 
 // ─── Channel badge ────────────────────────────────────────────────────────
 
 function ChannelBadge({ channel }: { channel: VersionChannel }) {
   if (channel === 'dev') {
-    return (
-      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-        dev
-      </span>
-    );
+    return <Badge variant="warning" size="sm">dev</Badge>;
   }
-  return (
-    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-      stable
-    </span>
-  );
-}
-
-// ─── Version badge ────────────────────────────────────────────────────────
-
-function VersionBadge({ version, channel, isCurrent, isLatest }: {
-  version: string;
-  channel: VersionChannel;
-  isCurrent: boolean;
-  isLatest: boolean;
-}) {
-  const isDevVersion = version.startsWith('dev-');
-  return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <div className="flex items-center gap-1.5">
-        {isDevVersion ? (
-          <GitCommit className="h-3.5 w-3.5 text-muted-foreground/60" />
-        ) : (
-          <Tag className="h-3.5 w-3.5 text-muted-foreground/60" />
-        )}
-        <span className="font-mono text-lg font-semibold text-foreground">
-          {isDevVersion ? version : `v${version}`}
-        </span>
-      </div>
-      <ChannelBadge channel={channel} />
-      {isCurrent && (
-        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-          Current
-        </span>
-      )}
-      {isLatest && !isCurrent && (
-        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-          Latest
-        </span>
-      )}
-    </div>
-  );
-}
-
-// ─── Artifacts list ───────────────────────────────────────────────────────
-
-const artifactTargetConfig: Record<string, { icon: typeof Package; label: string }> = {
-  npm:              { icon: Package,   label: 'npm' },
-  'docker-hub':     { icon: Container, label: 'Docker Hub' },
-  'github-release': { icon: Github,    label: 'GitHub' },
-  daytona:          { icon: Cloud,     label: 'Daytona' },
-};
-
-function ArtifactsList({ artifacts }: { artifacts: ChangelogArtifact[] }) {
-  return (
-    <div className="mt-3 pt-3 border-t border-border/30">
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium mb-1.5">Published</p>
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
-        {artifacts.map((art) => {
-          const config = artifactTargetConfig[art.target] ?? artifactTargetConfig.npm;
-          const Icon = config.icon;
-          return (
-            <div key={`${art.name}-${art.target}`} className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
-              <Check className="h-3 w-3 text-emerald-500 flex-shrink-0" />
-              <Icon className="h-3 w-3 flex-shrink-0" />
-              <span className="font-mono text-[11px]">{art.name}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+  return <Badge variant="success" size="sm">stable</Badge>;
 }
 
 // ─── Version entry card ───────────────────────────────────────────────────
 
-function VersionEntryCard({ entry, isCurrent, isLatestInChannel, onInstall, isInstalling }: {
+function VersionEntryCard({ entry, isCurrent, isLatestInChannel, onInstall, isInstalling, showInstall }: {
   entry: VersionEntry;
   isCurrent: boolean;
   isLatestInChannel: boolean;
   onInstall?: (version: string) => void;
   isInstalling?: boolean;
+  showInstall?: boolean;
 }) {
   const isDevVersion = entry.version.startsWith('dev-');
+  const versionType = parseVersionType(entry.version);
+  const [expanded, setExpanded] = useState(false);
+
+  // Visual treatment varies by version type
+  const isMajor = versionType === 'major';
+  const isMinor = versionType === 'minor';
+  const isDev = versionType === 'dev';
+
+  const displayVersion = isDevVersion ? entry.version : `v${entry.version}`;
+  const displayTitle = normalizeReleaseTitle(entry.title, entry.version);
+  const canExpandBody = Boolean(entry.body && entry.body.length > (isDev ? 220 : 420));
+  const collapsedHeightClass = isDev ? 'max-h-32' : isMajor ? 'max-h-72' : 'max-h-56';
 
   return (
-    <div className={cn(
-      'rounded-xl border p-5 transition-colors',
-      isCurrent ? 'border-emerald-500/20 bg-emerald-500/[0.02]' :
-      isLatestInChannel ? 'border-primary/20 bg-primary/[0.02]' : 'border-border/50',
+    <Card className={cn(
+      'transition-colors overflow-hidden',
+      // Major: prominent accent border
+      isMajor && 'border-l-4 border-l-primary border-primary/30 bg-primary/[0.02]',
+      // Current version: green highlight
+      isCurrent && !isMajor && 'border-emerald-500/30 bg-emerald-500/[0.02]',
+      // Latest in channel
+      isLatestInChannel && !isCurrent && !isMajor && 'border-primary/20 bg-primary/[0.02]',
+      // Minor: subtle highlight
+      isMinor && !isCurrent && !isLatestInChannel && 'border-border/60',
+      // Dev: minimal styling
+      isDev && !isCurrent && !isLatestInChannel && 'border-border/40 bg-muted/20',
+      // Patch: default
+      versionType === 'patch' && !isCurrent && !isLatestInChannel && 'border-border/50',
+      // Compact padding for dev/patch
+      isDev ? 'py-3' : isMajor ? 'py-6' : 'py-4',
     )}>
-      <div className="flex items-start justify-between gap-4 mb-1">
-        <VersionBadge
-          version={entry.version}
-          channel={entry.channel}
-          isCurrent={isCurrent}
-          isLatest={isLatestInChannel}
-        />
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-xs text-muted-foreground/60 font-mono">{entry.date}</span>
-          {!isCurrent && onInstall && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs gap-1.5"
-              disabled={isInstalling}
-              onClick={() => onInstall(entry.version)}
-            >
-              {isInstalling ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <ArrowDownToLine className="h-3 w-3" />
-              )}
-              Install
-            </Button>
+      <CardHeader className={cn(
+        'flex flex-row items-start justify-between gap-4',
+        // Reduce gap for card's default gap-6
+        isMajor ? 'pb-0' : 'pb-0',
+      )}>
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <div className="flex items-center gap-1.5">
+            {isDevVersion ? (
+              <GitCommit className="h-3.5 w-3.5 text-muted-foreground/60 flex-shrink-0" />
+            ) : (
+              <Tag className="h-3.5 w-3.5 text-muted-foreground/60 flex-shrink-0" />
+            )}
+            <span className={cn(
+              'font-mono font-semibold text-foreground',
+              isMajor ? 'text-xl' : isDev ? 'text-sm' : 'text-lg',
+            )}>
+              {displayVersion}
+            </span>
+          </div>
+
+          <ChannelBadge channel={entry.channel} />
+
+          {isMajor && (
+            <Badge variant="highlight" size="sm">Major Release</Badge>
+          )}
+
+          {isCurrent && (
+            <Badge variant="success" size="sm">Current</Badge>
+          )}
+
+          {isLatestInChannel && !isCurrent && (
+            <Badge variant="new" size="sm">Latest</Badge>
           )}
         </div>
-      </div>
 
-      <h3 className="text-sm font-medium text-foreground mb-1">{entry.title}</h3>
-
-      {entry.body && (
-        <p className="text-xs text-muted-foreground mb-3 whitespace-pre-line line-clamp-6">
-          {entry.body}
-        </p>
-      )}
-
-      {/* Dev entries show the SHA as a link */}
-      {isDevVersion && entry.sha && (
-        <div className="mt-2">
-          <a
-            href={`https://github.com/kortix-ai/suna/commit/${entry.sha}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/70 hover:text-primary transition-colors"
-          >
-            <GitCommit className="h-3 w-3" />
-            <span className="font-mono">{entry.sha.substring(0, 8)}</span>
-          </a>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs text-muted-foreground/60 font-mono">{entry.date}</span>
+          {!isCurrent && showInstall && onInstall && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1.5"
+                  disabled={isInstalling}
+                  onClick={() => onInstall(entry.version)}
+                >
+                  {isInstalling ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <ArrowDownToLine className="h-3 w-3" />
+                  )}
+                  Install
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Install {displayVersion}
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
-      )}
-    </div>
+      </CardHeader>
+
+      <CardContent className={cn(
+        isMajor ? 'pt-0' : 'pt-0',
+        // Reduce spacing between header and content
+        !entry.title && !entry.body ? 'pb-0' : '',
+      )}>
+        {displayTitle && (
+          <h3 className={cn(
+            'font-medium text-foreground',
+            isMajor ? 'text-base mb-2' : 'text-sm mb-1',
+          )}>
+            {displayTitle}
+          </h3>
+        )}
+
+        {/* Render body as markdown for proper formatting */}
+        {entry.body && (
+          <div className="mt-2">
+            <div className="relative">
+              <div className={cn(
+                'prose prose-sm dark:prose-invert max-w-none',
+                'text-muted-foreground',
+                '[&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-foreground/90 [&_h1]:mt-3 [&_h1]:mb-1.5',
+                '[&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-foreground/90 [&_h2]:mt-3 [&_h2]:mb-1',
+                '[&_h3]:text-sm [&_h3]:font-medium [&_h3]:text-foreground/80 [&_h3]:mt-2 [&_h3]:mb-1',
+                '[&_p]:text-xs [&_p]:text-muted-foreground [&_p]:leading-relaxed [&_p]:my-1',
+                '[&_ul]:text-xs [&_ul]:my-1 [&_ul]:pl-4',
+                '[&_ol]:text-xs [&_ol]:my-1 [&_ol]:pl-4',
+                '[&_li]:text-xs [&_li]:text-muted-foreground [&_li]:my-0.5',
+                '[&_code]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:bg-muted [&_code]:rounded',
+                '[&_pre]:text-xs [&_pre]:my-2',
+                '[&_a]:text-primary [&_a]:no-underline hover:[&_a]:underline',
+                '[&_strong]:text-foreground/90 [&_strong]:font-semibold',
+                '[&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:my-2 [&_blockquote]:text-xs',
+                !expanded && canExpandBody && `${collapsedHeightClass} overflow-hidden`,
+              )}>
+                <UnifiedMarkdown content={entry.body} />
+              </div>
+
+              {!expanded && canExpandBody && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card via-card/90 to-transparent" />
+              )}
+            </div>
+
+            {canExpandBody && (
+              <div className="mt-2 flex justify-start">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => setExpanded((prev) => !prev)}
+                >
+                  {expanded ? 'Show less' : 'Show full release notes'}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Dev entries show the SHA as a link */}
+        {isDevVersion && entry.sha && (
+          <div className="mt-2">
+            <a
+              href={`https://github.com/kortix-ai/suna/commit/${entry.sha}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/70 hover:text-primary transition-colors"
+            >
+              <GitCommit className="h-3 w-3" />
+              <span className="font-mono">{entry.sha.substring(0, 8)}</span>
+            </a>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -232,7 +280,6 @@ export default function ChangelogPage() {
   // Dev mode: hidden by default, persisted in localStorage
   const [showDev, setShowDev] = useState(() => {
     if (typeof window === 'undefined') return false;
-    // Auto-enable if running a dev build
     if (currentChannel === 'dev') return true;
     return localStorage.getItem('changelog-show-dev') === 'true';
   });
@@ -241,20 +288,12 @@ export default function ChangelogPage() {
     setShowDev((prev) => {
       const next = !prev;
       localStorage.setItem('changelog-show-dev', String(next));
-      // Reset filter to stable when hiding dev
       if (!next) setFilter('stable');
       return next;
     });
   }, []);
 
   const [filter, setFilter] = useState<FilterOption>('stable');
-  const [installingVersion, setInstallingVersion] = useState<string | null>(null);
-
-  // Get the active sandbox for triggering updates
-  const activeServer = useServerStore((s) => {
-    const id = s.activeServerId;
-    return id ? s.servers.find((sv) => sv.id === id) : undefined;
-  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['sandbox', 'versions', 'all'],
@@ -263,34 +302,16 @@ export default function ChangelogPage() {
   });
 
   const openDialog = useUpdateDialogStore((s) => s.openDialog);
-  const handleUpdate = () => openDialog();
 
-  // Install a specific version
-  const handleInstall = useCallback(async (version: string) => {
-    const isLocal = activeServer?.provider === 'local_docker' || activeServer?.sandboxId === 'kortix-sandbox';
-    // Cloud sandboxes use instanceId (DB sandbox_id UUID), NOT sandboxId (external_id)
-    const idForUpdate = isLocal ? undefined : activeServer?.instanceId;
-    if (!isLocal && !idForUpdate) {
-      toast.error('No active sandbox found');
-      return;
-    }
-    setInstallingVersion(version);
-    try {
-      await triggerSandboxUpdate(
-        { sandbox_id: idForUpdate } as SandboxInfo,
-        version,
-      );
-      toast.success(`Installing ${version.startsWith('dev-') ? version : `v${version}`}...`, {
-        description: 'Your sandbox will restart with the new version.',
-      });
-    } catch (err: any) {
-      toast.error(`Failed to install ${version}`, {
-        description: err?.message || 'Unknown error',
-      });
-    } finally {
-      setInstallingVersion(null);
-    }
-  }, [activeServer?.sandboxId, activeServer?.instanceId, activeServer?.provider]);
+  // Install a specific version via the update dialog
+  const handleInstall = useCallback((version: string) => {
+    openDialog(version);
+  }, [openDialog]);
+
+  // Update to latest via the update dialog (no target version = latest)
+  const handleUpdate = useCallback(() => {
+    openDialog();
+  }, [openDialog]);
 
   // Filter versions based on selected tab
   const filteredVersions = useMemo(() => {
@@ -308,14 +329,18 @@ export default function ChangelogPage() {
     return data?.versions?.find((v) => v.channel === 'dev')?.version ?? null;
   }, [data?.versions]);
 
+  const hasDevBuilds = useMemo(() => {
+    return Boolean(data?.versions?.some((v) => v.channel === 'dev'));
+  }, [data?.versions]);
+
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-2xl mx-auto px-6 py-10">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-8">
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-foreground mb-2">Changelog</h1>
+              <h1 className="text-2xl font-semibold text-foreground mb-2">Versions</h1>
               <p className="text-sm text-muted-foreground">
                 {currentVersion ? (
                   <>
@@ -324,18 +349,19 @@ export default function ChangelogPage() {
                       {currentVersion.startsWith('dev-') ? currentVersion : `v${currentVersion}`}
                     </span>
                     {currentChannel === 'dev' && (
-                      <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                        dev
-                      </span>
+                      <Badge variant="warning" size="sm" className="ml-1.5">dev</Badge>
                     )}
                   </>
                 ) : (
                   'Version history for Kortix Computer'
                 )}
                 {latestVersion && currentVersion && latestVersion !== currentVersion && (
-                  <> &middot; Latest: <span className="font-mono font-medium text-primary">
-                    {latestVersion.startsWith('dev-') ? latestVersion : `v${latestVersion}`}
-                  </span></>
+                  <>
+                    {' '}&middot; Latest:{' '}
+                    <span className="font-mono font-medium text-primary">
+                      {latestVersion.startsWith('dev-') ? latestVersion : `v${latestVersion}`}
+                    </span>
+                  </>
                 )}
               </p>
 
@@ -351,19 +377,23 @@ export default function ChangelogPage() {
             </div>
 
             {/* Dev toggle */}
-            <button
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={toggleDev}
-              className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground transition-colors mt-1.5"
+              className="mt-1.5 text-muted-foreground/55 hover:text-foreground"
             >
               {showDev ? 'Hide dev builds' : 'Dev builds'}
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Filter tabs (only visible when dev mode is on) */}
-        <div className="mb-6">
-          <FilterTabs value={filter} onChange={setFilter} showDev={showDev} />
-        </div>
+        {showDev && (
+          <div className="mb-6">
+            <FilterTabs value={filter} onChange={setFilter} showDev={showDev} />
+          </div>
+        )}
 
         {/* Loading */}
         {isLoading && (
@@ -381,21 +411,33 @@ export default function ChangelogPage() {
 
         {/* Version entries */}
         {filteredVersions.length > 0 && (
-          <div className="space-y-4">
-            {filteredVersions.map((entry) => {
+          <div className="space-y-3">
+            {filteredVersions.map((entry, index) => {
               const isLatestInChannel =
                 (entry.channel === 'stable' && entry.version === latestStable) ||
                 (entry.channel === 'dev' && entry.version === latestDev);
 
+              const versionType = parseVersionType(entry.version);
+              const prevEntry = filteredVersions[index - 1];
+              const prevVersionType = prevEntry ? parseVersionType(prevEntry.version) : null;
+
+              // Add separator before major releases (unless it's the first item)
+              const showSeparator = index > 0 && versionType === 'major' && prevVersionType !== 'major';
+
               return (
-                <VersionEntryCard
-                  key={entry.version}
-                  entry={entry}
-                  isCurrent={currentVersion === entry.version}
-                  isLatestInChannel={isLatestInChannel}
-                  onInstall={handleInstall}
-                  isInstalling={installingVersion === entry.version}
-                />
+                <div key={entry.version}>
+                  {showSeparator && (
+                    <Separator className="my-6" />
+                  )}
+                  <VersionEntryCard
+                    entry={entry}
+                    isCurrent={currentVersion === entry.version}
+                    isLatestInChannel={isLatestInChannel}
+                    onInstall={handleInstall}
+                    isInstalling={false}
+                    showInstall={hasDevBuilds}
+                  />
+                </div>
               );
             })}
           </div>
