@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useUpdateDialogStore } from '@/stores/update-dialog-store';
 import { useGlobalSandboxUpdate } from '@/hooks/platform/use-global-sandbox-update';
 import { useSandboxConnectionStore } from '@/stores/sandbox-connection-store';
+import { useServerStore } from '@/stores/server-store';
 import { UpdateDialog } from '@/components/update-dialog';
 import type { UpdatePhase } from '@/lib/platform-client';
 
@@ -12,6 +13,11 @@ const DEV_PHASES: UpdatePhase[] = ['idle', 'backing_up', 'pulling', 'patching', 
 export function UpdateDialogProvider() {
   const { open, targetVersion, closeDialog, openDialog } = useUpdateDialogStore();
   const currentVersion = useSandboxConnectionStore((s) => s.sandboxVersion);
+  const activeServer = useServerStore((s) => {
+    const id = s.activeServerId;
+    return id ? s.servers.find((sv) => sv.id === id) : undefined;
+  });
+  const isLocalSelfHosted = activeServer?.provider === 'local_docker';
   const {
     phase, phaseMessage, phaseProgress, latestVersion,
     changelog, updateResult, update, updateErrorMessage,
@@ -61,6 +67,7 @@ export function UpdateDialogProvider() {
       latestVersion={targetVersion ?? latestVersion ?? null}
       changelog={changelog}
       currentVersion={currentVersion ?? null}
+      isLocalSelfHosted={isLocalSelfHosted}
       errorMessage={updateErrorMessage}
       updateResult={devMode && devPhase === 'complete' ? { success: true, currentVersion: '0.8.20' } : updateResult}
       onClose={() => { if (devMode) setDevMode(false); closeDialog(); }}

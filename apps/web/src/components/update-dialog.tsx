@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Check, XCircle, ArrowDownToLine, RotateCw, Sparkles, Bug, Zap, AlertTriangle, Shield, RefreshCw } from 'lucide-react';
+import { Check, XCircle, ArrowDownToLine, RotateCw, Sparkles, Bug, Zap, AlertTriangle, Shield, RefreshCw, Terminal, Copy } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   AlertDialog,
@@ -71,6 +71,7 @@ interface UpdateDialogProps {
   latestVersion: string | null;
   changelog: ChangelogEntry | null;
   currentVersion: string | null;
+  isLocalSelfHosted?: boolean;
   errorMessage: string | null;
   updateResult: { success: boolean; currentVersion: string } | null;
   onClose: () => void;
@@ -91,6 +92,7 @@ export function UpdateDialog({
   latestVersion,
   changelog,
   currentVersion,
+  isLocalSelfHosted,
   errorMessage,
   updateResult,
   onClose,
@@ -182,6 +184,14 @@ export function UpdateDialog({
     onConfirm();
   };
 
+  const copyCliCommand = async () => {
+    try {
+      await navigator.clipboard.writeText('kortix update');
+    } catch {
+      // no-op
+    }
+  };
+
   const changes = changelog?.changes ?? [];
   const visibleChanges = expanded ? changes : changes.slice(0, 4);
   const hasMore = changes.length > 4 && !expanded;
@@ -211,7 +221,20 @@ export function UpdateDialog({
         <AnimatePresence mode="wait">
           {step === 'confirm' && (
             <motion.div key="confirm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-              {changes.length > 0 && (
+              {isLocalSelfHosted ? (
+                <Alert variant="warning" className="mt-4">
+                  <Terminal className="h-4 w-4" />
+                  <AlertTitle>Self-hosted updates run from the host</AlertTitle>
+                  <AlertDescription>
+                    <p>
+                      If you installed Kortix via the CLI, updates should be run from your terminal so the full stack updates together.
+                    </p>
+                    <div className="mt-2 rounded-xl bg-muted/40 px-3 py-2 font-mono text-xs text-foreground/80">
+                      kortix update
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              ) : changes.length > 0 && (
                 <div className="rounded-lg border border-border/50 bg-muted/30 mt-4">
                   <div className="max-h-72 overflow-y-auto px-3 py-2.5 space-y-0.5">
                     {visibleChanges.map((change, i) => (
@@ -233,10 +256,17 @@ export function UpdateDialog({
 
               <AlertDialogFooter className="mt-4">
                 <Button variant="outline" onClick={onClose}>Cancel</Button>
-                <Button onClick={handleConfirm} className="gap-2">
-                  <ArrowDownToLine className="h-4 w-4" />
-                  Update now
-                </Button>
+                {isLocalSelfHosted ? (
+                  <Button onClick={copyCliCommand} className="gap-2">
+                    <Copy className="h-4 w-4" />
+                    Copy command
+                  </Button>
+                ) : (
+                  <Button onClick={handleConfirm} className="gap-2">
+                    <ArrowDownToLine className="h-4 w-4" />
+                    Update now
+                  </Button>
+                )}
               </AlertDialogFooter>
             </motion.div>
           )}
