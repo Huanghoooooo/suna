@@ -10,11 +10,11 @@ import type { UpdatePhase } from '@/lib/platform-client';
 const DEV_PHASES: UpdatePhase[] = ['idle', 'backing_up', 'pulling', 'patching', 'stopping', 'restarting', 'verifying', 'complete'];
 
 export function UpdateDialogProvider() {
-  const { open, closeDialog, openDialog } = useUpdateDialogStore();
+  const { open, targetVersion, closeDialog, openDialog } = useUpdateDialogStore();
   const currentVersion = useSandboxConnectionStore((s) => s.sandboxVersion);
   const {
     phase, phaseMessage, phaseProgress, latestVersion,
-    changelog, updateResult, update,
+    changelog, updateResult, update, updateErrorMessage,
   } = useGlobalSandboxUpdate();
 
   const [devMode, setDevMode] = useState(false);
@@ -58,13 +58,14 @@ export function UpdateDialogProvider() {
       phase={devPhase}
       phaseMessage={devMode ? `Dev: ${devPhase}` : phaseMessage}
       phaseProgress={devProgress}
-      latestVersion={latestVersion ?? '0.8.20'}
+      latestVersion={targetVersion ?? latestVersion ?? null}
       changelog={changelog}
-      currentVersion={currentVersion ?? '0.8.19'}
+      currentVersion={currentVersion ?? null}
+      errorMessage={updateErrorMessage}
       updateResult={devMode && devPhase === 'complete' ? { success: true, currentVersion: '0.8.20' } : updateResult}
       onClose={() => { if (devMode) setDevMode(false); closeDialog(); }}
-      onConfirm={() => { if (devMode) { setDevPhaseIdx(1); return; } update(); }}
-      onRetry={() => { if (devMode) { setDevPhaseIdx(1); return; } update(); }}
+      onConfirm={() => { if (devMode) { setDevPhaseIdx(1); return; } update(targetVersion ?? undefined); }}
+      onRetry={() => { if (devMode) { setDevPhaseIdx(1); return; } update(targetVersion ?? undefined); }}
     />
   );
 }

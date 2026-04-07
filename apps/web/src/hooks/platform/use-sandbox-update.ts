@@ -209,11 +209,12 @@ export function useSandboxUpdate(currentVersion: string | null) {
 
   // ── Trigger mutation ─────────────────────────────────────────────────────
   const updateMutation = useMutation({
-    mutationFn: async () => {
-      if (!sandbox || !latestVersion) throw new Error('No sandbox or version');
+    mutationFn: async (targetVersion?: string) => {
+      const versionToInstall = targetVersion || latestVersion;
+      if (!sandbox || !versionToInstall) throw new Error('No sandbox or version');
       // Start polling immediately — the POST returns immediately (fire-and-forget)
       startPolling();
-      return triggerSandboxUpdate(sandbox, latestVersion);
+      return triggerSandboxUpdate(sandbox, versionToInstall);
     },
     onSuccess: (data) => {
       // The POST returns { started: true } immediately — actual progress comes from polling.
@@ -223,13 +224,13 @@ export function useSandboxUpdate(currentVersion: string | null) {
         setUpdateResult({ success: false, currentVersion: currentVersion ?? '0.0.0' });
       }
     },
-    onError: () => {
+    onError: (error) => {
       stopPolling();
       setUpdateResult({ success: false, currentVersion: currentVersion ?? '0.0.0' });
       setLiveStatus(prev => prev ? {
         ...prev, phase: 'failed',
         message: 'Update failed',
-        error: 'Failed to start update',
+        error: error instanceof Error ? error.message : 'Failed to start update',
       } : null);
     },
   });
@@ -240,6 +241,10 @@ export function useSandboxUpdate(currentVersion: string | null) {
   // Use the real progress from the API if available, otherwise use phase-based progress
   const phaseProgress = liveStatus?.progress ?? PHASE_PROGRESS[phase];
   const phaseMessage = liveStatus?.message ?? '';
+  const updateErrorMessage = liveStatus?.error ?? (updateMutation.error instanceof Error ? updateMutation.error.message : null);
+  const update = useCallback((targetVersion?: string) => {
+    updateMutation.mutate(targetVersion);
+  }, [updateMutation]);
 
   return {
     /** Whether a newer version is available */
@@ -255,7 +260,7 @@ export function useSandboxUpdate(currentVersion: string | null) {
     /** Changelog for the latest available version */
     changelog: latestQuery.data?.changelog ?? null,
     /** Trigger the update */
-    update: updateMutation.mutate,
+    update,
     /** Whether an update is currently running */
     isUpdating,
     /** Live update phase from API */
@@ -266,6 +271,8 @@ export function useSandboxUpdate(currentVersion: string | null) {
     phaseProgress,
     /** Detailed message from the API for the current phase */
     phaseMessage,
+    /** Detailed error from the API or mutation layer */
+    updateErrorMessage,
     /** Result of the last update attempt */
     updateResult,
     /** Error from the last update attempt */

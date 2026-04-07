@@ -46,6 +46,29 @@ function normalizeReleaseTitle(title: string | undefined, version: string): stri
   return normalized.trim() || title;
 }
 
+function normalizeReleaseBody(body: string | undefined, version: string, title?: string): string | undefined {
+  if (!body) return body;
+  const normalizedTitle = normalizeReleaseTitle(title, version)?.trim();
+  if (!normalizedTitle) return body;
+
+  const lines = body.split('\n');
+  const firstLine = lines[0]?.trim() ?? '';
+  const firstHeading = firstLine.replace(/^#{1,6}\s*/, '').trim();
+  const candidates = new Set<string>([
+    normalizedTitle,
+    `v${version} — ${normalizedTitle}`,
+    `v${version} - ${normalizedTitle}`,
+    `${version} — ${normalizedTitle}`,
+    `${version} - ${normalizedTitle}`,
+  ]);
+
+  if (candidates.has(firstHeading)) {
+    return lines.slice(1).join('\n').trim();
+  }
+
+  return body;
+}
+
 // ─── Channel badge ────────────────────────────────────────────────────────
 
 function ChannelBadge({ channel }: { channel: VersionChannel }) {
@@ -76,8 +99,16 @@ function VersionEntryCard({ entry, isCurrent, isLatestInChannel, onInstall, isIn
 
   const displayVersion = isDevVersion ? entry.version : `v${entry.version}`;
   const displayTitle = normalizeReleaseTitle(entry.title, entry.version);
-  const canExpandBody = Boolean(entry.body && entry.body.length > (isDev ? 220 : 420));
+  const displayBody = normalizeReleaseBody(entry.body, entry.version, entry.title);
+  const canExpandBody = Boolean(displayBody && displayBody.length > (isDev ? 220 : 420));
   const collapsedHeightClass = isDev ? 'max-h-32' : isMajor ? 'max-h-72' : 'max-h-56';
+  const fadeOverlayClass = isCurrent
+    ? 'from-emerald-500/[0.02] via-emerald-500/[0.018]'
+    : isMajor
+      ? 'from-primary/[0.02] via-primary/[0.018]'
+      : isDev
+        ? 'from-muted/20 via-muted/10'
+        : 'from-card via-card/90';
 
   return (
     <Card className={cn(
@@ -86,14 +117,12 @@ function VersionEntryCard({ entry, isCurrent, isLatestInChannel, onInstall, isIn
       isMajor && 'border-l-4 border-l-primary border-primary/30 bg-primary/[0.02]',
       // Current version: green highlight
       isCurrent && !isMajor && 'border-emerald-500/30 bg-emerald-500/[0.02]',
-      // Latest in channel
-      isLatestInChannel && !isCurrent && !isMajor && 'border-primary/20 bg-primary/[0.02]',
       // Minor: subtle highlight
-      isMinor && !isCurrent && !isLatestInChannel && 'border-border/60',
+      isMinor && !isCurrent && 'border-border/60',
       // Dev: minimal styling
       isDev && !isCurrent && !isLatestInChannel && 'border-border/40 bg-muted/20',
       // Patch: default
-      versionType === 'patch' && !isCurrent && !isLatestInChannel && 'border-border/50',
+      versionType === 'patch' && !isCurrent && 'border-border/50',
       // Compact padding for dev/patch
       isDev ? 'py-3' : isMajor ? 'py-6' : 'py-4',
     )}>
@@ -175,7 +204,7 @@ function VersionEntryCard({ entry, isCurrent, isLatestInChannel, onInstall, isIn
         )}
 
         {/* Render body as markdown for proper formatting */}
-        {entry.body && (
+        {displayBody && (
           <div className="mt-2">
             <div className="relative">
               <div className={cn(
@@ -195,11 +224,14 @@ function VersionEntryCard({ entry, isCurrent, isLatestInChannel, onInstall, isIn
                 '[&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:my-2 [&_blockquote]:text-xs',
                 !expanded && canExpandBody && `${collapsedHeightClass} overflow-hidden`,
               )}>
-                <UnifiedMarkdown content={entry.body} />
+                <UnifiedMarkdown content={displayBody} />
               </div>
 
               {!expanded && canExpandBody && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card via-card/90 to-transparent" />
+                <div className={cn(
+                  'pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t to-transparent',
+                  fadeOverlayClass,
+                )} />
               )}
             </div>
 
@@ -435,7 +467,7 @@ export default function ChangelogPage() {
                     isLatestInChannel={isLatestInChannel}
                     onInstall={handleInstall}
                     isInstalling={false}
-                    showInstall={hasDevBuilds}
+                    showInstall={showDev && hasDevBuilds}
                   />
                 </div>
               );

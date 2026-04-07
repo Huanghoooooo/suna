@@ -11,6 +11,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AnimatedCircularProgressBar } from '@/components/ui/animated-circular-progress';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -70,10 +71,16 @@ interface UpdateDialogProps {
   latestVersion: string | null;
   changelog: ChangelogEntry | null;
   currentVersion: string | null;
+  errorMessage: string | null;
   updateResult: { success: boolean; currentVersion: string } | null;
   onClose: () => void;
   onConfirm: () => void;
   onRetry: () => void;
+}
+
+function formatVersion(version: string | null | undefined): string {
+  if (!version) return 'unknown';
+  return version.startsWith('dev-') ? version : `v${version}`;
 }
 
 export function UpdateDialog({
@@ -84,6 +91,7 @@ export function UpdateDialog({
   latestVersion,
   changelog,
   currentVersion,
+  errorMessage,
   updateResult,
   onClose,
   onConfirm,
@@ -191,11 +199,11 @@ export function UpdateDialog({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             <ArrowDownToLine className="h-5 w-5 text-primary" />
-            Update to v{latestVersion}
+            Update to {formatVersion(latestVersion)}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {currentVersion
-              ? <>Your sandbox is running <span className="font-mono font-medium text-foreground">v{currentVersion}</span>.</>
+              ? <>Your sandbox is running <span className="font-mono font-medium text-foreground">{formatVersion(currentVersion)}</span>.</>
               : 'A new version is available.'}
             {' '}This will restart your sandbox.
           </AlertDialogDescription>
@@ -264,7 +272,7 @@ export function UpdateDialog({
                   </motion.p>
                 </AnimatePresence>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Updating to v{latestVersion}
+                  Updating to {formatVersion(latestVersion)}
                 </p>
               </div>
             </motion.div>
@@ -306,7 +314,7 @@ export function UpdateDialog({
               >
                 <p className="text-base font-semibold text-foreground">Update Complete</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Now running v{updateResult?.currentVersion ?? latestVersion}
+                  Now running {formatVersion(updateResult?.currentVersion ?? latestVersion)}
                 </p>
               </motion.div>
             </motion.div>
@@ -320,10 +328,19 @@ export function UpdateDialog({
                   <XCircle className="h-7 w-7 text-red-500" />
                 </div>
                 <p className="text-base font-semibold text-foreground mt-4">Update Failed</p>
-                <p className="text-sm text-muted-foreground mt-1 text-center max-w-xs">
-                  {phaseMessage || 'Something went wrong during the update.'}
-                </p>
               </div>
+
+              <Alert variant="destructive" className="mt-1">
+                <XCircle className="h-4 w-4" />
+                <AlertTitle>{phaseMessage || 'Something went wrong during the update.'}</AlertTitle>
+                {errorMessage && (
+                  <AlertDescription>
+                    <div className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-xl bg-muted/40 px-3 py-2 font-mono text-xs text-foreground/80">
+                      {errorMessage}
+                    </div>
+                  </AlertDescription>
+                )}
+              </Alert>
 
               <AlertDialogFooter>
                 <Button variant="outline" onClick={onClose}>Close</Button>
