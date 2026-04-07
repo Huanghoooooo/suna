@@ -74,9 +74,16 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const localeRef = useRef(locale);
 
-  // Update ref when locale changes
+  // Update ref and <html lang> when locale changes.
+  // Keeping <html lang> in sync with the active locale prevents browsers
+  // (especially Chrome) from offering auto-translate on pages that are
+  // already rendered in the user's language. When Chrome's translator
+  // mutates the DOM, React's reconciler crashes with "insertBefore on Node".
   useEffect(() => {
     localeRef.current = locale;
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = locale;
+    }
   }, [locale]);
 
   // Load translations for a given locale - memoized to avoid stale closures

@@ -122,6 +122,13 @@ export default async function RootLayout({
 
         {/* Font preloading is handled automatically by next/font/local in fonts/roobert.ts */}
 
+        {/* Prevent browser auto-translate (Google Translate, Chrome, etc.) from
+            mutating the DOM. When translators modify text nodes, React's reconciler
+            crashes with "Failed to execute 'insertBefore' on 'Node'".
+            The app ships its own i18n via next-intl (en, de, it, zh, ja, pt, fr, es)
+            so browser translation is unnecessary and actively harmful. */}
+        <meta name="google" content="notranslate" />
+
         {/* DNS prefetch for analytics (loaded later but resolve DNS early) */}
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         <link rel="dns-prefetch" href="https://eu.i.posthog.com" />
