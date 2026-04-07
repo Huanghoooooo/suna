@@ -4,8 +4,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Check,
@@ -141,13 +139,12 @@ export function SSHPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: SSHPa
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       const keyName = `kortix_${sshResult.host.replace(/\./g, '-')}`;
-      const filePath = `${FileSystem.cacheDirectory}${keyName}.pem`;
-      await FileSystem.writeAsStringAsync(filePath, sshResult.private_key, { encoding: FileSystem.EncodingType.UTF8 });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(filePath, { mimeType: 'application/x-pem-file', dialogTitle: 'Save SSH Key' });
-      } else {
-        Alert.alert('Saved', `Key saved to ${filePath}`);
-      }
+      // Copy key to clipboard and let user save it manually
+      await Clipboard.setStringAsync(sshResult.private_key);
+      Alert.alert(
+        'Key Copied',
+        `Private key copied to clipboard.\n\nSave it as ~/.ssh/${keyName}.pem and run:\nchmod 600 ~/.ssh/${keyName}.pem`,
+      );
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to save key file');
     }
