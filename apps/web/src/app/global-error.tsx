@@ -14,7 +14,17 @@ export default function GlobalError({
   useEffect(() => {
     console.error('[Kortix Global Error]', error);
     // Report to Better Stack via Sentry SDK
-    Sentry.captureException(error);
+    Sentry.captureException(error, {
+      tags: {
+        area: 'global-error-boundary',
+      },
+      extra: {
+        pathname: typeof window !== 'undefined' ? window.location.pathname : undefined,
+        search: typeof window !== 'undefined' ? window.location.search : undefined,
+        href: typeof window !== 'undefined' ? window.location.href : undefined,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+      },
+    });
   }, [error]);
 
   return (

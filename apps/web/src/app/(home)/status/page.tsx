@@ -146,8 +146,8 @@ function StatusPageContent() {
                           <div className="flex items-center gap-2">
                             <span className="font-medium">Affected:</span>
                             <div className="flex flex-wrap gap-1">
-                              {technicalIssue.affectedServices.map((service, idx) => (
-                                <Badge key={idx} variant="secondary" className="bg-destructive/10 text-destructive text-xs py-1">
+                              {technicalIssue.affectedServices.map((service) => (
+                                <Badge key={service} variant="secondary" className="bg-destructive/10 text-destructive text-xs py-1">
                                   {service}
                                 </Badge>
                               ))}
@@ -187,9 +187,9 @@ function StatusPageContent() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {statusItems.map((item, index) => (
+                  {statusItems.map((item) => (
                     <div
-                      key={index}
+                      key={item.service}
                       className="flex items-center justify-between p-3 rounded-xl border bg-card/30 hover:bg-card/50 transition-colors"
                     >
                       <div className="flex items-center gap-3">
