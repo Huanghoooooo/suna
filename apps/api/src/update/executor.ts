@@ -14,6 +14,9 @@ import {
 import {
   getCurrentImage,
   pullImage,
+  checkDockerDaemon,
+  checkDiskSpace,
+  checkImageExistsOnHub,
   checkpointSqlite,
   stopAndStartContainer,
   verifyContainer,
@@ -68,8 +71,8 @@ export async function executeUpdate(sandboxId: string, targetVersion: string): P
   const targetImage = imageForVersion(targetVersion);
 
   try {
-    // ── Pre-flight: verify machine is reachable ──
-    await setPhase(sandboxId, 'preflight', 2, 'Checking machine connectivity...', {
+    // ── Pre-flight: verify machine + Docker + disk + image ──
+    await setPhase(sandboxId, 'preflight', 2, 'Checking machine...', {
       targetVersion,
       error: null,
       startedAt: new Date().toISOString(),
@@ -79,9 +82,22 @@ export async function executeUpdate(sandboxId: string, targetVersion: string): P
     try {
       containerConfig = await resolveContainerConfig(endpoint);
     } catch (err) {
-      throw new Error(`Machine unreachable or no running container found. Is the machine online? (${err instanceof Error ? err.message : err})`);
+      throw new Error(`Machine unreachable or no container found. Is the machine online? (${err instanceof Error ? err.message : err})`);
     }
     const previousVersion = containerConfig.image.split(':').pop() ?? null;
+
+    // Check Docker daemon is responsive
+    const dockerCheck = await checkDockerDaemon(endpoint);
+    if (!dockerCheck.success) throw new Error(dockerCheck.stderr);
+
+    // Check disk space (need ~6GB for the image)
+    const diskCheck = await checkDiskSpace(endpoint);
+    if (!diskCheck.success) throw new Error(diskCheck.stderr);
+    console.log(`[UPDATE] Pre-flight OK: ${dockerCheck.stdout}, disk: ${diskCheck.stdout}`);
+
+    // Verify image exists on Docker Hub before wasting time pulling
+    const hubCheck = await checkImageExistsOnHub(targetImage);
+    if (!hubCheck.success) throw new Error(hubCheck.stderr);
 
     // ── Backup ──
     await setPhase(sandboxId, 'backing_up', 5, 'Creating backup...', {

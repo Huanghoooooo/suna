@@ -10,88 +10,162 @@ export function getCurrentImage(endpoint: ResolvedEndpoint, containerName: strin
   );
 }
 
+// ─── Pre-flight checks ──────────────────────────────────────────────────────
+
+/** Verify Docker daemon is running and responsive */
+export async function checkDockerDaemon(endpoint: ResolvedEndpoint): Promise<StepResult> {
+  const result = await execOnHost(endpoint, 'docker info --format "{{.ServerVersion}}" 2>/dev/null', 10);
+  if (result.success && result.stdout?.trim()) {
+    return { ...result, stdout: `Docker ${result.stdout.trim()}` };
+  }
+  return { success: false, stdout: '', stderr: 'Docker daemon is not running or not responsive. Try restarting the machine.', exitCode: -1, durationMs: 0 };
+}
+
+/** Check if the machine has enough disk space for the image (~6GB needed) */
+export async function checkDiskSpace(endpoint: ResolvedEndpoint): Promise<StepResult> {
+  const result = await execOnHost(
+    endpoint,
+    "df -BG /var/lib/docker 2>/dev/null | awk 'NR==2 {print $4}' | tr -d 'G'",
+    10,
+  );
+  if (result.success) {
+    const freeGB = parseInt(result.stdout?.trim() || '0', 10);
+    if (freeGB < 6) {
+      return { success: false, stdout: '', stderr: `Only ${freeGB}GB free disk space. Need at least 6GB to pull the image. Try pruning old Docker images: docker system prune -af`, exitCode: -1, durationMs: 0 };
+    }
+    return { success: true, stdout: `${freeGB}GB free`, stderr: '', exitCode: 0, durationMs: 0 };
+  }
+  // Can't check — proceed anyway
+  return { success: true, stdout: 'unknown', stderr: '', exitCode: 0, durationMs: 0 };
+}
+
+/** Verify the target image tag exists on Docker Hub before attempting pull */
+export async function checkImageExistsOnHub(image: string): Promise<StepResult> {
+  try {
+    const colonIdx = image.lastIndexOf(':');
+    const repo = colonIdx > 0 ? image.slice(0, colonIdx) : image;
+    const tag = colonIdx > 0 ? image.slice(colonIdx + 1) : 'latest';
+    const url = `https://hub.docker.com/v2/repositories/${repo}/tags/${tag}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+    if (res.ok) {
+      return { success: true, stdout: `${image} exists on Docker Hub`, stderr: '', exitCode: 0, durationMs: 0 };
+    }
+    if (res.status === 404) {
+      return { success: false, stdout: '', stderr: `Image ${image} does not exist on Docker Hub. Verify the version tag is correct.`, exitCode: -1, durationMs: 0 };
+    }
+    return { success: true, stdout: `Docker Hub returned ${res.status} — proceeding`, stderr: '', exitCode: 0, durationMs: 0 };
+  } catch {
+    return { success: true, stdout: 'Docker Hub check skipped', stderr: '', exitCode: 0, durationMs: 0 };
+  }
+}
+
+// ─── Pull image ─────────────────────────────────────────────────────────────
+
 export async function pullImage(endpoint: ResolvedEndpoint, image: string): Promise<StepResult> {
-  // 1. Check if image already exists locally
+  const startTime = Date.now();
+
+  // 1. Check if image already cached locally
   const exists = await execOnHost(endpoint, `docker image inspect ${image} >/dev/null 2>&1 && echo cached`, 10);
   if (exists.stdout?.trim() === 'cached') {
     return { success: true, stdout: 'cached', stderr: '', exitCode: 0, durationMs: 0 };
   }
 
-  // 2. Pre-flight: verify Docker daemon is responsive
-  const dockerCheck = await execOnHost(endpoint, 'docker info >/dev/null 2>&1 && echo ok', 10);
-  if (dockerCheck.stdout?.trim() !== 'ok') {
-    return { success: false, stdout: '', stderr: 'Docker daemon is not running or not responsive', exitCode: -1, durationMs: 0 };
-  }
+  // 2. Clean up ALL stale pull units from any previous attempts
+  await execOnHost(
+    endpoint,
+    'for u in $(systemctl list-units --all --no-legend "kortix-pull-*" | awk "{print \\$1}"); do systemctl stop "$u" 2>/dev/null; systemctl reset-failed "$u" 2>/dev/null; done; true',
+    10,
+  );
 
-  // 3. Pull via systemd-run (detached) — the CF proxy times out on long pulls.
-  //    Use a unique unit name to avoid conflicts with stale units from previous attempts.
+  // 3. Quick prune to free space
+  await execOnHost(endpoint, 'docker image prune -f >/dev/null 2>&1 || true', 15);
+
+  // 4. Start pull in background via systemd-run (CF proxy times out on long operations)
   const unitName = `kortix-pull-${Date.now()}`;
-
-  // Clean up any stale pull units first
-  await execOnHost(endpoint, 'systemctl reset-failed kortix-pull-* 2>/dev/null; systemctl stop kortix-pull-* 2>/dev/null || true', 10);
-
   const startPull = await execOnHost(
     endpoint,
-    `systemd-run --unit=${unitName} --description="Pull ${image}" docker pull ${image}`,
-    15,
+    `systemd-run --unit=${unitName} --description="Pull ${image}" -- docker pull ${image} 2>&1`,
+    20,
   );
 
   if (!startPull.success) {
+    // systemd-run failed — try direct pull as last resort
+    console.warn(`[UPDATE] systemd-run failed (${startPull.stderr}), trying direct pull...`);
+    const directPull = await execOnHost(endpoint, `docker pull ${image} 2>&1`, 300);
+    if (directPull.success) {
+      return { success: true, stdout: 'pulled (direct)', stderr: '', exitCode: 0, durationMs: Date.now() - startTime };
+    }
     return {
       success: false,
-      stdout: startPull.stdout,
-      stderr: `Failed to start pull: ${startPull.stderr}`,
-      exitCode: startPull.exitCode,
-      durationMs: 0,
+      stdout: '',
+      stderr: `Pull failed to start. systemd-run: ${startPull.stderr}. Direct pull: ${directPull.stderr}`,
+      exitCode: -1,
+      durationMs: Date.now() - startTime,
     };
   }
 
-  // 4. Poll until the image exists or the pull unit exits
-  const startTime = Date.now();
-  const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes max
+  // 5. Smart polling — monitor both image availability AND pull unit health
+  const TIMEOUT_MS = 10 * 60 * 1000;
+  let lastLogTime = 0;
 
   while (Date.now() - startTime < TIMEOUT_MS) {
     await new Promise((r) => setTimeout(r, 5000));
 
-    // Check if image is now available
+    // Check if image appeared
     const check = await execOnHost(endpoint, `docker image inspect ${image} >/dev/null 2>&1 && echo ready`, 10);
     if (check.stdout?.trim() === 'ready') {
-      const elapsed = Date.now() - startTime;
-      return { success: true, stdout: 'pulled', stderr: '', exitCode: 0, durationMs: elapsed };
+      return { success: true, stdout: 'pulled', stderr: '', exitCode: 0, durationMs: Date.now() - startTime };
     }
 
-    // Check if the systemd pull unit has exited (failed or succeeded)
-    const unitStatus = await execOnHost(
-      endpoint,
-      `systemctl is-active ${unitName} 2>/dev/null || echo stopped`,
-      5,
-    );
+    // Check pull unit status — detect early failure
+    const unitStatus = await execOnHost(endpoint, `systemctl is-active ${unitName} 2>/dev/null || echo dead`, 5);
     const status = unitStatus.stdout?.trim();
-    if (status === 'failed' || status === 'stopped' || status === 'inactive') {
-      // Unit finished but image not found — pull failed
-      const logs = await execOnHost(endpoint, `journalctl -u ${unitName} --no-pager -n 20 2>/dev/null || true`, 10);
+
+    if (status === 'failed' || status === 'dead' || status === 'inactive') {
+      const logs = await execOnHost(endpoint, `journalctl -u ${unitName} --no-pager -n 30 2>/dev/null || true`, 10);
       const logOutput = logs.stdout?.trim() || 'No logs available';
+
+      // Diagnose failure
+      let diagnosis = 'Docker pull failed.';
+      if (logOutput.includes('not found') || logOutput.includes('manifest unknown')) {
+        diagnosis = `Image ${image} does not exist on Docker Hub.`;
+      } else if (logOutput.includes('no space left')) {
+        diagnosis = 'No disk space. Run: docker system prune -af';
+      } else if (logOutput.includes('timeout') || logOutput.includes('TLS') || logOutput.includes('network')) {
+        diagnosis = 'Network error connecting to Docker Hub.';
+      } else if (logOutput.includes('unauthorized') || logOutput.includes('denied')) {
+        diagnosis = 'Docker Hub authentication error.';
+      }
+
       return {
-        success: false,
-        stdout: '',
-        stderr: `Docker pull failed for ${image}. Logs:\n${logOutput}`,
-        exitCode: -1,
-        durationMs: Date.now() - startTime,
+        success: false, stdout: '',
+        stderr: `${diagnosis}\n\nLogs:\n${logOutput.slice(0, 1000)}`,
+        exitCode: -1, durationMs: Date.now() - startTime,
       };
+    }
+
+    // Progress logging every 30s
+    if (Date.now() - lastLogTime > 30_000) {
+      lastLogTime = Date.now();
+      const elapsed = Math.round((Date.now() - startTime) / 1000);
+      console.log(`[UPDATE] Pull in progress (${elapsed}s, unit: ${status})...`);
     }
   }
 
-  // Timeout — kill the pull unit and report
+  // Timeout — collect diagnostics
   await execOnHost(endpoint, `systemctl stop ${unitName} 2>/dev/null || true`, 5);
+  const logs = await execOnHost(endpoint, `journalctl -u ${unitName} --no-pager -n 30 2>/dev/null || true`, 10);
+  const diskInfo = await execOnHost(endpoint, "df -h /var/lib/docker 2>/dev/null | tail -1 || true", 5);
   const elapsed = Math.round((Date.now() - startTime) / 1000);
+
   return {
-    success: false,
-    stdout: '',
-    stderr: `Pull timed out after ${elapsed}s for ${image}. The image may be too large for this machine's connection speed.`,
-    exitCode: -1,
-    durationMs: Date.now() - startTime,
+    success: false, stdout: '',
+    stderr: `Pull timed out after ${elapsed}s for ${image}.\nDisk: ${diskInfo.stdout?.trim() || 'unknown'}\nLogs:\n${(logs.stdout?.trim() || 'none').slice(0, 1000)}`,
+    exitCode: -1, durationMs: Date.now() - startTime,
   };
 }
+
+// ─── Container operations ───────────────────────────────────────────────────
 
 export async function checkpointSqlite(endpoint: ResolvedEndpoint, containerName: string): Promise<StepResult> {
   return execOnHost(
@@ -110,21 +184,17 @@ export async function stopAndStartContainer(
 ): Promise<StepResult> {
   const scriptLines = [
     '#!/bin/bash',
-    // Disable systemd service to prevent auto-restart
     'systemctl disable --now justavps-docker 2>/dev/null || true',
     'systemctl disable --now kortix-sandbox 2>/dev/null || true',
-    // Stop and remove container — retry until name is free
     `docker stop -t 10 ${containerName} 2>/dev/null || true`,
     `docker rm -f ${containerName} 2>/dev/null || true`,
     `for i in $(seq 1 10); do docker inspect ${containerName} >/dev/null 2>&1 || break; sleep 1; done`,
-    // Start new container
     runCommand,
   ].join('\n');
 
   const b64 = Buffer.from(scriptLines).toString('base64');
   const unitName = `kortix-update-${Date.now()}`;
 
-  // Write script to temp file, then run it via systemd-run (survives connection drop)
   await execOnHost(
     endpoint,
     `echo '${b64}' | base64 -d > /tmp/kortix-update.sh && chmod +x /tmp/kortix-update.sh`,
@@ -133,7 +203,7 @@ export async function stopAndStartContainer(
 
   const result = await execOnHost(
     endpoint,
-    `systemctl reset-failed kortix-update-restart 2>/dev/null || true; systemd-run --unit=${unitName} --description="Kortix sandbox update" /tmp/kortix-update.sh`,
+    `systemctl reset-failed ${unitName} 2>/dev/null || true; systemd-run --unit=${unitName} --description="Kortix sandbox update" /tmp/kortix-update.sh`,
     15,
   );
 
