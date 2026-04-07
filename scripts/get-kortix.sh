@@ -1049,7 +1049,7 @@ ${supabase_ports}
 services:
 ${supabase_services}
   frontend:
-    image: ${FRONTEND_IMAGE}
+    image: \${FRONTEND_IMAGE}
 ${frontend_ports}
     extra_hosts:
       - "localhost:host-gateway"
@@ -1061,7 +1061,7 @@ ${frontend_supabase_env}
     restart: unless-stopped
 
   kortix-api:
-    image: ${API_IMAGE}
+    image: \${API_IMAGE}
     user: "0:0"
 ${api_ports}
     environment:
@@ -1145,6 +1145,8 @@ SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
 
 # ─── Sandbox ─────────────────────────────────────────────────────────────────
 KORTIX_VERSION=${KORTIX_VERSION}
+FRONTEND_IMAGE=${FRONTEND_IMAGE}
+API_IMAGE=${API_IMAGE}
 SANDBOX_IMAGE=${SANDBOX_IMAGE}
 SANDBOX_NETWORK=${SANDBOX_NETWORK}
 SANDBOX_CONTAINER_NAME=${SANDBOX_CONTAINER_NAME}
@@ -1239,11 +1241,106 @@ prompt_read() {
 
 # Installed release metadata is persisted in .env so updates stay pinned.
 VERSION=$(grep -m1 '^KORTIX_VERSION=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || echo "unknown")
+FRONTEND_IMAGE=$(grep -m1 '^FRONTEND_IMAGE=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || echo "kortix/kortix-frontend:${VERSION}")
+API_IMAGE=$(grep -m1 '^API_IMAGE=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || echo "kortix/kortix-api:${VERSION}")
 SANDBOX_IMAGE=$(grep -m1 '^SANDBOX_IMAGE=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || echo "kortix/computer:${VERSION}")
 SANDBOX_NAME=$(grep -m1 '^SANDBOX_CONTAINER_NAME=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || echo "kortix-hosted-sandbox")
 LOCAL_IMAGES=$(grep -m1 '^KORTIX_LOCAL_IMAGES=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || echo "0")
 LOCAL_TAG=$(grep -m1 '^KORTIX_LOCAL_TAG=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || echo "latest")
 LOCAL_REPO_ROOT=$(grep -m1 '^KORTIX_LOCAL_REPO_ROOT=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || echo "")
+
+_resolve_latest_version() {
+  local gh_version
+  gh_version=$(curl -sf --connect-timeout 5 \
+    "https://api.github.com/repos/kortix-ai/suna/releases/latest" 2>/dev/null \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"].lstrip("v"))' 2>/dev/null) || true
+  if [ -n "$gh_version" ]; then
+    printf '%s' "$gh_version"
+    return
+  fi
+  printf 'latest'
+}
+
+_env_set() {
+  local key="$1" value="$2"
+  python3 - "$DIR/.env" "$key" "$value" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+key = sys.argv[2]
+value = sys.argv[3]
+lines = path.read_text().splitlines() if path.exists() else []
+prefix = key + '='
+for i, line in enumerate(lines):
+    if line.startswith(prefix):
+        lines[i] = prefix + value
+        break
+else:
+    lines.append(prefix + value)
+path.write_text('\n'.join(lines) + '\n')
+PY
+}
+
+_refresh_state_from_env() {
+  VERSION=$(grep -m1 '^KORTIX_VERSION=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || echo "unknown")
+  FRONTEND_IMAGE=$(grep -m1 '^FRONTEND_IMAGE=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || echo "kortix/kortix-frontend:${VERSION}")
+  API_IMAGE=$(grep -m1 '^API_IMAGE=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || echo "kortix/kortix-api:${VERSION}")
+  SANDBOX_IMAGE=$(grep -m1 '^SANDBOX_IMAGE=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || echo "kortix/computer:${VERSION}")
+}
+
+_patch_compose_images() {
+  python3 - "$DIR/docker-compose.yml" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+if not path.exists():
+    raise SystemExit(0)
+lines = path.read_text().splitlines()
+service = None
+out = []
+for line in lines:
+    stripped = line.strip()
+    if stripped == 'frontend:':
+        service = 'frontend'
+        out.append(line)
+        continue
+    if stripped == 'kortix-api:':
+        service = 'kortix-api'
+        out.append(line)
+        continue
+    if service and stripped.startswith('image:'):
+        indent = line[:len(line) - len(line.lstrip())]
+        if service == 'frontend':
+            out.append(f"{indent}image: ${{FRONTEND_IMAGE}}")
+        else:
+            out.append(f"{indent}image: ${{API_IMAGE}}")
+        service = None
+        continue
+    out.append(line)
+path.write_text('\n'.join(out) + '\n')
+PY
+}
+
+_refresh_installer_and_cli() {
+  local tmp_script="$DIR/get-kortix.sh.tmp"
+  curl -fsSL "https://raw.githubusercontent.com/kortix-ai/suna/main/scripts/get-kortix.sh" -o "$tmp_script" || return 0
+  chmod +x "$tmp_script"
+  mv "$tmp_script" "$DIR/get-kortix.sh"
+  awk '
+    capture && $0 == "CLIPATH" { exit }
+    capture { print; next }
+    /<< '\''CLIPATH'\''$/ { capture = 1 }
+  ' "$DIR/get-kortix.sh" > "$DIR/kortix.new" && chmod +x "$DIR/kortix.new" && mv "$DIR/kortix.new" "$DIR/kortix" || true
+}
+
+_show_update_notice() {
+  [ "$LOCAL_IMAGES" = "1" ] && return 0
+  local latest
+  latest=$(_resolve_latest_version)
+  [ -n "$latest" ] || return 0
+  [ "$latest" = "$VERSION" ] && return 0
+  printf "  ${Y}!${N}  ${Y}Update available:${N} v%s ${F}(run: kortix update)${N}\n" "$latest"
+}
 
 _open() {
   if command -v open &>/dev/null; then open "$1" 2>/dev/null
@@ -1257,6 +1354,14 @@ _url() {
     grep -m1 '^PUBLIC_URL=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || echo "http://localhost:13737"
   else
     echo "http://localhost:13737"
+  fi
+}
+
+_api_url() {
+  if [ -f "$DIR/.env" ]; then
+    grep -m1 '^API_PUBLIC_URL=' "$DIR/.env" 2>/dev/null | cut -d= -f2- || echo "http://localhost:13738"
+  else
+    echo "http://localhost:13738"
   fi
 }
 
@@ -1362,10 +1467,72 @@ _reset_stack() {
   _ok "Reset complete."
 }
 
+_wait_for_api_health() {
+  local api_url
+  api_url="$(_api_url)"
+  local attempts=0
+  while [ $attempts -lt 60 ]; do
+    if curl -fsS "${api_url}/v1/health" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+    attempts=$((attempts + 1))
+  done
+  return 1
+}
+
+_refresh_sandbox_container() {
+  [ "$(_mode)" = "local" ] || return 0
+  local api_url warm_url status_url payload status progress message attempts
+  api_url="$(_api_url)"
+  warm_url="${api_url}/v1/setup/local-sandbox/warm"
+  status_url="${api_url}/v1/setup/local-sandbox/warm/status"
+
+  _info "Refreshing sandbox container..."
+  docker rm -f "$SANDBOX_NAME" >/dev/null 2>&1 || true
+
+  curl -sf -X POST "$warm_url" >/dev/null || {
+    _warn "Could not trigger sandbox warmup; it will recreate lazily on first use."
+    return 0
+  }
+
+  attempts=0
+  while [ $attempts -lt 180 ]; do
+    payload=$(curl -sf "$status_url" 2>/dev/null || true)
+    status=$(JSON_PAYLOAD="$payload" python3 -c 'import json, os; data=json.loads(os.environ.get("JSON_PAYLOAD") or "{}"); print(data.get("status", ""))')
+    progress=$(JSON_PAYLOAD="$payload" python3 -c 'import json, os; data=json.loads(os.environ.get("JSON_PAYLOAD") or "{}"); print(data.get("progress", ""))')
+    message=$(JSON_PAYLOAD="$payload" python3 -c 'import json, os; data=json.loads(os.environ.get("JSON_PAYLOAD") or "{}"); print(data.get("message", ""))')
+
+    case "$status" in
+      ready)
+        _ok "Sandbox refreshed"
+        return 0
+        ;;
+      error)
+        _warn "Sandbox refresh failed: ${message:-unknown}"
+        return 0
+        ;;
+      pulling|creating)
+        printf "\r  ${C}▸${N}  Sandbox: ${message:-starting}${progress:+ (${progress}%%)}          "
+        ;;
+      *)
+        printf "\r  ${C}▸${N}  Sandbox: bootstrapping...          "
+        ;;
+    esac
+
+    sleep 2
+    attempts=$((attempts + 1))
+  done
+
+  printf "\n"
+  _warn "Sandbox refresh timed out — it may still complete in the background."
+}
+
 _banner() {
   printf "\n"
   printf "  ${C}${B}Kortix CLI${N}  ${F}v${VERSION}${N}\n"
   printf "  ${F}────────────────────────────────────────${N}\n"
+  _show_update_notice
 }
 
 case "${1:-help}" in
@@ -1424,14 +1591,40 @@ case "${1:-help}" in
     if _using_local_images; then
       _info "Using local Docker images..."
     else
+      local_latest=$(_resolve_latest_version)
+      if [ -n "$local_latest" ] && [ "$local_latest" != "$VERSION" ]; then
+        _info "Updating from v${VERSION} to v${local_latest}..."
+        VERSION="$local_latest"
+        FRONTEND_IMAGE="kortix/kortix-frontend:${VERSION}"
+        API_IMAGE="kortix/kortix-api:${VERSION}"
+        SANDBOX_IMAGE="kortix/computer:${VERSION}"
+        _env_set KORTIX_VERSION "$VERSION"
+        _env_set KORTIX_SANDBOX_VERSION "$VERSION"
+        _env_set FRONTEND_IMAGE "$FRONTEND_IMAGE"
+        _env_set API_IMAGE "$API_IMAGE"
+        _env_set SANDBOX_IMAGE "$SANDBOX_IMAGE"
+        _patch_compose_images
+        _refresh_state_from_env
+      else
+        _info "Already on latest stable release (v${VERSION}) — refreshing images..."
+      fi
       _info "Pulling latest release images..."
-      docker compose config --images | python3 -c 'import sys; print("\n".join(sorted(set(line.strip() for line in sys.stdin if line.strip()))))' | xargs -r -n1 -P 4 docker pull
+      {
+        docker compose config --images
+        printf '%s\n' "$SANDBOX_IMAGE"
+      } | python3 -c 'import sys; print("\n".join(sorted(set(line.strip() for line in sys.stdin if line.strip()))))' | xargs -r -n1 -P 4 docker pull
     fi
     _info "Restarting services..."
     [ "$(_mode)" = "local" ] && _free_kortix_ports
     _sync_supabase_passwords
     docker compose down 2>/dev/null || true
     docker compose up -d || true
+    if _wait_for_api_health; then
+      _refresh_sandbox_container
+    else
+      _warn "API did not become healthy in time; skipping sandbox refresh for now."
+    fi
+    _refresh_installer_and_cli
     _ok "Updated and running."
     printf "  ${W}Dashboard${N}:  ${C}$(_url)${N}\n\n"
     ;;
