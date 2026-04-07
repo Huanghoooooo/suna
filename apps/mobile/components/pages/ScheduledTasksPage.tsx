@@ -996,6 +996,9 @@ function CreateTaskSheet({
   const chipBg = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
   const chipActiveBg = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)';
 
+  // Step: 'source' = pick type + configure schedule/webhook, 'config' = name + prompt
+  const [step, setStep] = useState<'source' | 'config'>('source');
+
   // Source type
   const [sourceType, setSourceType] = useState<'cron' | 'webhook'>('cron');
 
@@ -1018,6 +1021,7 @@ function CreateTaskSheet({
   const [webhookSecret, setWebhookSecret] = useState('');
 
   const reset = () => {
+    setStep('source');
     setSourceType('cron');
     setName('');
     setPrompt('');
@@ -1038,6 +1042,8 @@ function CreateTaskSheet({
 
   const cronExpr = buildCronFromState(frequency, interval, hour, minute, weekdays, monthDay);
   const scheduleDesc = describeScheduleState(frequency, interval, hour, minute, weekdays, monthDay);
+
+  const canProceedToConfig = sourceType === 'cron' || webhookPath.trim().length > 0;
 
   const isValid = useMemo(() => {
     if (!name.trim() || !prompt.trim()) return false;
@@ -1081,7 +1087,6 @@ function CreateTaskSheet({
   };
 
   const tzLabel = useMemo(() => {
-    // Short label: "UTC", "EST", or last part of IANA name
     if (timezone === 'UTC') return 'UTC';
     const parts = timezone.split('/');
     return parts[parts.length - 1].replace(/_/g, ' ');
@@ -1119,17 +1124,7 @@ function CreateTaskSheet({
       >
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
-          <View
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              backgroundColor: chipBg,
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginRight: 12,
-            }}
-          >
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: chipBg, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
             <Timer size={20} color={fg} />
           </View>
           <View style={{ flex: 1 }}>
@@ -1137,394 +1132,295 @@ function CreateTaskSheet({
               Create Trigger
             </Text>
             <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginTop: 2 }}>
-              Choose when this trigger should fire.
+              {step === 'source' ? 'Choose when this trigger should fire.' : 'Configure what this trigger does.'}
             </Text>
           </View>
         </View>
 
-        {/* Trigger Source */}
-        <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 8 }}>Trigger Source</Text>
-        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-          <Pressable
-            onPress={() => { setSourceType('cron'); Haptics.selectionAsync(); }}
-            style={{
-              flex: 1,
-              paddingVertical: 14,
-              paddingHorizontal: 14,
-              borderRadius: 14,
-              borderWidth: 2,
-              borderColor: sourceType === 'cron' ? theme.primary : borderColor,
-              backgroundColor: sourceType === 'cron' ? (isDark ? 'rgba(190,24,93,0.06)' : 'rgba(190,24,93,0.04)') : 'transparent',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <Timer size={20} color={sourceType === 'cron' ? theme.primary : muted} />
-            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: sourceType === 'cron' ? fg : muted }}>
-              Cron Schedule
-            </Text>
-            <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted, textAlign: 'center' }}>
-              Runs on a time-based schedule
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => { setSourceType('webhook'); Haptics.selectionAsync(); }}
-            style={{
-              flex: 1,
-              paddingVertical: 14,
-              paddingHorizontal: 14,
-              borderRadius: 14,
-              borderWidth: 2,
-              borderColor: sourceType === 'webhook' ? theme.primary : borderColor,
-              backgroundColor: sourceType === 'webhook' ? (isDark ? 'rgba(190,24,93,0.06)' : 'rgba(190,24,93,0.04)') : 'transparent',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <Webhook size={20} color={sourceType === 'webhook' ? theme.primary : muted} />
-            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: sourceType === 'webhook' ? fg : muted }}>
-              Webhook
-            </Text>
-            <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted, textAlign: 'center' }}>
-              Fires when an HTTP request is received
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* Name */}
-        <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Name</Text>
-        <BottomSheetTextInput
-          value={name}
-          onChangeText={setName}
-          placeholder="e.g. Daily report"
-          placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
-          style={{ ...inputStyle, marginBottom: 16 }}
-        />
-
-        {/* Cron: Schedule — Frequency Tabs */}
-        {sourceType === 'cron' && (<>
-        <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 8 }}>Schedule</Text>
-        <View style={{ flexDirection: 'row', borderRadius: 10, backgroundColor: chipBg, padding: 3, marginBottom: 12 }}>
-          {FREQUENCY_TABS.map((tab) => (
+        {/* ═══ STEP 1: Source ═══ */}
+        {step === 'source' && (<>
+          {/* Trigger Source */}
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 8 }}>Trigger Source</Text>
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
             <Pressable
-              key={tab.value}
-              onPress={() => { setFrequency(tab.value); Haptics.selectionAsync(); }}
+              onPress={() => { setSourceType('cron'); Haptics.selectionAsync(); }}
               style={{
-                flex: 1,
-                paddingVertical: 7,
-                alignItems: 'center',
-                borderRadius: 8,
-                backgroundColor: frequency === tab.value ? (isDark ? '#f8f8f8' : '#121215') : 'transparent',
+                flex: 1, paddingVertical: 14, paddingHorizontal: 14, borderRadius: 14, borderWidth: 2, alignItems: 'center', gap: 6,
+                borderColor: sourceType === 'cron' ? theme.primary : borderColor,
+                backgroundColor: sourceType === 'cron' ? (isDark ? 'rgba(190,24,93,0.06)' : 'rgba(190,24,93,0.04)') : 'transparent',
               }}
             >
-              <Text
-                style={{
-                  fontSize: 12,
-                  fontFamily: frequency === tab.value ? 'Roobert-Medium' : 'Roobert',
-                  color: frequency === tab.value ? (isDark ? '#121215' : '#f8f8f8') : muted,
-                }}
-              >
-                {tab.label}
-              </Text>
+              <Timer size={20} color={sourceType === 'cron' ? theme.primary : muted} />
+              <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: sourceType === 'cron' ? fg : muted }}>Cron Schedule</Text>
+              <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted, textAlign: 'center' }}>Runs on a time-based schedule</Text>
             </Pressable>
-          ))}
-        </View>
+            <Pressable
+              onPress={() => { setSourceType('webhook'); Haptics.selectionAsync(); }}
+              style={{
+                flex: 1, paddingVertical: 14, paddingHorizontal: 14, borderRadius: 14, borderWidth: 2, alignItems: 'center', gap: 6,
+                borderColor: sourceType === 'webhook' ? theme.primary : borderColor,
+                backgroundColor: sourceType === 'webhook' ? (isDark ? 'rgba(190,24,93,0.06)' : 'rgba(190,24,93,0.04)') : 'transparent',
+              }}
+            >
+              <Webhook size={20} color={sourceType === 'webhook' ? theme.primary : muted} />
+              <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: sourceType === 'webhook' ? fg : muted }}>Webhook</Text>
+              <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted, textAlign: 'center' }}>Fires when an HTTP request is received</Text>
+            </Pressable>
+          </View>
 
-        {/* Frequency-specific controls */}
-        <View style={{ borderRadius: 12, backgroundColor: chipBg, padding: 14, marginBottom: 12 }}>
-          {/* Minutes: interval picker */}
-          {frequency === 'minutes' && (
-            <View>
-              <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginBottom: 8 }}>Every</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                {MINUTE_INTERVALS.map((v) => (
-                  <Pressable
-                    key={v}
-                    onPress={() => setInterval(v)}
-                    style={{
-                      paddingHorizontal: 14,
-                      paddingVertical: 7,
-                      borderRadius: 8,
-                      backgroundColor: interval === v ? chipActiveBg : 'transparent',
-                      borderWidth: 1,
-                      borderColor: interval === v ? (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)') : 'transparent',
-                    }}
-                  >
-                    <Text style={{ fontSize: 13, fontFamily: interval === v ? 'Roobert-Medium' : 'Roobert', color: interval === v ? fg : muted }}>
-                      {v} min
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+          {/* Cron: Schedule config */}
+          {sourceType === 'cron' && (<>
+            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 8 }}>Schedule</Text>
+            <View style={{ flexDirection: 'row', borderRadius: 10, backgroundColor: chipBg, padding: 3, marginBottom: 12 }}>
+              {FREQUENCY_TABS.map((tab) => (
+                <Pressable
+                  key={tab.value}
+                  onPress={() => { setFrequency(tab.value); Haptics.selectionAsync(); }}
+                  style={{
+                    flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 8,
+                    backgroundColor: frequency === tab.value ? (isDark ? '#f8f8f8' : '#121215') : 'transparent',
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontFamily: frequency === tab.value ? 'Roobert-Medium' : 'Roobert', color: frequency === tab.value ? (isDark ? '#121215' : '#f8f8f8') : muted }}>
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
-          )}
 
-          {/* Hourly: interval + minute */}
-          {frequency === 'hourly' && (
-            <View>
-              <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginBottom: 8 }}>Every</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                {HOUR_INTERVALS.map((v) => (
-                  <Pressable
-                    key={v}
-                    onPress={() => setInterval(v)}
-                    style={{
-                      paddingHorizontal: 14,
-                      paddingVertical: 7,
-                      borderRadius: 8,
-                      backgroundColor: interval === v ? chipActiveBg : 'transparent',
-                      borderWidth: 1,
-                      borderColor: interval === v ? (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)') : 'transparent',
-                    }}
-                  >
-                    <Text style={{ fontSize: 13, fontFamily: interval === v ? 'Roobert-Medium' : 'Roobert', color: interval === v ? fg : muted }}>
-                      {v}h
-                    </Text>
+            <View style={{ borderRadius: 12, backgroundColor: chipBg, padding: 14, marginBottom: 12 }}>
+              {frequency === 'minutes' && (
+                <View>
+                  <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginBottom: 8 }}>Every</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {MINUTE_INTERVALS.map((v) => (
+                      <Pressable key={v} onPress={() => setInterval(v)} style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, backgroundColor: interval === v ? chipActiveBg : 'transparent', borderWidth: 1, borderColor: interval === v ? (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)') : 'transparent' }}>
+                        <Text style={{ fontSize: 13, fontFamily: interval === v ? 'Roobert-Medium' : 'Roobert', color: interval === v ? fg : muted }}>{v} min</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+              {frequency === 'hourly' && (
+                <View>
+                  <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginBottom: 8 }}>Every</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                    {HOUR_INTERVALS.map((v) => (
+                      <Pressable key={v} onPress={() => setInterval(v)} style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, backgroundColor: interval === v ? chipActiveBg : 'transparent', borderWidth: 1, borderColor: interval === v ? (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)') : 'transparent' }}>
+                        <Text style={{ fontSize: 13, fontFamily: interval === v ? 'Roobert-Medium' : 'Roobert', color: interval === v ? fg : muted }}>{v}h</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginBottom: 6 }}>At minute</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {[0, 15, 30, 45].map((m) => (
+                      <Pressable key={m} onPress={() => setMinute(m)} style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, backgroundColor: minute === m ? chipActiveBg : 'transparent', borderWidth: 1, borderColor: minute === m ? (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)') : 'transparent' }}>
+                        <Text style={{ fontSize: 13, fontFamily: minute === m ? 'Roobert-Medium' : 'Roobert', color: minute === m ? fg : muted }}>:{String(m).padStart(2, '0')}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+              {frequency === 'daily' && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Clock size={16} color={muted} />
+                  <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted }}>at</Text>
+                  <Pressable style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }} onPress={() => setHour((h) => (h + 1) % 24)}>
+                    <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(hour).padStart(2, '0')}</Text>
                   </Pressable>
-                ))}
-              </View>
-              <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginBottom: 6 }}>At minute</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                {[0, 15, 30, 45].map((m) => (
-                  <Pressable
-                    key={m}
-                    onPress={() => setMinute(m)}
-                    style={{
-                      paddingHorizontal: 14,
-                      paddingVertical: 7,
-                      borderRadius: 8,
-                      backgroundColor: minute === m ? chipActiveBg : 'transparent',
-                      borderWidth: 1,
-                      borderColor: minute === m ? (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)') : 'transparent',
-                    }}
-                  >
-                    <Text style={{ fontSize: 13, fontFamily: minute === m ? 'Roobert-Medium' : 'Roobert', color: minute === m ? fg : muted }}>
-                      :{String(m).padStart(2, '0')}
-                    </Text>
+                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: muted }}>:</Text>
+                  <Pressable style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }} onPress={() => setMinute((m) => { const idx = MINUTES.indexOf(m); return MINUTES[(idx + 1) % MINUTES.length]; })}>
+                    <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(minute).padStart(2, '0')}</Text>
                   </Pressable>
-                ))}
-              </View>
+                </View>
+              )}
+              {frequency === 'weekly' && (
+                <View>
+                  <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
+                    {WEEKDAY_BUTTONS.map((day) => {
+                      const active = weekdays.includes(day.value);
+                      return (
+                        <Pressable key={day.value} onPress={() => toggleWeekday(day.value)} style={{ flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8, backgroundColor: active ? (isDark ? '#f8f8f8' : '#121215') : 'transparent', borderWidth: 1, borderColor: active ? 'transparent' : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)') }}>
+                          <Text style={{ fontSize: 12, fontFamily: active ? 'Roobert-Medium' : 'Roobert', color: active ? (isDark ? '#121215' : '#f8f8f8') : muted }}>{day.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Clock size={16} color={muted} />
+                    <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted }}>at</Text>
+                    <Pressable style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }} onPress={() => setHour((h) => (h + 1) % 24)}>
+                      <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(hour).padStart(2, '0')}</Text>
+                    </Pressable>
+                    <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: muted }}>:</Text>
+                    <Pressable style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }} onPress={() => setMinute((m) => { const idx = MINUTES.indexOf(m); return MINUTES[(idx + 1) % MINUTES.length]; })}>
+                      <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(minute).padStart(2, '0')}</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+              {frequency === 'monthly' && (
+                <View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted }}>On day</Text>
+                    <Pressable style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }} onPress={() => setMonthDay((d) => (d % 31) + 1)}>
+                      <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{monthDay}</Text>
+                    </Pressable>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Clock size={16} color={muted} />
+                    <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted }}>at</Text>
+                    <Pressable style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }} onPress={() => setHour((h) => (h + 1) % 24)}>
+                      <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(hour).padStart(2, '0')}</Text>
+                    </Pressable>
+                    <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: muted }}>:</Text>
+                    <Pressable style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }} onPress={() => setMinute((m) => { const idx = MINUTES.indexOf(m); return MINUTES[(idx + 1) % MINUTES.length]; })}>
+                      <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(minute).padStart(2, '0')}</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+              <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginTop: 10 }}>{scheduleDesc}</Text>
             </View>
-          )}
 
-          {/* Daily: hour + minute */}
-          {frequency === 'daily' && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Clock size={16} color={muted} />
-              <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted }}>at</Text>
-              <Pressable
-                style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
-                onPress={() => setHour((h) => (h + 1) % 24)}
-              >
-                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(hour).padStart(2, '0')}</Text>
-              </Pressable>
-              <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: muted }}>:</Text>
-              <Pressable
-                style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
-                onPress={() => setMinute((m) => { const idx = MINUTES.indexOf(m); return MINUTES[(idx + 1) % MINUTES.length]; })}
-              >
-                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(minute).padStart(2, '0')}</Text>
-              </Pressable>
-            </View>
-          )}
-
-          {/* Weekly: weekday picker + time */}
-          {frequency === 'weekly' && (
-            <View>
-              <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
-                {WEEKDAY_BUTTONS.map((day) => {
-                  const active = weekdays.includes(day.value);
+            {/* Timezone */}
+            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Timezone</Text>
+            <Pressable
+              onPress={() => setShowTimezones(!showTimezones)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: chipBg, alignSelf: 'flex-start', marginBottom: showTimezones ? 8 : 0 }}
+            >
+              <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: fg }}>{tzLabel}</Text>
+              <ChevronRight size={14} color={muted} style={{ transform: [{ rotate: showTimezones ? '90deg' : '0deg' }] }} />
+            </Pressable>
+            {showTimezones && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 0 }}>
+                {TIMEZONES.map((tz) => {
+                  const active = timezone === tz;
+                  const label = tz === 'UTC' ? 'UTC' : tz.split('/').pop()!.replace(/_/g, ' ');
                   return (
-                    <Pressable
-                      key={day.value}
-                      onPress={() => toggleWeekday(day.value)}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 8,
-                        alignItems: 'center',
-                        borderRadius: 8,
-                        backgroundColor: active ? (isDark ? '#f8f8f8' : '#121215') : 'transparent',
-                        borderWidth: 1,
-                        borderColor: active ? 'transparent' : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'),
-                      }}
-                    >
-                      <Text style={{ fontSize: 12, fontFamily: active ? 'Roobert-Medium' : 'Roobert', color: active ? (isDark ? '#121215' : '#f8f8f8') : muted }}>
-                        {day.label}
-                      </Text>
+                    <Pressable key={tz} onPress={() => { setTimezone(tz); setShowTimezones(false); Haptics.selectionAsync(); }} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: active ? (isDark ? '#f8f8f8' : '#121215') : chipBg }}>
+                      <Text style={{ fontSize: 12, fontFamily: active ? 'Roobert-Medium' : 'Roobert', color: active ? (isDark ? '#121215' : '#f8f8f8') : muted }}>{label}</Text>
                     </Pressable>
                   );
                 })}
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Clock size={16} color={muted} />
-                <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted }}>at</Text>
-                <Pressable
-                  style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
-                  onPress={() => setHour((h) => (h + 1) % 24)}
-                >
-                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(hour).padStart(2, '0')}</Text>
-                </Pressable>
-                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: muted }}>:</Text>
-                <Pressable
-                  style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
-                  onPress={() => setMinute((m) => { const idx = MINUTES.indexOf(m); return MINUTES[(idx + 1) % MINUTES.length]; })}
-                >
-                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(minute).padStart(2, '0')}</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
+            )}
+          </>)}
 
-          {/* Monthly: day picker + time */}
-          {frequency === 'monthly' && (
-            <View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted }}>On day</Text>
-                <Pressable
-                  style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
-                  onPress={() => setMonthDay((d) => (d % 31) + 1)}
-                >
-                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{monthDay}</Text>
-                </Pressable>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Clock size={16} color={muted} />
-                <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted }}>at</Text>
-                <Pressable
-                  style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
-                  onPress={() => setHour((h) => (h + 1) % 24)}
-                >
-                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(hour).padStart(2, '0')}</Text>
-                </Pressable>
-                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: muted }}>:</Text>
-                <Pressable
-                  style={{ backgroundColor: chipActiveBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
-                  onPress={() => setMinute((m) => { const idx = MINUTES.indexOf(m); return MINUTES[(idx + 1) % MINUTES.length]; })}
-                >
-                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>{String(minute).padStart(2, '0')}</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
-
-          {/* Schedule description */}
-          <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginTop: 10 }}>
-            {scheduleDesc}
-          </Text>
-        </View>
-
-        {/* Timezone */}
-        <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Timezone</Text>
-        <Pressable
-          onPress={() => setShowTimezones(!showTimezones)}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6,
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: 10,
-            backgroundColor: chipBg,
-            alignSelf: 'flex-start',
-            marginBottom: showTimezones ? 8 : 16,
-          }}
-        >
-          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: fg }}>{tzLabel}</Text>
-          <ChevronRight size={14} color={muted} style={{ transform: [{ rotate: showTimezones ? '90deg' : '0deg' }] }} />
-        </Pressable>
-        {showTimezones && (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-            {TIMEZONES.map((tz) => {
-              const active = timezone === tz;
-              const label = tz === 'UTC' ? 'UTC' : tz.split('/').pop()!.replace(/_/g, ' ');
-              return (
-                <Pressable
-                  key={tz}
-                  onPress={() => { setTimezone(tz); setShowTimezones(false); Haptics.selectionAsync(); }}
-                  style={{
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 8,
-                    backgroundColor: active ? (isDark ? '#f8f8f8' : '#121215') : chipBg,
-                  }}
-                >
-                  <Text style={{ fontSize: 12, fontFamily: active ? 'Roobert-Medium' : 'Roobert', color: active ? (isDark ? '#121215' : '#f8f8f8') : muted }}>
-                    {label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-
-        </>)}
-
-        {/* Webhook config */}
-        {sourceType === 'webhook' && (<>
-          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Webhook Path</Text>
-          <BottomSheetTextInput
-            value={webhookPath}
-            onChangeText={setWebhookPath}
-            placeholder="/hooks/my-endpoint"
-            placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={{ ...inputStyle, marginBottom: 12 }}
-          />
-          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>
-            Secret <Text style={{ fontFamily: 'Roobert', color: muted }}>(optional)</Text>
-          </Text>
-          <BottomSheetTextInput
-            value={webhookSecret}
-            onChangeText={setWebhookSecret}
-            placeholder="shared-secret"
-            placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
-            autoCapitalize="none"
-            autoCorrect={false}
-            secureTextEntry
-            style={{ ...inputStyle, marginBottom: 8 }}
-          />
-          <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted, lineHeight: 16, marginBottom: 16 }}>
-            If set, requests must include the header{'\n'}X-Kortix-Trigger-Secret with this value.
-          </Text>
-        </>)}
-
-        {/* Prompt */}
-        <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Prompt</Text>
-        <BottomSheetTextInput
-          value={prompt}
-          onChangeText={setPrompt}
-          placeholder="What should the agent do?"
-          placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
-          multiline
-          numberOfLines={3}
-          style={{ ...inputStyle, height: 80, textAlignVertical: 'top', marginBottom: 20 }}
-        />
-
-        {/* Create button */}
-        <Pressable
-          onPress={handleCreate}
-          disabled={!isValid || createTask.isPending}
-          style={{
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingVertical: 14,
-            borderRadius: 14,
-            backgroundColor: isValid ? theme.primary : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'),
-          }}
-        >
-          {createTask.isPending ? (
-            <ActivityIndicator size="small" color={isValid ? theme.primaryForeground : muted} />
-          ) : (
-            <Text style={{
-              fontSize: 16,
-              fontFamily: 'Roobert-Medium',
-              color: isValid ? theme.primaryForeground : (isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.25)'),
-            }}>
-              Create Trigger
+          {/* Webhook config */}
+          {sourceType === 'webhook' && (<>
+            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Webhook Path</Text>
+            <BottomSheetTextInput
+              value={webhookPath}
+              onChangeText={setWebhookPath}
+              placeholder="/hooks/my-endpoint"
+              placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={{ ...inputStyle, marginBottom: 12 }}
+            />
+            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>
+              Secret <Text style={{ fontFamily: 'Roobert', color: muted }}>(optional)</Text>
             </Text>
-          )}
-        </Pressable>
+            <BottomSheetTextInput
+              value={webhookSecret}
+              onChangeText={setWebhookSecret}
+              placeholder="shared-secret"
+              placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+              style={{ ...inputStyle, marginBottom: 8 }}
+            />
+            <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted, lineHeight: 16 }}>
+              If set, requests must include the header{'\n'}X-Kortix-Trigger-Secret with this value.
+            </Text>
+          </>)}
+
+          {/* Next button */}
+          <View style={{ marginTop: 20 }}>
+            <Pressable
+              onPress={() => { setStep('config'); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+              disabled={!canProceedToConfig}
+              style={{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                paddingVertical: 14, borderRadius: 14,
+                backgroundColor: canProceedToConfig ? theme.primary : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'),
+              }}
+            >
+              <Text style={{ fontSize: 16, fontFamily: 'Roobert-Medium', color: canProceedToConfig ? theme.primaryForeground : (isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.25)') }}>
+                Next
+              </Text>
+              <ChevronRight size={18} color={canProceedToConfig ? theme.primaryForeground : (isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.25)')} />
+            </Pressable>
+          </View>
+        </>)}
+
+        {/* ═══ STEP 2: Config ═══ */}
+        {step === 'config' && (<>
+          {/* Source summary */}
+          <View style={{ borderRadius: 12, backgroundColor: chipBg, padding: 12, marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {sourceType === 'cron' ? <Timer size={16} color={muted} /> : <Webhook size={16} color={muted} />}
+            <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted, flex: 1 }}>
+              {sourceType === 'cron' ? scheduleDesc : `POST ${webhookPath}`}
+            </Text>
+            <Pressable onPress={() => setStep('source')} hitSlop={8}>
+              <Pencil size={14} color={muted} />
+            </Pressable>
+          </View>
+
+          {/* Name */}
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Name</Text>
+          <BottomSheetTextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g. Daily report"
+            placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
+            autoFocus
+            style={{ ...inputStyle, marginBottom: 16 }}
+          />
+
+          {/* Prompt */}
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Prompt</Text>
+          <BottomSheetTextInput
+            value={prompt}
+            onChangeText={setPrompt}
+            placeholder="What should the agent do?"
+            placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
+            multiline
+            numberOfLines={3}
+            style={{ ...inputStyle, height: 80, textAlignVertical: 'top', marginBottom: 20 }}
+          />
+
+          {/* Footer buttons */}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Pressable
+              onPress={() => setStep('source')}
+              style={{
+                flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 14,
+                backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+              }}
+            >
+              <Text style={{ fontSize: 16, fontFamily: 'Roobert-Medium', color: fg }}>Back</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleCreate}
+              disabled={!isValid || createTask.isPending}
+              style={{
+                flex: 2, alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 14,
+                backgroundColor: isValid ? theme.primary : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'),
+              }}
+            >
+              {createTask.isPending ? (
+                <ActivityIndicator size="small" color={isValid ? theme.primaryForeground : muted} />
+              ) : (
+                <Text style={{ fontSize: 16, fontFamily: 'Roobert-Medium', color: isValid ? theme.primaryForeground : (isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.25)') }}>
+                  Create Trigger
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        </>)}
       </BottomSheetScrollView>
     </BottomSheetModal>
   );
