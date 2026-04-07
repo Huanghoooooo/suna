@@ -1671,7 +1671,7 @@ function UserMessageRow({
 						</span>
 					</div>
 					{channelMessageInfo.messageText && (
-						<div className="text-sm text-foreground break-words" style={{ paddingLeft: "1.375rem" }}>
+						<div className="text-sm text-foreground break-words">
 							{channelMessageInfo.messageText}
 						</div>
 					)}
