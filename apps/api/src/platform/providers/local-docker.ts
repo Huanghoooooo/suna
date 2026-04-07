@@ -883,9 +883,9 @@ export class LocalDockerProvider implements SandboxProvider {
       `TUNNEL_API_URL=${sandboxApiBase}`,
       `TUNNEL_TOKEN=${authToken}`,
       `SANDBOX_ID=${CONTAINER_NAME}`,
-      // Inject the version from the image tag so the sandbox health endpoint
-      // reports the correct version (re-tagged images can't change baked-in metadata)
-      `SANDBOX_VERSION=${image.includes(':') ? image.split(':').pop() : 'unknown'}`,
+      // Inject the API's own version so the sandbox health endpoint reports correctly.
+      // All components share one version (set by deploy-zero-downtime.sh from image tag).
+      `SANDBOX_VERSION=${SANDBOX_VERSION}`,
       'PROJECT_ID=local',
       // ── Tool proxy URLs — route through kortix-api router ─────────────
       // Sandbox tools use KORTIX_TOKEN to auth; the router injects the real

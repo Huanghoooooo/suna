@@ -382,19 +382,16 @@ export class JustAVPSProvider implements SandboxProvider {
     const routerBase = `${sandboxApiBase}/v1/router`;
 
     const serviceKey = opts.envVars?.KORTIX_TOKEN || '';
-    // Extract version from the sandbox image tag (e.g. "kortix/computer:0.8.29" → "0.8.29")
-    // This is what the sandbox health endpoint reports — re-tagged prod images
-    // can't change baked-in metadata, so we override at runtime.
-    const sandboxImage = config.SANDBOX_IMAGE;
-    const sandboxVersionFromTag = sandboxImage.includes(':') ? sandboxImage.split(':').pop()! : 'unknown';
+    // Inject the API's own version into the sandbox container so the sandbox
+    // health endpoint reports the correct version. All components share one
+    // version number (set by deploy-zero-downtime.sh from the Docker image tag).
+    // This works even when SANDBOX_IMAGE defaults to :latest.
     const envVars: Record<string, string> = {
       KORTIX_API_URL: sandboxApiBase,
       ENV_MODE: 'cloud',
       INTERNAL_SERVICE_KEY: serviceKey,
       KORTIX_TOKEN: serviceKey,
-      // The sandbox health endpoint reads SANDBOX_VERSION env var
-      SANDBOX_VERSION: sandboxVersionFromTag,
-      // Legacy alias — kept for backward compat with anything that reads it
+      SANDBOX_VERSION: SANDBOX_VERSION,
       KORTIX_SANDBOX_VERSION: SANDBOX_VERSION,
       TUNNEL_API_URL: sandboxApiBase,
       TUNNEL_TOKEN: serviceKey,
