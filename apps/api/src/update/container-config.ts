@@ -139,6 +139,12 @@ export function buildDockerRunCommand(config: ContainerConfig): string {
   const args: string[] = ['docker run -d --rm'];
   args.push(`--name ${config.name}`);
   if (config.envFile) args.push(`--env-file ${config.envFile}`);
+
+  // Inject SANDBOX_VERSION from the image tag so the sandbox health endpoint
+  // reports the correct version. This overrides any stale value in the env file.
+  const imageTag = config.image.includes(':') ? config.image.split(':').pop() : 'unknown';
+  args.push(`-e SANDBOX_VERSION=${imageTag}`);
+
   for (const cap of config.caps) {
     const stripped = cap.replace(/^CAP_/, '');
     args.push(`--cap-add ${stripped}`);

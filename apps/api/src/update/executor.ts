@@ -68,23 +68,37 @@ export async function executeUpdate(sandboxId: string, targetVersion: string): P
   const targetImage = imageForVersion(targetVersion);
 
   try {
-    const containerConfig = await resolveContainerConfig(endpoint);
+    // ── Pre-flight: verify machine is reachable ──
+    await setPhase(sandboxId, 'preflight', 2, 'Checking machine connectivity...', {
+      targetVersion,
+      error: null,
+      startedAt: new Date().toISOString(),
+    });
+
+    let containerConfig: ContainerConfig;
+    try {
+      containerConfig = await resolveContainerConfig(endpoint);
+    } catch (err) {
+      throw new Error(`Machine unreachable or no running container found. Is the machine online? (${err instanceof Error ? err.message : err})`);
+    }
     const previousVersion = containerConfig.image.split(':').pop() ?? null;
 
     // ── Backup ──
     await setPhase(sandboxId, 'backing_up', 5, 'Creating backup...', {
-      targetVersion,
       previousVersion,
       currentVersion: previousVersion,
-      error: null,
-      startedAt: new Date().toISOString(),
     });
     await tryBackup(row.provider, row.externalId);
 
     // ── Pull ──
     await setPhase(sandboxId, 'pulling', 15, `Pulling ${targetImage}...`);
     const pullResult = await pullImage(endpoint, targetImage);
-    if (!pullResult.success) throw new Error(`Pull failed: ${pullResult.stderr}`);
+    if (!pullResult.success) {
+      const elapsed = Math.round((pullResult.durationMs || 0) / 1000);
+      throw new Error(`Pull failed after ${elapsed}s: ${pullResult.stderr}`);
+    }
+    const pullElapsed = Math.round((pullResult.durationMs || 0) / 1000);
+    console.log(`[UPDATE] Pull completed in ${pullElapsed}s (${pullResult.stdout})`);
 
     // ── Checkpoint ──
     await setPhase(sandboxId, 'stopping', 40, 'Saving state...');
@@ -102,7 +116,9 @@ export async function executeUpdate(sandboxId: string, targetVersion: string): P
     // ── Verify ──
     await setPhase(sandboxId, 'verifying', 80, 'Verifying new container...');
     const verifyResult = await verifyContainer(endpoint, targetImage, updatedConfig.name);
-    if (!verifyResult.success) throw new Error(`Verify failed: ${verifyResult.stderr}`);
+    if (!verifyResult.success) {
+      throw new Error(`Container failed to start with ${targetImage}. Expected image not running after restart. ${verifyResult.stderr}`);
+    }
 
     // ── Persist config only after verified ──
     await writeContainerConfig(endpoint, updatedConfig);
@@ -112,7 +128,7 @@ export async function executeUpdate(sandboxId: string, targetVersion: string): P
       currentVersion: targetVersion,
     });
 
-    console.log(`[UPDATE] Sandbox ${sandboxId} updated to ${targetImage}`);
+    console.log(`[UPDATE] Sandbox ${sandboxId} updated to ${targetImage} (pull: ${pullElapsed}s)`);
 
     setTimeout(async () => {
       try { await clearUpdateStatus(sandboxId, targetVersion); } catch {}
