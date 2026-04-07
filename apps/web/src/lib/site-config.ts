@@ -21,6 +21,7 @@ export const siteConfig = {
         // { id: 3, title: 'Partnerships', url: '/partnerships' },
         { id: 4, title: 'Support', url: '/support' },
         { id: 5, title: 'Contact', url: 'mailto:hey@kortix.com' },
+        { id: 13, title: 'Status', url: 'https://status.kortix.com' },
       ],
     },
     {
