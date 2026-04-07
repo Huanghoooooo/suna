@@ -5,6 +5,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_URL, getAuthToken } from '@/api/config';
+import { useSandboxContext } from '@/contexts/SandboxContext';
 import { channelKeys } from './useChannels';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -36,7 +37,9 @@ async function backendFetch<T>(path: string, options?: RequestInit): Promise<T> 
       ...(options?.headers as Record<string, string>),
     },
   });
-  const body = await res.json();
+  const text = await res.text();
+  let body: any;
+  try { body = JSON.parse(text); } catch { throw new Error(`Server returned invalid response (${res.status})`); }
   if (!res.ok) throw new Error(body?.error?.message || body?.message || `Request failed (${res.status})`);
   return body;
 }
@@ -82,7 +85,7 @@ export function useTelegramVerifyToken() {
 }
 
 /**
- * Push Telegram credentials to sandbox env, reload channels, set webhook, create DB record.
+ * Connect Telegram bot — tries sandbox setup endpoint first, falls back to direct setup.
  */
 export function useTelegramConnect() {
   const qc = useQueryClient();
@@ -90,72 +93,100 @@ export function useTelegramConnect() {
   return useMutation({
     mutationFn: async ({
       sandboxUrl,
-      sandboxId,
       botToken,
-      publicUrl,
-      botUsername,
+      defaultAgent,
+      defaultModel,
     }: {
       sandboxUrl: string;
-      sandboxId: string | null;
       botToken: string;
-      publicUrl: string;
-      botUsername?: string;
+      defaultAgent?: string;
+      defaultModel?: string;
     }) => {
+      const authToken = await getAuthToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      };
+
+      // Try sandbox setup endpoint first (matches web)
+      try {
+        const res = await fetch(`${sandboxUrl}/kortix/channels/setup/telegram`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ botToken, publicUrl: '', defaultAgent, defaultModel }),
+        });
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text);
+          if (data.ok) return data;
+          if (data.error) throw new Error(data.error);
+        } catch (parseErr: any) {
+          // JSON parse failed (HTML response) — fall through to fallback
+          if (!(parseErr instanceof SyntaxError)) throw parseErr;
+        }
+      } catch (e: any) {
+        // Re-throw real errors (not parse/fallback errors)
+        if (e?.message && !e.message.includes('invalid response') && !(e instanceof TypeError)) throw e;
+      }
+
+      // Fallback: direct Telegram API setup
       const secretToken = `oc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-      // 1. Push env vars to sandbox
+      // Push env vars
       for (const [key, value] of Object.entries({
         TELEGRAM_BOT_TOKEN: botToken,
         TELEGRAM_WEBHOOK_SECRET_TOKEN: secretToken,
       })) {
-        await sandboxFetch(sandboxUrl, `/env/${key}`, {
-          method: 'POST',
+        await fetch(`${sandboxUrl}/env/${key}`, {
+          method: 'PUT',
+          headers,
           body: JSON.stringify({ value }),
         });
       }
 
-      // 2. Reload opencode-channels with new credentials
-      await sandboxFetch(sandboxUrl, '/channels/reload', {
-        method: 'POST',
-        body: JSON.stringify({ credentials: { telegram: { botToken, secretToken } } }),
-      });
-
-      // 3. Set Telegram webhook
-      const webhookUrl = `${publicUrl.replace(/\/$/, '')}/webhooks/telegram`;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10_000);
-      const whRes = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: webhookUrl,
-          secret_token: secretToken,
-          allowed_updates: ['message', 'edited_message', 'callback_query', 'message_reaction'],
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      const whData = await whRes.json() as { ok: boolean; description?: string };
-      if (!whData.ok) throw new Error(`Failed to set webhook: ${whData.description || 'unknown'}`);
-
-      // 4. Create channel config DB record
-      const channelName = botUsername ? `@${botUsername}` : 'Telegram Bot';
+      // Resolve public URL from sandbox env
+      let resolvedUrl = '';
       try {
-        await backendFetch('/channels', {
-          method: 'POST',
-          body: JSON.stringify({
-            sandbox_id: sandboxId,
-            channel_type: 'telegram',
-            name: channelName,
-            enabled: true,
-            platform_config: { webhook_url: webhookUrl, bot_username: botUsername || null },
-          }),
-        });
-      } catch {
-        // Channel may already exist — not fatal
+        const envRes = await fetch(`${sandboxUrl}/env/PUBLIC_BASE_URL`, { headers });
+        if (envRes.ok) {
+          const envData = await envRes.json() as Record<string, string>;
+          resolvedUrl = envData?.PUBLIC_BASE_URL || '';
+        }
+      } catch { /* ignore */ }
+
+      // Set Telegram webhook if public URL available
+      let webhookUrl: string | null = null;
+      if (resolvedUrl) {
+        webhookUrl = `${resolvedUrl.replace(/\/$/, '')}/hooks/telegram/env-telegram`;
+        try {
+          await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: webhookUrl,
+              secret_token: secretToken,
+              allowed_updates: ['message', 'edited_message', 'callback_query', 'message_reaction'],
+            }),
+          });
+        } catch { /* webhook may fail */ }
       }
 
-      return { webhookUrl, secretToken };
+      // Reload channels service
+      try {
+        await fetch(`${sandboxUrl}/channels/reload`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ credentials: { telegram: { botToken, secretToken } } }),
+        });
+      } catch { /* not fatal */ }
+
+      return {
+        ok: true,
+        channel: { webhookUrl },
+        message: webhookUrl
+          ? `Telegram bot configured. Webhook: ${webhookUrl}`
+          : 'Telegram bot configured (set PUBLIC_BASE_URL for webhooks)',
+      };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: channelKeys.all });
@@ -194,25 +225,33 @@ export function useSlackDetectUrl() {
 }
 
 /**
- * Generate Slack app manifest via backend API.
+ * Generate Slack app manifest via sandbox channels endpoint (matches web).
  */
 export function useSlackGenerateManifest() {
+  const { sandboxUrl } = useSandboxContext();
+
   return useMutation({
     mutationFn: async ({ publicUrl, botName }: {
       publicUrl: string;
       botName?: string;
     }): Promise<GenerateManifestResult> => {
-      // Backend returns { manifest } directly (not wrapped in { success, data })
-      const result = await backendFetch<{ manifest: Record<string, unknown> }>(
-        '/channels/slack-wizard/generate-manifest',
-        {
-          method: 'POST',
-          body: JSON.stringify({ publicUrl, botName }),
+      if (!sandboxUrl) throw new Error('No sandbox URL');
+      const token = await getAuthToken();
+      const res = await fetch(`${sandboxUrl}/kortix/channels/slack-manifest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-      );
+        body: JSON.stringify({ publicUrl: publicUrl || '', botName }),
+      });
+      const text = await res.text();
+      let data: any;
+      try { data = JSON.parse(text); } catch { throw new Error(`Server returned invalid response (${res.status})`); }
+      if (!data.ok && !data.manifest) throw new Error(data.error || 'Failed to generate manifest');
       return {
-        manifest: result.manifest,
-        manifestJson: JSON.stringify(result.manifest, null, 2),
+        manifest: data.manifest,
+        manifestJson: JSON.stringify(data.manifest, null, 2),
       };
     },
   });
@@ -231,47 +270,74 @@ export function useSlackConnect() {
       botToken,
       signingSecret,
       publicUrl,
+      name,
+      defaultAgent,
+      defaultModel,
     }: {
       sandboxUrl: string;
       sandboxId: string | null;
       botToken: string;
       signingSecret: string;
       publicUrl: string;
+      name?: string;
+      defaultAgent?: string;
+      defaultModel?: string;
     }) => {
-      // 1. Push env vars to sandbox
+      const authToken = await getAuthToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      };
+
+      // Try sandbox setup endpoint first (matches web)
+      try {
+        const res = await fetch(`${sandboxUrl}/kortix/channels/setup/slack`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            botToken,
+            signingSecret: signingSecret || undefined,
+            publicUrl: publicUrl || '',
+            name: name || undefined,
+            defaultAgent,
+            defaultModel,
+          }),
+        });
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text);
+          if (data.ok) return data;
+          if (data.error) throw new Error(data.error);
+        } catch (parseErr: any) {
+          if (!(parseErr instanceof SyntaxError)) throw parseErr;
+        }
+      } catch (e: any) {
+        if (e?.message && !e.message.includes('invalid response') && !(e instanceof TypeError)) throw e;
+      }
+
+      // Fallback: push env vars directly
       for (const [key, value] of Object.entries({
         SLACK_BOT_TOKEN: botToken,
         SLACK_SIGNING_SECRET: signingSecret,
       })) {
-        await sandboxFetch(sandboxUrl, `/env/${key}`, {
-          method: 'POST',
+        await fetch(`${sandboxUrl}/env/${key}`, {
+          method: 'PUT',
+          headers,
           body: JSON.stringify({ value }),
         });
       }
 
-      // 2. Reload channels service
-      await sandboxFetch(sandboxUrl, '/channels/reload', {
-        method: 'POST',
-        body: JSON.stringify({
-          credentials: { slack: { botToken, signingSecret } },
-        }),
-      });
-
-      // 3. Create channel config DB record
       try {
-        await backendFetch('/channels', {
+        await fetch(`${sandboxUrl}/channels/reload`, {
           method: 'POST',
-          body: JSON.stringify({
-            sandbox_id: sandboxId,
-            channel_type: 'slack',
-            name: 'Slack Bot',
-            enabled: true,
-            platform_config: { webhook_url: `${publicUrl.replace(/\/$/, '')}/webhooks/slack/events` },
-          }),
+          headers,
+          body: JSON.stringify({ credentials: { slack: { botToken, signingSecret } } }),
         });
       } catch {
-        // May already exist
+        // Not fatal
       }
+
+      return { ok: true, message: 'Slack bot configured' };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: channelKeys.all });

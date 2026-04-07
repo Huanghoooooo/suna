@@ -1,18 +1,22 @@
-import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Check,
   ChevronDown,
   ChevronUp,
+  Code2,
   Copy,
+  Download,
   Key,
   Menu,
   PanelRight,
   RefreshCw,
+  ShieldAlert,
   Terminal,
 } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
@@ -21,6 +25,36 @@ import { setupSSH, type SSHSetupResult } from '@/lib/platform/client';
 import { useTabStore, type PageTab } from '@/stores/tab-store';
 import { useThemeColors } from '@/lib/theme-colors';
 import { Ionicons } from '@expo/vector-icons';
+
+// ─── Cached SSH Meta ────────────────────────────────────────────────────────
+
+const SSH_META_KEY = 'kortix:ssh-access-meta:v1';
+
+interface SSHMeta {
+  ssh_command: string;
+  host: string;
+  port: number;
+  username: string;
+  updatedAt: number;
+}
+
+async function loadSSHMeta(): Promise<SSHMeta | null> {
+  try {
+    const raw = await AsyncStorage.getItem(SSH_META_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+async function saveSSHMeta(result: SSHSetupResult): Promise<void> {
+  const meta: SSHMeta = {
+    ssh_command: `ssh -i ~/.ssh/kortix_sandbox -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -p ${result.port} ${result.username}@${result.host}`,
+    host: result.host,
+    port: result.port,
+    username: result.username,
+    updatedAt: Date.now(),
+  };
+  await AsyncStorage.setItem(SSH_META_KEY, JSON.stringify(meta));
+}
 
 interface SSHPageProps {
   page: PageTab;
@@ -40,6 +74,12 @@ export function SSHPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: SSHPa
   const [error, setError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showRawKeys, setShowRawKeys] = useState(false);
+  const [cachedMeta, setCachedMeta] = useState<SSHMeta | null>(null);
+
+  // Load cached SSH meta on mount
+  useEffect(() => {
+    loadSSHMeta().then(setCachedMeta);
+  }, []);
 
   // Scroll state persistence
   const scrollRef = useRef<ScrollView>(null);
@@ -78,6 +118,8 @@ export function SSHPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: SSHPa
     try {
       const result = await setupSSH();
       setSSHResult(result);
+      await saveSSHMeta(result);
+      setCachedMeta(await loadSSHMeta());
     } catch (err: any) {
       setError(err?.message || 'Failed to generate SSH keys');
     } finally {
@@ -92,7 +134,27 @@ export function SSHPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: SSHPa
     await handleGenerate();
   }, [handleGenerate]);
 
+  const handleDownloadKey = useCallback(async () => {
+    if (!sshResult) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const keyName = `kortix_${sshResult.host.replace(/\./g, '-')}`;
+      // Copy key to clipboard and let user save it manually
+      await Clipboard.setStringAsync(sshResult.private_key);
+      Alert.alert(
+        'Key Copied',
+        `Private key copied to clipboard.\n\nSave it as ~/.ssh/${keyName}.pem and run:\nchmod 600 ~/.ssh/${keyName}.pem`,
+      );
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to save key file');
+    }
+  }, [sshResult]);
+
   // Build derived commands
+  const agentPrompt = sshResult
+    ? `I need you to connect to my remote machine via SSH. Here are the details:\n\nHost: ${sshResult.host}\nPort: ${sshResult.port}\nUsername: ${sshResult.username}\n\nSSH Private Key (save to ~/.ssh/kortix_sandbox with chmod 600):\n${sshResult.private_key}\nConnect with: ssh -i ~/.ssh/kortix_sandbox -o StrictHostKeyChecking=no -p ${sshResult.port} ${sshResult.username}@${sshResult.host}`
+    : '';
+
   const oneLiner = sshResult
     ? `mkdir -p ~/.ssh && cat > ~/.ssh/kortix_sandbox << 'KORTIX_KEY'\n${sshResult.private_key}KORTIX_KEY\nchmod 600 ~/.ssh/kortix_sandbox && ssh -i ~/.ssh/kortix_sandbox -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -p ${sshResult.port} ${sshResult.username}@${sshResult.host}`
     : '';
@@ -140,16 +202,43 @@ export function SSHPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: SSHPa
 
           {/* Generate / Result */}
           {!sshResult && !isGenerating && (
-            <Pressable
-              onPress={handleGenerate}
-              className="mt-5 flex-row items-center justify-center self-start rounded-xl px-5 py-2.5 active:opacity-90"
-              style={{ backgroundColor: themeColors.primary }}
-            >
-              <Icon as={Key} size={15} style={{ color: themeColors.primaryForeground }} strokeWidth={2.5} />
-              <Text className="ml-2 font-roobert-semibold text-sm" style={{ color: themeColors.primaryForeground }}>
-                Generate SSH Keys
-              </Text>
-            </Pressable>
+            <View style={{ gap: 12 }} className="mt-5">
+              <Pressable
+                onPress={handleGenerate}
+                className="flex-row items-center justify-center self-start rounded-xl px-5 py-2.5 active:opacity-90"
+                style={{ backgroundColor: themeColors.primary }}
+              >
+                <Icon as={Key} size={15} style={{ color: themeColors.primaryForeground }} strokeWidth={2.5} />
+                <Text className="ml-2 font-roobert-semibold text-sm" style={{ color: themeColors.primaryForeground }}>
+                  Generate SSH Keys
+                </Text>
+              </Pressable>
+
+              {/* Cached reconnect command */}
+              {cachedMeta && (
+                <View className="rounded-xl border p-3" style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }}>
+                  <View className="flex-row items-center justify-between mb-2">
+                    <Text className="font-roobert-medium text-xs text-muted-foreground">Reconnect command</Text>
+                    <Pressable
+                      onPress={() => copyToClipboard(cachedMeta.ssh_command, 'cached')}
+                      className="flex-row items-center px-2 py-1 active:opacity-70"
+                      hitSlop={4}
+                    >
+                      <Icon as={copiedField === 'cached' ? Check : Copy} size={11} className={copiedField === 'cached' ? 'text-emerald-500' : 'text-muted-foreground'} strokeWidth={2.2} />
+                      <Text className={`ml-1 font-roobert-medium text-[10px] ${copiedField === 'cached' ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+                        {copiedField === 'cached' ? 'Copied' : 'Copy'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <Text className="font-mono text-[9px] text-muted-foreground" numberOfLines={2} style={{ fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
+                    {cachedMeta.ssh_command}
+                  </Text>
+                  <Text className="font-roobert text-[10px] text-muted-foreground/50 mt-1.5">
+                    Generated {new Date(cachedMeta.updatedAt).toLocaleDateString()}
+                  </Text>
+                </View>
+              )}
+            </View>
           )}
 
           {isGenerating && (
@@ -181,6 +270,27 @@ export function SSHPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: SSHPa
                 </View>
               </View>
 
+              {/* AI Agent Shortcut */}
+              <View className="rounded-xl border p-3.5" style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }}>
+                <View className="flex-row items-center mb-2" style={{ gap: 8 }}>
+                  <Icon as={Code2} size={16} className="text-muted-foreground" strokeWidth={2} />
+                  <Text className="font-roobert-semibold text-sm text-foreground flex-1">Let your AI agent do it</Text>
+                  <Pressable
+                    onPress={() => copyToClipboard(agentPrompt, 'agent')}
+                    className="flex-row items-center rounded-lg px-2 py-1 active:opacity-70"
+                    hitSlop={4}
+                  >
+                    <Icon as={copiedField === 'agent' ? Check : Copy} size={12} className={copiedField === 'agent' ? 'text-emerald-500' : 'text-muted-foreground'} strokeWidth={2.2} />
+                    <Text className={`ml-1 font-roobert-medium text-[11px] ${copiedField === 'agent' ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+                      {copiedField === 'agent' ? 'Copied' : 'Copy'}
+                    </Text>
+                  </Pressable>
+                </View>
+                <Text className="font-roobert text-xs text-muted-foreground leading-4">
+                  Copy and paste this prompt into Claude Code, Cursor, or Codex. It includes your SSH key so the agent can set up the connection automatically.
+                </Text>
+              </View>
+
               {/* Quick Setup */}
               <CodeSection
                 title="Quick Setup & Connect"
@@ -191,6 +301,7 @@ export function SSHPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: SSHPa
                 onCopy={copyToClipboard}
                 codeBg={codeBg}
                 codeBorder={codeBorder}
+                badge="Contains private key"
               />
 
               {/* Reconnect */}
@@ -251,15 +362,24 @@ export function SSHPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: SSHPa
                 )}
               </View>
 
-              {/* Regenerate */}
-              <Pressable
-                onPress={handleRegenerate}
-                disabled={isGenerating}
-                className="flex-row items-center self-start rounded-lg bg-muted/60 px-3 py-2 active:opacity-80"
-              >
-                <Icon as={RefreshCw} size={12} className="text-foreground mr-1.5" strokeWidth={2.2} />
-                <Text className="font-roobert-medium text-xs text-foreground">Regenerate Keys</Text>
-              </Pressable>
+              {/* Download & Regenerate */}
+              <View className="flex-row" style={{ gap: 10 }}>
+                <Pressable
+                  onPress={handleDownloadKey}
+                  className="flex-row items-center rounded-lg bg-muted/60 px-3 py-2 active:opacity-80"
+                >
+                  <Icon as={Download} size={12} className="text-foreground mr-1.5" strokeWidth={2.2} />
+                  <Text className="font-roobert-medium text-xs text-foreground">Download Key</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleRegenerate}
+                  disabled={isGenerating}
+                  className="flex-row items-center rounded-lg bg-muted/60 px-3 py-2 active:opacity-80"
+                >
+                  <Icon as={RefreshCw} size={12} className="text-foreground mr-1.5" strokeWidth={2.2} />
+                  <Text className="font-roobert-medium text-xs text-foreground">Regenerate</Text>
+                </Pressable>
+              </View>
             </View>
           )}
         </View>
@@ -279,6 +399,7 @@ function CodeSection({
   onCopy,
   codeBg,
   codeBorder,
+  badge,
 }: {
   title: string;
   description?: string;
@@ -288,6 +409,7 @@ function CodeSection({
   onCopy: (text: string, field: string) => void;
   codeBg: string;
   codeBorder: string;
+  badge?: string;
 }) {
   const isCopied = copiedField === copyField;
 
@@ -295,6 +417,12 @@ function CodeSection({
     <View>
       <View className="flex-row items-center mb-1.5">
         <Text className="font-roobert-semibold text-[15px] text-foreground flex-1">{title}</Text>
+        {!!badge && (
+          <View className="flex-row items-center rounded-md mr-2 px-1.5 py-0.5" style={{ backgroundColor: 'rgba(245,158,11,0.1)' }}>
+            <Icon as={ShieldAlert} size={10} style={{ color: '#f59e0b' }} strokeWidth={2.2} />
+            <Text className="ml-1 font-roobert-medium text-[10px]" style={{ color: '#f59e0b' }}>{badge}</Text>
+          </View>
+        )}
         <Pressable
           onPress={() => onCopy(code, copyField)}
           className="flex-row items-center rounded-lg px-2 py-1 active:opacity-70"
@@ -399,12 +527,14 @@ function HighlightedCode({ code }: { code: string }) {
   const tokens = React.useMemo(() => tokenize(code), [code]);
 
   return (
-    <Text selectable style={{ fontSize: 8, lineHeight: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
-      {tokens.map((token, i) => (
-        <Text key={i} style={{ color: token.color }}>
-          {token.text}
-        </Text>
-      ))}
-    </Text>
+    <View style={{ transform: [{ scale: 0.82 }], transformOrigin: 'top left' }}>
+      <Text selectable allowFontScaling={false} style={{ fontSize: 10, lineHeight: 15, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
+        {tokens.map((token, i) => (
+          <Text key={i} style={{ color: token.color }}>
+            {token.text}
+          </Text>
+        ))}
+      </Text>
+    </View>
   );
 }

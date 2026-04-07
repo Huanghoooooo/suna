@@ -31,8 +31,6 @@ import {
   ArrowRight,
   ArrowLeft,
   Check,
-  Globe,
-  Shield,
   Copy,
   ExternalLink,
 } from 'lucide-react-native';
@@ -54,7 +52,6 @@ import { useSandboxContext } from '@/contexts/SandboxContext';
 import type { PageTab } from '@/stores/tab-store';
 import {
   useChannels,
-  useCreateChannel,
   useUpdateChannel,
   useDeleteChannel,
   useToggleChannel,
@@ -65,10 +62,10 @@ import {
 import {
   useTelegramVerifyToken,
   useTelegramConnect,
-  useSlackDetectUrl,
   useSlackGenerateManifest,
   useSlackConnect,
 } from '@/hooks/useChannelWizards';
+import { useOpenCodeAgents, useOpenCodeProviders, flattenModels, filterToLatestModels } from '@/lib/opencode/hooks/use-opencode-data';
 
 // ─── Channel Type Icons ─────────────────────────────────────────────────────
 
@@ -163,7 +160,6 @@ function ChannelsContent() {
   const { sandboxUrl, sandboxUuid } = useSandboxContext();
 
   const { data: channels, isLoading, error, refetch } = useChannels();
-  const createChannel = useCreateChannel();
   const deleteChannelMut = useDeleteChannel();
   const toggleChannel = useToggleChannel();
   const updateChannel = useUpdateChannel();
@@ -188,13 +184,13 @@ function ChannelsContent() {
       list = list.filter(
         (c) =>
           c.name.toLowerCase().includes(q) ||
-          c.channelType.toLowerCase().includes(q) ||
-          getChannelTypeLabel(c.channelType).toLowerCase().includes(q),
+          (c.platform || c.channelType!).toLowerCase().includes(q) ||
+          getChannelTypeLabel((c.platform || c.channelType!)).toLowerCase().includes(q),
       );
     }
     list.sort((a, b) => {
       if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      return new Date(b.updated_at || b.updatedAt || 0).getTime() - new Date(a.updated_at || a.updatedAt || 0).getTime();
     });
     return list;
   }, [channels, searchQuery]);
@@ -218,7 +214,7 @@ function ChannelsContent() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteChannelMut.mutateAsync(channel.channelConfigId);
+              await deleteChannelMut.mutateAsync((channel.id || channel.channelConfigId!));
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               detailSheetRef.current?.dismiss();
               setSelectedChannel(null);
@@ -340,7 +336,7 @@ function ChannelsContent() {
         theme={theme}
         onToggle={async (channel, enabled) => {
           try {
-            await toggleChannel.mutateAsync({ id: channel.channelConfigId, enabled });
+            await toggleChannel.mutateAsync({ id: (channel.id || channel.channelConfigId!), enabled });
             setSelectedChannel((prev) => prev ? { ...prev, enabled } : null);
           } catch {
             Alert.alert('Error', 'Failed to toggle channel');
@@ -348,7 +344,7 @@ function ChannelsContent() {
         }}
         onSave={async (channel, name) => {
           try {
-            await updateChannel.mutateAsync({ id: channel.channelConfigId, data: { name } });
+            await updateChannel.mutateAsync({ id: (channel.id || channel.channelConfigId!), data: { name } });
             setSelectedChannel((prev) => prev ? { ...prev, name } : null);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           } catch {
@@ -367,20 +363,17 @@ function ChannelsContent() {
         renderBackdrop={renderBackdrop}
         sandboxUrl={sandboxUrl}
         sandboxUuid={sandboxUuid}
-        onCreate={async (data) => {
-          try {
-            await createChannel.mutateAsync(data);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            addSheetRef.current?.dismiss();
-          } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Failed to create channel');
-          }
+        onCreate={async () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          addSheetRef.current?.dismiss();
+          refetch();
         }}
         onCreated={() => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           addSheetRef.current?.dismiss();
+          refetch();
         }}
-        isCreating={createChannel.isPending}
+        isCreating={false}
       />
     </View>
   );
@@ -402,7 +395,7 @@ function ChannelRow({ channel, isDark, onPress }: { channel: ChannelConfig; isDa
       }}
     >
       <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name={getChannelIcon(channel.channelType) as any} size={18} color={muted} />
+        <Ionicons name={getChannelIcon((channel.platform || channel.channelType!)) as any} size={18} color={muted} />
       </View>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -410,7 +403,7 @@ function ChannelRow({ channel, isDark, onPress }: { channel: ChannelConfig; isDa
           <ChannelStatusDot enabled={channel.enabled} isDark={isDark} />
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-          <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>{getChannelTypeLabel(channel.channelType)}</Text>
+          <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>{getChannelTypeLabel((channel.platform || channel.channelType!))}</Text>
           <Text style={{ fontSize: 11, color: muted }}>·</Text>
           <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>{channel.sandbox?.name || 'No instance'}</Text>
         </View>
@@ -467,8 +460,8 @@ function ChannelDetailSheet({
     [],
   );
 
-  const createdDate = channel ? new Date(channel.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
-  const updatedDate = channel ? new Date(channel.updatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+  const createdDate = channel ? new Date(channel.created_at || channel.createdAt!).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+  const updatedDate = channel ? new Date(channel.updated_at || channel.updatedAt!).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
 
   return (
     <BottomSheetModal
@@ -485,7 +478,7 @@ function ChannelDetailSheet({
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
           <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-            <Ionicons name={getChannelIcon(channel.channelType) as any} size={22} color={fg} />
+            <Ionicons name={getChannelIcon((channel.platform || channel.channelType!)) as any} size={22} color={fg} />
             {channel.enabled && (
               <View style={{ position: 'absolute', top: -2, right: -2, width: 12, height: 12, borderRadius: 6, backgroundColor: '#34d399', borderWidth: 2, borderColor: isDark ? '#161618' : '#FFFFFF' }} />
             )}
@@ -497,7 +490,7 @@ function ChannelDetailSheet({
                 <Text style={{ fontSize: 10, fontFamily: 'Roobert-Medium', color: channel.enabled ? '#34d399' : muted }}>{channel.enabled ? 'Active' : 'Disabled'}</Text>
               </View>
             </View>
-            <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginTop: 2 }}>{getChannelTypeLabel(channel.channelType)}</Text>
+            <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, marginTop: 2 }}>{getChannelTypeLabel((channel.platform || channel.channelType!))}</Text>
           </View>
           <Switch
             value={channel.enabled}
@@ -540,9 +533,9 @@ function ChannelDetailSheet({
         {/* Metadata */}
         <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Details</Text>
         <View style={{ borderRadius: 14, backgroundColor: subtleBg, borderWidth: StyleSheet.hairlineWidth, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', marginBottom: 16, overflow: 'hidden' }}>
-          <DetailRow label="Type" value={getChannelTypeLabel(channel.channelType)} isDark={isDark} fg={fg} muted={muted} />
+          <DetailRow label="Type" value={getChannelTypeLabel((channel.platform || channel.channelType!))} isDark={isDark} fg={fg} muted={muted} />
           {channel.instructions && <DetailRow label="Instructions" value={channel.instructions} isDark={isDark} fg={fg} muted={muted} />}
-          {channel.agentName && <DetailRow label="Agent" value={channel.agentName} isDark={isDark} fg={fg} muted={muted} />}
+          {(channel.default_agent || channel.agentName) && <DetailRow label="Agent" value={(channel.default_agent || channel.agentName)!} isDark={isDark} fg={fg} muted={muted} />}
           <DetailRow label="Created" value={createdDate} isDark={isDark} fg={fg} muted={muted} />
           <DetailRow label="Updated" value={updatedDate} isDark={isDark} fg={fg} muted={muted} last />
         </View>
@@ -660,10 +653,12 @@ function AddChannelSheet({
     : view === 'generic-config' ? 'Configure your new channel'
     : 'Choose a messaging platform';
 
+  const isWizard = view === 'telegram-wizard' || view === 'slack-wizard';
+
   return (
     <BottomSheetModal
       ref={sheetRef}
-      enableDynamicSizing
+      {...(isWizard ? { snapPoints: ['90%'] } : { enableDynamicSizing: true })}
       enablePanDownToClose
       backdropComponent={renderBackdrop}
       keyboardBehavior="interactive"
@@ -674,7 +669,6 @@ function AddChannelSheet({
       handleIndicatorStyle={{ backgroundColor: isDark ? '#3F3F46' : '#D4D4D8', width: 36, height: 5, borderRadius: 3 }}
     >
       <BottomSheetScrollView
-        style={{ maxHeight: 600 }}
         contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 20) + 16 }}
         keyboardShouldPersistTaps="handled"
       >
@@ -800,16 +794,19 @@ function TelegramWizard({
   onBack: () => void;
   onCreated: () => void;
 }) {
-  const [step, setStep] = useState<1 | 2>(1);
   const [botToken, setBotToken] = useState('');
-  const [botUsername, setBotUsername] = useState('');
-  const [botVerified, setBotVerified] = useState(false);
-  const [publicUrl, setPublicUrl] = useState('');
+  const [botInfo, setBotInfo] = useState<{ username: string; firstName: string } | null>(null);
+  const [agentName, setAgentName] = useState('kortix');
+  const [selectedModelIdx, setSelectedModelIdx] = useState(0);
 
   const verifyMutation = useTelegramVerifyToken();
   const connectMutation = useTelegramConnect();
 
-  const webhookUrl = publicUrl.trim() ? `${publicUrl.replace(/\/$/, '')}/webhooks/telegram` : null;
+  // Load agents & models
+  const { data: agents = [] } = useOpenCodeAgents(sandboxUrl);
+  const { data: providers } = useOpenCodeProviders(sandboxUrl);
+  const models = useMemo(() => (providers ? flattenModels(providers) : []), [providers]);
+  const filteredModels = useMemo(() => filterToLatestModels(models), [models]);
 
   const handleVerify = async () => {
     if (!botToken.trim()) return;
@@ -819,23 +816,37 @@ function TelegramWizard({
         Alert.alert('Invalid Token', result.error || 'Could not verify token');
         return;
       }
-      setBotUsername(result.bot?.username || '');
-      setBotVerified(true);
-      setStep(2);
+      setBotInfo({ username: result.bot?.username || '', firstName: result.bot?.firstName || '' });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to verify token');
     }
   };
 
   const handleConnect = async () => {
-    if (!publicUrl.trim() || !sandboxUrl) return;
+    if (!botToken.trim() || !sandboxUrl) return;
+    // Auto-verify if not yet verified
+    if (!botInfo) {
+      try {
+        const result = await verifyMutation.mutateAsync({ botToken: botToken.trim() });
+        if (!result.valid) {
+          Alert.alert('Invalid Token', result.error || 'Could not verify token');
+          return;
+        }
+        setBotInfo({ username: result.bot?.username || '', firstName: result.bot?.firstName || '' });
+      } catch (err: any) {
+        Alert.alert('Error', err?.message || 'Failed to verify token');
+        return;
+      }
+    }
+    const selModel = filteredModels[selectedModelIdx];
+    const modelStr = selModel ? `${selModel.providerID}/${selModel.modelID}` : undefined;
     try {
       await connectMutation.mutateAsync({
         sandboxUrl,
-        sandboxId,
         botToken: botToken.trim(),
-        publicUrl: publicUrl.trim(),
-        botUsername: botUsername || undefined,
+        defaultAgent: agentName || undefined,
+        defaultModel: modelStr,
       });
       onCreated();
     } catch (err: any) {
@@ -843,136 +854,155 @@ function TelegramWizard({
     }
   };
 
+  const isWorking = verifyMutation.isPending || connectMutation.isPending;
+  const inputStyle = { backgroundColor: inputBg, borderWidth: 1, borderColor, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, fontFamily: 'Roobert', color: fg };
+
   return (
     <>
-      {/* Step Indicator */}
-      <StepIndicator steps={['Bot Token', 'Webhook URL']} current={step} theme={theme} fg={fg} muted={muted} />
+      {/* Instructions */}
+      <View style={{ borderRadius: 14, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', padding: 14, marginBottom: 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+          <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: fg }}>1.</Text>
+          <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted }}>Open</Text>
+          <Pressable onPress={() => Linking.openURL('https://t.me/BotFather')} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: theme.primary }}>@BotFather</Text>
+            <ExternalLink size={10} color={theme.primary} />
+          </Pressable>
+          <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted }}>in Telegram</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+          <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: fg }}>2.</Text>
+          <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted }}>Send</Text>
+          <View style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+            <Text style={{ fontSize: 11, fontFamily: 'monospace', color: fg }}>/newbot</Text>
+          </View>
+          <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted }}>and follow the prompts</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: fg }}>3.</Text>
+          <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted }}>Copy the bot token and paste it below</Text>
+        </View>
+      </View>
 
-      {step === 1 && (
+      {/* Bot Token */}
+      <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Bot Token</Text>
+      <BottomSheetTextInput
+        value={botToken}
+        onChangeText={(t) => { setBotToken(t); setBotInfo(null); }}
+        placeholder="123456789:ABCdefGhIJKlmnOPQRstUVWxyz..."
+        placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
+        secureTextEntry
+        textContentType="none"
+        autoComplete="off"
+        autoCapitalize="none"
+        autoCorrect={false}
+        style={{ ...inputStyle, marginBottom: 12 }}
+      />
+
+      {/* Verified badge */}
+      {botInfo && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: isDark ? 'rgba(190,24,93,0.15)' : 'rgba(190,24,93,0.1)', backgroundColor: isDark ? 'rgba(190,24,93,0.05)' : 'rgba(190,24,93,0.03)', marginBottom: 16 }}>
+          <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: isDark ? 'rgba(190,24,93,0.15)' : 'rgba(190,24,93,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+            <Check size={12} color={theme.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: fg }}>@{botInfo.username}</Text>
+            <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>{botInfo.firstName}</Text>
+          </View>
+          <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: isDark ? 'rgba(190,24,93,0.1)' : 'rgba(190,24,93,0.06)' }}>
+            <Text style={{ fontSize: 10, fontFamily: 'Roobert-Medium', color: theme.primary }}>Verified</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Agent & Model — shown after verification */}
+      {botInfo && (
         <>
-          {/* Instructions */}
-          <View style={{ borderRadius: 14, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', padding: 14, marginBottom: 16 }}>
-            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: fg, marginBottom: 8 }}>Create a Telegram bot:</Text>
-            <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, lineHeight: 20 }}>
-              {'1. Open Telegram and message @BotFather\n2. Send /newbot and follow the prompts\n3. Copy the bot token and paste it below'}
-            </Text>
-            <Pressable onPress={() => Linking.openURL('https://t.me/BotFather')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
-              <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: theme.primary }}>Open @BotFather</Text>
-              <ExternalLink size={12} color={theme.primary} />
-            </Pressable>
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Agent</Text>
+          <View style={{ borderRadius: 14, borderWidth: 1, borderColor, backgroundColor: inputBg, marginBottom: 16, overflow: 'hidden' }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 8, gap: 6 }}>
+              {agents.map((agent) => {
+                const active = agentName === agent.name;
+                return (
+                  <Pressable
+                    key={agent.name}
+                    onPress={() => { setAgentName(agent.name); Haptics.selectionAsync(); }}
+                    style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: active ? theme.primary : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)') }}
+                  >
+                    <Text style={{ fontSize: 13, fontFamily: active ? 'Roobert-Medium' : 'Roobert', color: active ? theme.primaryForeground : muted }}>{agent.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
 
-          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Bot Token</Text>
-          <BottomSheetTextInput
-            value={botToken}
-            onChangeText={(t) => { setBotToken(t); setBotVerified(false); }}
-            placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-            placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
-            secureTextEntry
-            textContentType="none"
-            autoComplete="off"
-            style={{ backgroundColor: inputBg, borderWidth: 1, borderColor, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, fontFamily: 'Roobert', color: fg, marginBottom: 16 }}
-          />
-
-          {botVerified && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, backgroundColor: 'rgba(52,211,153,0.08)', marginBottom: 16 }}>
-              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(52,211,153,0.15)', alignItems: 'center', justifyContent: 'center' }}>
-                <Check size={12} color="#34d399" />
-              </View>
-              <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: '#34d399' }}>Verified: @{botUsername}</Text>
-            </View>
-          )}
-
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Pressable onPress={onBack} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor }}>
-              <ArrowLeft size={16} color={fg} />
-              <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>Back</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleVerify}
-              disabled={!botToken.trim() || verifyMutation.isPending}
-              style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, backgroundColor: !botToken.trim() ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)') : theme.primary }}
-            >
-              {verifyMutation.isPending ? (
-                <ActivityIndicator size="small" color={theme.primaryForeground} />
-              ) : (
-                <>
-                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: !botToken.trim() ? muted : theme.primaryForeground }}>Verify & Next</Text>
-                  <ArrowRight size={16} color={!botToken.trim() ? muted : theme.primaryForeground} />
-                </>
-              )}
-            </Pressable>
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Model</Text>
+          <View style={{ borderRadius: 14, borderWidth: 1, borderColor, backgroundColor: inputBg, marginBottom: 20, overflow: 'hidden' }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 8, gap: 6 }}>
+              {filteredModels.map((m, i) => {
+                const active = selectedModelIdx === i;
+                return (
+                  <Pressable
+                    key={`${m.providerID}:${m.modelID}`}
+                    onPress={() => { setSelectedModelIdx(i); Haptics.selectionAsync(); }}
+                    style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: active ? theme.primary : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)') }}
+                  >
+                    <Text style={{ fontSize: 13, fontFamily: active ? 'Roobert-Medium' : 'Roobert', color: active ? theme.primaryForeground : muted }} numberOfLines={1}>{m.modelName}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
         </>
       )}
 
-      {step === 2 && (
-        <>
-          <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted, marginBottom: 12 }}>
-            Enter the public URL where Telegram will send webhook events. This should point to kortix-api (port 8008).
-          </Text>
-
-          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Public URL</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: inputBg, borderWidth: 1, borderColor, borderRadius: 14, paddingHorizontal: 12, marginBottom: 4 }}>
-            <Globe size={16} color={muted} />
-            <BottomSheetTextInput
-              value={publicUrl}
-              onChangeText={setPublicUrl}
-              placeholder="https://yourdomain.com"
-              placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={{ flex: 1, marginLeft: 8, paddingVertical: 14, fontSize: 14, fontFamily: 'Roobert', color: fg }}
-            />
-          </View>
-          <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted, marginBottom: 16 }}>
-            Webhook: {webhookUrl || '...'}
-          </Text>
-
-          {/* Security note */}
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 12, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', marginBottom: 16 }}>
-            <Shield size={14} color="#34d399" style={{ marginTop: 2 }} />
-            <Text style={{ flex: 1, fontSize: 11, fontFamily: 'Roobert', color: muted, lineHeight: 16 }}>
-              A random secret token is generated and shared with Telegram. Only requests with the matching header are accepted.
-            </Text>
-          </View>
-
-          {/* Verified badge */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, backgroundColor: 'rgba(52,211,153,0.08)', marginBottom: 16 }}>
-            <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(52,211,153,0.15)', alignItems: 'center', justifyContent: 'center' }}>
-              <Check size={12} color="#34d399" />
-            </View>
-            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: fg }}>@{botUsername}</Text>
-            <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>verified</Text>
-          </View>
-
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Pressable onPress={() => setStep(1)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor }}>
-              <ArrowLeft size={16} color={fg} />
-              <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>Back</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleConnect}
-              disabled={!publicUrl.trim() || connectMutation.isPending}
-              style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, backgroundColor: !publicUrl.trim() ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)') : theme.primary }}
-            >
-              {connectMutation.isPending ? (
-                <ActivityIndicator size="small" color={theme.primaryForeground} />
-              ) : (
-                <>
-                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: !publicUrl.trim() ? muted : theme.primaryForeground }}>Connect Bot</Text>
-                  <ArrowRight size={16} color={!publicUrl.trim() ? muted : theme.primaryForeground} />
-                </>
-              )}
-            </Pressable>
-          </View>
-        </>
-      )}
+      {/* Action buttons */}
+      <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+        <Pressable onPress={onBack} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor }}>
+          <ArrowLeft size={16} color={fg} />
+          <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>Back</Text>
+        </Pressable>
+        {!botInfo ? (
+          <Pressable
+            onPress={handleVerify}
+            disabled={!botToken.trim() || isWorking}
+            style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, backgroundColor: !botToken.trim() ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)') : theme.primary }}
+          >
+            {verifyMutation.isPending ? (
+              <ActivityIndicator size="small" color={theme.primaryForeground} />
+            ) : (
+              <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: !botToken.trim() ? muted : theme.primaryForeground }}>Verify Token</Text>
+            )}
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={handleConnect}
+            disabled={isWorking}
+            style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, backgroundColor: theme.primary }}
+          >
+            {connectMutation.isPending ? (
+              <ActivityIndicator size="small" color={theme.primaryForeground} />
+            ) : (
+              <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: theme.primaryForeground }}>Connect Bot</Text>
+            )}
+          </Pressable>
+        )}
+      </View>
     </>
   );
 }
 
 // ─── Slack Setup Wizard (3 steps) ────────────────────────────────────────────
+
+const BOT_NAMES = [
+  'Atlas', 'Nova', 'Sage', 'Echo', 'Bolt', 'Iris', 'Dash', 'Cleo',
+  'Finn', 'Luna', 'Juno', 'Axel', 'Niko', 'Zara', 'Milo', 'Ruby',
+  'Hugo', 'Aria', 'Leo', 'Ivy', 'Rex', 'Mae', 'Kai', 'Pia',
+];
+
+function randomBotName(): string {
+  return `Kortix ${BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)]}`;
+}
 
 function SlackWizard({
   isDark, theme, fg, muted, inputBg, borderColor,
@@ -987,27 +1017,33 @@ function SlackWizard({
   onCreated: () => void;
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [publicUrl, setPublicUrl] = useState('');
+
+  // Step 1: Configure
+  const [botName, setBotName] = useState(() => randomBotName());
+  const [agentName, setAgentName] = useState('kortix');
+  const [selectedModelIdx, setSelectedModelIdx] = useState(0);
+
+  // Step 2: Manifest
   const [manifestJson, setManifestJson] = useState('');
-  const [botToken, setBotToken] = useState('');
-  const [signingSecret, setSigningSecret] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const detectUrl = useSlackDetectUrl();
+  // Step 3: Credentials
+  const [botToken, setBotToken] = useState('');
+  const [signingSecret, setSigningSecret] = useState('');
+
   const generateManifest = useSlackGenerateManifest();
   const connectMutation = useSlackConnect();
 
-  // Auto-detect URL on mount
-  useEffect(() => {
-    detectUrl.mutateAsync().then((result) => {
-      if (result.detected && result.url) setPublicUrl(result.url);
-    }).catch(() => {});
-  }, []);
+  // Load agents & models
+  const { data: agents = [] } = useOpenCodeAgents(sandboxUrl);
+  const { data: providers } = useOpenCodeProviders(sandboxUrl);
+  const models = useMemo(() => (providers ? flattenModels(providers) : []), [providers]);
+  const filteredModels = useMemo(() => filterToLatestModels(models), [models]);
 
   const handleGenerateManifest = async () => {
-    if (!publicUrl.trim() || !sandboxUrl) return;
+    if (!sandboxUrl) return;
     try {
-      const result = await generateManifest.mutateAsync({ publicUrl: publicUrl.trim() });
+      const result = await generateManifest.mutateAsync({ publicUrl: '', botName: botName.trim() || undefined });
       setManifestJson(result.manifestJson);
       setStep(2);
     } catch (err: any) {
@@ -1032,13 +1068,18 @@ function SlackWizard({
       Alert.alert('Invalid Secret', 'Signing secret must be at least 10 characters');
       return;
     }
+    const selModel = filteredModels[selectedModelIdx];
+    const modelStr = selModel ? `${selModel.providerID}/${selModel.modelID}` : undefined;
     try {
       await connectMutation.mutateAsync({
         sandboxUrl,
         sandboxId,
         botToken: botToken.trim(),
         signingSecret: signingSecret.trim(),
-        publicUrl: publicUrl.trim(),
+        publicUrl: '',
+        name: botName.trim() || undefined,
+        defaultAgent: agentName || undefined,
+        defaultModel: modelStr,
       });
       onCreated();
     } catch (err: any) {
@@ -1046,72 +1087,106 @@ function SlackWizard({
     }
   };
 
+  const inputStyle = { backgroundColor: inputBg, borderWidth: 1, borderColor, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, fontFamily: 'Roobert', color: fg };
+
   return (
     <>
-      <StepIndicator steps={['Public URL', 'Create App', 'Credentials']} current={step} theme={theme} fg={fg} muted={muted} />
+      <StepIndicator steps={['Configure', 'Create App', 'Connect']} current={step} theme={theme} fg={fg} muted={muted} />
 
+      {/* ─── Step 1: Configure ─── */}
       {step === 1 && (
         <>
-          <Text style={{ fontSize: 13, fontFamily: 'Roobert', color: muted, marginBottom: 12 }}>
-            Enter the public URL where Slack will send webhook events. This should point to kortix-api (port 8008).
-          </Text>
+          {/* Bot Name */}
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Bot Name</Text>
+          <BottomSheetTextInput
+            value={botName}
+            onChangeText={setBotName}
+            placeholder="Kortix Agent"
+            placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
+            style={{ ...inputStyle, marginBottom: 4 }}
+          />
+          <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: muted, marginBottom: 16 }}>Display name in Slack.</Text>
 
-          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Public URL</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: inputBg, borderWidth: 1, borderColor, borderRadius: 14, paddingHorizontal: 12, marginBottom: 16 }}>
-            <Globe size={16} color={muted} />
-            <BottomSheetTextInput
-              value={publicUrl}
-              onChangeText={setPublicUrl}
-              placeholder="https://yourdomain.com"
-              placeholderTextColor={isDark ? 'rgba(248,248,248,0.25)' : 'rgba(18,18,21,0.3)'}
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={{ flex: 1, marginLeft: 8, paddingVertical: 14, fontSize: 14, fontFamily: 'Roobert', color: fg }}
-            />
+          {/* Agent */}
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Agent</Text>
+          <View style={{ borderRadius: 14, borderWidth: 1, borderColor, backgroundColor: inputBg, marginBottom: 16, overflow: 'hidden' }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 8, gap: 6 }}>
+              {agents.map((agent) => {
+                const active = agentName === agent.name;
+                return (
+                  <Pressable
+                    key={agent.name}
+                    onPress={() => { setAgentName(agent.name); Haptics.selectionAsync(); }}
+                    style={{
+                      paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
+                      backgroundColor: active ? theme.primary : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontFamily: active ? 'Roobert-Medium' : 'Roobert', color: active ? theme.primaryForeground : muted }}>
+                      {agent.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Pressable onPress={onBack} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor }}>
-              <ArrowLeft size={16} color={fg} />
-              <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>Back</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleGenerateManifest}
-              disabled={!publicUrl.trim() || generateManifest.isPending}
-              style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, backgroundColor: !publicUrl.trim() ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)') : theme.primary }}
-            >
-              {generateManifest.isPending ? (
-                <ActivityIndicator size="small" color={theme.primaryForeground} />
-              ) : (
-                <>
-                  <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: !publicUrl.trim() ? muted : theme.primaryForeground }}>Next</Text>
-                  <ArrowRight size={16} color={!publicUrl.trim() ? muted : theme.primaryForeground} />
-                </>
-              )}
-            </Pressable>
+          {/* Model */}
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Model</Text>
+          <View style={{ borderRadius: 14, borderWidth: 1, borderColor, backgroundColor: inputBg, marginBottom: 20, overflow: 'hidden' }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 8, gap: 6 }}>
+              {filteredModels.map((m, i) => {
+                const active = selectedModelIdx === i;
+                return (
+                  <Pressable
+                    key={`${m.providerID}:${m.modelID}`}
+                    onPress={() => { setSelectedModelIdx(i); Haptics.selectionAsync(); }}
+                    style={{
+                      paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
+                      backgroundColor: active ? theme.primary : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontFamily: active ? 'Roobert-Medium' : 'Roobert', color: active ? theme.primaryForeground : muted }} numberOfLines={1}>
+                      {m.modelName}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
 
-          {/* Skip option */}
-          <Pressable onPress={() => setStep(3)} style={{ alignItems: 'center', paddingVertical: 12, marginTop: 8 }}>
-            <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted }}>Skip — enter credentials manually</Text>
+          {/* Generate Manifest */}
+          <Pressable
+            onPress={handleGenerateManifest}
+            disabled={generateManifest.isPending}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, backgroundColor: theme.primary, alignSelf: 'flex-end', paddingHorizontal: 20 }}
+          >
+            {generateManifest.isPending ? (
+              <ActivityIndicator size="small" color={theme.primaryForeground} />
+            ) : (
+              <>
+                <ArrowRight size={16} color={theme.primaryForeground} />
+                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: theme.primaryForeground }}>Generate Manifest</Text>
+              </>
+            )}
           </Pressable>
         </>
       )}
 
+      {/* ─── Step 2: Create App ─── */}
       {step === 2 && (
         <>
           <View style={{ borderRadius: 14, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', padding: 14, marginBottom: 16 }}>
-            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: fg, marginBottom: 8 }}>Create a Slack app:</Text>
+            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: fg, marginBottom: 8 }}>Create your Slack app:</Text>
             <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted, lineHeight: 20 }}>
-              {'1. Copy the manifest below\n2. Go to api.slack.com/apps\n3. Click "Create New App" → "From a manifest"\n4. Paste the manifest and create the app'}
+              {'1. Go to api.slack.com/apps → Create New App → From an app manifest\n2. Select your workspace, paste the manifest below\n3. After creating, Install to Workspace from OAuth & Permissions'}
             </Text>
-            <Pressable onPress={() => Linking.openURL('https://api.slack.com/apps?new_app=1&manifest_yaml=')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
+            <Pressable onPress={() => Linking.openURL('https://api.slack.com/apps')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
               <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: theme.primary }}>Open Slack API</Text>
               <ExternalLink size={12} color={theme.primary} />
             </Pressable>
           </View>
 
-          {/* Manifest preview */}
           <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>App Manifest (JSON)</Text>
           <View style={{ borderRadius: 12, backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.04)', padding: 12, marginBottom: 8, maxHeight: 120 }}>
             <ScrollView horizontal={false} showsVerticalScrollIndicator>
@@ -1136,6 +1211,7 @@ function SlackWizard({
         </>
       )}
 
+      {/* ─── Step 3: Connect ─── */}
       {step === 3 && (
         <>
           <View style={{ borderRadius: 14, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', padding: 14, marginBottom: 16 }}>
@@ -1144,7 +1220,7 @@ function SlackWizard({
             </Text>
           </View>
 
-          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Bot Token</Text>
+          <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Bot User OAuth Token</Text>
           <BottomSheetTextInput
             value={botToken}
             onChangeText={setBotToken}
@@ -1155,7 +1231,7 @@ function SlackWizard({
             autoComplete="off"
             autoCapitalize="none"
             autoCorrect={false}
-            style={{ backgroundColor: inputBg, borderWidth: 1, borderColor, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, fontFamily: 'Roobert', color: fg, marginBottom: 12 }}
+            style={{ ...inputStyle, marginBottom: 12 }}
           />
 
           <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: muted, marginBottom: 6 }}>Signing Secret</Text>
@@ -1169,7 +1245,7 @@ function SlackWizard({
             autoComplete="off"
             autoCapitalize="none"
             autoCorrect={false}
-            style={{ backgroundColor: inputBg, borderWidth: 1, borderColor, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, fontFamily: 'Roobert', color: fg, marginBottom: 16 }}
+            style={{ ...inputStyle, marginBottom: 16 }}
           />
 
           <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -1188,7 +1264,7 @@ function SlackWizard({
               {connectMutation.isPending ? (
                 <ActivityIndicator size="small" color={theme.primaryForeground} />
               ) : (
-                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: (!botToken.trim() || !signingSecret.trim()) ? muted : theme.primaryForeground }}>Connect Slack</Text>
+                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: (!botToken.trim() || !signingSecret.trim()) ? muted : theme.primaryForeground }}>Connect Bot</Text>
               )}
             </Pressable>
           </View>

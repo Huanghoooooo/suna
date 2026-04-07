@@ -4,25 +4,35 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { API_URL, getAuthToken } from '@/api/config';
+import { getAuthToken } from '@/api/config';
+import { useSandboxContext } from '@/contexts/SandboxContext';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type ChannelType = 'telegram' | 'slack' | 'discord' | 'whatsapp' | 'teams' | 'voice' | 'email' | 'sms';
 
 export interface ChannelConfig {
-  channelConfigId: string;
-  sandboxId: string | null;
-  accountId: string;
-  channelType: ChannelType;
+  id: string;
+  channelConfigId?: string;
+  platform: ChannelType;
+  channelType?: ChannelType;
   name: string;
   enabled: boolean;
-  platformConfig: Record<string, unknown>;
+  bot_username: string | null;
+  default_agent: string | null;
+  default_model: string | null;
   instructions: string | null;
-  agentName: string | null;
-  metadata: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
+  webhook_path: string | null;
+  webhook_url: string | null;
+  platformConfig?: Record<string, unknown>;
+  agentName?: string | null;
+  metadata?: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  sandboxId?: string | null;
   sandbox?: { name: string; status: string };
 }
 
@@ -32,6 +42,8 @@ export interface CreateChannelData {
   platform_config?: Record<string, unknown>;
   instructions?: string;
   agent_name?: string;
+  default_agent?: string;
+  default_model?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -40,14 +52,16 @@ export interface UpdateChannelData {
   platform_config?: Record<string, unknown>;
   instructions?: string;
   agent_name?: string;
+  default_agent?: string;
+  default_model?: string;
   metadata?: Record<string, unknown>;
 }
 
 // ─── API Helpers ─────────────────────────────────────────────────────────────
 
-async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
+async function sandboxChannelFetch<T>(sandboxUrl: string, path: string, options?: RequestInit): Promise<T> {
   const token = await getAuthToken();
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${sandboxUrl}/kortix/channels${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -57,62 +71,152 @@ async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
   });
   const body = await res.json();
   if (!res.ok) {
-    throw new Error(body?.error?.message || body?.message || `Request failed (${res.status})`);
+    throw new Error(body?.error || body?.message || `Request failed (${res.status})`);
   }
   return body;
 }
 
 // ─── API Functions ───────────────────────────────────────────────────────────
 
-async function listChannels(sandboxId?: string): Promise<ChannelConfig[]> {
-  const query = sandboxId ? `?sandbox_id=${encodeURIComponent(sandboxId)}` : '';
-  const envelope = await authFetch<{ success: boolean; data: ChannelConfig[] }>(
-    `/channels${query}`,
+async function listChannels(sandboxUrl: string): Promise<ChannelConfig[]> {
+  // Try the channels API first
+  try {
+    const data = await sandboxChannelFetch<{ ok?: boolean; channels?: ChannelConfig[]; data?: ChannelConfig[] }>(
+      sandboxUrl, '',
+    );
+    const channels = data.channels || data.data || [];
+    if (channels.length > 0) return channels;
+  } catch {
+    // Channels API may not be available
+  }
+
+  // Fallback: detect configured channels from env vars
+  const channels: ChannelConfig[] = [];
+  const token = await getAuthToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+
+  try {
+    const telegramRes = await fetch(`${sandboxUrl}/env/TELEGRAM_BOT_TOKEN`, { headers });
+    if (telegramRes.ok) {
+      const telegramData = await telegramRes.json() as Record<string, string>;
+      if (telegramData?.TELEGRAM_BOT_TOKEN) {
+        channels.push({
+          id: 'env-telegram',
+          platform: 'telegram',
+          name: 'Telegram Bot',
+          enabled: true,
+          bot_username: null,
+          default_agent: null,
+          default_model: null,
+          instructions: null,
+          webhook_path: null,
+          webhook_url: null,
+          created_by: null,
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
+  } catch { /* ignore */ }
+
+  try {
+    const slackRes = await fetch(`${sandboxUrl}/env/SLACK_BOT_TOKEN`, { headers });
+    if (slackRes.ok) {
+      const slackData = await slackRes.json() as Record<string, string>;
+      if (slackData?.SLACK_BOT_TOKEN) {
+        channels.push({
+          id: 'env-slack',
+          platform: 'slack',
+          name: 'Slack Bot',
+          enabled: true,
+          bot_username: null,
+          default_agent: null,
+          default_model: null,
+          instructions: null,
+          webhook_path: null,
+          webhook_url: null,
+          created_by: null,
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
+  } catch { /* ignore */ }
+
+  return channels;
+}
+
+async function getChannel(sandboxUrl: string, id: string): Promise<ChannelConfig> {
+  const data = await sandboxChannelFetch<{ ok: boolean; channel: ChannelConfig }>(
+    sandboxUrl, `/${id}`,
   );
-  return envelope.data || [];
+  return data.channel;
 }
 
-async function getChannel(id: string): Promise<ChannelConfig> {
-  const envelope = await authFetch<{ success: boolean; data: ChannelConfig }>(
-    `/channels/${id}`,
+async function updateChannel(sandboxUrl: string, id: string, body: UpdateChannelData): Promise<ChannelConfig> {
+  const data = await sandboxChannelFetch<{ ok: boolean; channel: ChannelConfig }>(
+    sandboxUrl, `/${id}`,
+    { method: 'PATCH', body: JSON.stringify(body) },
   );
-  return envelope.data;
+  return data.channel;
 }
 
-async function createChannel(data: CreateChannelData): Promise<ChannelConfig> {
-  const envelope = await authFetch<{ success: boolean; data: ChannelConfig }>(
-    '/channels',
-    { method: 'POST', body: JSON.stringify(data) },
-  );
-  return envelope.data;
+async function deleteChannel(sandboxUrl: string, id: string): Promise<void> {
+  // Env-based channels: remove the env vars instead
+  if (id === 'env-telegram') {
+    const token = await getAuthToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    // Delete webhook from Telegram
+    try {
+      const envRes = await fetch(`${sandboxUrl}/env/TELEGRAM_BOT_TOKEN`, { headers });
+      if (envRes.ok) {
+        const data = await envRes.json() as Record<string, string>;
+        if (data?.TELEGRAM_BOT_TOKEN) {
+          await fetch(`https://api.telegram.org/bot${data.TELEGRAM_BOT_TOKEN}/deleteWebhook`, { method: 'POST' });
+        }
+      }
+    } catch { /* ignore */ }
+    // Remove env vars
+    for (const key of ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_WEBHOOK_SECRET_TOKEN']) {
+      try { await fetch(`${sandboxUrl}/env/${key}`, { method: 'DELETE', headers }); } catch { /* ignore */ }
+    }
+    return;
+  }
+  if (id === 'env-slack') {
+    const token = await getAuthToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    for (const key of ['SLACK_BOT_TOKEN', 'SLACK_SIGNING_SECRET']) {
+      try { await fetch(`${sandboxUrl}/env/${key}`, { method: 'DELETE', headers }); } catch { /* ignore */ }
+    }
+    return;
+  }
+  // Regular DB-backed channels
+  try {
+    await sandboxChannelFetch(sandboxUrl, `/${id}`, { method: 'DELETE' });
+  } catch { /* ignore if endpoint unavailable */ }
 }
 
-async function updateChannel(id: string, data: UpdateChannelData): Promise<ChannelConfig> {
-  const envelope = await authFetch<{ success: boolean; data: ChannelConfig }>(
-    `/channels/${id}`,
-    { method: 'PATCH', body: JSON.stringify(data) },
-  );
-  return envelope.data;
-}
-
-async function deleteChannel(id: string): Promise<void> {
-  await authFetch(`/channels/${id}`, { method: 'DELETE' });
-}
-
-async function enableChannel(id: string): Promise<ChannelConfig> {
-  const envelope = await authFetch<{ success: boolean; data: ChannelConfig }>(
-    `/channels/${id}/enable`,
+async function enableChannel(sandboxUrl: string, id: string): Promise<ChannelConfig> {
+  const data = await sandboxChannelFetch<{ ok: boolean; channel: ChannelConfig }>(
+    sandboxUrl, `/${id}/enable`,
     { method: 'POST', body: JSON.stringify({}) },
   );
-  return envelope.data;
+  return data.channel;
 }
 
-async function disableChannel(id: string): Promise<ChannelConfig> {
-  const envelope = await authFetch<{ success: boolean; data: ChannelConfig }>(
-    `/channels/${id}/disable`,
+async function disableChannel(sandboxUrl: string, id: string): Promise<ChannelConfig> {
+  const data = await sandboxChannelFetch<{ ok: boolean; channel: ChannelConfig }>(
+    sandboxUrl, `/${id}/disable`,
     { method: 'POST', body: JSON.stringify({}) },
   );
-  return envelope.data;
+  return data.channel;
 }
 
 // ─── Query Keys ──────────────────────────────────────────────────────────────
@@ -125,37 +229,31 @@ export const channelKeys = {
 
 // ─── Hooks ───────────────────────────────────────────────────────────────────
 
-export function useChannels(sandboxId?: string) {
+export function useChannels() {
+  const { sandboxUrl } = useSandboxContext();
   return useQuery({
-    queryKey: channelKeys.list(sandboxId),
-    queryFn: () => listChannels(sandboxId),
+    queryKey: channelKeys.list(sandboxUrl),
+    queryFn: () => listChannels(sandboxUrl!),
+    enabled: !!sandboxUrl,
     staleTime: 60 * 1000,
   });
 }
 
 export function useChannel(id: string) {
+  const { sandboxUrl } = useSandboxContext();
   return useQuery({
     queryKey: channelKeys.detail(id),
-    queryFn: () => getChannel(id),
-    enabled: !!id,
+    queryFn: () => getChannel(sandboxUrl!, id),
+    enabled: !!sandboxUrl && !!id,
     staleTime: 60 * 1000,
   });
 }
 
-export function useCreateChannel() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: createChannel,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: channelKeys.all });
-    },
-  });
-}
-
 export function useUpdateChannel() {
+  const { sandboxUrl } = useSandboxContext();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateChannelData }) => updateChannel(id, data),
+    mutationFn: ({ id, data }: { id: string; data: UpdateChannelData }) => updateChannel(sandboxUrl!, id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: channelKeys.all });
     },
@@ -163,9 +261,10 @@ export function useUpdateChannel() {
 }
 
 export function useDeleteChannel() {
+  const { sandboxUrl } = useSandboxContext();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: deleteChannel,
+    mutationFn: (id: string) => deleteChannel(sandboxUrl!, id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: channelKeys.all });
     },
@@ -173,10 +272,11 @@ export function useDeleteChannel() {
 }
 
 export function useToggleChannel() {
+  const { sandboxUrl } = useSandboxContext();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
-      enabled ? enableChannel(id) : disableChannel(id),
+      enabled ? enableChannel(sandboxUrl!, id) : disableChannel(sandboxUrl!, id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: channelKeys.all });
     },
