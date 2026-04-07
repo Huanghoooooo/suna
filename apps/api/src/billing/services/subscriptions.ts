@@ -330,9 +330,13 @@ export async function confirmInlineCheckout(params: {
   return { success: true, tier: tierKey, message: 'Subscription activated' };
 }
 
-export async function createPortalSession(accountId: string, returnUrl: string) {
-  const customer = await getCustomerByAccountId(accountId);
-  if (!customer) throw new BillingError('No billing customer found');
+export async function createPortalSession(accountId: string, returnUrl: string, email?: string) {
+  let customer = await getCustomerByAccountId(accountId);
+  if (!customer) {
+    if (!email) throw new BillingError('No billing customer found');
+    const customerId = await getOrCreateStripeCustomer(accountId, email);
+    customer = { id: customerId } as typeof customer;
+  }
 
   const stripe = getStripe();
   const session = await stripe.billingPortal.sessions.create({

@@ -69,8 +69,9 @@ subscriptionsRouter.post('/confirm-inline-checkout', async (c) => {
 
 subscriptionsRouter.post('/create-portal-session', async (c) => {
   const accountId = await resolveAccountId(c.get('userId'));
+  const email = c.get('userEmail');
   const body = await c.req.json();
-  const result = await createPortalSession(accountId, body.return_url);
+  const result = await createPortalSession(accountId, body.return_url, email);
   return c.json(result);
 });
 

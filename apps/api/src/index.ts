@@ -118,6 +118,8 @@ app.use('*', async (c, next) => {
   await next();
   const duration = Date.now() - start;
   const status = c.res.status;
+  const path = c.req.path;
+  const method = c.req.method;
 
   // Propagate userId/accountId to request context (set by auth middleware)
   const userId = c.get('userId');
@@ -127,16 +129,36 @@ app.use('*', async (c, next) => {
 
   // Add breadcrumb to Sentry for request context on future errors
   addBreadcrumb(`${c.req.method} ${c.req.path} ${status}`, {
-    method: c.req.method,
-    path: c.req.path,
+    method,
+    path,
     status,
     duration,
     userAgent: c.req.header('user-agent')?.slice(0, 100),
   }, 'http');
 
+  // Expected sandbox proxy noise we intentionally suppress:
+  // - long-poll/SSE event stream timing out after ~30s (504)
+  // - sandbox startup probes returning 502/503 before services are ready
+  const isSandboxProxyPath = path.includes('/v1/p/');
+  const isProxyLongPoll = isSandboxProxyPath && path.includes('/global/event');
+  const isProxyStartupProbe = isSandboxProxyPath && (
+    path.includes('/global/health') ||
+    path.includes('/kortix/health') ||
+    /\/sessions(?:\/|$)/.test(path)
+  );
+  const isExpectedProxyNoise = method === 'GET' && (
+    (isProxyLongPoll && (
+      (status === 200 && duration > 5000) ||
+      status === 504 ||
+      status === 502 ||
+      status === 503
+    )) ||
+    (isProxyStartupProbe && (status === 502 || status === 503 || status === 504))
+  );
+
   // Log slow requests (>5s) and server errors to structured logger
-  if (status >= 500 || duration > 5000) {
-    appLogger.warn(`Slow/error request: ${c.req.method} ${c.req.path} ${status} ${duration}ms`, {
+  if (!isExpectedProxyNoise && (status >= 500 || duration > 5000)) {
+    appLogger.warn(`Slow/error request: ${method} ${path} ${status} ${duration}ms`, {
       status,
       duration,
     });
