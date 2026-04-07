@@ -2,12 +2,13 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useServerStore } from '@/stores/server-store';
-import { findFiles, findText } from '../api/opencode-files';
+import { findText } from '../api/opencode-files';
 import type { FindMatch } from '../types';
+import { searchWorkspaceFilePaths } from '../search/workspace-search-service';
 
 export const fileSearchKeys = {
-  files: (serverUrl: string, query: string) =>
-    ['opencode-files', 'search', 'files', serverUrl, query] as const,
+  files: (serverUrl: string, query: string, type?: 'file' | 'directory', limit?: number) =>
+    ['opencode-files', 'search', 'files', serverUrl, query, type ?? 'all', limit ?? 50] as const,
   text: (serverUrl: string, pattern: string) =>
     ['opencode-files', 'search', 'text', serverUrl, pattern] as const,
 };
@@ -26,8 +27,8 @@ export function useFileSearch(
   const limit = options?.limit ?? 50;
 
   return useQuery<string[]>({
-    queryKey: fileSearchKeys.files(serverUrl, query),
-    queryFn: () => findFiles(query, { type: options?.type, limit }),
+    queryKey: fileSearchKeys.files(serverUrl, query, options?.type, limit),
+    queryFn: () => searchWorkspaceFilePaths(query, { type: options?.type, limit }),
     enabled: query.length > 0 && options?.enabled !== false,
     staleTime: 30_000,
     gcTime: 5 * 60_000,

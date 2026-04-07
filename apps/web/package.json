@@ -7,9 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:e2e": "playwright test -c tests/e2e/playwright.config.ts",
-    "test:e2e:ui": "playwright test -c tests/e2e/playwright.config.ts --ui",
-    "test:e2e:full": "bash tests/e2e/scripts/run-full-self-hosted-e2e.sh",
+    "test:workspace-search": "node --experimental-strip-types --test src/features/files/search/workspace-search-core.test.mts",
+    "test:e2e": "playwright test -c ../../tests/playwright.config.ts",
+    "test:e2e:ui": "playwright test -c ../../tests/playwright.config.ts --ui",
+    "test:e2e:full": "bash ../../tests/e2e/scripts/run-full-self-hosted-e2e.sh",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "postinstall": "cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs 2>/dev/null || true"

@@ -15,17 +15,23 @@
  *   - Returns structured results with name, path, isDir
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { findFiles, findText } from '../api/opencode-files';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useServerStore } from '@/stores/server-store';
+import { findText } from '../api/opencode-files';
 import type { FindMatch } from '../types';
+import {
+  type WorkspaceSearchEntry,
+  parseWorkspacePaths,
+  rankWorkspaceSearchEntry,
+} from '../search/workspace-search-core';
+import {
+  searchWorkspaceFileEntries,
+  searchWorkspaceFilePaths,
+} from '../search/workspace-search-service';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-export interface FileSearchResult {
-  path: string;
-  name: string;
-  isDir: boolean;
-}
+export type FileSearchResult = WorkspaceSearchEntry;
 
 export interface WorkspaceSearchState {
   /** File/directory results (for name search) */
@@ -78,46 +84,13 @@ export interface UseWorkspaceSearchOptions {
  * Within each tier, depth is used as tiebreaker (shallower = better).
  */
 export function rankFileResult(result: FileSearchResult, query: string): number {
-  const ql = query.toLowerCase();
-  const pathLower = result.path.toLowerCase();
-  const baseLower = result.name.toLowerCase();
-  const depth = result.path.split('/').length;
-
-  if (baseLower === ql) return 0 + depth * 0.001;
-  if (baseLower.startsWith(ql)) return 100 + depth * 0.001;
-  if (baseLower.includes(ql)) return 200 + depth * 0.001;
-  if (pathLower.startsWith(ql)) return 300 + depth * 0.001;
-  if (pathLower.includes(ql)) return 400 + depth * 0.001;
-
-  // Fuzzy: all query chars in order in basename
-  let qi = 0;
-  for (let i = 0; i < baseLower.length && qi < ql.length; i++) {
-    if (baseLower[i] === ql[qi]) qi++;
-  }
-  if (qi === ql.length) return 500 + depth * 0.001;
-
-  // Fuzzy in path
-  qi = 0;
-  for (let i = 0; i < pathLower.length && qi < ql.length; i++) {
-    if (pathLower[i] === ql[qi]) qi++;
-  }
-  if (qi === ql.length) return 600 + depth * 0.001;
-
-  return 1000 + depth;
+  return rankWorkspaceSearchEntry(result, query);
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 export function parseFileResults(paths: string[]): FileSearchResult[] {
-  return paths.map((p) => {
-    const isDir = p.endsWith('/');
-    const clean = isDir ? p.slice(0, -1) : p;
-    return {
-      path: clean,
-      name: clean.split('/').pop() || clean,
-      isDir,
-    };
-  });
+  return parseWorkspacePaths(paths);
 }
 
 // ── Standalone async search (for @-mentions, callbacks, etc.) ─────────────
@@ -131,40 +104,7 @@ export async function searchWorkspaceFiles(
   query: string,
   limit = 50,
 ): Promise<string[]> {
-  const q = query.trim();
-  if (!q) return [];
-
-  const apiLimit = Math.max(limit, 100);
-  const [fileOnly, broad, dirsOnly] = await Promise.all([
-    findFiles(q, { type: 'file', limit: apiLimit }).catch(() => []),
-    findFiles(q, { limit: apiLimit }).catch(() => []),
-    findFiles(q, { type: 'directory', limit: apiLimit }).catch(() => []),
-  ]);
-
-  const knownDirs = new Set<string>();
-  for (const p of dirsOnly) {
-    knownDirs.add(p.endsWith('/') ? p.slice(0, -1) : p);
-  }
-
-  const seen = new Set<string>();
-  const merged: string[] = [];
-  for (const p of [...fileOnly, ...broad, ...dirsOnly]) {
-    const key = p.endsWith('/') ? p.slice(0, -1) : p;
-    if (!seen.has(key)) {
-      seen.add(key);
-      merged.push(knownDirs.has(key) && !p.endsWith('/') ? `${p}/` : p);
-    }
-  }
-
-  const parsed = parseFileResults(merged);
-  parsed.sort((a, b) => {
-    const ra = rankFileResult(a, q);
-    const rb = rankFileResult(b, q);
-    if (ra !== rb) return ra - rb;
-    return a.path.localeCompare(b.path);
-  });
-
-  return parsed.slice(0, limit).map((r) => (r.isDir ? `${r.path}/` : r.path));
+  return searchWorkspaceFilePaths(query, { limit, apiLimit: Math.max(limit, 100) });
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────
@@ -173,6 +113,7 @@ export function useWorkspaceSearch(
   query: string,
   options?: UseWorkspaceSearchOptions,
 ): WorkspaceSearchState {
+  const serverUrl = useServerStore((state) => state.getActiveServerUrl());
   const {
     debounceMs = 150,
     maxResults = 50,
@@ -217,45 +158,13 @@ export function useWorkspaceSearch(
             setIsLoading(false);
           }
         } else {
-          // Parallel: files-only + broad (files+dirs) + dirs-only
-          const [fileOnly, broad, dirsOnly] = await Promise.all([
-            findFiles(effectiveQuery, { type: 'file', limit: apiLimit }).catch(() => []),
-            findFiles(effectiveQuery, { limit: apiLimit }).catch(() => []),
-            findFiles(effectiveQuery, { type: 'directory', limit: apiLimit }).catch(() => []),
-          ]);
+          const fileResults = await searchWorkspaceFileEntries(effectiveQuery, {
+            limit: maxResults,
+            apiLimit,
+          });
 
           if (seq === seqRef.current) {
-            // Build a set of known directory paths (from the explicit dir query)
-            const knownDirs = new Set<string>();
-            for (const p of dirsOnly) {
-              knownDirs.add(p.endsWith('/') ? p.slice(0, -1) : p);
-            }
-
-            // Merge and dedupe
-            const seen = new Set<string>();
-            const merged: string[] = [];
-            for (const p of [...fileOnly, ...broad, ...dirsOnly]) {
-              const key = p.endsWith('/') ? p.slice(0, -1) : p;
-              if (!seen.has(key)) {
-                seen.add(key);
-                // Ensure directory paths have trailing / for parseFileResults
-                if (knownDirs.has(key) && !p.endsWith('/')) {
-                  merged.push(`${p}/`);
-                } else {
-                  merged.push(p);
-                }
-              }
-            }
-
-            const parsed = parseFileResults(merged);
-            parsed.sort((a, b) => {
-              const ra = rankFileResult(a, effectiveQuery);
-              const rb = rankFileResult(b, effectiveQuery);
-              if (ra !== rb) return ra - rb;
-              return a.path.localeCompare(b.path);
-            });
-
-            setResults(parsed.slice(0, maxResults));
+            setResults(fileResults.slice(0, maxResults));
             setTextResults([]);
             setSearchedQuery(effectiveQuery);
             setIsLoading(false);
@@ -269,7 +178,7 @@ export function useWorkspaceSearch(
     }, debounceMs);
 
     return () => clearTimeout(timer);
-  }, [effectiveQuery, isContentSearch, debounceMs, maxResults, maxTextResults, apiLimit, minQueryLength]);
+  }, [effectiveQuery, isContentSearch, debounceMs, maxResults, maxTextResults, apiLimit, minQueryLength, serverUrl]);
 
   const hasResults = results.length > 0 || textResults.length > 0;
 
