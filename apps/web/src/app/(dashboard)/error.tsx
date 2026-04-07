@@ -7,6 +7,7 @@ import { RotateCcw, Home, Copy, Check, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { KortixLogo } from '@/components/sidebar/kortix-logo';
 import { cn } from '@/lib/utils';
+import * as Sentry from '@sentry/nextjs';
 
 export default function DashboardError({
   error,
@@ -19,6 +20,7 @@ export default function DashboardError({
 
   useEffect(() => {
     console.error('[Kortix Dashboard Error]', error);
+    Sentry.captureException(error);
   }, [error]);
 
   const handleCopy = async () => {

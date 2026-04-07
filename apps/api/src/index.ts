@@ -1,3 +1,8 @@
+// ─── Observability (must be first — instruments before other imports) ────────
+import './lib/sentry';
+import { captureException, flushSentry, addBreadcrumb } from './lib/sentry';
+import { logger as appLogger } from './lib/logger';
+
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
@@ -88,7 +93,38 @@ app.use(
   })
 );
 
+// Request logger — uses Hono's built-in logger for stdout (Docker captures these)
+// and adds Sentry breadcrumbs for request context on future errors.
 app.use('*', logger());
+
+// Add Sentry breadcrumbs for every request — when an error occurs later in the
+// request lifecycle, these breadcrumbs provide the HTTP context (method, path, etc.)
+app.use('*', async (c, next) => {
+  const start = Date.now();
+  await next();
+  const duration = Date.now() - start;
+  const status = c.res.status;
+
+  // Add breadcrumb to Sentry for request context on future errors
+  addBreadcrumb(`${c.req.method} ${c.req.path} ${status}`, {
+    method: c.req.method,
+    path: c.req.path,
+    status,
+    duration,
+    userAgent: c.req.header('user-agent')?.slice(0, 100),
+  }, 'http');
+
+  // Log slow requests (>5s) and server errors to structured logger
+  if (status >= 500 || duration > 5000) {
+    appLogger.warn(`Slow/error request: ${c.req.method} ${c.req.path} ${status} ${duration}ms`, {
+      method: c.req.method,
+      path: c.req.path,
+      status,
+      duration,
+      userId: c.get('userId'),
+    });
+  }
+});
 
 // Pretty JSON in dev mode for easier debugging
 if (config.INTERNAL_KORTIX_ENV === 'dev') {
@@ -324,12 +360,20 @@ app.onError((err, c) => {
   const errName = err.constructor?.name || 'Error';
 
   if (err instanceof BillingError) {
-    console.error(`[ERROR] ${method} ${path} -> ${err.statusCode} [BillingError] ${err.message}`);
+    appLogger.error(`${method} ${path} -> ${err.statusCode} [BillingError]`, {
+      statusCode: err.statusCode, message: err.message, path, method,
+    });
     return c.json({ error: err.message }, err.statusCode as any);
   }
 
   if (err instanceof HTTPException) {
-    console.error(`[ERROR] ${method} ${path} -> ${err.status} [HTTPException] ${err.message}`);
+    // Only capture 5xx HTTP exceptions to Sentry (4xx are expected)
+    if (err.status >= 500) {
+      captureException(err, { method, path, status: err.status });
+    }
+    appLogger.error(`${method} ${path} -> ${err.status} [HTTPException]`, {
+      status: err.status, message: err.message, path, method,
+    });
 
     const response: Record<string, unknown> = {
       error: true,
@@ -349,17 +393,22 @@ app.onError((err, c) => {
   const isDbError = errName === 'PostgresError' || (err as any).severity || (err as any).code?.match?.(/^[0-9]{5}$/);
   if (isDbError) {
     const pgErr = err as any;
-    const severity = pgErr.severity || 'ERROR';
-    const pgCode = pgErr.code || '?';
-    const table = pgErr.table ? ` table=${pgErr.table}` : '';
-    const schema = pgErr.schema_name || pgErr.schema || '';
-    const hint = pgErr.hint ? ` hint="${pgErr.hint}"` : '';
-    const detail = pgErr.detail ? ` detail="${pgErr.detail}"` : '';
-    console.error(`[ERROR] ${method} ${path} -> 500 [DB ${severity} ${pgCode}]${schema ? ` schema=${schema}` : ''}${table}${detail}${hint} ${err.message.split('\n')[0]}`);
+    captureException(err, {
+      method, path, errorType: 'database',
+      pgCode: pgErr.code, table: pgErr.table, schema: pgErr.schema_name || pgErr.schema,
+    });
+    appLogger.error(`${method} ${path} -> 500 [DB ${pgErr.severity || 'ERROR'} ${pgErr.code || '?'}]`, {
+      method, path, errorType: 'database',
+      pgCode: pgErr.code, table: pgErr.table, hint: pgErr.hint, detail: pgErr.detail,
+      message: err.message.split('\n')[0],
+    });
   } else {
-    // Generic unhandled error — log concisely with truncated stack
-    const stack = err.stack ? '\n' + err.stack.split('\n').slice(1, 4).join('\n') : '';
-    console.error(`[ERROR] ${method} ${path} -> 500 [${errName}] ${err.message}${stack}`);
+    // Generic unhandled error — capture to Sentry + structured log
+    captureException(err, { method, path, errorType: errName });
+    appLogger.error(`${method} ${path} -> 500 [${errName}] ${err.message}`, {
+      method, path, errorType: errName,
+      stack: err.stack?.split('\n').slice(0, 5).join('\n'),
+    });
   }
 
   return c.json(
@@ -804,8 +853,8 @@ ensureSchema()
   });
 
 // Graceful shutdown
-function shutdown(signal: string) {
-  console.log(`\n[${signal}] Shutting down gracefully...`);
+async function shutdown(signal: string) {
+  appLogger.info(`Shutting down gracefully`, { signal });
   stopDrainer();
   stopModelPricing();
   stopTunnelService();
@@ -813,6 +862,8 @@ function shutdown(signal: string) {
   stopProvisionPoller();
   stopAutoReplenish();
   stopAccessControlCache();
+  // Flush observability data before exit
+  await Promise.allSettled([appLogger.flush(), flushSentry()]);
   process.exit(0);
 }
 

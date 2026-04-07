@@ -1,6 +1,7 @@
 import { toast } from '@/lib/toast';
 import { BillingError, isBillingError, formatBillingErrorForUI } from './api/errors';
 import { usePricingModalStore } from '@/stores/pricing-modal-store';
+import * as Sentry from '@sentry/nextjs';
 
 export interface ApiError extends Error {
   status?: number;
@@ -122,6 +123,24 @@ const formatErrorMessage = (message: string, context?: ErrorContext): string => 
 export const handleApiError = (error: any, context?: ErrorContext): void => {
   console.error('API Error:', error, context);
 
+  // Report server errors (5xx) and network failures to Better Stack via Sentry.
+  // 4xx errors are expected (auth, validation) and don't need alerting.
+  const status = error?.status || error?.response?.status;
+  if (status >= 500 || error?.code === 'TIMEOUT' || error?.code === 'NETWORK_ERROR') {
+    Sentry.captureException(error instanceof Error ? error : new Error(error?.message || String(error)), {
+      tags: {
+        errorType: status >= 500 ? 'server_error' : 'network_error',
+        statusCode: status?.toString(),
+        operation: context?.operation,
+      },
+      extra: {
+        context,
+        status,
+        code: error?.code,
+      },
+    });
+  }
+
   if (!shouldShowError(error, context)) {
     return;
   }
@@ -170,6 +189,14 @@ export const handleNetworkError = (error: any, context?: ErrorContext): void => 
     !navigator.onLine;
 
   if (isNetworkError) {
+    // Report network errors to Sentry — these indicate connectivity issues
+    Sentry.captureException(
+      error instanceof Error ? error : new Error(error?.message || 'Network error'),
+      {
+        tags: { errorType: 'network_error', operation: context?.operation },
+        level: 'warning',
+      },
+    );
     toast.error('Connection error', {
       description: 'Please check your internet connection and try again.',
       duration: 6000,

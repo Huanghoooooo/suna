@@ -1,3 +1,8 @@
+// ─── Sentry (Better Stack error tracking) ───────────────────────────────────
+// Must be imported before PostHog so exceptions are captured first.
+import './sentry.client.config';
+
+// ─── PostHog (product analytics) ────────────────────────────────────────────
 import posthog from 'posthog-js';
 
 if (process.env.NEXT_PUBLIC_POSTHOG_KEY) {
@@ -5,7 +10,8 @@ if (process.env.NEXT_PUBLIC_POSTHOG_KEY) {
     api_host: '/ingest',
     ui_host: 'https://eu.posthog.com',
     defaults: '2025-05-24',
-    capture_exceptions: true, 
+    // Disable PostHog's built-in exception capture — Sentry handles this now
+    capture_exceptions: false,
     // Disable debug mode to suppress noisy PostHog retry logs in dev console
     // (ERR_BLOCKED_BY_CLIENT from ad blockers causes endless retry spam)
     debug: false,

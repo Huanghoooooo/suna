@@ -111,13 +111,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(target, request.url));
   }
   
-  // Skip middleware for static files and API routes
+  // Skip middleware for static files, API routes, and telemetry endpoints
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
     pathname.startsWith('/v1/') ||
     pathname.includes('.') ||
-    pathname.startsWith('/api/')
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/monitoring') ||    // Sentry error tracking tunnel (Better Stack)
+    pathname.startsWith('/_betterstack')     // Better Stack browser telemetry proxy
   ) {
     return NextResponse.next();
   }
@@ -369,9 +371,10 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public folder
-     * - root path (/)
+     * - public folder assets
+     * - monitoring (Sentry/Better Stack error tracking tunnel)
+     * - _betterstack (Better Stack browser telemetry proxy)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|monitoring|_betterstack|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }; 

@@ -188,6 +188,11 @@ const envSchema = z.object({
   MAILTRAP_FROM_EMAIL:         optStrDefault('noreply@kortix.com'),
   MAILTRAP_FROM_NAME:          optStrDefault('Kortix'),
 
+  // ── Better Stack Observability (optional — graceful degradation) ────────
+  BETTERSTACK_API_LOG_TOKEN:   optStr,  // Logtail source token for structured logs
+  BETTERSTACK_API_LOG_HOST:    optStr,  // Logtail ingesting host (e.g. s1234.us-east-9.betterstackdata.com)
+  BETTERSTACK_API_SENTRY_DSN:  optStr,  // Sentry DSN for error tracking (Better Stack compatible)
+
   // ── Stray env vars used directly in other files (centralized here) ───────
   CORS_ALLOWED_ORIGINS:        optStr,
   KORTIX_MASTER_URL:           optStr,
