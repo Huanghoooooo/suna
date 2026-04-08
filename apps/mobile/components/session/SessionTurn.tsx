@@ -656,6 +656,28 @@ function tokenizeLine(line: string, ext: string): CodeToken[] {
   return tokenizeCode(line);
 }
 
+/**
+ * Strip markdown code fences from content.
+ * Tool inputs sometimes wrap code in ```lang ... ``` which should not be rendered literally.
+ * Strips opening fence (first line if it matches ```lang) and closing fence (last non-empty line if ```).
+ * Also filters out any stray ``` lines that are purely fence markers.
+ */
+function stripCodeFences(text: string): string {
+  // Normalize line endings
+  let t = text.replace(/\r\n?/g, '\n');
+
+  // Strip opening fence: ```lang, ```lang filename, or just ``` (anything after ```)
+  t = t.replace(/^\s*```[^\n]*\n/, '');
+
+  // Strip closing fence: ``` at end (with optional trailing whitespace/newlines)
+  t = t.replace(/\n\s*```\s*\n?\s*$/, '');
+
+  // Also strip if closing ``` is the very last line with no preceding newline (edge)
+  t = t.replace(/\s*```\s*$/, '');
+
+  return t;
+}
+
 function HighlightedCode({
   content,
   filePath,
@@ -684,8 +706,9 @@ function HighlightedCode({
     plain: mutedStrong(isDark),
   };
 
-  const lines = content.split('\n').slice(0, maxLines);
-  const truncated = content.split('\n').length > maxLines;
+  const cleaned = stripCodeFences(content);
+  const lines = cleaned.split('\n').slice(0, maxLines);
+  const truncated = cleaned.split('\n').length > maxLines;
   const fs = 10;
   const lh = 15;
 
@@ -823,7 +846,10 @@ function WriteEditExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: bo
           showsVerticalScrollIndicator
         >
           <HighlightedCode
-            content={content.length > 3000 ? content.slice(0, 3000) : content}
+            content={(() => {
+              const cleaned = stripCodeFences(content);
+              return cleaned.length > 3000 ? cleaned.slice(0, 3000) : cleaned;
+            })()}
             filePath={filePath}
             isDark={isDark}
             maxLines={40}
