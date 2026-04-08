@@ -342,6 +342,36 @@ export async function getLatestSandboxVersion(): Promise<SandboxVersionInfo> {
   };
 }
 
+export type VersionChannel = 'stable' | 'dev';
+
+export interface VersionEntry {
+  version: string;
+  channel: VersionChannel;
+  date: string;
+  title: string;
+  body?: string;
+  sha?: string;
+  current: boolean;
+}
+
+export interface AllVersionsResponse {
+  versions: VersionEntry[];
+  current: {
+    version: string;
+    channel: VersionChannel;
+  };
+}
+
+export async function getAllVersions(): Promise<AllVersionsResponse> {
+  const token = await getAuthToken();
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API_URL}/platform/sandbox/version/all`, { headers });
+  if (!res.ok) throw new Error(`All versions fetch failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getFullChangelog(): Promise<ChangelogEntry[]> {
   try {
     const token = await getAuthToken();
