@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import {
   ArrowDownToLine,
@@ -99,6 +99,7 @@ export function UpdatesPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: U
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
   const themeColors = useThemeColors();
+  const queryClient = useQueryClient();
 
   const {
     updateAvailable,
@@ -179,7 +180,10 @@ export function UpdatesPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: U
 
   const handleDialogClose = useCallback(() => {
     setDialogOpen(false);
-  }, []);
+    // Refresh version data after dialog closes (covers both success and cancel)
+    queryClient.invalidateQueries({ queryKey: ['sandbox', 'versions'] });
+    queryClient.invalidateQueries({ queryKey: ['sandbox', 'latest-version'] });
+  }, [queryClient]);
 
   const handleDialogConfirm = useCallback(() => {
     update();
