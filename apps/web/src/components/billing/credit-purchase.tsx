@@ -166,7 +166,6 @@ export function CreditPurchaseModal({
 // ─── Auto Top-up Modal ──────────────────────────────────────────────────────
 
 export function AutoTopupModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-    if (!open) return null;
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">

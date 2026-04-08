@@ -1,3 +1,9 @@
+// ─── Observability (must be first — instruments before other imports) ────────
+import './lib/sentry';
+import { captureException, flushSentry, addBreadcrumb } from './lib/sentry';
+import { logger as appLogger } from './lib/logger';
+import { runWithContext, setContextField } from './lib/request-context';
+
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
@@ -88,7 +94,76 @@ app.use(
   })
 );
 
+// ─── Request context (AsyncLocalStorage) ────────────────────────────────────
+// Must be FIRST — wraps the entire request lifecycle so all downstream code
+// (auth, route handlers, console.error calls) automatically gets context fields
+// (requestId, userId, accountId, sandboxId) attached to every log.
+app.use('*', async (c, next) => {
+  await runWithContext(c.req.method, c.req.path, async () => {
+    // Auto-extract sandboxId from common URL patterns
+    const path = c.req.path;
+    const sbMatch = path.match(/\/sandbox(?:es)?\/([^/]+)/) ||
+                    path.match(/\/p\/([^/]+)/);
+    if (sbMatch) setContextField('sandboxId', sbMatch[1]);
+    await next();
+  });
+});
+
+// Request logger — uses Hono's built-in logger for stdout (Docker captures these)
 app.use('*', logger());
+
+// Post-request: Sentry breadcrumbs + slow/error request logging
+app.use('*', async (c, next) => {
+  const start = Date.now();
+  await next();
+  const duration = Date.now() - start;
+  const status = c.res.status;
+  const path = c.req.path;
+  const method = c.req.method;
+
+  // Propagate userId/accountId to request context (set by auth middleware)
+  const userId = c.get('userId');
+  const accountId = c.get('accountId');
+  if (userId) setContextField('userId', userId);
+  if (accountId) setContextField('accountId', accountId);
+
+  // Add breadcrumb to Sentry for request context on future errors
+  addBreadcrumb(`${c.req.method} ${c.req.path} ${status}`, {
+    method,
+    path,
+    status,
+    duration,
+    userAgent: c.req.header('user-agent')?.slice(0, 100),
+  }, 'http');
+
+  // Expected sandbox proxy noise we intentionally suppress:
+  // - long-poll/SSE event stream timing out after ~30s (504)
+  // - sandbox startup probes returning 502/503 before services are ready
+  const isSandboxProxyPath = path.includes('/v1/p/');
+  const isProxyLongPoll = isSandboxProxyPath && path.includes('/global/event');
+  const isProxyStartupProbe = isSandboxProxyPath && (
+    path.includes('/global/health') ||
+    path.includes('/kortix/health') ||
+    /\/sessions(?:\/|$)/.test(path)
+  );
+  const isExpectedProxyNoise = method === 'GET' && (
+    (isProxyLongPoll && (
+      (status === 200 && duration > 5000) ||
+      status === 504 ||
+      status === 502 ||
+      status === 503
+    )) ||
+    (isProxyStartupProbe && (status === 502 || status === 503 || status === 504))
+  );
+
+  // Log slow requests (>5s) and server errors to structured logger
+  if (!isExpectedProxyNoise && (status >= 500 || duration > 5000)) {
+    appLogger.warn(`Slow/error request: ${method} ${path} ${status} ${duration}ms`, {
+      status,
+      duration,
+    });
+  }
+});
 
 // Pretty JSON in dev mode for easier debugging
 if (config.INTERNAL_KORTIX_ENV === 'dev') {
@@ -97,18 +172,10 @@ if (config.INTERNAL_KORTIX_ENV === 'dev') {
 
 // === Top-Level Health Check (no auth) ===
 
-// Read version from release.json (baked into Docker image by Dockerfile).
-// Falls back to 'dev' for local development where the file path differs.
-const API_VERSION = (() => {
-  try {
-    // Docker image path
-    const fs = require('fs');
-    for (const p of ['/app/release.json', require('path').resolve(__dirname, '../../../core/release.json')]) {
-      if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8')).version;
-    }
-  } catch {}
-  return 'dev';
-})();
+// API version is injected at container start by deploy-zero-downtime.sh,
+// which extracts it from the Docker image tag (e.g. kortix/kortix-api:0.8.29 → 0.8.29).
+// Falls back to 'dev' for local development.
+const API_VERSION = process.env.SANDBOX_VERSION || 'dev';
 
 app.get('/health', (c) => {
   return c.json({
@@ -331,13 +398,29 @@ app.onError((err, c) => {
   const path = c.req.path;
   const errName = err.constructor?.name || 'Error';
 
+  // Suppress SSE/long-poll abort noise — these are expected timeouts on sandbox proxy,
+  // not real errors. The client reconnects automatically.
+  const isAbort = errName === 'DOMException' || err.message?.includes('The operation was aborted');
+  const isSandboxProxy = path.includes('/p/') && path.includes('/global/event');
+  if (isAbort && isSandboxProxy) {
+    return c.json({ error: true, message: 'Request timeout', status: 504 }, 504);
+  }
+
   if (err instanceof BillingError) {
-    console.error(`[ERROR] ${method} ${path} -> ${err.statusCode} [BillingError] ${err.message}`);
+    appLogger.error(`${method} ${path} -> ${err.statusCode} [BillingError]`, {
+      statusCode: err.statusCode, message: err.message, path, method,
+    });
     return c.json({ error: err.message }, err.statusCode as any);
   }
 
   if (err instanceof HTTPException) {
-    console.error(`[ERROR] ${method} ${path} -> ${err.status} [HTTPException] ${err.message}`);
+    // Only capture 5xx HTTP exceptions to Sentry (4xx are expected)
+    if (err.status >= 500) {
+      captureException(err, { method, path, status: err.status });
+    }
+    appLogger.error(`${method} ${path} -> ${err.status} [HTTPException]`, {
+      status: err.status, message: err.message, path, method,
+    });
 
     const response: Record<string, unknown> = {
       error: true,
@@ -357,17 +440,22 @@ app.onError((err, c) => {
   const isDbError = errName === 'PostgresError' || (err as any).severity || (err as any).code?.match?.(/^[0-9]{5}$/);
   if (isDbError) {
     const pgErr = err as any;
-    const severity = pgErr.severity || 'ERROR';
-    const pgCode = pgErr.code || '?';
-    const table = pgErr.table ? ` table=${pgErr.table}` : '';
-    const schema = pgErr.schema_name || pgErr.schema || '';
-    const hint = pgErr.hint ? ` hint="${pgErr.hint}"` : '';
-    const detail = pgErr.detail ? ` detail="${pgErr.detail}"` : '';
-    console.error(`[ERROR] ${method} ${path} -> 500 [DB ${severity} ${pgCode}]${schema ? ` schema=${schema}` : ''}${table}${detail}${hint} ${err.message.split('\n')[0]}`);
+    captureException(err, {
+      method, path, errorType: 'database',
+      pgCode: pgErr.code, table: pgErr.table, schema: pgErr.schema_name || pgErr.schema,
+    });
+    appLogger.error(`${method} ${path} -> 500 [DB ${pgErr.severity || 'ERROR'} ${pgErr.code || '?'}]`, {
+      method, path, errorType: 'database',
+      pgCode: pgErr.code, table: pgErr.table, hint: pgErr.hint, detail: pgErr.detail,
+      message: err.message.split('\n')[0],
+    });
   } else {
-    // Generic unhandled error — log concisely with truncated stack
-    const stack = err.stack ? '\n' + err.stack.split('\n').slice(1, 4).join('\n') : '';
-    console.error(`[ERROR] ${method} ${path} -> 500 [${errName}] ${err.message}${stack}`);
+    // Generic unhandled error — capture to Sentry + structured log
+    captureException(err, { method, path, errorType: errName });
+    appLogger.error(`${method} ${path} -> 500 [${errName}] ${err.message}`, {
+      method, path, errorType: errName,
+      stack: err.stack?.split('\n').slice(0, 5).join('\n'),
+    });
   }
 
   return c.json(
@@ -812,8 +900,8 @@ ensureSchema()
   });
 
 // Graceful shutdown
-function shutdown(signal: string) {
-  console.log(`\n[${signal}] Shutting down gracefully...`);
+async function shutdown(signal: string) {
+  appLogger.info(`Shutting down gracefully`, { signal });
   stopDrainer();
   stopModelPricing();
   stopTunnelService();
@@ -821,6 +909,8 @@ function shutdown(signal: string) {
   stopProvisionPoller();
   stopAutoReplenish();
   stopAccessControlCache();
+  // Flush observability data before exit
+  await Promise.allSettled([appLogger.flush(), flushSentry()]);
   process.exit(0);
 }
 

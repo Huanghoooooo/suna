@@ -551,7 +551,7 @@ export const SpreadsheetApp = memo(function SpreadsheetApp({
                       {file.name}
                     </div>
                     <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                      Last opened {new Date().toLocaleDateString()}
+                      Ready to open from your workspace
                     </div>
                   </div>
                   <div className="w-32 text-xs text-zinc-400 truncate">

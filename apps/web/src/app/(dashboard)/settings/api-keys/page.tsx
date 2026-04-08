@@ -44,7 +44,7 @@ import {
   APIKeyRegenerateResponse,
 } from '@/lib/api/api-keys';
 import { getActiveServer, getActiveOpenCodeUrl } from '@/stores/server-store';
-import { authenticatedFetch, getAuthToken } from '@/lib/auth-token';
+import { getAuthToken } from '@/lib/auth-token';
 import { useServerStore } from '@/stores/server-store';
 import { getEnv } from '@/lib/env-config';
 
@@ -188,6 +188,10 @@ export default function APIKeysPage() {
   });
   const queryClient = useQueryClient();
   const activeInstanceUrl = getActiveOpenCodeUrl()?.replace(/\/+$/, '');
+  const backendBase = useMemo(
+    () => (getEnv().BACKEND_URL || 'http://localhost:8008/v1').replace(/\/+$/, ''),
+    [],
+  );
 
   // ── Queries & mutations ────────────────────────────────────────────────
 
@@ -269,19 +273,28 @@ export default function APIKeysPage() {
     isLoading: isSharesLoading,
     refetch: refetchShares,
   } = useQuery({
-    queryKey: ['public-shares', activeInstanceUrl],
-    enabled: !!activeInstanceUrl,
+    queryKey: ['public-shares', activeSandboxExternalId],
+    enabled: !!activeSandboxExternalId,
     queryFn: async (): Promise<PublicShareEntry[]> => {
-      const res = await authenticatedFetch(`${activeInstanceUrl}/kortix/share`);
-      if (!res.ok) throw new Error('Failed to load public links');
-      const data = await res.json() as { shares?: PublicShareEntry[] };
-      return data.shares ?? [];
+      const sandboxId = activeSandboxExternalId;
+      if (!sandboxId) throw new Error('No active sandbox external id');
+      const token = await getAuthToken();
+      if (!token) throw new Error('Not authenticated');
+      const url = new URL(`${backendBase}/p/share`);
+      url.searchParams.set('sandbox_id', sandboxId);
+      const res = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as any)?.error || (data as any)?.message || 'Failed to load public links');
+      return (data as { shares?: PublicShareEntry[] }).shares ?? [];
     },
   });
 
   const publicUrlMutation = useMutation({
     mutationFn: async () => {
-      const backendBase = (getEnv().BACKEND_URL || 'http://localhost:8008/v1').replace(/\/+$/, '');
       const sandboxId = activeSandboxExternalId;
       if (!sandboxId) throw new Error('No active sandbox external id');
       const token = await getAuthToken();
@@ -313,9 +326,17 @@ export default function APIKeysPage() {
 
   const revokeShareMutation = useMutation({
     mutationFn: async (token: string) => {
-      if (!activeInstanceUrl) throw new Error('No active sandbox URL');
-      const res = await authenticatedFetch(`${activeInstanceUrl}/kortix/share/${token}`, {
+      const sandboxId = activeSandboxExternalId;
+      if (!sandboxId) throw new Error('No active sandbox external id');
+      const authToken = await getAuthToken();
+      if (!authToken) throw new Error('Not authenticated');
+      const url = new URL(`${backendBase}/p/share/${encodeURIComponent(token)}`);
+      url.searchParams.set('sandbox_id', sandboxId);
+      const res = await fetch(url.toString(), {
         method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -520,7 +541,7 @@ export default function APIKeysPage() {
 
           {/* Active links list */}
           <div className="rounded-2xl border bg-card overflow-hidden">
-            {!activeInstanceUrl ? (
+            {!activeSandboxExternalId ? (
               <div className="px-4 py-12 text-center space-y-2">
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                   <AlertCircle className="w-5 h-5 text-muted-foreground" />

@@ -12,9 +12,9 @@
  */
 
 import { useSandboxConnectionStore } from '@/stores/sandbox-connection-store';
-import { useSandboxUpdate, PHASE_LABELS, PHASE_PROGRESS } from './use-sandbox-update';
+import { useSandboxUpdate, PHASE_LABELS, PHASE_PROGRESS, detectChannel } from './use-sandbox-update';
 
-export { PHASE_LABELS, PHASE_PROGRESS };
+export { PHASE_LABELS, PHASE_PROGRESS, detectChannel };
 
 export function useGlobalSandboxUpdate() {
   const sandboxVersion = useSandboxConnectionStore((s) => s.sandboxVersion);

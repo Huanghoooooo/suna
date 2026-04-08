@@ -13,10 +13,12 @@ const billingApp = new Hono();
 
 // Webhooks — NO auth (handlers verify signatures internally)
 billingApp.route('/webhooks', webhooksRouter);
+// Alias: /webhook → /webhooks (some providers send to singular form)
+billingApp.route('/webhook', webhooksRouter);
 
 // Auth for all billing routes except webhooks
 billingApp.use('*', async (c, next) => {
-  if (c.req.path.includes('/webhooks')) {
+  if (c.req.path.includes('/webhook')) {
     return next();
   }
   return supabaseAuth(c, next);

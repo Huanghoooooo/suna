@@ -6,6 +6,8 @@ import { canAccessPreviewSandbox } from '../shared/preview-ownership';
 import { getSupabase } from '../shared/supabase';
 import { verifySupabaseJwt } from '../shared/jwt-verify';
 import { config } from '../config';
+import { setSentryUser } from '../lib/sentry';
+import { setContextField } from '../lib/request-context';
 
 // ─── Cookie name for preview session auth ────────────────────────────────────
 const PREVIEW_SESSION_COOKIE = '__preview_session';
@@ -89,6 +91,9 @@ export async function supabaseAuth(c: Context, next: Next) {
   if (local.ok) {
     c.set('userId', local.userId);
     c.set('userEmail', local.email);
+    setSentryUser({ id: local.userId, email: local.email });
+    setContextField('userId', local.userId);
+    setContextField('userEmail', local.email);
     await next();
     return;
   }
@@ -112,6 +117,9 @@ export async function supabaseAuth(c: Context, next: Next) {
 
     c.set('userId', user.id);
     c.set('userEmail', user.email || '');
+    setSentryUser({ id: user.id, email: user.email || undefined });
+    setContextField('userId', user.id);
+    setContextField('userEmail', user.email || '');
     await next();
   } catch (err) {
     if (err instanceof HTTPException) throw err;
@@ -204,6 +212,8 @@ export async function combinedAuth(c: Context, next: Next) {
     c.set('userId', result.accountId);
     c.set('userEmail', '');
     if (result.accountId) c.set('accountId', result.accountId);
+    setSentryUser({ id: result.accountId || 'unknown', accountId: result.accountId });
+    setContextField('accountId', result.accountId || 'unknown');
     if (isPreviewRoute) setPreviewSessionCookie(c, token);
     await next();
     return;
@@ -220,6 +230,9 @@ export async function combinedAuth(c: Context, next: Next) {
     }
     c.set('userId', local.userId);
     c.set('userEmail', local.email);
+    setSentryUser({ id: local.userId, email: local.email });
+    setContextField('userId', local.userId);
+    setContextField('userEmail', local.email);
     if (isPreviewRoute) setPreviewSessionCookie(c, token);
     await next();
     return;
@@ -248,6 +261,9 @@ export async function combinedAuth(c: Context, next: Next) {
 
     c.set('userId', user.id);
     c.set('userEmail', user.email || '');
+    setSentryUser({ id: user.id, email: user.email || undefined });
+    setContextField('userId', user.id);
+    setContextField('userEmail', user.email || '');
     if (isPreviewRoute) setPreviewSessionCookie(c, token);
     await next();
   } catch (err) {

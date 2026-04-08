@@ -267,7 +267,6 @@ RUN chmod +x /ephemeral/tests/*.sh 2>/dev/null || true
 #   kortix-master/triggers/   — Cron + webhook triggers
 COPY core/kortix-master  /opt/build/kortix-master
 COPY core/s6-services/svc-agent-browser-viewer/index.html /opt/build/browser-viewer/index.html
-COPY core/CHANGELOG.json /opt/build/CHANGELOG.json
 
 # ── Build sandbox runtime ────────────────────────────────────────────────────
 RUN set -eo pipefail && echo "[docker] Building sandbox runtime v${SANDBOX_VERSION}..." && \
@@ -304,7 +303,6 @@ RUN set -eo pipefail && echo "[docker] Building sandbox runtime v${SANDBOX_VERSI
     # ── 7. Version metadata ── \
     mkdir -p /ephemeral/metadata && \
     printf '{"version":"%s","updatedAt":"%s"}\n' "${SANDBOX_VERSION}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /ephemeral/metadata/.version && \
-    cp /opt/build/CHANGELOG.json /ephemeral/metadata/CHANGELOG.json && \
     \
     # ── 8. Global CLI binaries (direct install, no intermediate package.json) ── \
     npm install -g --no-audit --no-fund \

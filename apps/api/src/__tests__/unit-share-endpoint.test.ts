@@ -2,14 +2,13 @@ import { describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
 
 /**
- * Unit tests for POST /v1/p/share — input validation.
+ * Unit tests for /v1/p/share input validation.
  *
- * The actual share endpoint now proxies to the sandbox's /kortix/share/:port,
- * so we test the input validation layer (sandbox_id, port, JSON parsing).
- * We inline the validation logic to avoid DB/auth dependencies.
+ * The real handlers proxy to the sandbox's /kortix/share routes, so these tests
+ * focus on validating the request-shape guards for create/list/revoke.
  */
 
-describe('POST /v1/p/share (input validation)', () => {
+describe('/v1/p/share input validation', () => {
   function buildApp() {
     const app = new Hono()
 
@@ -31,6 +30,29 @@ describe('POST /v1/p/share (input validation)', () => {
 
       // In real code, this proxies to sandbox — just return success for validation tests
       return c.json({ ok: true, sandbox_id, port, ttl: body.ttl })
+    })
+
+    app.get('/v1/p/share', async (c) => {
+      const sandbox_id = c.req.query('sandbox_id')
+      if (!sandbox_id || typeof sandbox_id !== 'string') {
+        return c.json({ error: 'sandbox_id is required (string)' }, 400)
+      }
+
+      return c.json({ ok: true, sandbox_id, shares: [] })
+    })
+
+    app.delete('/v1/p/share/:token', async (c) => {
+      const sandbox_id = c.req.query('sandbox_id')
+      if (!sandbox_id || typeof sandbox_id !== 'string') {
+        return c.json({ error: 'sandbox_id is required (string)' }, 400)
+      }
+
+      const token = c.req.param('token')
+      if (!token) {
+        return c.json({ error: 'token is required' }, 400)
+      }
+
+      return c.json({ ok: true, sandbox_id, token })
     })
 
     return app
@@ -119,5 +141,33 @@ describe('POST /v1/p/share (input validation)', () => {
       body: JSON.stringify({ sandbox_id: 123, port: 3000 }),
     })
     expect(res.status).toBe(400)
+  })
+
+  test('GET requires sandbox_id query param', async () => {
+    const app = buildApp()
+    const res = await app.request('/v1/p/share')
+    expect(res.status).toBe(400)
+    const body = await res.json() as any
+    expect(body.error).toContain('sandbox_id')
+  })
+
+  test('GET accepts sandbox_id query param', async () => {
+    const app = buildApp()
+    const res = await app.request('/v1/p/share?sandbox_id=sb_1')
+    expect(res.status).toBe(200)
+  })
+
+  test('DELETE requires sandbox_id query param', async () => {
+    const app = buildApp()
+    const res = await app.request('/v1/p/share/tok_123', { method: 'DELETE' })
+    expect(res.status).toBe(400)
+    const body = await res.json() as any
+    expect(body.error).toContain('sandbox_id')
+  })
+
+  test('DELETE accepts sandbox_id query param', async () => {
+    const app = buildApp()
+    const res = await app.request('/v1/p/share/tok_123?sandbox_id=sb_1', { method: 'DELETE' })
+    expect(res.status).toBe(200)
   })
 })

@@ -502,8 +502,11 @@ function parsePartialJSON(raw: string): Record<string, unknown> {
 function partStreamingInput(part: ToolPart): Record<string, unknown> {
 	const input = part.state.input ?? {};
 	if (Object.keys(input).length > 0) return input;
-	// During pending state, try to parse the streaming raw field
-	if (part.state.status === "pending" && "raw" in part.state) {
+	// During pending/running state, try to parse the streaming raw field
+	if (
+		(part.state.status === "pending" || part.state.status === "running") &&
+		"raw" in part.state
+	) {
 		const raw = (part.state as any).raw as string;
 		if (raw) return parsePartialJSON(raw);
 	}
@@ -515,7 +518,7 @@ function partStreamingInput(part: ToolPart): Record<string, unknown> {
 // ============================================================================
 
 function partInput(part: ToolPart): Record<string, unknown> {
-	return part.state.input ?? {};
+	return partStreamingInput(part);
 }
 
 function partMetadata(part: ToolPart): Record<string, unknown> {
@@ -546,6 +549,35 @@ function partOutput(part: ToolPart): string {
 
 function partStatus(part: ToolPart): string {
 	return part.state.status;
+}
+
+function firstMeaningfulLine(value: unknown, maxLength = 120): string {
+	if (typeof value !== "string") return "";
+	const line = value
+		.split("\n")
+		.map((segment) => segment.trim())
+		.find(Boolean);
+	if (!line) return "";
+	return line.length > maxLength ? `${line.slice(0, maxLength).trim()}…` : line;
+}
+
+function getAgentCardLabel(input: Record<string, unknown>): string {
+	const description = firstMeaningfulLine(input.description);
+	if (description) return description;
+
+	const title = firstMeaningfulLine(input.title, 80);
+	if (title) return title;
+
+	const message = firstMeaningfulLine(input.message);
+	if (message) return message;
+
+	const promptPreview = firstMeaningfulLine(input.prompt);
+	if (promptPreview) return promptPreview;
+
+	const agentId = firstMeaningfulLine(input.agent_id, 40);
+	if (agentId) return `Agent ${agentId}`;
+
+	return "Worker task";
 }
 
 // ============================================================================
@@ -5051,7 +5083,7 @@ function TaskTool({ part, forceOpen }: ToolProps) {
 	const status = partStatus(part);
 
 	const subagentType = (input.subagent_type as string) || "general";
-	const description = (input.description as string) || "";
+	const description = getAgentCardLabel(input);
 
 	// Extract child session ID from metadata (available once task is running/completed)
 	const childSessionId: string | undefined = useMemo(
@@ -5077,7 +5109,7 @@ function TaskTool({ part, forceOpen }: ToolProps) {
 	const lastActivity = useMemo(() => {
 		if (childToolParts.length === 0) return null;
 		const last = childToolParts[childToolParts.length - 1];
-		const info = getToolInfo(last.tool, (last.state.input ?? {}) as Record<string, any>);
+		const info = getToolInfo(last.tool, partInput(last) as Record<string, any>);
 		return info.title + (info.subtitle ? ` · ${info.subtitle}` : "");
 	}, [childToolParts]);
 
@@ -5190,7 +5222,7 @@ function SessionSpawnTool({ part, forceOpen }: ToolProps) {
 	const lastActivity = useMemo(() => {
 		if (childToolParts.length === 0) return null;
 		const last = childToolParts[childToolParts.length - 1];
-		const info = getToolInfo(last.tool, (last.state.input ?? {}) as Record<string, any>);
+		const info = getToolInfo(last.tool, partInput(last) as Record<string, any>);
 		return info.title + (info.subtitle ? ` · ${info.subtitle}` : "");
 	}, [childToolParts]);
 
@@ -5644,7 +5676,7 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 	const input = partInput(part);
 	const status = partStatus(part);
 	const output = partOutput(part);
-	const description = (input.description as string) || "";
+	const description = getAgentCardLabel(input);
 	const isRunning = status === "running" || status === "pending";
 	const isCompleted = status === "completed";
 	const isError = status === "error";
@@ -5666,7 +5698,7 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 	const lastActivity = useMemo(() => {
 		if (childToolParts.length === 0) return null;
 		const last = childToolParts[childToolParts.length - 1];
-		const info = getToolInfo(last.tool, (last.state.input ?? {}) as Record<string, any>);
+		const info = getToolInfo(last.tool, partInput(last) as Record<string, any>);
 		return info.title + (info.subtitle ? ` · ${info.subtitle}` : "");
 	}, [childToolParts]);
 
@@ -5740,7 +5772,7 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 					{isCompleted && childToolParts.length > 0 && !cleanedOutput && (
 						<div className="mt-2 pl-[26px] space-y-0.5">
 							{childToolParts.slice(-3).map((tp, i) => {
-								const info = getToolInfo(tp.tool, (tp.state.input ?? {}) as Record<string, any>);
+								const info = getToolInfo(tp.tool, partInput(tp) as Record<string, any>);
 								return (
 									<div key={i} className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
 										<Check className="size-2.5 text-muted-foreground/50 flex-shrink-0" />
@@ -5824,7 +5856,7 @@ function AgentMessageTool({ part }: ToolProps) {
 	const input = partInput(part);
 	const status = partStatus(part);
 	const output = partOutput(part);
-	const message = (input.message as string) || "";
+	const message = firstMeaningfulLine(input.message, 240);
 	const description = message
 		? message.length > 80 ? message.slice(0, 80).trim() + "…" : message
 		: "Message sent to agent";
@@ -5923,7 +5955,7 @@ function AgentMessageTool({ part }: ToolProps) {
 					{isCompleted && childToolParts.length > 0 && !cleanedOutput && (
 						<div className="mt-2 pl-[26px] space-y-0.5">
 							{childToolParts.slice(-3).map((tp, i) => {
-								const info = getToolInfo(tp.tool, (tp.state.input ?? {}) as Record<string, any>);
+								const info = getToolInfo(tp.tool, partInput(tp) as Record<string, any>);
 								return (
 									<div key={i} className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
 										<Check className="size-2.5 text-muted-foreground/50 flex-shrink-0" />

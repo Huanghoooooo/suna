@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
 import path from 'path';
 import { createMDX } from 'fumadocs-mdx/next';
+import { withSentryConfig } from '@sentry/nextjs';
+import { withBetterStack } from '@logtail/next';
 
 const nextConfig = (): NextConfig => ({
   output: 'standalone',
@@ -106,5 +108,25 @@ const nextConfig = (): NextConfig => ({
 
 const withMDX = createMDX();
 
-export default withMDX(nextConfig());
-// env rebuild 1774513733
+// Compose config wrappers: MDX → Better Stack (structured logs) → Sentry (error tracking)
+export default withSentryConfig(withBetterStack(withMDX(nextConfig())), {
+  // Suppresses source map uploading logs during build
+  silent: true,
+
+  // Don't upload source maps during build (we can enable this later)
+  sourcemaps: {
+    disable: true,
+  },
+
+  // Disable Sentry CLI telemetry
+  telemetry: false,
+
+  // Tree-shake Sentry debug logger statements to reduce bundle size
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+  },
+
+  // Route Sentry envelopes through our server to bypass ad-blockers.
+  // Creates an auto-generated route at /monitoring that forwards to the DSN host.
+  tunnelRoute: '/monitoring',
+});

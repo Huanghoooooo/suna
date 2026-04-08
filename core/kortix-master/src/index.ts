@@ -41,20 +41,6 @@ import { config } from './config'
 import { loadBootstrapEnv, saveBootstrapEnv } from './services/bootstrap-env'
 import { HealthResponse, PortsResponse } from './schemas/common'
 
-// ─── Changelog ──────────────────────────────────────────────────────────────
-const CHANGELOG_FILE = '/ephemeral/metadata/CHANGELOG.json'
-
-async function getChangelog(version: string) {
-  try {
-    const file = Bun.file(CHANGELOG_FILE)
-    if (await file.exists()) {
-      const entries = await file.json()
-      return entries.find((e: any) => e.version === version) ?? null
-    }
-  } catch {}
-  return null
-}
-
 // ─── Crash protection ────────────────────────────────────────────────────────
 // Prevent unhandled errors from silently killing the process or leaving it
 // in a broken state. Log and continue.
@@ -298,20 +284,23 @@ app.get('/kortix/health',
     },
   }),
   async (c) => {
-    let version = '0.0.0'
-    try {
-      const file = Bun.file('/ephemeral/metadata/.version')
-      if (await file.exists()) {
-        const data = await file.json()
-        version = data.version || '0.0.0'
-      }
-    } catch {}
-    const imageVersion = process.env.SANDBOX_VERSION || version
+    // Version priority: injected SANDBOX_VERSION env var (set at provision from
+    // image tag), then baked-in /ephemeral/metadata/.version, then 'unknown'.
+    let version = process.env.SANDBOX_VERSION || ''
+    if (!version) {
+      try {
+        const file = Bun.file('/ephemeral/metadata/.version')
+        if (await file.exists()) {
+          const data = await file.json()
+          version = data.version || 'unknown'
+        }
+      } catch {}
+    }
+    if (!version) version = 'unknown'
     await checkOpenCodeReady()
-    const changelog = await getChangelog(version)
     const status = openCodeReady ? 'ok' : 'starting'
     const httpStatus = openCodeReady ? 200 : 503
-    return c.json({ status, version, imageVersion, changelog, activeWs: activeConnections, runtimeReady: openCodeReady }, httpStatus)
+    return c.json({ status, version, imageVersion: version, activeWs: activeConnections, runtimeReady: openCodeReady }, httpStatus)
   },
 )
 

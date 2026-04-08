@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Check, XCircle, ArrowDownToLine, RotateCw, Sparkles, Bug, Zap, AlertTriangle, Shield, RefreshCw } from 'lucide-react';
+import { Check, XCircle, ArrowDownToLine, RotateCw, Sparkles, Bug, Zap, AlertTriangle, Shield, RefreshCw, Terminal, Copy } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   AlertDialog,
@@ -11,6 +11,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AnimatedCircularProgressBar } from '@/components/ui/animated-circular-progress';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -70,10 +71,17 @@ interface UpdateDialogProps {
   latestVersion: string | null;
   changelog: ChangelogEntry | null;
   currentVersion: string | null;
+  isLocalSelfHosted?: boolean;
+  errorMessage: string | null;
   updateResult: { success: boolean; currentVersion: string } | null;
   onClose: () => void;
   onConfirm: () => void;
   onRetry: () => void;
+}
+
+function formatVersion(version: string | null | undefined): string {
+  if (!version) return 'unknown';
+  return version.startsWith('dev-') ? version : `v${version}`;
 }
 
 export function UpdateDialog({
@@ -84,6 +92,8 @@ export function UpdateDialog({
   latestVersion,
   changelog,
   currentVersion,
+  isLocalSelfHosted,
+  errorMessage,
   updateResult,
   onClose,
   onConfirm,
@@ -174,6 +184,14 @@ export function UpdateDialog({
     onConfirm();
   };
 
+  const copyCliCommand = async () => {
+    try {
+      await navigator.clipboard.writeText('kortix update');
+    } catch {
+      // no-op
+    }
+  };
+
   const changes = changelog?.changes ?? [];
   const visibleChanges = expanded ? changes : changes.slice(0, 4);
   const hasMore = changes.length > 4 && !expanded;
@@ -191,11 +209,11 @@ export function UpdateDialog({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             <ArrowDownToLine className="h-5 w-5 text-primary" />
-            Update to v{latestVersion}
+            Update to {formatVersion(latestVersion)}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {currentVersion
-              ? <>Your sandbox is running <span className="font-mono font-medium text-foreground">v{currentVersion}</span>.</>
+              ? <>Your sandbox is running <span className="font-mono font-medium text-foreground">{formatVersion(currentVersion)}</span>.</>
               : 'A new version is available.'}
             {' '}This will restart your sandbox.
           </AlertDialogDescription>
@@ -203,7 +221,20 @@ export function UpdateDialog({
         <AnimatePresence mode="wait">
           {step === 'confirm' && (
             <motion.div key="confirm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-              {changes.length > 0 && (
+              {isLocalSelfHosted ? (
+                <Alert variant="warning" className="mt-4">
+                  <Terminal className="h-4 w-4" />
+                  <AlertTitle>Self-hosted updates run from the host</AlertTitle>
+                  <AlertDescription>
+                    <p>
+                      If you installed Kortix via the CLI, updates should be run from your terminal so the full stack updates together.
+                    </p>
+                    <div className="mt-2 rounded-xl bg-muted/40 px-3 py-2 font-mono text-xs text-foreground/80">
+                      kortix update
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              ) : changes.length > 0 && (
                 <div className="rounded-lg border border-border/50 bg-muted/30 mt-4">
                   <div className="max-h-72 overflow-y-auto px-3 py-2.5 space-y-0.5">
                     {visibleChanges.map((change, i) => (
@@ -225,10 +256,17 @@ export function UpdateDialog({
 
               <AlertDialogFooter className="mt-4">
                 <Button variant="outline" onClick={onClose}>Cancel</Button>
-                <Button onClick={handleConfirm} className="gap-2">
-                  <ArrowDownToLine className="h-4 w-4" />
-                  Update now
-                </Button>
+                {isLocalSelfHosted ? (
+                  <Button onClick={copyCliCommand} className="gap-2">
+                    <Copy className="h-4 w-4" />
+                    Copy command
+                  </Button>
+                ) : (
+                  <Button onClick={handleConfirm} className="gap-2">
+                    <ArrowDownToLine className="h-4 w-4" />
+                    Update now
+                  </Button>
+                )}
               </AlertDialogFooter>
             </motion.div>
           )}
@@ -264,7 +302,7 @@ export function UpdateDialog({
                   </motion.p>
                 </AnimatePresence>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Updating to v{latestVersion}
+                  Updating to {formatVersion(latestVersion)}
                 </p>
               </div>
             </motion.div>
@@ -306,7 +344,7 @@ export function UpdateDialog({
               >
                 <p className="text-base font-semibold text-foreground">Update Complete</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Now running v{updateResult?.currentVersion ?? latestVersion}
+                  Now running {formatVersion(updateResult?.currentVersion ?? latestVersion)}
                 </p>
               </motion.div>
             </motion.div>
@@ -320,10 +358,19 @@ export function UpdateDialog({
                   <XCircle className="h-7 w-7 text-red-500" />
                 </div>
                 <p className="text-base font-semibold text-foreground mt-4">Update Failed</p>
-                <p className="text-sm text-muted-foreground mt-1 text-center max-w-xs">
-                  {phaseMessage || 'Something went wrong during the update.'}
-                </p>
               </div>
+
+              <Alert variant="destructive" className="mt-1">
+                <XCircle className="h-4 w-4" />
+                <AlertTitle>{phaseMessage || 'Something went wrong during the update.'}</AlertTitle>
+                {errorMessage && (
+                  <AlertDescription>
+                    <div className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-xl bg-muted/40 px-3 py-2 font-mono text-xs text-foreground/80">
+                      {errorMessage}
+                    </div>
+                  </AlertDescription>
+                )}
+              </Alert>
 
               <AlertDialogFooter>
                 <Button variant="outline" onClick={onClose}>Close</Button>

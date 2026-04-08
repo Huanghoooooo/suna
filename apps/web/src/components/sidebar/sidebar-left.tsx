@@ -328,7 +328,7 @@ const changeTypeColor: Record<string, string> = {
 };
 
 function SidebarUpdateIndicator({ collapsed }: { collapsed: boolean }) {
-  const { updateAvailable, latestVersion, changelog, update, isUpdating, updateResult } = useGlobalSandboxUpdate();
+  const { updateAvailable, latestVersion, currentChannel, changelog, update, isUpdating, updateResult } = useGlobalSandboxUpdate();
   const openDialog = useUpdateDialogStore((s) => s.openDialog);
   const router = useRouter();
   const [dismissed, setDismissed] = React.useState(false);
@@ -387,7 +387,9 @@ function SidebarUpdateIndicator({ collapsed }: { collapsed: boolean }) {
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
         </span>
-        <span className="text-xs font-semibold text-foreground truncate min-w-0">New Kortix version</span>
+        <span className="text-xs font-semibold text-foreground truncate min-w-0">
+          {currentChannel === 'dev' ? 'New dev build' : 'New Kortix version'}
+        </span>
         <span className="flex-1" />
         <span className="text-[10px] text-muted-foreground flex-shrink-0">v{latestVersion}</span>
         <button

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useId, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,13 +41,16 @@ const BOT_NAMES = [
   'Hugo', 'Aria', 'Leo', 'Ivy', 'Rex', 'Mae', 'Kai', 'Pia',
 ];
 
-function randomBotName(): string {
-  return `Kortix ${BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)]}`;
+function defaultBotName(seed: string): string {
+  let hash = 0;
+  for (const char of seed) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return `Kortix ${BOT_NAMES[hash % BOT_NAMES.length]}`;
 }
 
 export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
+  const botNameSeed = useId();
   const [step, setStep] = useState(1);
-  const [botName, setBotName] = useState(() => randomBotName());
+  const [botName, setBotName] = useState(() => defaultBotName(botNameSeed));
   const [agentName, setAgentName] = useState<string | null>('kortix');
   const [selectedModel, setSelectedModel] = useState<{ providerID: string; modelID: string } | null>(null);
   const [manifest, setManifest] = useState<Record<string, unknown> | null>(null);

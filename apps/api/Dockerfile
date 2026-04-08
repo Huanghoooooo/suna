@@ -23,10 +23,6 @@ COPY packages/shared ./packages/shared
 COPY packages/db ./packages/db
 COPY packages/agent-tunnel ./packages/agent-tunnel
 
-# Copy release metadata (read by version endpoint)
-COPY core/CHANGELOG.json ./core/CHANGELOG.json
-COPY core/package.json ./core/package.json
-
 # Install pnpm and deps for this app + workspace packages it depends on.
 # --shamefully-hoist flattens node_modules (no symlinks) so COPY works on all Docker versions.
 # Include devDeps so drizzle-kit is available for schema push at runtime.
@@ -46,13 +42,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssh-client 
 
 # License
 COPY LICENSE /LICENSE
-
-# Changelog + release metadata (read by version endpoint)
-COPY core/CHANGELOG.json /app/CHANGELOG.json
-COPY core/release.json /app/release.json
-
-# Core package.json — single source of truth for SANDBOX_VERSION
-COPY core/package.json /app/core/package.json
 
 # Copy installed node_modules and source from deps stage.
 # Root node_modules contains all hoisted deps (--shamefully-hoist).

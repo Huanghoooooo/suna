@@ -7,6 +7,7 @@ import { ArrowLeft, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AnimatedBg } from '@/components/ui/animated-bg';
 import { KortixLogo } from '@/components/sidebar/kortix-logo';
+import * as Sentry from '@sentry/nextjs';
 
 export default function HomeError({
   error,
@@ -17,6 +18,7 @@ export default function HomeError({
 }) {
   useEffect(() => {
     console.error('[Kortix Home Error]', error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

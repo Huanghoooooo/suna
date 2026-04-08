@@ -4,17 +4,23 @@ import { useState, useEffect, useRef } from 'react';
 import { useUpdateDialogStore } from '@/stores/update-dialog-store';
 import { useGlobalSandboxUpdate } from '@/hooks/platform/use-global-sandbox-update';
 import { useSandboxConnectionStore } from '@/stores/sandbox-connection-store';
+import { useServerStore } from '@/stores/server-store';
 import { UpdateDialog } from '@/components/update-dialog';
 import type { UpdatePhase } from '@/lib/platform-client';
 
 const DEV_PHASES: UpdatePhase[] = ['idle', 'backing_up', 'pulling', 'patching', 'stopping', 'restarting', 'verifying', 'complete'];
 
 export function UpdateDialogProvider() {
-  const { open, closeDialog, openDialog } = useUpdateDialogStore();
+  const { open, targetVersion, closeDialog, openDialog } = useUpdateDialogStore();
   const currentVersion = useSandboxConnectionStore((s) => s.sandboxVersion);
+  const activeServer = useServerStore((s) => {
+    const id = s.activeServerId;
+    return id ? s.servers.find((sv) => sv.id === id) : undefined;
+  });
+  const isLocalSelfHosted = activeServer?.provider === 'local_docker';
   const {
     phase, phaseMessage, phaseProgress, latestVersion,
-    changelog, updateResult, update,
+    changelog, updateResult, update, updateErrorMessage,
   } = useGlobalSandboxUpdate();
 
   const [devMode, setDevMode] = useState(false);
@@ -58,13 +64,15 @@ export function UpdateDialogProvider() {
       phase={devPhase}
       phaseMessage={devMode ? `Dev: ${devPhase}` : phaseMessage}
       phaseProgress={devProgress}
-      latestVersion={latestVersion ?? '0.8.20'}
+      latestVersion={targetVersion ?? latestVersion ?? null}
       changelog={changelog}
-      currentVersion={currentVersion ?? '0.8.19'}
+      currentVersion={currentVersion ?? null}
+      isLocalSelfHosted={isLocalSelfHosted}
+      errorMessage={updateErrorMessage}
       updateResult={devMode && devPhase === 'complete' ? { success: true, currentVersion: '0.8.20' } : updateResult}
       onClose={() => { if (devMode) setDevMode(false); closeDialog(); }}
-      onConfirm={() => { if (devMode) { setDevPhaseIdx(1); return; } update(); }}
-      onRetry={() => { if (devMode) { setDevPhaseIdx(1); return; } update(); }}
+      onConfirm={() => { if (devMode) { setDevPhaseIdx(1); return; } update(targetVersion ?? undefined); }}
+      onRetry={() => { if (devMode) { setDevPhaseIdx(1); return; } update(targetVersion ?? undefined); }}
     />
   );
 }

@@ -191,7 +191,6 @@ export const UpdateResponse = z.object({
   upToDate: z.boolean().optional(),
   previousVersion: z.string().optional(),
   currentVersion: z.string(),
-  changelog: z.any().optional(),
   output: z.string().optional(),
 })
 
@@ -247,7 +246,7 @@ export const IntegrationRunActionBody = z.object({
 export const HealthResponse = z.object({
   status: z.enum(['ok', 'starting']).describe("'ok' when the agent runtime is reachable, 'starting' otherwise"),
   version: z.string().describe('Current sandbox version'),
-  changelog: z.any().nullable().describe('Changelog entry for current version'),
+  imageVersion: z.string().describe('Version baked into the Docker image'),
   activeWs: z.number().int().describe('Active WebSocket connections'),
   runtimeReady: z.boolean().describe('Whether the agent runtime is ready'),
 })
