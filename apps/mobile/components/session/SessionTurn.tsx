@@ -780,12 +780,68 @@ function ShellExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boolea
 }
 
 // LCS-based diff utilities — shared with ViewChangesSheet
-import { generateLineDiff, getDiffStats } from '@/lib/opencode/diff-utils';
+import { generateLineDiff, getDiffStats, type DiffLine } from '@/lib/opencode/diff-utils';
+
+/** Syntax-highlighted diff line with inline +/- prefix */
+function DiffCodeLine({ text, lineType, ext, isDark, fs, lh }: {
+  text: string;
+  lineType: DiffLine['type'];
+  ext: string;
+  isDark: boolean;
+  fs: number;
+  lh: number;
+}) {
+  const tokens = useMemo(() => tokenizeLine(text, ext), [text, ext]);
+
+  const getColor = (tokenType: CodeTokenType): string => {
+    const syntaxMap: Record<CodeTokenType, string> = {
+      keyword: isDark ? '#c4b5fd' : '#7c3aed',
+      string: isDark ? '#86efac' : '#16a34a',
+      comment: isDark ? '#6b7280' : '#9ca3af',
+      number: isDark ? '#fdba74' : '#ea580c',
+      heading: isDark ? '#93c5fd' : '#2563eb',
+      bold: isDark ? '#e2e8f0' : '#1e293b',
+      bullet: isDark ? '#fdba74' : '#ea580c',
+      operator: isDark ? '#a1a1aa' : '#71717a',
+      property: isDark ? '#93c5fd' : '#2563eb',
+      tag: isDark ? '#fca5a5' : '#dc2626',
+      attr: isDark ? '#fdba74' : '#ea580c',
+      plain: isDark ? '#e4e4e7' : '#27272a',
+    };
+    const base = syntaxMap[tokenType];
+    if (lineType === 'unchanged') {
+      const r = parseInt(base.slice(1, 3), 16);
+      const g = parseInt(base.slice(3, 5), 16);
+      const b = parseInt(base.slice(5, 7), 16);
+      return `rgba(${r},${g},${b},0.45)`;
+    }
+    return base;
+  };
+
+  const prefixChar = lineType === 'removed' ? '− ' : lineType === 'added' ? '+ ' : '  ';
+  const prefixColor = lineType === 'removed'
+    ? (isDark ? '#f87171' : '#dc2626')
+    : lineType === 'added'
+    ? (isDark ? '#4ade80' : '#16a34a')
+    : 'transparent';
+
+  return (
+    <Text style={{ fontSize: fs, fontFamily: monoFont, lineHeight: lh, paddingVertical: 1, paddingHorizontal: 8 }}>
+      <Text style={{ color: prefixColor, fontSize: fs, fontFamily: monoFont, fontWeight: '600' }}>{prefixChar}</Text>
+      {tokens.map((token, i) => (
+        <Text key={i} style={{ color: getColor(token.type), fontSize: fs, fontFamily: monoFont }}>
+          {token.text}
+        </Text>
+      ))}
+    </Text>
+  );
+}
 
 function WriteEditExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boolean }) {
   const input = getToolInput(tool);
   const content = input.content || input.newString || '';
   const filePath = input.filePath || '';
+  const ext = getExtFromPath(filePath);
 
   // For edit, show unified diff
   const oldString = input.oldString;
@@ -810,59 +866,27 @@ function WriteEditExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: bo
           nestedScrollEnabled
           showsVerticalScrollIndicator
         >
-          {lineDiff.slice(0, 40).map((line, i) => {
-            const isRemoved = line.type === 'removed';
-            const isAdded = line.type === 'added';
+          <View style={{ paddingVertical: 4 }}>
+            {lineDiff.slice(0, 40).map((line, i) => {
+              const isRemoved = line.type === 'removed';
+              const isAdded = line.type === 'added';
 
-            return (
-              <View
-                key={i}
-                style={{
-                  flexDirection: 'row',
-                  backgroundColor: isRemoved
-                    ? (isDark ? 'rgba(239,68,68,0.10)' : 'rgba(239,68,68,0.07)')
-                    : isAdded
-                    ? (isDark ? 'rgba(34,197,94,0.10)' : 'rgba(34,197,94,0.07)')
-                    : 'transparent',
-                  borderLeftWidth: 2,
-                  borderLeftColor: isRemoved
-                    ? (isDark ? '#f87171' : '#ef4444')
-                    : isAdded
-                    ? (isDark ? '#4ade80' : '#22c55e')
-                    : 'transparent',
-                }}
-              >
-                {/* +/- indicator */}
-                <View style={{ width: 20, alignItems: 'center', justifyContent: 'center' }}>
-                  {isRemoved && (
-                    <Text style={{ fontSize: fs, fontFamily: monoFont, color: isDark ? '#f87171' : '#dc2626', fontWeight: '600' }}>−</Text>
-                  )}
-                  {isAdded && (
-                    <Text style={{ fontSize: fs, fontFamily: monoFont, color: isDark ? '#4ade80' : '#16a34a', fontWeight: '600' }}>+</Text>
-                  )}
-                </View>
-                {/* Code content */}
-                <Text
-                  numberOfLines={1}
+              return (
+                <View
+                  key={i}
                   style={{
-                    flex: 1,
-                    fontSize: fs,
-                    fontFamily: monoFont,
-                    lineHeight: lh,
-                    paddingVertical: 1,
-                    paddingRight: 12,
-                    color: isRemoved
-                      ? (isDark ? '#fca5a5' : '#b91c1c')
+                    backgroundColor: isRemoved
+                      ? (isDark ? 'rgba(239,68,68,0.06)' : 'rgba(239,68,68,0.05)')
                       : isAdded
-                      ? (isDark ? '#bbf7d0' : '#15803d')
-                      : (isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)'),
+                      ? (isDark ? 'rgba(34,197,94,0.06)' : 'rgba(34,197,94,0.05)')
+                      : 'transparent',
                   }}
                 >
-                  {line.text}
-                </Text>
-              </View>
-            );
-          })}
+                  <DiffCodeLine text={line.text} lineType={line.type} ext={ext} isDark={isDark} fs={fs} lh={lh} />
+                </View>
+              );
+            })}
+          </View>
           {lineDiff.length > 40 && (
             <View style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
               <Text style={{ fontSize: 10, fontFamily: monoFont, color: muted(isDark) }}>
