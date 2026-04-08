@@ -50,6 +50,9 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useSandboxContext } from '@/contexts/SandboxContext';
 import { getSandboxPortUrl } from '@/lib/platform/client';
+import { getAuthToken } from '@/api/config';
+import { FileViewer } from '@/components/files/FileViewer';
+import type { SandboxFile } from '@/api/types';
 import { useTabStore } from '@/stores/tab-store';
 import type {
   Turn,
@@ -86,6 +89,91 @@ import {
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// ─── Image extension detection ──────────────────────────────────────────────
+
+const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif|tiff?|heic|heif)$/i;
+
+function isImagePath(filePath: string): boolean {
+  return IMAGE_EXT_RE.test(filePath);
+}
+
+// ─── SandboxImage — loads an image from the sandbox with auth ────────────────
+
+function SandboxImage({
+  filePath,
+  isDark,
+  height = 240,
+}: {
+  filePath: string;
+  isDark: boolean;
+  height?: number;
+}) {
+  const { sandboxUrl } = useSandboxContext();
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!sandboxUrl || !filePath) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getAuthToken();
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch(
+          `${sandboxUrl}/file/raw?path=${encodeURIComponent(filePath)}`,
+          { headers },
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (!cancelled && typeof reader.result === 'string') {
+            setImageUri(reader.result);
+            setLoading(false);
+          }
+        };
+        reader.onerror = () => {
+          if (!cancelled) { setError(true); setLoading(false); }
+        };
+        reader.readAsDataURL(blob);
+      } catch {
+        if (!cancelled) { setError(true); setLoading(false); }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [sandboxUrl, filePath]);
+
+  if (loading) {
+    return (
+      <View style={{ height, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>
+        <ReAnimated.View>
+          <Loader2 size={20} color={isDark ? '#52525b' : '#a1a1aa'} />
+        </ReAnimated.View>
+      </View>
+    );
+  }
+
+  if (error || !imageUri) {
+    return (
+      <View style={{ height: 60, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: 12, color: isDark ? '#71717a' : '#a1a1aa' }}>
+          Failed to load image
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      source={{ uri: imageUri }}
+      style={{ width: '100%', height, borderBottomLeftRadius: 13, borderBottomRightRadius: 13 }}
+      resizeMode="cover"
+    />
+  );
 }
 
 // ─── Shimmer text for status indicators ──────────────────────────────────────
@@ -1247,6 +1335,11 @@ function ShowExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boolean
     return undefined;
   }, [tool.state, title]);
 
+  // Show image directly if the input path is an image
+  if (filePath && isImagePath(filePath) && !content) {
+    return <SandboxImage filePath={filePath} isDark={isDark} height={240} />;
+  }
+
   // Show file content with syntax highlighting if available
   if (content) {
     return (
@@ -1269,6 +1362,10 @@ function ShowExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boolean
   if (!parsedOutput) return null;
 
   if (parsedOutput.type === 'file') {
+    // If the output file is an image, render it inline
+    if (isImagePath(parsedOutput.path)) {
+      return <SandboxImage filePath={parsedOutput.path} isDark={isDark} height={240} />;
+    }
     return (
       <View style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
@@ -1737,7 +1834,7 @@ function ShowToolCard({
   isDark: boolean;
 }) {
   const input = getToolInput(tool);
-  const { sandboxId } = useSandboxContext();
+  const { sandboxId, sandboxUrl: ctxSandboxUrl } = useSandboxContext();
 
   const title = (input.title as string) || '';
   const description = (input.description as string) || '';
@@ -1774,6 +1871,9 @@ function ShowToolCard({
   // Open button label
   const openLabel = isHtmlFile || hasLocalhostUrl ? 'Open Preview' : url ? 'Open Link' : 'Open File';
 
+  // File viewer state
+  const [fileViewerVisible, setFileViewerVisible] = useState(false);
+
   // Expandable content state
   const [expanded, setExpanded] = useState(false);
   const hasExpandableContent = !!(content || (tool.state.status === 'completed' && 'output' in tool.state && tool.state.output?.trim()));
@@ -1807,9 +1907,11 @@ function ShowToolCard({
         savedUrl: url,
         savedDisplay: url.replace(/^https?:\/\//, '').replace(/\/$/, ''),
       });
+    } else if (path) {
+      // Open file in the file viewer (supports download)
+      setFileViewerVisible(true);
     }
-    // File paths could open in a file viewer — for now just expand content
-  }, [canOpen, sandboxId, hasLocalhostUrl, localhostMatch, url]);
+  }, [canOpen, sandboxId, hasLocalhostUrl, localhostMatch, url, path]);
 
   const handleToggle = useCallback(() => {
     if (!hasExpandableContent) return;
@@ -1885,10 +1987,10 @@ function ShowToolCard({
                 <Text
                   numberOfLines={1}
                   style={{
-                    fontSize: 12,
+                    fontSize: 11,
                     fontFamily: 'Roobert',
                     color: muted(isDark),
-                    marginTop: 1,
+                    lineHeight: 15,
                   }}
                 >
                   {description}
@@ -1898,8 +2000,8 @@ function ShowToolCard({
           )}
         </View>
 
-        {/* Open button */}
-        {!isRunning && canOpen && (url || hasLocalhostUrl) && (
+        {/* Open button — for URLs, localhost, and file paths */}
+        {!isRunning && canOpen && (
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={handleOpen}
@@ -1913,7 +2015,7 @@ function ShowToolCard({
               marginLeft: 8,
             }}
           >
-            <MonitorPlay size={13} color={fg(isDark)} style={{ marginRight: 5 }} />
+            <ExternalLink size={12} color={fg(isDark)} style={{ marginRight: 4 }} />
             <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: fg(isDark) }}>
               {openLabel}
             </Text>
@@ -1921,8 +2023,13 @@ function ShowToolCard({
         )}
       </View>
 
-      {/* ── Expand toggle for content ── */}
-      {hasExpandableContent && !isRunning && (
+      {/* ── Inline image preview (like web) ── */}
+      {!isRunning && type === 'image' && path && isImagePath(path) && (
+        <SandboxImage filePath={path} isDark={isDark} height={260} />
+      )}
+
+      {/* ── Expand toggle for non-image content ── */}
+      {hasExpandableContent && !isRunning && !(type === 'image' && path && isImagePath(path)) && (
         <>
           <TouchableOpacity
             activeOpacity={0.7}
@@ -1962,6 +2069,17 @@ function ShowToolCard({
             </View>
           )}
         </>
+      )}
+
+      {/* File Viewer modal */}
+      {path && (
+        <FileViewer
+          visible={fileViewerVisible}
+          onClose={() => setFileViewerVisible(false)}
+          file={{ name: path.split('/').pop() || 'file', path, type: 'file' } as SandboxFile}
+          sandboxId={sandboxId || ''}
+          sandboxUrl={ctxSandboxUrl}
+        />
       )}
     </View>
   );
