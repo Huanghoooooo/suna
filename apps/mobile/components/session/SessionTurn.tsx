@@ -5,7 +5,8 @@
  */
 
 import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
-import { View, TouchableOpacity, Animated, StyleSheet, LayoutAnimation, Platform, UIManager, ScrollView, Image, Modal, TextInput } from 'react-native';
+import { View, TouchableOpacity, Animated, StyleSheet, LayoutAnimation, Platform, UIManager, ScrollView, Image, TextInput } from 'react-native';
+import { BottomSheetModal, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { Text } from '@/components/ui/text';
 import { useColorScheme } from 'nativewind';
 import { Ionicons } from '@expo/vector-icons';
@@ -2912,8 +2913,8 @@ export function SessionTurn({
   // User message ID (for fork/edit on user bubble)
   const userMessageId = turn.userMessage.info.id;
 
-  // Edit prompt modal state
-  const [editModalVisible, setEditModalVisible] = useState(false);
+  // Edit prompt sheet ref
+  const editSheetRef = useRef<BottomSheetModal>(null);
 
   return (
     <View className="mb-4">
@@ -3073,21 +3074,19 @@ export function SessionTurn({
             onCopy={async () => {
               await Clipboard.setStringAsync(userText);
             }}
-            onEdit={() => setEditModalVisible(true)}
+            onEdit={() => editSheetRef.current?.present()}
             onFork={() => onFork?.(userMessageId)}
           />
         )}
 
-        {/* Edit prompt modal */}
-        <EditPromptModal
-          visible={editModalVisible}
+        {/* Edit prompt sheet */}
+        <EditPromptSheet
+          ref={editSheetRef}
           initialText={userText}
           isDark={isDark}
           onSave={(editedText) => {
-            setEditModalVisible(false);
             onEditFork?.(userMessageId, editedText);
           }}
-          onCancel={() => setEditModalVisible(false)}
         />
       </View>
 
@@ -3286,109 +3285,113 @@ function UserMessageActions({
 // EditPromptModal — edit user message text before forking
 // ---------------------------------------------------------------------------
 
-function EditPromptModal({
-  visible,
-  initialText,
-  isDark,
-  onSave,
-  onCancel,
-}: {
-  visible: boolean;
+const EditPromptSheet = React.forwardRef<BottomSheetModal, {
   initialText: string;
   isDark: boolean;
   onSave: (text: string) => void;
-  onCancel: () => void;
-}) {
+}>(function EditPromptSheet({ initialText, isDark, onSave }, ref) {
   const [text, setText] = useState(initialText);
+  const inputRef = React.useRef<TextInput>(null);
 
-  useEffect(() => {
-    if (visible) setText(initialText);
-  }, [visible, initialText]);
+  const bg = isDark ? '#161618' : '#FFFFFF';
+  const fg_ = isDark ? '#e4e4e7' : '#18181b';
+  const inputBg = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)';
+  const inputBorder = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+
+  const renderBackdrop = useMemo(
+    () => (props: any) => (
+      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.35} />
+    ),
+    [],
+  );
+
+  // Reset text when sheet opens
+  const handleChange = useCallback((index: number) => {
+    if (index >= 0) {
+      setText(initialText);
+      setTimeout(() => inputRef.current?.focus(), 300);
+    }
+  }, [initialText]);
+
+  const handleFork = useCallback(() => {
+    if (text.trim()) {
+      (ref as React.RefObject<BottomSheetModal>)?.current?.dismiss();
+      onSave(text.trim());
+    }
+  }, [text, onSave, ref]);
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onCancel}
+    <BottomSheetModal
+      ref={ref}
+      index={0}
+      snapPoints={['70%']}
+      enableDynamicSizing={false}
+      enablePanDownToClose
+      onChange={handleChange}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+      android_keyboardInputMode="adjustResize"
+      handleIndicatorStyle={{
+        backgroundColor: isDark ? '#3F3F46' : '#D4D4D8',
+        width: 36,
+        height: 5,
+        borderRadius: 3,
+      }}
+      backgroundStyle={{
+        backgroundColor: bg,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+      }}
+      backdropComponent={renderBackdrop}
     >
-      <TouchableOpacity
-        activeOpacity={1}
-        onPress={onCancel}
-        style={{
-          flex: 1,
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          justifyContent: 'center',
-          paddingHorizontal: 24,
-        }}
-      >
-        <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-          <View
+      <View style={{ flex: 1, paddingHorizontal: 20 }}>
+        {/* Header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14 }}>
+          <Text style={{ fontSize: 16, fontFamily: 'Roobert-Medium', color: fg_ }}>
+            Edit prompt
+          </Text>
+          <TouchableOpacity
+            onPress={handleFork}
+            activeOpacity={0.8}
             style={{
-              backgroundColor: isDark ? '#1a1a1f' : '#FFFFFF',
-              borderRadius: 16,
-              padding: 16,
-              maxHeight: '70%',
+              backgroundColor: fg_,
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              borderRadius: 10,
             }}
           >
-            <Text style={{ fontSize: 15, fontFamily: 'Roobert-Medium', color: isDark ? '#e4e4e7' : '#18181b', marginBottom: 12 }}>
-              Edit prompt
+            <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: bg }}>
+              Fork
             </Text>
-            <TextInput
-              value={text}
-              onChangeText={setText}
-              multiline
-              autoFocus
-              style={{
-                fontSize: 14,
-                fontFamily: 'Roobert',
-                color: isDark ? '#e4e4e7' : '#18181b',
-                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-                padding: 12,
-                minHeight: 100,
-                maxHeight: 300,
-                textAlignVertical: 'top',
-                lineHeight: 20,
-              }}
-            />
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
-              <TouchableOpacity
-                onPress={onCancel}
-                style={{
-                  paddingHorizontal: 16,
-                  paddingVertical: 8,
-                  borderRadius: 8,
-                }}
-              >
-                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: isDark ? '#71717a' : '#a1a1aa' }}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => {
-                  if (text.trim()) onSave(text.trim());
-                }}
-                style={{
-                  paddingHorizontal: 16,
-                  paddingVertical: 8,
-                  borderRadius: 8,
-                  backgroundColor: isDark ? '#e4e4e7' : '#18181b',
-                }}
-              >
-                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: isDark ? '#18181b' : '#FFFFFF' }}>
-                  Fork & Edit
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
-    </Modal>
+          </TouchableOpacity>
+        </View>
+
+        {/* Text input */}
+        <TextInput
+          ref={inputRef}
+          value={text}
+          onChangeText={setText}
+          multiline
+          textAlignVertical="top"
+          scrollEnabled
+          style={{
+            flex: 1,
+            fontSize: 15,
+            fontFamily: 'Roobert',
+            color: fg_,
+            backgroundColor: inputBg,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: inputBorder,
+            padding: 14,
+            lineHeight: 22,
+            marginBottom: 20,
+          }}
+        />
+      </View>
+    </BottomSheetModal>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // TurnActions — fade-in action bar below assistant response (copy only)
