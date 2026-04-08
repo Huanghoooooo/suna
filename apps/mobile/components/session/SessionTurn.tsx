@@ -779,65 +779,150 @@ function ShellExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boolea
   );
 }
 
+/**
+ * LCS-based unified diff.
+ * Computes the Longest Common Subsequence of lines, then emits
+ * removed / added / unchanged entries — matching the web's diff output.
+ */
+type DiffLine = { type: 'unchanged' | 'added' | 'removed'; text: string };
+
+function generateLineDiff(oldText: string, newText: string): DiffLine[] {
+  const oldLines = oldText.replace(/\\n/g, '\n').split('\n');
+  const newLines = newText.replace(/\\n/g, '\n').split('\n');
+  const n = oldLines.length;
+  const m = newLines.length;
+
+  // Build LCS table
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      if (oldLines[i - 1] === newLines[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  // Backtrack to produce diff
+  const result: DiffLine[] = [];
+  let i = n;
+  let j = m;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      result.push({ type: 'unchanged', text: oldLines[i - 1] });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      result.push({ type: 'added', text: newLines[j - 1] });
+      j--;
+    } else {
+      result.push({ type: 'removed', text: oldLines[i - 1] });
+      i--;
+    }
+  }
+  result.reverse();
+  return result;
+}
+
+/** Count additions and deletions from a diff */
+function getDiffStats(oldText: string, newText: string): { additions: number; deletions: number } {
+  const diff = generateLineDiff(oldText, newText);
+  return {
+    additions: diff.filter(l => l.type === 'added').length,
+    deletions: diff.filter(l => l.type === 'removed').length,
+  };
+}
+
 function WriteEditExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boolean }) {
   const input = getToolInput(tool);
   const content = input.content || input.newString || '';
   const filePath = input.filePath || '';
-  const output = useMemo(() => {
-    if (tool.state.status === 'completed' && 'output' in tool.state && tool.state.output) {
-      return stripAnsi(tool.state.output).trim();
-    }
-    return undefined;
-  }, [tool.state]);
 
-  // For edit, show old -> new
+  // For edit, show unified diff
   const oldString = input.oldString;
   const newString = input.newString;
   const isEdit = tool.tool === 'edit' || tool.tool === 'morph_edit';
 
+  const lineDiff = useMemo(() => {
+    if (isEdit && oldString && newString) {
+      return generateLineDiff(oldString, newString);
+    }
+    return null;
+  }, [isEdit, oldString, newString]);
+
+  const fs = 10.5;
+  const lh = 16;
+
   return (
     <View>
-      {isEdit && oldString && newString ? (
-        <View style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
-          {/* Deletions */}
-          <View style={{ marginBottom: 4 }}>
-            {oldString.split('\n').slice(0, 15).map((line: string, i: number) => (
+      {lineDiff ? (
+        <ScrollView
+          style={{ maxHeight: 300 }}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+        >
+          {lineDiff.slice(0, 40).map((line, i) => {
+            const isRemoved = line.type === 'removed';
+            const isAdded = line.type === 'added';
+
+            return (
               <View
-                key={`del-${i}`}
+                key={i}
                 style={{
                   flexDirection: 'row',
-                  backgroundColor: isDark ? 'rgba(239,68,68,0.08)' : 'rgba(239,68,68,0.06)',
-                  paddingHorizontal: 4,
-                  borderRadius: 2,
+                  backgroundColor: isRemoved
+                    ? (isDark ? 'rgba(239,68,68,0.10)' : 'rgba(239,68,68,0.07)')
+                    : isAdded
+                    ? (isDark ? 'rgba(34,197,94,0.10)' : 'rgba(34,197,94,0.07)')
+                    : 'transparent',
+                  borderLeftWidth: 2,
+                  borderLeftColor: isRemoved
+                    ? (isDark ? '#f87171' : '#ef4444')
+                    : isAdded
+                    ? (isDark ? '#4ade80' : '#22c55e')
+                    : 'transparent',
                 }}
               >
-                <Text style={{ fontSize: 11, fontFamily: monoFont, lineHeight: 17, color: isDark ? '#f87171' : '#dc2626', marginRight: 6 }}>-</Text>
-                <Text style={{ fontSize: 11, fontFamily: monoFont, lineHeight: 17, color: isDark ? '#f87171' : '#dc2626', flex: 1 }} numberOfLines={1}>
-                  {line}
+                {/* +/- indicator */}
+                <View style={{ width: 20, alignItems: 'center', justifyContent: 'center' }}>
+                  {isRemoved && (
+                    <Text style={{ fontSize: fs, fontFamily: monoFont, color: isDark ? '#f87171' : '#dc2626', fontWeight: '600' }}>−</Text>
+                  )}
+                  {isAdded && (
+                    <Text style={{ fontSize: fs, fontFamily: monoFont, color: isDark ? '#4ade80' : '#16a34a', fontWeight: '600' }}>+</Text>
+                  )}
+                </View>
+                {/* Code content */}
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flex: 1,
+                    fontSize: fs,
+                    fontFamily: monoFont,
+                    lineHeight: lh,
+                    paddingVertical: 1,
+                    paddingRight: 12,
+                    color: isRemoved
+                      ? (isDark ? '#fca5a5' : '#b91c1c')
+                      : isAdded
+                      ? (isDark ? '#bbf7d0' : '#15803d')
+                      : (isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)'),
+                  }}
+                >
+                  {line.text}
                 </Text>
               </View>
-            ))}
-          </View>
-          {/* Additions */}
-          <View>
-            {newString.split('\n').slice(0, 15).map((line: string, i: number) => (
-              <View
-                key={`add-${i}`}
-                style={{
-                  flexDirection: 'row',
-                  backgroundColor: isDark ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.06)',
-                  paddingHorizontal: 4,
-                  borderRadius: 2,
-                }}
-              >
-                <Text style={{ fontSize: 11, fontFamily: monoFont, lineHeight: 17, color: isDark ? '#34d399' : '#059669', marginRight: 6 }}>+</Text>
-                <Text style={{ fontSize: 11, fontFamily: monoFont, lineHeight: 17, color: isDark ? '#34d399' : '#059669', flex: 1 }} numberOfLines={1}>
-                  {line}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
+            );
+          })}
+          {lineDiff.length > 40 && (
+            <View style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
+              <Text style={{ fontSize: 10, fontFamily: monoFont, color: muted(isDark) }}>
+                ... {lineDiff.length - 40} more lines
+              </Text>
+            </View>
+          )}
+        </ScrollView>
       ) : content ? (
         <ScrollView
           style={{ maxHeight: 250 }}
@@ -856,7 +941,6 @@ function WriteEditExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: bo
           />
         </ScrollView>
       ) : null}
-      {!!output && <OutputSection output={output} isDark={isDark} />}
     </View>
   );
 }
@@ -2147,6 +2231,16 @@ function ToolCard({
     return undefined;
   }, [tool.tool, tool.state]);
 
+  // Edit tool: compute diff stats for +N -N badges
+  const diffStats = useMemo(() => {
+    const isEditTool = tool.tool === 'edit' || tool.tool === 'morph_edit';
+    if (!isEditTool) return null;
+    const oldStr = input.oldString;
+    const newStr = input.newString;
+    if (!oldStr || !newStr) return null;
+    return getDiffStats(oldStr, newStr);
+  }, [tool.tool, input.oldString, input.newString]);
+
   const displaySubtitle = questionSubtitle || info.subtitle;
 
   const IconComponent = getToolLucideIcon(info.icon);
@@ -2234,6 +2328,22 @@ function ToolCard({
               </Text>
             )}
           </>
+        )}
+
+        {/* Diff stats badges (+N -N) for edit tools */}
+        {diffStats && !isRunning && (diffStats.additions > 0 || diffStats.deletions > 0) && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8, gap: 4 }}>
+            {diffStats.additions > 0 && (
+              <Text style={{ fontSize: 11, fontFamily: monoFont, color: isDark ? '#4ade80' : '#16a34a' }}>
+                +{diffStats.additions}
+              </Text>
+            )}
+            {diffStats.deletions > 0 && (
+              <Text style={{ fontSize: 11, fontFamily: monoFont, color: isDark ? '#f87171' : '#dc2626' }}>
+                -{diffStats.deletions}
+              </Text>
+            )}
+          </View>
         )}
 
         {/* Right side: status indicator or chevron */}

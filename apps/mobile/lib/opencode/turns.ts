@@ -688,9 +688,9 @@ export function getToolInfo(tool: string, input: Record<string, any> = {}): Tool
       return { icon: 'terminal', title: 'Shell', subtitle: input.description };
     case 'edit':
     case 'morph_edit':
-      return { icon: 'file-pen', title: 'Edit', subtitle: getFilename(input.filePath) };
+      return { icon: 'file-pen', title: 'Edit', subtitle: getFileWithDir(input.filePath) };
     case 'write':
-      return { icon: 'file-pen', title: 'Write', subtitle: getFilename(input.filePath) };
+      return { icon: 'file-pen', title: 'Write', subtitle: getFileWithDir(input.filePath) };
     case 'apply_patch':
       return {
         icon: 'file-pen',
@@ -736,6 +736,17 @@ export function getFilename(path: string | undefined): string | undefined {
   if (!path) return undefined;
   const parts = path.split('/');
   return parts[parts.length - 1] || path;
+}
+
+/** Extract filename + parent directory, e.g. "main.go /workspace" */
+export function getFileWithDir(path: string | undefined): string | undefined {
+  if (!path) return undefined;
+  const parts = path.split('/');
+  const filename = parts[parts.length - 1] || path;
+  if (parts.length <= 1) return filename;
+  // Get parent directory name (last directory segment)
+  const dir = parts[parts.length - 2];
+  return dir ? `${filename} /${dir}` : filename;
 }
 
 /** Extract directory from a path and strip trailing slash. */
