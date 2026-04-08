@@ -1830,6 +1830,235 @@ function QuestionExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boo
   );
 }
 
+// ─── Session Get — rich display for session_get tool ────────────────────────
+
+interface SessionGetData {
+  title: string;
+  id: string;
+  created: string;
+  updated: string;
+  changes: string;
+  parent: string | null;
+  todos: Array<{ status: 'completed' | 'in_progress' | 'pending'; text: string }>;
+  messageCount: string;
+  toolCallCount: string;
+  compressionNote: string | null;
+  hasConversation: boolean;
+}
+
+function parseSessionGet(output: string): SessionGetData | null {
+  if (!output || typeof output !== 'string') return null;
+  const titleMatch = output.match(/^=== SESSION:\s*(.+?)\s*===$/m);
+  if (!titleMatch) return null;
+
+  const idMatch = output.match(/^ID:\s*(ses_\S+)/m);
+  const createdMatch = output.match(/Created:\s*(\S+ \S+)/);
+  const updatedMatch = output.match(/Updated:\s*(\S+ \S+)/);
+  const changesMatch = output.match(/Changes:\s*(.+)/m);
+  const parentMatch = output.match(/Parent:\s*(ses_\S+)/m);
+
+  // Todos
+  const todosSection = output.match(/^Todos:\n([\s\S]*?)(?=\n(?:Lineage|Storage|===))/m);
+  const todos: SessionGetData['todos'] = [];
+  if (todosSection) {
+    for (const line of todosSection[1].split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed === '(none)') continue;
+      const statusMatch = trimmed.match(/^\[(\w+)\]\s*(.*)/);
+      if (statusMatch) {
+        const s = statusMatch[1] as string;
+        const status = s === 'completed' ? 'completed' : s === 'in_progress' ? 'in_progress' : 'pending';
+        todos.push({ status, text: statusMatch[2] });
+      } else {
+        todos.push({ status: 'pending', text: trimmed });
+      }
+    }
+  }
+
+  // Conversation header
+  const convHeader = output.match(/=== CONVERSATION \((\d+) msgs?, (\d+) tool calls?/);
+  const compressionMatch = output.match(/=== COMPRESSION ===\n(.+)/m);
+
+  return {
+    title: titleMatch[1],
+    id: idMatch?.[1] ?? '',
+    created: createdMatch?.[1] ?? '',
+    updated: updatedMatch?.[1] ?? '',
+    changes: changesMatch?.[1] ?? 'no changes',
+    parent: parentMatch?.[1] ?? null,
+    todos,
+    messageCount: convHeader?.[1] ?? '0',
+    toolCallCount: convHeader?.[2] ?? '0',
+    compressionNote: compressionMatch?.[1]?.trim() ?? null,
+    hasConversation: !!convHeader,
+  };
+}
+
+function SessionGetExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boolean }) {
+  const output = useMemo(() => {
+    if (tool.state.status === 'completed' && 'output' in tool.state && tool.state.output) {
+      return stripAnsi(tool.state.output).trim();
+    }
+    return '';
+  }, [tool.state]);
+
+  const data = useMemo(() => parseSessionGet(output), [output]);
+
+  if (!data) {
+    // Fallback to generic
+    return output ? (
+      <View style={{ paddingHorizontal: 12, paddingVertical: 10, maxHeight: 250 }}>
+        <MonoBlock isDark={isDark} maxLines={30}>
+          {output.length > 3000 ? output.slice(0, 3000) + '\n...' : output}
+        </MonoBlock>
+      </View>
+    ) : null;
+  }
+
+  const metaColor = muted(isDark);
+  const metaFs = 11;
+
+  return (
+    <ScrollView style={{ maxHeight: 400 }} nestedScrollEnabled showsVerticalScrollIndicator>
+      <View style={{ padding: 12, gap: 10 }}>
+        {/* Session title */}
+        <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg(isDark), lineHeight: 20 }}>
+          {data.title}
+        </Text>
+
+        {/* Metadata grid */}
+        <View style={{ gap: 4 }}>
+          {/* ID */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ fontSize: 9, fontFamily: monoFont, color: metaColor, opacity: 0.7 }}>
+              {data.id}
+            </Text>
+          </View>
+
+          {/* Timestamps */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Text style={{ fontSize: metaFs, fontFamily: 'Roobert', color: metaColor }}>
+              Created {data.created}
+            </Text>
+            {data.updated && data.updated !== data.created && (
+              <Text style={{ fontSize: metaFs, fontFamily: 'Roobert', color: metaColor }}>
+                Updated {data.updated}
+              </Text>
+            )}
+          </View>
+
+          {/* Changes + Messages */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <Text style={{ fontSize: metaFs, fontFamily: 'Roobert', color: metaColor }}>
+              {data.changes}
+            </Text>
+            {data.hasConversation && (
+              <Text style={{ fontSize: metaFs, fontFamily: 'Roobert', color: metaColor }}>
+                {data.messageCount} msgs · {data.toolCallCount} tool calls
+              </Text>
+            )}
+          </View>
+
+          {/* Parent */}
+          {data.parent && (
+            <Text style={{ fontSize: metaFs, fontFamily: 'Roobert', color: metaColor }}>
+              Parent: <Text style={{ fontFamily: monoFont, fontSize: 10 }}>{data.parent}</Text>
+            </Text>
+          )}
+        </View>
+
+        {/* Todos */}
+        {data.todos.length > 0 && (
+          <View
+            style={{
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+              backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)',
+              padding: 10,
+              gap: 6,
+            }}
+          >
+            <Text style={{ fontSize: 10, fontFamily: 'Roobert-Medium', color: mutedStrong(isDark), textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Todos ({data.todos.length})
+            </Text>
+            {data.todos.map((todo, i) => (
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                <View
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 3,
+                    borderWidth: 1.5,
+                    marginTop: 1,
+                    borderColor: todo.status === 'completed'
+                      ? (isDark ? '#4ade80' : '#16a34a')
+                      : todo.status === 'in_progress'
+                      ? (isDark ? '#60a5fa' : '#2563eb')
+                      : (isDark ? '#52525b' : '#d4d4d8'),
+                    backgroundColor: todo.status === 'completed'
+                      ? (isDark ? 'rgba(74,222,128,0.15)' : 'rgba(22,163,74,0.1)')
+                      : 'transparent',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {todo.status === 'completed' && (
+                    <Text style={{ fontSize: 9, color: isDark ? '#4ade80' : '#16a34a', fontWeight: '700' }}>✓</Text>
+                  )}
+                  {todo.status === 'in_progress' && (
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isDark ? '#60a5fa' : '#2563eb' }} />
+                  )}
+                </View>
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 12,
+                    fontFamily: 'Roobert',
+                    lineHeight: 17,
+                    color: todo.status === 'completed' ? muted(isDark) : fg(isDark),
+                    textDecorationLine: todo.status === 'completed' ? 'line-through' : 'none',
+                  }}
+                >
+                  {todo.text}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Compression badge */}
+        {data.compressionNote && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View
+              style={{
+                paddingHorizontal: 6,
+                paddingVertical: 2,
+                borderRadius: 4,
+                backgroundColor: isDark ? 'rgba(52,211,153,0.12)' : 'rgba(5,150,105,0.08)',
+              }}
+            >
+              <Text style={{ fontSize: 10, fontFamily: 'Roobert-Medium', color: isDark ? '#34d399' : '#059669' }}>
+                Compressed
+              </Text>
+            </View>
+            <Text style={{ fontSize: 10, fontFamily: 'Roobert', color: muted(isDark) }}>
+              {data.compressionNote}
+            </Text>
+          </View>
+        )}
+
+        {/* No messages indicator */}
+        {!data.hasConversation && (
+          <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted(isDark), fontStyle: 'italic' }}>
+            No messages in this session
+          </Text>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
 // ─── Get expanded content by tool type ───────────────────────────────────────
 
 function getExpandedContent(tool: ToolPart, isDark: boolean): React.ReactNode {
@@ -1871,6 +2100,11 @@ function getExpandedContent(tool: ToolPart, isDark: boolean): React.ReactNode {
     case 'show':
     case 'show-user':
       return <ShowExpandedContent tool={tool} isDark={isDark} />;
+    case 'session_get':
+    case 'session-get':
+    case 'oc-session_get':
+    case 'oc-session-get':
+      return <SessionGetExpandedContent tool={tool} isDark={isDark} />;
     case 'webfetch':
     case 'scrape-webpage':
       return <GenericExpandedContent tool={tool} isDark={isDark} />;
