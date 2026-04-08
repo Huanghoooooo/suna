@@ -5,7 +5,8 @@
  */
 
 import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
-import { View, TouchableOpacity, Animated, StyleSheet, LayoutAnimation, Platform, UIManager, ScrollView, Image } from 'react-native';
+import { View, TouchableOpacity, Animated, StyleSheet, LayoutAnimation, Platform, UIManager, ScrollView, Image, TextInput } from 'react-native';
+import { BottomSheetModal, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { Text } from '@/components/ui/text';
 import { useColorScheme } from 'nativewind';
 import { Ionicons } from '@expo/vector-icons';
@@ -780,12 +781,68 @@ function ShellExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boolea
 }
 
 // LCS-based diff utilities — shared with ViewChangesSheet
-import { generateLineDiff, getDiffStats } from '@/lib/opencode/diff-utils';
+import { generateLineDiff, getDiffStats, type DiffLine } from '@/lib/opencode/diff-utils';
+
+/** Syntax-highlighted diff line with inline +/- prefix */
+function DiffCodeLine({ text, lineType, ext, isDark, fs, lh }: {
+  text: string;
+  lineType: DiffLine['type'];
+  ext: string;
+  isDark: boolean;
+  fs: number;
+  lh: number;
+}) {
+  const tokens = useMemo(() => tokenizeLine(text, ext), [text, ext]);
+
+  const getColor = (tokenType: CodeTokenType): string => {
+    const syntaxMap: Record<CodeTokenType, string> = {
+      keyword: isDark ? '#c4b5fd' : '#7c3aed',
+      string: isDark ? '#86efac' : '#16a34a',
+      comment: isDark ? '#6b7280' : '#9ca3af',
+      number: isDark ? '#fdba74' : '#ea580c',
+      heading: isDark ? '#93c5fd' : '#2563eb',
+      bold: isDark ? '#e2e8f0' : '#1e293b',
+      bullet: isDark ? '#fdba74' : '#ea580c',
+      operator: isDark ? '#a1a1aa' : '#71717a',
+      property: isDark ? '#93c5fd' : '#2563eb',
+      tag: isDark ? '#fca5a5' : '#dc2626',
+      attr: isDark ? '#fdba74' : '#ea580c',
+      plain: isDark ? '#e4e4e7' : '#27272a',
+    };
+    const base = syntaxMap[tokenType];
+    if (lineType === 'unchanged') {
+      const r = parseInt(base.slice(1, 3), 16);
+      const g = parseInt(base.slice(3, 5), 16);
+      const b = parseInt(base.slice(5, 7), 16);
+      return `rgba(${r},${g},${b},0.45)`;
+    }
+    return base;
+  };
+
+  const prefixChar = lineType === 'removed' ? '− ' : lineType === 'added' ? '+ ' : '  ';
+  const prefixColor = lineType === 'removed'
+    ? (isDark ? '#f87171' : '#dc2626')
+    : lineType === 'added'
+    ? (isDark ? '#4ade80' : '#16a34a')
+    : 'transparent';
+
+  return (
+    <Text style={{ fontSize: fs, fontFamily: monoFont, lineHeight: lh, paddingVertical: 1, paddingHorizontal: 8 }}>
+      <Text style={{ color: prefixColor, fontSize: fs, fontFamily: monoFont, fontWeight: '600' }}>{prefixChar}</Text>
+      {tokens.map((token, i) => (
+        <Text key={i} style={{ color: getColor(token.type), fontSize: fs, fontFamily: monoFont }}>
+          {token.text}
+        </Text>
+      ))}
+    </Text>
+  );
+}
 
 function WriteEditExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boolean }) {
   const input = getToolInput(tool);
   const content = input.content || input.newString || '';
   const filePath = input.filePath || '';
+  const ext = getExtFromPath(filePath);
 
   // For edit, show unified diff
   const oldString = input.oldString;
@@ -810,59 +867,27 @@ function WriteEditExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: bo
           nestedScrollEnabled
           showsVerticalScrollIndicator
         >
-          {lineDiff.slice(0, 40).map((line, i) => {
-            const isRemoved = line.type === 'removed';
-            const isAdded = line.type === 'added';
+          <View style={{ paddingVertical: 4 }}>
+            {lineDiff.slice(0, 40).map((line, i) => {
+              const isRemoved = line.type === 'removed';
+              const isAdded = line.type === 'added';
 
-            return (
-              <View
-                key={i}
-                style={{
-                  flexDirection: 'row',
-                  backgroundColor: isRemoved
-                    ? (isDark ? 'rgba(239,68,68,0.10)' : 'rgba(239,68,68,0.07)')
-                    : isAdded
-                    ? (isDark ? 'rgba(34,197,94,0.10)' : 'rgba(34,197,94,0.07)')
-                    : 'transparent',
-                  borderLeftWidth: 2,
-                  borderLeftColor: isRemoved
-                    ? (isDark ? '#f87171' : '#ef4444')
-                    : isAdded
-                    ? (isDark ? '#4ade80' : '#22c55e')
-                    : 'transparent',
-                }}
-              >
-                {/* +/- indicator */}
-                <View style={{ width: 20, alignItems: 'center', justifyContent: 'center' }}>
-                  {isRemoved && (
-                    <Text style={{ fontSize: fs, fontFamily: monoFont, color: isDark ? '#f87171' : '#dc2626', fontWeight: '600' }}>−</Text>
-                  )}
-                  {isAdded && (
-                    <Text style={{ fontSize: fs, fontFamily: monoFont, color: isDark ? '#4ade80' : '#16a34a', fontWeight: '600' }}>+</Text>
-                  )}
-                </View>
-                {/* Code content */}
-                <Text
-                  numberOfLines={1}
+              return (
+                <View
+                  key={i}
                   style={{
-                    flex: 1,
-                    fontSize: fs,
-                    fontFamily: monoFont,
-                    lineHeight: lh,
-                    paddingVertical: 1,
-                    paddingRight: 12,
-                    color: isRemoved
-                      ? (isDark ? '#fca5a5' : '#b91c1c')
+                    backgroundColor: isRemoved
+                      ? (isDark ? 'rgba(239,68,68,0.06)' : 'rgba(239,68,68,0.05)')
                       : isAdded
-                      ? (isDark ? '#bbf7d0' : '#15803d')
-                      : (isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)'),
+                      ? (isDark ? 'rgba(34,197,94,0.06)' : 'rgba(34,197,94,0.05)')
+                      : 'transparent',
                   }}
                 >
-                  {line.text}
-                </Text>
-              </View>
-            );
-          })}
+                  <DiffCodeLine text={line.text} lineType={line.type} ext={ext} isDark={isDark} fs={fs} lh={lh} />
+                </View>
+              );
+            })}
+          </View>
           {lineDiff.length > 40 && (
             <View style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
               <Text style={{ fontSize: 10, fontFamily: monoFont, color: muted(isDark) }}>
@@ -1806,6 +1831,235 @@ function QuestionExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boo
   );
 }
 
+// ─── Session Get — rich display for session_get tool ────────────────────────
+
+interface SessionGetData {
+  title: string;
+  id: string;
+  created: string;
+  updated: string;
+  changes: string;
+  parent: string | null;
+  todos: Array<{ status: 'completed' | 'in_progress' | 'pending'; text: string }>;
+  messageCount: string;
+  toolCallCount: string;
+  compressionNote: string | null;
+  hasConversation: boolean;
+}
+
+function parseSessionGet(output: string): SessionGetData | null {
+  if (!output || typeof output !== 'string') return null;
+  const titleMatch = output.match(/^=== SESSION:\s*(.+?)\s*===$/m);
+  if (!titleMatch) return null;
+
+  const idMatch = output.match(/^ID:\s*(ses_\S+)/m);
+  const createdMatch = output.match(/Created:\s*(\S+ \S+)/);
+  const updatedMatch = output.match(/Updated:\s*(\S+ \S+)/);
+  const changesMatch = output.match(/Changes:\s*(.+)/m);
+  const parentMatch = output.match(/Parent:\s*(ses_\S+)/m);
+
+  // Todos
+  const todosSection = output.match(/^Todos:\n([\s\S]*?)(?=\n(?:Lineage|Storage|===))/m);
+  const todos: SessionGetData['todos'] = [];
+  if (todosSection) {
+    for (const line of todosSection[1].split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed === '(none)') continue;
+      const statusMatch = trimmed.match(/^\[(\w+)\]\s*(.*)/);
+      if (statusMatch) {
+        const s = statusMatch[1] as string;
+        const status = s === 'completed' ? 'completed' : s === 'in_progress' ? 'in_progress' : 'pending';
+        todos.push({ status, text: statusMatch[2] });
+      } else {
+        todos.push({ status: 'pending', text: trimmed });
+      }
+    }
+  }
+
+  // Conversation header
+  const convHeader = output.match(/=== CONVERSATION \((\d+) msgs?, (\d+) tool calls?/);
+  const compressionMatch = output.match(/=== COMPRESSION ===\n(.+)/m);
+
+  return {
+    title: titleMatch[1],
+    id: idMatch?.[1] ?? '',
+    created: createdMatch?.[1] ?? '',
+    updated: updatedMatch?.[1] ?? '',
+    changes: changesMatch?.[1] ?? 'no changes',
+    parent: parentMatch?.[1] ?? null,
+    todos,
+    messageCount: convHeader?.[1] ?? '0',
+    toolCallCount: convHeader?.[2] ?? '0',
+    compressionNote: compressionMatch?.[1]?.trim() ?? null,
+    hasConversation: !!convHeader,
+  };
+}
+
+function SessionGetExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boolean }) {
+  const output = useMemo(() => {
+    if (tool.state.status === 'completed' && 'output' in tool.state && tool.state.output) {
+      return stripAnsi(tool.state.output).trim();
+    }
+    return '';
+  }, [tool.state]);
+
+  const data = useMemo(() => parseSessionGet(output), [output]);
+
+  if (!data) {
+    // Fallback to generic
+    return output ? (
+      <View style={{ paddingHorizontal: 12, paddingVertical: 10, maxHeight: 250 }}>
+        <MonoBlock isDark={isDark} maxLines={30}>
+          {output.length > 3000 ? output.slice(0, 3000) + '\n...' : output}
+        </MonoBlock>
+      </View>
+    ) : null;
+  }
+
+  const metaColor = muted(isDark);
+  const metaFs = 11;
+
+  return (
+    <ScrollView style={{ maxHeight: 400 }} nestedScrollEnabled showsVerticalScrollIndicator>
+      <View style={{ padding: 12, gap: 10 }}>
+        {/* Session title */}
+        <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg(isDark), lineHeight: 20 }}>
+          {data.title}
+        </Text>
+
+        {/* Metadata grid */}
+        <View style={{ gap: 4 }}>
+          {/* ID */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ fontSize: 9, fontFamily: monoFont, color: metaColor, opacity: 0.7 }}>
+              {data.id}
+            </Text>
+          </View>
+
+          {/* Timestamps */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Text style={{ fontSize: metaFs, fontFamily: 'Roobert', color: metaColor }}>
+              Created {data.created}
+            </Text>
+            {data.updated && data.updated !== data.created && (
+              <Text style={{ fontSize: metaFs, fontFamily: 'Roobert', color: metaColor }}>
+                Updated {data.updated}
+              </Text>
+            )}
+          </View>
+
+          {/* Changes + Messages */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <Text style={{ fontSize: metaFs, fontFamily: 'Roobert', color: metaColor }}>
+              {data.changes}
+            </Text>
+            {data.hasConversation && (
+              <Text style={{ fontSize: metaFs, fontFamily: 'Roobert', color: metaColor }}>
+                {data.messageCount} msgs · {data.toolCallCount} tool calls
+              </Text>
+            )}
+          </View>
+
+          {/* Parent */}
+          {data.parent && (
+            <Text style={{ fontSize: metaFs, fontFamily: 'Roobert', color: metaColor }}>
+              Parent: <Text style={{ fontFamily: monoFont, fontSize: 10 }}>{data.parent}</Text>
+            </Text>
+          )}
+        </View>
+
+        {/* Todos */}
+        {data.todos.length > 0 && (
+          <View
+            style={{
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+              backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)',
+              padding: 10,
+              gap: 6,
+            }}
+          >
+            <Text style={{ fontSize: 10, fontFamily: 'Roobert-Medium', color: mutedStrong(isDark), textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Todos ({data.todos.length})
+            </Text>
+            {data.todos.map((todo, i) => (
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                <View
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 3,
+                    borderWidth: 1.5,
+                    marginTop: 1,
+                    borderColor: todo.status === 'completed'
+                      ? (isDark ? '#4ade80' : '#16a34a')
+                      : todo.status === 'in_progress'
+                      ? (isDark ? '#60a5fa' : '#2563eb')
+                      : (isDark ? '#52525b' : '#d4d4d8'),
+                    backgroundColor: todo.status === 'completed'
+                      ? (isDark ? 'rgba(74,222,128,0.15)' : 'rgba(22,163,74,0.1)')
+                      : 'transparent',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {todo.status === 'completed' && (
+                    <Text style={{ fontSize: 9, color: isDark ? '#4ade80' : '#16a34a', fontWeight: '700' }}>✓</Text>
+                  )}
+                  {todo.status === 'in_progress' && (
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isDark ? '#60a5fa' : '#2563eb' }} />
+                  )}
+                </View>
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 12,
+                    fontFamily: 'Roobert',
+                    lineHeight: 17,
+                    color: todo.status === 'completed' ? muted(isDark) : fg(isDark),
+                    textDecorationLine: todo.status === 'completed' ? 'line-through' : 'none',
+                  }}
+                >
+                  {todo.text}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Compression badge */}
+        {data.compressionNote && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View
+              style={{
+                paddingHorizontal: 6,
+                paddingVertical: 2,
+                borderRadius: 4,
+                backgroundColor: isDark ? 'rgba(52,211,153,0.12)' : 'rgba(5,150,105,0.08)',
+              }}
+            >
+              <Text style={{ fontSize: 10, fontFamily: 'Roobert-Medium', color: isDark ? '#34d399' : '#059669' }}>
+                Compressed
+              </Text>
+            </View>
+            <Text style={{ fontSize: 10, fontFamily: 'Roobert', color: muted(isDark) }}>
+              {data.compressionNote}
+            </Text>
+          </View>
+        )}
+
+        {/* No messages indicator */}
+        {!data.hasConversation && (
+          <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: muted(isDark), fontStyle: 'italic' }}>
+            No messages in this session
+          </Text>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
 // ─── Get expanded content by tool type ───────────────────────────────────────
 
 function getExpandedContent(tool: ToolPart, isDark: boolean): React.ReactNode {
@@ -1847,6 +2101,11 @@ function getExpandedContent(tool: ToolPart, isDark: boolean): React.ReactNode {
     case 'show':
     case 'show-user':
       return <ShowExpandedContent tool={tool} isDark={isDark} />;
+    case 'session_get':
+    case 'session-get':
+    case 'oc-session_get':
+    case 'oc-session-get':
+      return <SessionGetExpandedContent tool={tool} isDark={isDark} />;
     case 'webfetch':
     case 'scrape-webpage':
       return <GenericExpandedContent tool={tool} isDark={isDark} />;
@@ -2503,7 +2762,8 @@ interface SessionTurnProps {
   sessionStatus?: SessionStatus;
   isBusy: boolean;
   pendingQuestions?: QuestionRequest[];
-  onFork?: (assistantMessageId: string) => void;
+  onFork?: (messageId: string) => void;
+  onEditFork?: (messageId: string, editedText: string) => void;
   agentNames?: string[];
   onFileMention?: (path: string) => void;
   onSessionMention?: (sessionId: string) => void;
@@ -2517,6 +2777,7 @@ export function SessionTurn({
   isBusy,
   pendingQuestions = [],
   onFork,
+  onEditFork,
   agentNames,
   onFileMention,
   onSessionMention,
@@ -2649,10 +2910,17 @@ export function SessionTurn({
     return turn.assistantMessages[turn.assistantMessages.length - 1].info.id;
   }, [turn.assistantMessages]);
 
+  // User message ID (for fork/edit on user bubble)
+  const userMessageId = turn.userMessage.info.id;
+
+  // Edit prompt sheet ref
+  const editSheetRef = useRef<BottomSheetModal>(null);
+
   return (
     <View className="mb-4">
       {/* User message */}
-      <View className="flex-row justify-end mb-2 px-4">
+      <View className="mb-2 px-4">
+        <View className="flex-row justify-end">
         {channelMessageInfo ? (
           <View
             style={{
@@ -2795,6 +3063,31 @@ export function SessionTurn({
             />
           </View>
         )}
+        </View>
+
+        {/* User message actions — copy, edit, fork */}
+        {!!userText && !channelMessageInfo && !triggerEventInfo && (
+          <UserMessageActions
+            userText={userText}
+            isDark={isDark}
+            isBusy={isBusy}
+            onCopy={async () => {
+              await Clipboard.setStringAsync(userText);
+            }}
+            onEdit={() => editSheetRef.current?.present()}
+            onFork={() => onFork?.(userMessageId)}
+          />
+        )}
+
+        {/* Edit prompt sheet */}
+        <EditPromptSheet
+          ref={editSheetRef}
+          initialText={userText}
+          isDark={isDark}
+          onSave={(editedText) => {
+            onEditFork?.(userMessageId, editedText);
+          }}
+        />
       </View>
 
       {/* Assistant response — interleaved text + tool calls */}
@@ -2907,7 +3200,6 @@ export function SessionTurn({
                 costInfo={costInfo}
                 isDark={isDark}
                 tightToResponse={!turnError}
-                onFork={lastAssistantMessageId ? () => onFork?.(lastAssistantMessageId) : undefined}
               />
             </View>
           )}
@@ -2918,7 +3210,191 @@ export function SessionTurn({
 }
 
 // ---------------------------------------------------------------------------
-// TurnActions — fade-in action bar below assistant response
+// UserMessageActions — copy, edit, fork buttons below user message
+// ---------------------------------------------------------------------------
+
+function UserMessageActions({
+  userText,
+  isDark,
+  isBusy,
+  onCopy,
+  onEdit,
+  onFork,
+}: {
+  userText: string;
+  isDark: boolean;
+  isBusy: boolean;
+  onCopy: () => void;
+  onEdit: () => void;
+  onFork: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const mutedColor = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)';
+  const copiedColor = isDark ? '#4ade80' : '#16a34a';
+
+  const handleCopy = useCallback(async () => {
+    await Clipboard.setStringAsync(userText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [userText]);
+
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 3, gap: 0 }}>
+      {/* Copy */}
+      <TouchableOpacity
+        onPress={handleCopy}
+        activeOpacity={0.6}
+        hitSlop={6}
+        style={{ padding: 5, borderRadius: 6 }}
+      >
+        <Ionicons
+          name={copied ? 'checkmark' : 'copy-outline'}
+          size={13}
+          color={copied ? copiedColor : mutedColor}
+        />
+      </TouchableOpacity>
+
+      {/* Edit (fork with edited text) */}
+      {!isBusy && (
+        <TouchableOpacity
+          onPress={onEdit}
+          activeOpacity={0.6}
+          hitSlop={6}
+          style={{ padding: 5, borderRadius: 6 }}
+        >
+          <Ionicons name="pencil-outline" size={13} color={mutedColor} />
+        </TouchableOpacity>
+      )}
+
+      {/* Fork */}
+      {!isBusy && (
+        <TouchableOpacity
+          onPress={onFork}
+          activeOpacity={0.6}
+          hitSlop={6}
+          style={{ padding: 5, borderRadius: 6 }}
+        >
+          <Ionicons name="git-branch-outline" size={13} color={mutedColor} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EditPromptModal — edit user message text before forking
+// ---------------------------------------------------------------------------
+
+const EditPromptSheet = React.forwardRef<BottomSheetModal, {
+  initialText: string;
+  isDark: boolean;
+  onSave: (text: string) => void;
+}>(function EditPromptSheet({ initialText, isDark, onSave }, ref) {
+  const [text, setText] = useState(initialText);
+  const inputRef = React.useRef<TextInput>(null);
+
+  const bg = isDark ? '#161618' : '#FFFFFF';
+  const fg_ = isDark ? '#e4e4e7' : '#18181b';
+  const inputBg = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)';
+  const inputBorder = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+
+  const renderBackdrop = useMemo(
+    () => (props: any) => (
+      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.35} />
+    ),
+    [],
+  );
+
+  // Reset text when sheet opens
+  const handleChange = useCallback((index: number) => {
+    if (index >= 0) {
+      setText(initialText);
+      setTimeout(() => inputRef.current?.focus(), 300);
+    }
+  }, [initialText]);
+
+  const handleFork = useCallback(() => {
+    if (text.trim()) {
+      (ref as React.RefObject<BottomSheetModal>)?.current?.dismiss();
+      onSave(text.trim());
+    }
+  }, [text, onSave, ref]);
+
+  return (
+    <BottomSheetModal
+      ref={ref}
+      index={0}
+      snapPoints={['70%']}
+      enableDynamicSizing={false}
+      enablePanDownToClose
+      onChange={handleChange}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+      android_keyboardInputMode="adjustResize"
+      handleIndicatorStyle={{
+        backgroundColor: isDark ? '#3F3F46' : '#D4D4D8',
+        width: 36,
+        height: 5,
+        borderRadius: 3,
+      }}
+      backgroundStyle={{
+        backgroundColor: bg,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+      }}
+      backdropComponent={renderBackdrop}
+    >
+      <View style={{ flex: 1, paddingHorizontal: 20 }}>
+        {/* Header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14 }}>
+          <Text style={{ fontSize: 16, fontFamily: 'Roobert-Medium', color: fg_ }}>
+            Edit prompt
+          </Text>
+          <TouchableOpacity
+            onPress={handleFork}
+            activeOpacity={0.8}
+            style={{
+              backgroundColor: fg_,
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              borderRadius: 10,
+            }}
+          >
+            <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: bg }}>
+              Fork
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Text input */}
+        <TextInput
+          ref={inputRef}
+          value={text}
+          onChangeText={setText}
+          multiline
+          textAlignVertical="top"
+          scrollEnabled
+          style={{
+            flex: 1,
+            fontSize: 15,
+            fontFamily: 'Roobert',
+            color: fg_,
+            backgroundColor: inputBg,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: inputBorder,
+            padding: 14,
+            lineHeight: 22,
+            marginBottom: 20,
+          }}
+        />
+      </View>
+    </BottomSheetModal>
+  );
+});
+
+// ---------------------------------------------------------------------------
+// TurnActions — fade-in action bar below assistant response (copy only)
 // ---------------------------------------------------------------------------
 
 function TurnActions({
@@ -2927,14 +3403,12 @@ function TurnActions({
   costInfo,
   isDark,
   tightToResponse = true,
-  onFork,
 }: {
   response: string;
   duration?: number;
   costInfo?: { cost: number; tokens: { input: number; output: number } } | undefined;
   isDark: boolean;
   tightToResponse?: boolean;
-  onFork?: () => void;
 }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [copied, setCopied] = useState(false);
@@ -2955,7 +3429,6 @@ function TurnActions({
   }, [response]);
 
   const mutedColor = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)';
-  const hoverColor = isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
   const durationClassName = tightToResponse
     ? 'text-xs text-muted-foreground/50 mr-2 mt-0.5'
     : 'text-xs text-muted-foreground/50 mr-2';
@@ -2989,43 +3462,13 @@ function TurnActions({
         onPress={handleCopy}
         activeOpacity={0.6}
         hitSlop={6}
-        style={{
-          padding: 5,
-          borderRadius: 6,
-        }}
+        style={{ padding: 5, borderRadius: 6 }}
       >
         <Ionicons
           name={copied ? 'checkmark' : 'copy-outline'}
           size={14}
           color={copied ? (isDark ? '#4ade80' : '#16a34a') : mutedColor}
         />
-      </TouchableOpacity>
-
-      {/* Fork */}
-      {onFork && (
-        <TouchableOpacity
-          onPress={onFork}
-          activeOpacity={0.6}
-          hitSlop={6}
-          style={{
-            padding: 5,
-            borderRadius: 6,
-          }}
-        >
-          <Ionicons name="git-branch-outline" size={14} color={mutedColor} />
-        </TouchableOpacity>
-      )}
-
-      {/* Revert */}
-      <TouchableOpacity
-        activeOpacity={0.6}
-        hitSlop={6}
-        style={{
-          padding: 5,
-          borderRadius: 6,
-        }}
-      >
-        <Ionicons name="arrow-undo-outline" size={14} color={mutedColor} />
       </TouchableOpacity>
     </Animated.View>
   );

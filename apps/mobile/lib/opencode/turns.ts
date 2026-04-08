@@ -722,6 +722,21 @@ export function getToolInfo(tool: string, input: Record<string, any> = {}): Tool
       return { icon: 'terminal', title: 'Terminal Input', subtitle: input.id };
     case 'pty_kill':
       return { icon: 'terminal', title: 'Kill Process', subtitle: input.id };
+    case 'session_get':
+    case 'session-get':
+    case 'oc-session_get':
+    case 'oc-session-get':
+      return { icon: 'book-open', title: 'Session', subtitle: input.session_id };
+    case 'session_list':
+    case 'session-list':
+    case 'oc-session_list':
+    case 'oc-session-list':
+      return { icon: 'list', title: 'Sessions' };
+    case 'session_read':
+    case 'session-read':
+    case 'oc-session_read':
+    case 'oc-session-read':
+      return { icon: 'book-open', title: 'Read Session', subtitle: input.session_id };
     default:
       return { icon: 'cpu', title: tool };
   }

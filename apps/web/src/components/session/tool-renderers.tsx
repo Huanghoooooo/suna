@@ -5394,6 +5394,258 @@ ToolRegistry.register("session_read", SessionReadTool);
 ToolRegistry.register("session-read", SessionReadTool);
 
 // ============================================================================
+// SessionGetTool — rich session info card with metadata, todos, conversation
+// ============================================================================
+
+function SessionGetTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
+	const input = partInput(part);
+	const output = partOutput(part);
+	const status = partStatus(part);
+	const sid = (input.session_id as string) || "";
+
+	// Parse the structured output
+	const parsed = useMemo(() => {
+		if (!output) return null;
+		const titleMatch = output.match(/^=== SESSION:\s*(.+?)\s*===$/m);
+		const idMatch = output.match(/^ID:\s*(ses_\S+)/m);
+		const createdMatch = output.match(/Created:\s*(\S+ \S+)/);
+		const updatedMatch = output.match(/Updated:\s*(\S+ \S+)/);
+		const changesMatch = output.match(/^Changes:\s*(.+)/m);
+		const parentMatch = output.match(/^Parent:\s*(ses_\S+)/m);
+
+		// Todos
+		const todosSection = output.match(/^Todos:\n([\s\S]*?)(?=\n(?:Lineage|Storage|===))/m);
+		const todos: Array<{ status: string; text: string }> = [];
+		if (todosSection) {
+			for (const line of todosSection[1].split("\n")) {
+				const trimmed = line.trim();
+				if (!trimmed || trimmed === "(none)") continue;
+				const sm = trimmed.match(/^\[(\w+)\]\s*(.*)/);
+				if (sm) todos.push({ status: sm[1], text: sm[2] });
+				else todos.push({ status: "pending", text: trimmed });
+			}
+		}
+
+		// Conversation header
+		const convHeader = output.match(/=== CONVERSATION \((.+?)\) ===/);
+		const msgCount = convHeader?.[1]?.match(/(\d+) msgs?/)?.[1] || "0";
+		const toolCount = convHeader?.[1]?.match(/(\d+) tool calls?/)?.[1] || "0";
+		const compressionMatch = output.match(/=== COMPRESSION ===\n(.+)/m);
+
+		// Conversation body
+		const convStart = convHeader
+			? output.indexOf(convHeader[0]) + convHeader[0].length
+			: -1;
+		const convEnd = compressionMatch
+			? output.indexOf("=== COMPRESSION ===")
+			: output.length;
+		const conversation =
+			convStart > 0 ? output.slice(convStart, convEnd).trim() : "";
+
+		return {
+			title: titleMatch?.[1] ?? "Unknown Session",
+			id: idMatch?.[1] ?? sid,
+			created: createdMatch?.[1] ?? "",
+			updated: updatedMatch?.[1] ?? "",
+			changes: changesMatch?.[1] ?? "",
+			parent: parentMatch?.[1] ?? null,
+			todos,
+			msgCount,
+			toolCount,
+			compression: compressionMatch?.[1]?.trim() ?? null,
+			conversation,
+			hasConversation: !!convHeader,
+		};
+	}, [output, sid]);
+
+	const headerArgs: string[] = [];
+	if (parsed?.hasConversation)
+		headerArgs.push(`${parsed.msgCount} msgs`, `${parsed.toolCount} tools`);
+	if (parsed?.compression) headerArgs.push("compressed");
+
+	const [showConv, setShowConv] = React.useState(false);
+	const [showTodos, setShowTodos] = React.useState(true);
+
+	return (
+		<BasicTool
+			icon={<BookOpen className="size-3.5 flex-shrink-0" />}
+			trigger={{
+				title: parsed?.title ?? "Session Get",
+				subtitle: parsed?.id || sid,
+				args: headerArgs,
+			}}
+			defaultOpen={defaultOpen}
+			forceOpen={forceOpen}
+			locked={locked}
+		>
+			{parsed ? (
+				<div className="divide-y divide-border/20">
+					{/* Metadata */}
+					<div className="px-3 py-2.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground/60">
+						{parsed.id && (
+							<span className="font-mono text-[10px]">{parsed.id}</span>
+						)}
+						{parsed.created && (
+							<span className="flex items-center gap-1">
+								<Clock className="size-2.5" />
+								{parsed.created}
+							</span>
+						)}
+						{parsed.updated && parsed.updated !== parsed.created && (
+							<span className="flex items-center gap-1">
+								<RefreshCw className="size-2.5" />
+								{parsed.updated}
+							</span>
+						)}
+						{parsed.changes && (
+							<span className="flex items-center gap-1">
+								<FileText className="size-2.5" />
+								{parsed.changes}
+							</span>
+						)}
+						{parsed.parent && (
+							<span className="flex items-center gap-1 font-mono text-[10px]">
+								Parent: {parsed.parent}
+							</span>
+						)}
+					</div>
+
+					{/* Todos */}
+					{parsed.todos.length > 0 && (
+						<div>
+							<button
+								onClick={() => setShowTodos(!showTodos)}
+								className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted/20 transition-colors text-left"
+							>
+								{showTodos ? (
+									<ChevronDown className="size-2.5 text-muted-foreground/40" />
+								) : (
+									<ChevronRight className="size-2.5 text-muted-foreground/40" />
+								)}
+								<ListTodo className="size-3 text-muted-foreground/60" />
+								<span className="text-[11px] font-medium">
+									Todos
+								</span>
+								<span className="text-[9px] bg-muted/50 text-muted-foreground/60 px-1.5 py-0.5 rounded-full ml-auto">
+									{parsed.todos.length}
+								</span>
+							</button>
+							{showTodos && (
+								<div className="px-3 pb-2 space-y-1">
+									{parsed.todos.map((todo, i) => {
+										const isComplete =
+											todo.status === "completed";
+										const isProgress =
+											todo.status === "in_progress";
+										return (
+											<div
+												key={i}
+												className="flex items-start gap-2 text-[11px]"
+											>
+												<div
+													className={cn(
+														"w-3 h-3 rounded border flex-shrink-0 mt-[2px] flex items-center justify-center",
+														isComplete &&
+															"bg-emerald-100 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-600",
+														isProgress &&
+															"border-blue-400 dark:border-blue-500",
+														!isComplete &&
+															!isProgress &&
+															"border-border",
+													)}
+												>
+													{isComplete && (
+														<Check className="size-2 text-emerald-600 dark:text-emerald-400" />
+													)}
+													{isProgress && (
+														<div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+													)}
+												</div>
+												<span
+													className={cn(
+														"leading-snug",
+														isComplete &&
+															"line-through text-muted-foreground/50",
+														isProgress &&
+															"font-medium",
+													)}
+												>
+													{todo.text}
+												</span>
+											</div>
+										);
+									})}
+								</div>
+							)}
+						</div>
+					)}
+
+					{/* Conversation (collapsed by default) */}
+					{parsed.hasConversation && parsed.conversation && (
+						<div>
+							<button
+								onClick={() => setShowConv(!showConv)}
+								className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-muted/20 transition-colors text-left"
+							>
+								{showConv ? (
+									<ChevronDown className="size-2.5 text-muted-foreground/40" />
+								) : (
+									<ChevronRight className="size-2.5 text-muted-foreground/40" />
+								)}
+								<MessageCircle className="size-3 text-muted-foreground/60" />
+								<span className="text-[11px] font-medium">
+									Conversation
+								</span>
+								<span className="text-[9px] bg-muted/50 text-muted-foreground/60 px-1.5 py-0.5 rounded-full ml-auto">
+									{parsed.msgCount} msgs · {parsed.toolCount}{" "}
+									tools
+								</span>
+							</button>
+							{showConv && (
+								<div
+									data-scrollable
+									className="max-h-96 overflow-auto px-3 py-2"
+								>
+									<div className="prose prose-sm dark:prose-invert max-w-none text-xs">
+										<UnifiedMarkdown
+											content={parsed.conversation}
+											isStreaming={false}
+										/>
+									</div>
+								</div>
+							)}
+						</div>
+					)}
+
+					{/* Compression */}
+					{parsed.compression && (
+						<div className="px-3 py-2 flex items-center gap-2 text-[10px] text-muted-foreground/40">
+							<Minimize2 className="size-2.5" />
+							<span>{parsed.compression}</span>
+						</div>
+					)}
+
+					{/* Empty session */}
+					{!parsed.hasConversation && parsed.todos.length === 0 && (
+						<div className="px-3 py-3 text-center">
+							<p className="text-[11px] text-muted-foreground/40 italic">
+								No messages in this session
+							</p>
+						</div>
+					)}
+				</div>
+			) : output ? (
+				<ToolOutputFallback output={output} toolName="session_get" />
+			) : null}
+		</BasicTool>
+	);
+}
+ToolRegistry.register("session_get", SessionGetTool);
+ToolRegistry.register("session-get", SessionGetTool);
+ToolRegistry.register("oc-session_get", SessionGetTool);
+ToolRegistry.register("oc-session-get", SessionGetTool);
+
+// ============================================================================
 // SessionSearchTool — structured search results with hit list
 // ============================================================================
 
