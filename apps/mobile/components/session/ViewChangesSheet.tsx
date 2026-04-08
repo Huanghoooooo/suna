@@ -1,8 +1,13 @@
 /**
  * ViewChangesSheet — Full-screen bottom sheet showing all file changes in a session.
  * Ported from web's SessionDiffViewer, adapted for mobile.
+ *
+ * Features:
+ * - Fetches diffs from API (GET /session/:id/diff), falls back to message extraction
+ * - Unified / side-by-side view toggle
+ * - Expandable file cards that fill available space
  */
-import React, { forwardRef, useMemo, useState, useCallback } from 'react';
+import React, { forwardRef, useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +15,8 @@ import {
   Platform,
   LayoutAnimation,
   ScrollView,
+  ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import {
   BottomSheetModal,
@@ -26,9 +33,13 @@ import {
   FileX2,
   FileEdit,
   FileCode2,
+  Rows3,
+  Columns2,
 } from 'lucide-react-native';
 
 import { useSyncStore } from '@/lib/opencode/sync-store';
+import { useSandboxContext } from '@/contexts/SandboxContext';
+import { opencodeFetch } from '@/lib/opencode/hooks/use-opencode-data';
 import { extractDiffsFromMessages, type FileDiffData } from '@/lib/opencode/extract-diffs';
 import { generateLineDiff, type DiffLine } from '@/lib/opencode/diff-utils';
 
@@ -48,6 +59,8 @@ function isBinaryFile(filePath: string): boolean {
   const ext = filePath.split('.').pop()?.toLowerCase() || '';
   return BINARY_EXTENSIONS.has(ext);
 }
+
+type ViewMode = 'unified' | 'split';
 
 // ─── Colors ─────────────────────────────────────────────────────────────────
 
@@ -79,11 +92,247 @@ interface ViewChangesSheetProps {
   sessionId: string | null;
 }
 
+// ─── Unified diff lines ─────────────────────────────────────────────────────
+
+const MAX_DIFF_LINES = 500;
+
+function UnifiedDiffView({
+  lineDiff,
+  isDark,
+}: {
+  lineDiff: DiffLine[];
+  isDark: boolean;
+}) {
+  const fs = 10.5;
+  const lh = 16;
+
+  return (
+    <View>
+      {lineDiff.slice(0, MAX_DIFF_LINES).map((line, i) => {
+        const isRemoved = line.type === 'removed';
+        const isAdded = line.type === 'added';
+        return (
+          <View
+            key={i}
+            style={{
+              flexDirection: 'row',
+              backgroundColor: isRemoved
+                ? colors.removedBg(isDark)
+                : isAdded
+                ? colors.addedBg(isDark)
+                : 'transparent',
+              borderLeftWidth: 2,
+              borderLeftColor: isRemoved
+                ? colors.removedBorder(isDark)
+                : isAdded
+                ? colors.addedBorder(isDark)
+                : 'transparent',
+            }}
+          >
+            <View style={{ width: 20, alignItems: 'center', justifyContent: 'center' }}>
+              {isRemoved && (
+                <Text style={{ fontSize: fs, fontFamily: monoFont, color: colors.removedSign(isDark), fontWeight: '600' }}>−</Text>
+              )}
+              {isAdded && (
+                <Text style={{ fontSize: fs, fontFamily: monoFont, color: colors.addedSign(isDark), fontWeight: '600' }}>+</Text>
+              )}
+            </View>
+            <Text
+              numberOfLines={1}
+              style={{
+                flex: 1,
+                fontSize: fs,
+                fontFamily: monoFont,
+                lineHeight: lh,
+                paddingVertical: 1,
+                paddingRight: 12,
+                color: isRemoved
+                  ? colors.removedText(isDark)
+                  : isAdded
+                  ? colors.addedText(isDark)
+                  : colors.unchangedText(isDark),
+              }}
+            >
+              {line.text}
+            </Text>
+          </View>
+        );
+      })}
+      {lineDiff.length > MAX_DIFF_LINES && (
+        <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+          <Text style={{ fontSize: 10, fontFamily: monoFont, color: colors.muted(isDark) }}>
+            ... {lineDiff.length - MAX_DIFF_LINES} more lines
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── Side-by-side diff view ─────────────────────────────────────────────────
+
+interface SplitLine {
+  left: { text: string; type: 'removed' | 'unchanged' | 'empty' };
+  right: { text: string; type: 'added' | 'unchanged' | 'empty' };
+}
+
+function buildSplitLines(lineDiff: DiffLine[]): SplitLine[] {
+  const result: SplitLine[] = [];
+  let i = 0;
+  while (i < lineDiff.length) {
+    const line = lineDiff[i];
+    if (line.type === 'unchanged') {
+      result.push({
+        left: { text: line.text, type: 'unchanged' },
+        right: { text: line.text, type: 'unchanged' },
+      });
+      i++;
+    } else if (line.type === 'removed') {
+      // Collect consecutive removals
+      const removals: string[] = [];
+      while (i < lineDiff.length && lineDiff[i].type === 'removed') {
+        removals.push(lineDiff[i].text);
+        i++;
+      }
+      // Collect consecutive additions
+      const additions: string[] = [];
+      while (i < lineDiff.length && lineDiff[i].type === 'added') {
+        additions.push(lineDiff[i].text);
+        i++;
+      }
+      // Pair them
+      const maxLen = Math.max(removals.length, additions.length);
+      for (let j = 0; j < maxLen; j++) {
+        result.push({
+          left: j < removals.length
+            ? { text: removals[j], type: 'removed' }
+            : { text: '', type: 'empty' },
+          right: j < additions.length
+            ? { text: additions[j], type: 'added' }
+            : { text: '', type: 'empty' },
+        });
+      }
+    } else if (line.type === 'added') {
+      result.push({
+        left: { text: '', type: 'empty' },
+        right: { text: line.text, type: 'added' },
+      });
+      i++;
+    }
+  }
+  return result;
+}
+
+function SplitDiffView({
+  lineDiff,
+  isDark,
+}: {
+  lineDiff: DiffLine[];
+  isDark: boolean;
+}) {
+  const splitLines = useMemo(() => buildSplitLines(lineDiff), [lineDiff]);
+  const fs = 9.5;
+  const lh = 15;
+
+  const getSideBg = (type: string) => {
+    if (type === 'removed') return colors.removedBg(isDark);
+    if (type === 'added') return colors.addedBg(isDark);
+    if (type === 'empty') return isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)';
+    return 'transparent';
+  };
+
+  const getSideColor = (type: string) => {
+    if (type === 'removed') return colors.removedText(isDark);
+    if (type === 'added') return colors.addedText(isDark);
+    return colors.unchangedText(isDark);
+  };
+
+  return (
+    <View>
+      {/* Column headers */}
+      <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.divider(isDark) }}>
+        <View style={{ flex: 1, paddingHorizontal: 8, paddingVertical: 4, borderRightWidth: 1, borderRightColor: colors.divider(isDark) }}>
+          <Text style={{ fontSize: 9, fontFamily: 'Roobert-Medium', color: colors.removedSign(isDark), textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Before
+          </Text>
+        </View>
+        <View style={{ flex: 1, paddingHorizontal: 8, paddingVertical: 4 }}>
+          <Text style={{ fontSize: 9, fontFamily: 'Roobert-Medium', color: colors.addedSign(isDark), textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            After
+          </Text>
+        </View>
+      </View>
+
+      {splitLines.slice(0, MAX_DIFF_LINES).map((row, i) => (
+        <View key={i} style={{ flexDirection: 'row' }}>
+          {/* Left (old) */}
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: getSideBg(row.left.type),
+              borderRightWidth: 1,
+              borderRightColor: colors.divider(isDark),
+              paddingHorizontal: 6,
+            }}
+          >
+            <Text
+              numberOfLines={1}
+              style={{
+                fontSize: fs,
+                fontFamily: monoFont,
+                lineHeight: lh,
+                paddingVertical: 1,
+                color: getSideColor(row.left.type),
+              }}
+            >
+              {row.left.text || ' '}
+            </Text>
+          </View>
+          {/* Right (new) */}
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: getSideBg(row.right.type),
+              paddingHorizontal: 6,
+            }}
+          >
+            <Text
+              numberOfLines={1}
+              style={{
+                fontSize: fs,
+                fontFamily: monoFont,
+                lineHeight: lh,
+                paddingVertical: 1,
+                color: getSideColor(row.right.type),
+              }}
+            >
+              {row.right.text || ' '}
+            </Text>
+          </View>
+        </View>
+      ))}
+      {splitLines.length > MAX_DIFF_LINES && (
+        <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+          <Text style={{ fontSize: 10, fontFamily: monoFont, color: colors.muted(isDark) }}>
+            ... {splitLines.length - MAX_DIFF_LINES} more lines
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 // ─── FileDiffCard ───────────────────────────────────────────────────────────
 
-const MAX_DIFF_LINES = 200;
-
-function FileDiffCard({ diff, isDark }: { diff: FileDiffData; isDark: boolean }) {
+function FileDiffCard({
+  diff,
+  isDark,
+  viewMode,
+}: {
+  diff: FileDiffData;
+  isDark: boolean;
+  viewMode: ViewMode;
+}) {
   const [expanded, setExpanded] = useState(false);
   const binary = isBinaryFile(diff.file);
   const hasDiffContent = !binary && (!!diff.before || !!diff.after);
@@ -110,7 +359,6 @@ function FileDiffCard({ diff, isDark }: { diff: FileDiffData; isDark: boolean })
     setExpanded(prev => !prev);
   }, [hasDiffContent]);
 
-  // Status config
   const statusConfig = useMemo(() => {
     switch (diff.status) {
       case 'added':
@@ -138,8 +386,6 @@ function FileDiffCard({ diff, isDark }: { diff: FileDiffData; isDark: boolean })
   }, [diff.status, isDark]);
 
   const StatusIcon = statusConfig.icon;
-  const fs = 10.5;
-  const lh = 16;
 
   return (
     <View
@@ -164,49 +410,33 @@ function FileDiffCard({ diff, isDark }: { diff: FileDiffData; isDark: boolean })
           gap: 6,
         }}
       >
-        {/* Chevron */}
         {hasDiffContent ? (
-          expanded ? (
-            <ChevronDown size={12} color={colors.muted(isDark)} />
-          ) : (
-            <ChevronRight size={12} color={colors.muted(isDark)} />
-          )
+          expanded
+            ? <ChevronDown size={12} color={colors.muted(isDark)} />
+            : <ChevronRight size={12} color={colors.muted(isDark)} />
         ) : (
           <View style={{ width: 12 }} />
         )}
 
-        {/* Status icon */}
         <StatusIcon size={14} color={statusConfig.color} />
 
-        {/* Filename + directory */}
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
           <Text
             numberOfLines={1}
-            style={{
-              fontSize: 12,
-              fontFamily: 'Roobert-Medium',
-              color: colors.fg(isDark),
-            }}
+            style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: colors.fg(isDark) }}
           >
             {filename}
           </Text>
           {!!directory && (
             <Text
               numberOfLines={1}
-              style={{
-                fontSize: 10,
-                fontFamily: monoFont,
-                color: colors.muted(isDark),
-                opacity: 0.6,
-                flexShrink: 1,
-              }}
+              style={{ fontSize: 10, fontFamily: monoFont, color: colors.muted(isDark), opacity: 0.6, flexShrink: 1 }}
             >
               {directory}
             </Text>
           )}
         </View>
 
-        {/* Status badge */}
         <View
           style={{
             paddingHorizontal: 6,
@@ -220,103 +450,33 @@ function FileDiffCard({ diff, isDark }: { diff: FileDiffData; isDark: boolean })
           </Text>
         </View>
 
-        {/* +/- counts */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           {diff.additions > 0 && (
-            <Text style={{ fontSize: 10, fontFamily: monoFont, color: colors.emerald(isDark) }}>
-              +{diff.additions}
-            </Text>
+            <Text style={{ fontSize: 10, fontFamily: monoFont, color: colors.emerald(isDark) }}>+{diff.additions}</Text>
           )}
           {diff.deletions > 0 && (
-            <Text style={{ fontSize: 10, fontFamily: monoFont, color: colors.red(isDark) }}>
-              -{diff.deletions}
-            </Text>
+            <Text style={{ fontSize: 10, fontFamily: monoFont, color: colors.red(isDark) }}>-{diff.deletions}</Text>
           )}
         </View>
       </TouchableOpacity>
 
-      {/* Expanded diff content */}
+      {/* Expanded diff content — fills available space */}
       {expanded && lineDiff && (
-        <View
-          style={{
-            borderTopWidth: 1,
-            borderTopColor: colors.divider(isDark),
-          }}
-        >
+        <View style={{ borderTopWidth: 1, borderTopColor: colors.divider(isDark) }}>
           <ScrollView
-            style={{ maxHeight: 350 }}
+            style={{ maxHeight: 600 }}
             nestedScrollEnabled
             showsVerticalScrollIndicator
           >
-            {lineDiff.slice(0, MAX_DIFF_LINES).map((line, i) => {
-              const isRemoved = line.type === 'removed';
-              const isAdded = line.type === 'added';
-
-              return (
-                <View
-                  key={i}
-                  style={{
-                    flexDirection: 'row',
-                    backgroundColor: isRemoved
-                      ? colors.removedBg(isDark)
-                      : isAdded
-                      ? colors.addedBg(isDark)
-                      : 'transparent',
-                    borderLeftWidth: 2,
-                    borderLeftColor: isRemoved
-                      ? colors.removedBorder(isDark)
-                      : isAdded
-                      ? colors.addedBorder(isDark)
-                      : 'transparent',
-                  }}
-                >
-                  {/* +/- indicator */}
-                  <View style={{ width: 20, alignItems: 'center', justifyContent: 'center' }}>
-                    {isRemoved && (
-                      <Text style={{ fontSize: fs, fontFamily: monoFont, color: colors.removedSign(isDark), fontWeight: '600' }}>
-                        −
-                      </Text>
-                    )}
-                    {isAdded && (
-                      <Text style={{ fontSize: fs, fontFamily: monoFont, color: colors.addedSign(isDark), fontWeight: '600' }}>
-                        +
-                      </Text>
-                    )}
-                  </View>
-                  {/* Code content */}
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      flex: 1,
-                      fontSize: fs,
-                      fontFamily: monoFont,
-                      lineHeight: lh,
-                      paddingVertical: 1,
-                      paddingRight: 12,
-                      color: isRemoved
-                        ? colors.removedText(isDark)
-                        : isAdded
-                        ? colors.addedText(isDark)
-                        : colors.unchangedText(isDark),
-                    }}
-                  >
-                    {line.text}
-                  </Text>
-                </View>
-              );
-            })}
-            {lineDiff.length > MAX_DIFF_LINES && (
-              <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
-                <Text style={{ fontSize: 10, fontFamily: monoFont, color: colors.muted(isDark) }}>
-                  ... {lineDiff.length - MAX_DIFF_LINES} more lines
-                </Text>
-              </View>
+            {viewMode === 'split' ? (
+              <SplitDiffView lineDiff={lineDiff} isDark={isDark} />
+            ) : (
+              <UnifiedDiffView lineDiff={lineDiff} isDark={isDark} />
             )}
           </ScrollView>
         </View>
       )}
 
-      {/* Binary file notice */}
       {binary && (
         <View style={{ paddingHorizontal: 12, paddingBottom: 8 }}>
           <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: colors.muted(isDark), fontStyle: 'italic' }}>
@@ -333,10 +493,14 @@ function FileDiffCard({ diff, isDark }: { diff: FileDiffData; isDark: boolean })
 function SummaryHeader({
   diffs,
   isDark,
+  viewMode,
+  onViewModeChange,
   onClose,
 }: {
   diffs: FileDiffData[];
   isDark: boolean;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
   onClose: () => void;
 }) {
   const totals = useMemo(() => {
@@ -355,63 +519,91 @@ function SummaryHeader({
     return { additions, deletions, added, deleted, modified };
   }, [diffs]);
 
+  const ViewModeButton = ({ mode, icon: Icon }: { mode: ViewMode; icon: typeof Rows3 }) => {
+    const active = viewMode === mode;
+    return (
+      <TouchableOpacity
+        onPress={() => onViewModeChange(mode)}
+        style={{
+          padding: 5,
+          borderRadius: 6,
+          backgroundColor: active
+            ? (isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)')
+            : 'transparent',
+        }}
+      >
+        <Icon
+          size={14}
+          color={active ? colors.fg(isDark) : colors.muted(isDark)}
+        />
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View
       style={{
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 20,
-        paddingVertical: 14,
+        paddingVertical: 12,
         borderBottomWidth: 1,
         borderBottomColor: colors.divider(isDark),
       }}
     >
       {/* Left: file count */}
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 15, fontFamily: 'Roobert-Medium', color: colors.fg(isDark) }}>
-          {diffs.length} {diffs.length === 1 ? 'file' : 'files'} changed
-        </Text>
-      </View>
+      <Text style={{ fontSize: 15, fontFamily: 'Roobert-Medium', color: colors.fg(isDark) }}>
+        {diffs.length} {diffs.length === 1 ? 'file' : 'files'} changed
+      </Text>
+
+      {/* Spacer */}
+      <View style={{ flex: 1 }} />
 
       {/* Stats */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginRight: 10 }}>
         {totals.added > 0 && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <FilePlus2 size={11} color={colors.emerald(isDark)} />
-            <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: colors.emerald(isDark) }}>
-              {totals.added}
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+            <FilePlus2 size={10} color={colors.emerald(isDark)} />
+            <Text style={{ fontSize: 10, fontFamily: 'Roobert', color: colors.emerald(isDark) }}>{totals.added}</Text>
           </View>
         )}
         {totals.modified > 0 && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <FileEdit size={11} color={colors.blue(isDark)} />
-            <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: colors.blue(isDark) }}>
-              {totals.modified}
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+            <FileEdit size={10} color={colors.blue(isDark)} />
+            <Text style={{ fontSize: 10, fontFamily: 'Roobert', color: colors.blue(isDark) }}>{totals.modified}</Text>
           </View>
-        )}
-        {totals.deleted > 0 && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <FileX2 size={11} color={colors.red(isDark)} />
-            <Text style={{ fontSize: 11, fontFamily: 'Roobert', color: colors.red(isDark) }}>
-              {totals.deleted}
-            </Text>
-          </View>
-        )}
-
-        <Text style={{ fontSize: 10, color: colors.muted(isDark), opacity: 0.4 }}>|</Text>
-
-        {totals.additions > 0 && (
-          <Text style={{ fontSize: 11, fontFamily: monoFont, color: colors.emerald(isDark) }}>
-            +{totals.additions}
-          </Text>
         )}
         {totals.deletions > 0 && (
-          <Text style={{ fontSize: 11, fontFamily: monoFont, color: colors.red(isDark) }}>
-            -{totals.deletions}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+            <FileX2 size={10} color={colors.red(isDark)} />
+            <Text style={{ fontSize: 10, fontFamily: 'Roobert', color: colors.red(isDark) }}>{totals.deleted}</Text>
+          </View>
         )}
+
+        <Text style={{ fontSize: 10, color: colors.muted(isDark), opacity: 0.3 }}>|</Text>
+
+        {totals.additions > 0 && (
+          <Text style={{ fontSize: 10, fontFamily: monoFont, color: colors.emerald(isDark) }}>+{totals.additions}</Text>
+        )}
+        {totals.deletions > 0 && (
+          <Text style={{ fontSize: 10, fontFamily: monoFont, color: colors.red(isDark) }}>-{totals.deletions}</Text>
+        )}
+      </View>
+
+      {/* View mode toggle */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 2,
+          backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+          borderRadius: 8,
+          padding: 2,
+          marginRight: 10,
+        }}
+      >
+        <ViewModeButton mode="unified" icon={Rows3} />
+        <ViewModeButton mode="split" icon={Columns2} />
       </View>
 
       {/* Close button */}
@@ -461,21 +653,69 @@ function EmptyState({ isDark }: { isDark: boolean }) {
   );
 }
 
+// ─── API diff type (from SDK) ───────────────────────────────────────────────
+
+interface ApiFileDiff {
+  file: string;
+  before: string;
+  after: string;
+  additions: number;
+  deletions: number;
+  status?: 'added' | 'deleted' | 'modified';
+}
+
 // ─── Main component ─────────────────────────────────────────────────────────
 
 export const ViewChangesSheet = forwardRef<BottomSheetModal, ViewChangesSheetProps>(
   function ViewChangesSheet({ sessionId }, ref) {
     const { colorScheme } = useColorScheme();
     const isDark = colorScheme === 'dark';
+    const { sandboxUrl } = useSandboxContext();
+    const [viewMode, setViewMode] = useState<ViewMode>('unified');
 
-    // Read messages for this session from sync store
+    // API-fetched diffs
+    const [apiDiffs, setApiDiffs] = useState<FileDiffData[] | null>(null);
+    const [apiLoading, setApiLoading] = useState(false);
+
+    // Read messages for this session from sync store (fallback)
     const messages = useSyncStore((s: any) => sessionId ? s.messages[sessionId] : undefined);
 
-    // Extract diffs from all messages
-    const diffs = useMemo(() => {
+    // Fallback: extract diffs from messages
+    const messageDiffs = useMemo(() => {
       if (!sessionId || !messages || !Array.isArray(messages)) return [];
       return extractDiffsFromMessages(messages as any);
     }, [sessionId, messages]);
+
+    // Fetch diffs from API when sheet becomes visible
+    const fetchApiDiffs = useCallback(async () => {
+      if (!sessionId || !sandboxUrl) return;
+      setApiLoading(true);
+      try {
+        const result = await opencodeFetch<ApiFileDiff[]>(
+          sandboxUrl,
+          `/session/${sessionId}/diff`,
+        );
+        if (result && Array.isArray(result) && result.length > 0) {
+          setApiDiffs(
+            result.map((d) => ({
+              file: d.file,
+              before: d.before || '',
+              after: d.after || '',
+              additions: d.additions || 0,
+              deletions: d.deletions || 0,
+              status: (d.status as 'added' | 'deleted' | 'modified') || (d.before ? (d.after ? 'modified' : 'deleted') : 'added'),
+            })),
+          );
+        }
+      } catch {
+        // API not available — fall back to message extraction
+      } finally {
+        setApiLoading(false);
+      }
+    }, [sessionId, sandboxUrl]);
+
+    // Use API diffs if available, else fall back to message extraction
+    const diffs = (apiDiffs && apiDiffs.length > 0) ? apiDiffs : messageDiffs;
 
     const renderBackdrop = useMemo(
       () => (props: BottomSheetBackdropProps) => (
@@ -488,6 +728,16 @@ export const ViewChangesSheet = forwardRef<BottomSheetModal, ViewChangesSheetPro
       (ref as React.RefObject<BottomSheetModal>)?.current?.dismiss();
     }, [ref]);
 
+    // Fetch API diffs when sheet opens
+    const handleSheetChange = useCallback((index: number) => {
+      if (index >= 0) {
+        fetchApiDiffs();
+      } else {
+        // Reset when closed so next open refetches
+        setApiDiffs(null);
+      }
+    }, [fetchApiDiffs]);
+
     return (
       <BottomSheetModal
         ref={ref}
@@ -496,6 +746,7 @@ export const ViewChangesSheet = forwardRef<BottomSheetModal, ViewChangesSheetPro
         enableDynamicSizing={false}
         enableOverDrag={false}
         enablePanDownToClose
+        onChange={handleSheetChange}
         handleIndicatorStyle={{
           backgroundColor: isDark ? '#3F3F46' : '#D4D4D8',
           width: 36,
@@ -510,10 +761,23 @@ export const ViewChangesSheet = forwardRef<BottomSheetModal, ViewChangesSheetPro
         backdropComponent={renderBackdrop}
       >
         {/* Header */}
-        <SummaryHeader diffs={diffs} isDark={isDark} onClose={handleClose} />
+        <SummaryHeader
+          diffs={diffs}
+          isDark={isDark}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          onClose={handleClose}
+        />
 
-        {/* File list */}
-        {diffs.length === 0 ? (
+        {/* Content */}
+        {apiLoading && diffs.length === 0 ? (
+          <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+            <ActivityIndicator size="small" color={colors.muted(isDark)} />
+            <Text style={{ fontSize: 12, fontFamily: 'Roobert', color: colors.muted(isDark), marginTop: 12 }}>
+              Loading changes...
+            </Text>
+          </View>
+        ) : diffs.length === 0 ? (
           <EmptyState isDark={isDark} />
         ) : (
           <BottomSheetScrollView
@@ -521,7 +785,12 @@ export const ViewChangesSheet = forwardRef<BottomSheetModal, ViewChangesSheetPro
             showsVerticalScrollIndicator={false}
           >
             {diffs.map((diff) => (
-              <FileDiffCard key={diff.file} diff={diff} isDark={isDark} />
+              <FileDiffCard
+                key={diff.file}
+                diff={diff}
+                isDark={isDark}
+                viewMode={viewMode}
+              />
             ))}
           </BottomSheetScrollView>
         )}
