@@ -17,6 +17,7 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Alert,
   Platform,
   Text as RNText,
 } from 'react-native';
@@ -24,9 +25,11 @@ import { useColorScheme } from 'nativewind';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Fuse from 'fuse.js';
+import * as Haptics from 'expo-haptics';
 
 import type { Session } from '@/lib/opencode/types';
 import { searchFiles } from '@/lib/utils/file-search';
+import { getAuthToken } from '@/api/config';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -131,6 +134,52 @@ export function CommandPalette({
 
   // ── Command items ───────────────────────────────────────────────────────
 
+  // Runtime reload handler
+  const handleRuntimeReload = useCallback(async (mode: 'dispose-only' | 'full') => {
+    if (!sandboxUrl) return;
+    onClose();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const doReload = async () => {
+      try {
+        const token = await getAuthToken();
+        const res = await fetch(`${sandboxUrl}/kortix/services/system/reload`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ mode }),
+        });
+        if (res.ok) {
+          Alert.alert(
+            'Success',
+            mode === 'full'
+              ? 'Full restart initiated — all managed services will come back up.'
+              : 'Config reloaded — agents, skills, and commands refreshed.',
+          );
+        } else {
+          Alert.alert('Error', 'Restart failed');
+        }
+      } catch {
+        Alert.alert('Error', 'Restart failed');
+      }
+    };
+
+    if (mode === 'full') {
+      Alert.alert(
+        'Full Restart',
+        'This will kill and restart every service (OpenCode, static server, kortix-master). Active sessions will be interrupted.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Restart', style: 'destructive', onPress: doReload },
+        ],
+      );
+    } else {
+      doReload();
+    }
+  }, [sandboxUrl, onClose]);
+
   const commandItems: CommandItem[] = useMemo(
     () => [
       {
@@ -139,6 +188,20 @@ export function CommandPalette({
         icon: 'add-outline',
         group: 'action',
         onSelect: () => { onNewSession(); onClose(); },
+      },
+      {
+        id: 'restart-config',
+        label: 'Restart: Config Only',
+        icon: 'refresh-outline',
+        group: 'action',
+        onSelect: () => handleRuntimeReload('dispose-only'),
+      },
+      {
+        id: 'restart-full',
+        label: 'Restart: Full',
+        icon: 'refresh-outline',
+        group: 'action',
+        onSelect: () => handleRuntimeReload('full'),
       },
       {
         id: 'dashboard',
@@ -225,7 +288,7 @@ export function CommandPalette({
         onSelect: () => { onSettings(); onClose(); },
       },
     ],
-    [onNewSession, onSessionSelect, onPageSelect, onSettings, onClose],
+    [onNewSession, onSessionSelect, onPageSelect, onSettings, onClose, handleRuntimeReload],
   );
 
   // ── Recent sessions (last 5, non-archived) ─────────────────────────────
