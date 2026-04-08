@@ -62,6 +62,82 @@ function isBinaryFile(filePath: string): boolean {
 
 type ViewMode = 'unified' | 'split';
 
+// ─── Lightweight syntax highlighting (shared with SessionTurn) ──────────────
+
+type CodeTokenType = 'keyword' | 'string' | 'comment' | 'number' | 'operator' | 'plain';
+interface CodeToken { text: string; type: CodeTokenType }
+
+const CODE_KEYWORDS = new Set([
+  'import', 'export', 'from', 'const', 'let', 'var', 'function', 'return',
+  'if', 'else', 'for', 'while', 'class', 'extends', 'new', 'this', 'super',
+  'try', 'catch', 'finally', 'throw', 'async', 'await', 'yield',
+  'default', 'switch', 'case', 'break', 'continue', 'typeof', 'instanceof',
+  'in', 'of', 'true', 'false', 'null', 'undefined', 'void',
+  'def', 'elif', 'except', 'pass', 'raise', 'with', 'as', 'lambda',
+  'None', 'True', 'False', 'self', 'type', 'interface', 'enum',
+  'func', 'package', 'struct', 'range', 'defer', 'go', 'chan', 'select',
+  'map', 'make', 'append', 'len', 'cap', 'string', 'int', 'float64',
+  'bool', 'byte', 'error', 'nil', 'fmt', 'Println', 'Printf', 'Sprintf',
+]);
+
+function tokenizeCodeLine(line: string): CodeToken[] {
+  const tokens: CodeToken[] = [];
+  const commentIdx = line.indexOf('//');
+  const hashIdx = line.indexOf('#');
+  const commentStart = commentIdx >= 0 ? commentIdx : (hashIdx === 0 ? 0 : -1);
+
+  const codePart = commentStart >= 0 ? line.slice(0, commentStart) : line;
+  const commentPart = commentStart >= 0 ? line.slice(commentStart) : '';
+
+  const re = /("[^"]*"|'[^']*'|`[^`]*`|\b\d+\.?\d*\b|\b[a-zA-Z_]\w*\b|[{}()[\]:;,=<>!+\-*/&|?.]+|\s+)/g;
+  let m: RegExpExecArray | null;
+  let lastIdx = 0;
+  while ((m = re.exec(codePart)) !== null) {
+    if (m.index > lastIdx) tokens.push({ text: codePart.slice(lastIdx, m.index), type: 'plain' });
+    const word = m[0];
+    if (/^["'`]/.test(word)) tokens.push({ text: word, type: 'string' });
+    else if (/^\d/.test(word)) tokens.push({ text: word, type: 'number' });
+    else if (CODE_KEYWORDS.has(word)) tokens.push({ text: word, type: 'keyword' });
+    else if (/^[{}()[\]:;,=<>!+\-*/&|?.]+$/.test(word)) tokens.push({ text: word, type: 'operator' });
+    else tokens.push({ text: word, type: 'plain' });
+    lastIdx = m.index + m[0].length;
+  }
+  if (lastIdx < codePart.length) tokens.push({ text: codePart.slice(lastIdx), type: 'plain' });
+  if (commentPart) tokens.push({ text: commentPart, type: 'comment' });
+  if (tokens.length === 0) tokens.push({ text: line, type: 'plain' });
+  return tokens;
+}
+
+function getExtFromPath(filePath: string): string {
+  const dot = filePath.lastIndexOf('.');
+  if (dot < 0) return '';
+  return filePath.slice(dot + 1).toLowerCase();
+}
+
+/** Syntax token colors — same as web's Shiki-style highlighting */
+const SYNTAX_COLORS = {
+  keyword: (d: boolean) => d ? '#c4b5fd' : '#7c3aed',      // purple
+  string: (d: boolean) => d ? '#86efac' : '#16a34a',        // green
+  comment: (d: boolean) => d ? '#6b7280' : '#9ca3af',       // gray
+  number: (d: boolean) => d ? '#fdba74' : '#ea580c',        // orange
+  operator: (d: boolean) => d ? '#a1a1aa' : '#71717a',      // muted
+  plain: (d: boolean) => d ? '#e4e4e7' : '#27272a',         // near fg
+};
+
+/** Get syntax color — full brightness for changed lines, dimmed for context */
+function getTokenColor(tokenType: CodeTokenType, lineType: DiffLine['type'], isDark: boolean): string {
+  const base = SYNTAX_COLORS[tokenType](isDark);
+  if (lineType === 'unchanged') {
+    // Dim context lines
+    return isDark
+      ? base.replace(/^#/, '') // keep color but add opacity via rgba
+        ? `rgba(${parseInt(base.slice(1, 3), 16)},${parseInt(base.slice(3, 5), 16)},${parseInt(base.slice(5, 7), 16)},0.45)`
+        : base
+      : `rgba(${parseInt(base.slice(1, 3), 16)},${parseInt(base.slice(3, 5), 16)},${parseInt(base.slice(5, 7), 16)},0.5)`;
+  }
+  return base;
+}
+
 // ─── Colors ─────────────────────────────────────────────────────────────────
 
 const colors = {
@@ -96,18 +172,49 @@ interface ViewChangesSheetProps {
 
 const MAX_DIFF_LINES = 500;
 
+/** Render a single line of code with syntax highlighting, colored by diff type */
+function HighlightedDiffLine({
+  text,
+  lineType,
+  ext,
+  isDark,
+  fs,
+  lh,
+}: {
+  text: string;
+  lineType: DiffLine['type'];
+  ext: string;
+  isDark: boolean;
+  fs: number;
+  lh: number;
+}) {
+  const tokens = useMemo(() => tokenizeCodeLine(text), [text]);
+  return (
+    <Text style={{ flex: 1, fontSize: fs, fontFamily: monoFont, lineHeight: lh, paddingVertical: 1, paddingRight: 8 }}>
+      {tokens.map((token, i) => (
+        <Text key={i} style={{ color: getTokenColor(token.type, lineType, isDark), fontSize: fs, fontFamily: monoFont }}>
+          {token.text}
+        </Text>
+      ))}
+    </Text>
+  );
+}
+
 function UnifiedDiffView({
   lineDiff,
   isDark,
+  filename,
 }: {
   lineDiff: DiffLine[];
   isDark: boolean;
+  filename: string;
 }) {
-  const fs = 10.5;
-  const lh = 16;
+  const fs = 11;
+  const lh = 18;
+  const ext = getExtFromPath(filename);
 
   return (
-    <View>
+    <View style={{ paddingVertical: 6 }}>
       {lineDiff.slice(0, MAX_DIFF_LINES).map((line, i) => {
         const isRemoved = line.type === 'removed';
         const isAdded = line.type === 'added';
@@ -117,44 +224,32 @@ function UnifiedDiffView({
             style={{
               flexDirection: 'row',
               backgroundColor: isRemoved
-                ? colors.removedBg(isDark)
+                ? (isDark ? 'rgba(239,68,68,0.06)' : 'rgba(239,68,68,0.05)')
                 : isAdded
-                ? colors.addedBg(isDark)
-                : 'transparent',
-              borderLeftWidth: 2,
-              borderLeftColor: isRemoved
-                ? colors.removedBorder(isDark)
-                : isAdded
-                ? colors.addedBorder(isDark)
+                ? (isDark ? 'rgba(34,197,94,0.06)' : 'rgba(34,197,94,0.05)')
                 : 'transparent',
             }}
           >
-            <View style={{ width: 20, alignItems: 'center', justifyContent: 'center' }}>
-              {isRemoved && (
-                <Text style={{ fontSize: fs, fontFamily: monoFont, color: colors.removedSign(isDark), fontWeight: '600' }}>−</Text>
-              )}
-              {isAdded && (
-                <Text style={{ fontSize: fs, fontFamily: monoFont, color: colors.addedSign(isDark), fontWeight: '600' }}>+</Text>
-              )}
-            </View>
+            {/* +/- prefix — colored */}
             <Text
-              numberOfLines={1}
               style={{
-                flex: 1,
+                width: 18,
+                textAlign: 'center',
                 fontSize: fs,
                 fontFamily: monoFont,
                 lineHeight: lh,
-                paddingVertical: 1,
-                paddingRight: 12,
                 color: isRemoved
-                  ? colors.removedText(isDark)
+                  ? colors.removedSign(isDark)
                   : isAdded
-                  ? colors.addedText(isDark)
-                  : colors.unchangedText(isDark),
+                  ? colors.addedSign(isDark)
+                  : 'transparent',
+                fontWeight: '600',
               }}
             >
-              {line.text}
+              {isRemoved ? '−' : isAdded ? '+' : ' '}
             </Text>
+            {/* Code — syntax highlighted */}
+            <HighlightedDiffLine text={line.text} lineType={line.type} ext={ext} isDark={isDark} fs={fs} lh={lh} />
           </View>
         );
       })}
@@ -226,25 +321,29 @@ function buildSplitLines(lineDiff: DiffLine[]): SplitLine[] {
 function SplitDiffView({
   lineDiff,
   isDark,
+  filename,
 }: {
   lineDiff: DiffLine[];
   isDark: boolean;
+  filename: string;
 }) {
   const splitLines = useMemo(() => buildSplitLines(lineDiff), [lineDiff]);
   const fs = 9.5;
   const lh = 15;
+  const ext = getExtFromPath(filename);
 
   const getSideBg = (type: string) => {
-    if (type === 'removed') return colors.removedBg(isDark);
-    if (type === 'added') return colors.addedBg(isDark);
+    if (type === 'removed') return isDark ? 'rgba(239,68,68,0.06)' : 'rgba(239,68,68,0.05)';
+    if (type === 'added') return isDark ? 'rgba(34,197,94,0.06)' : 'rgba(34,197,94,0.05)';
     if (type === 'empty') return isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)';
     return 'transparent';
   };
 
-  const getSideColor = (type: string) => {
-    if (type === 'removed') return colors.removedText(isDark);
-    if (type === 'added') return colors.addedText(isDark);
-    return colors.unchangedText(isDark);
+  // Map split types to DiffLine types for highlighting
+  const toDiffType = (type: string): DiffLine['type'] => {
+    if (type === 'removed') return 'removed';
+    if (type === 'added') return 'added';
+    return 'unchanged';
   };
 
   return (
@@ -275,18 +374,11 @@ function SplitDiffView({
               paddingHorizontal: 6,
             }}
           >
-            <Text
-              numberOfLines={1}
-              style={{
-                fontSize: fs,
-                fontFamily: monoFont,
-                lineHeight: lh,
-                paddingVertical: 1,
-                color: getSideColor(row.left.type),
-              }}
-            >
-              {row.left.text || ' '}
-            </Text>
+            {row.left.text ? (
+              <HighlightedDiffLine text={row.left.text} lineType={toDiffType(row.left.type)} ext={ext} isDark={isDark} fs={fs} lh={lh} />
+            ) : (
+              <Text style={{ fontSize: fs, fontFamily: monoFont, lineHeight: lh, paddingVertical: 1 }}> </Text>
+            )}
           </View>
           {/* Right (new) */}
           <View
@@ -296,18 +388,11 @@ function SplitDiffView({
               paddingHorizontal: 6,
             }}
           >
-            <Text
-              numberOfLines={1}
-              style={{
-                fontSize: fs,
-                fontFamily: monoFont,
-                lineHeight: lh,
-                paddingVertical: 1,
-                color: getSideColor(row.right.type),
-              }}
-            >
-              {row.right.text || ' '}
-            </Text>
+            {row.right.text ? (
+              <HighlightedDiffLine text={row.right.text} lineType={toDiffType(row.right.type)} ext={ext} isDark={isDark} fs={fs} lh={lh} />
+            ) : (
+              <Text style={{ fontSize: fs, fontFamily: monoFont, lineHeight: lh, paddingVertical: 1 }}> </Text>
+            )}
           </View>
         </View>
       ))}
@@ -469,9 +554,9 @@ function FileDiffCard({
             showsVerticalScrollIndicator
           >
             {viewMode === 'split' ? (
-              <SplitDiffView lineDiff={lineDiff} isDark={isDark} />
+              <SplitDiffView lineDiff={lineDiff} isDark={isDark} filename={diff.file} />
             ) : (
-              <UnifiedDiffView lineDiff={lineDiff} isDark={isDark} />
+              <UnifiedDiffView lineDiff={lineDiff} isDark={isDark} filename={diff.file} />
             )}
           </ScrollView>
         </View>
