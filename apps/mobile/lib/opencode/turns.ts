@@ -601,6 +601,35 @@ export function shouldShowToolPart(part: ToolPart): boolean {
 // Tool info (icon + title + subtitle)
 // ============================================================================
 
+function firstMeaningfulLine(value: unknown, maxLength = 120): string {
+  if (typeof value !== 'string') return '';
+  const line = value
+    .split('\n')
+    .map((segment: string) => segment.trim())
+    .find(Boolean);
+  if (!line) return '';
+  return line.length > maxLength ? `${line.slice(0, maxLength).trim()}…` : line;
+}
+
+export function getAgentCardLabel(input: Record<string, unknown>): string {
+  const description = firstMeaningfulLine(input.description);
+  if (description) return description;
+
+  const title = firstMeaningfulLine(input.title, 80);
+  if (title) return title;
+
+  const message = firstMeaningfulLine(input.message);
+  if (message) return message;
+
+  const promptPreview = firstMeaningfulLine(input.prompt);
+  if (promptPreview) return promptPreview;
+
+  const agentId = firstMeaningfulLine(input.agent_id, 40);
+  if (agentId) return `Agent ${agentId}`;
+
+  return 'Worker task';
+}
+
 /**
  * Get icon, title, subtitle for a tool part.
  * Matches SolidJS getToolInfo — message-part.tsx:184-270
@@ -653,7 +682,7 @@ export function getToolInfo(tool: string, input: Record<string, any> = {}): Tool
       return {
         icon: 'square-kanban',
         title: `Agent (${input.subagent_type || 'task'})`,
-        subtitle: input.description,
+        subtitle: getAgentCardLabel(input),
       };
     case 'bash':
       return { icon: 'terminal', title: 'Shell', subtitle: input.description };
