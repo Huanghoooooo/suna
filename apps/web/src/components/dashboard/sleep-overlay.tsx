@@ -45,16 +45,18 @@ export function useSleep() {
 }
 
 function SleepClock({ phase }: { phase: 'in' | 'visible' | 'out' }) {
-  const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
+    const update = () => setNow(new Date());
+    update();
+    const id = setInterval(update, 1000);
     return () => clearInterval(id);
   }, []);
-  const day = now.toLocaleDateString('en-US', { weekday: 'short' });
-  const month = now.toLocaleDateString('en-US', { month: 'short' });
-  const date = now.getDate();
-  const h = now.getHours() % 12 || 12;
-  const m = now.getMinutes().toString().padStart(2, '0');
+  const day = now?.toLocaleDateString('en-US', { weekday: 'short' }) ?? '---';
+  const month = now?.toLocaleDateString('en-US', { month: 'short' }) ?? '---';
+  const date = now?.getDate() ?? '--';
+  const h = now ? now.getHours() % 12 || 12 : '--';
+  const m = now ? now.getMinutes().toString().padStart(2, '0') : '--';
 
   return (
     <div
@@ -65,11 +67,12 @@ function SleepClock({ phase }: { phase: 'in' | 'visible' | 'out' }) {
         transition: 'opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
-      <p className="text-foreground/35 text-[13px] font-light tracking-widest">
+      <p className="text-foreground/35 text-[13px] font-light tracking-widest" suppressHydrationWarning>
         {day} {month} {date}
       </p>
       <p
         className="text-foreground/80 text-[80px] sm:text-[104px] font-extralight leading-none -tracking-[0.02em] tabular-nums"
+        suppressHydrationWarning
       >
         {h}:{m}
       </p>

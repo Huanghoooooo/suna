@@ -1,11 +1,14 @@
 /**
- * Public URL Share Endpoint — POST /v1/p/share
+ * Public URL Share Endpoints — /v1/p/share
  *
- * Proxies to the sandbox's /kortix/share/:port endpoint to create a
- * token-based, time-limited share URL. This lets the frontend or external
- * callers create share links without being inside the sandbox.
+ * Proxies to the sandbox's /kortix/share endpoints so the frontend can create,
+ * list, and revoke share links without talking to the sandbox directly.
  *
- * Body: { sandbox_id, port, ttl? }
+ * Routes:
+ * - POST   /v1/p/share        body: { sandbox_id, port, ttl?, label? }
+ * - GET    /v1/p/share        query: sandbox_id
+ * - DELETE /v1/p/share/:token query: sandbox_id
+ *
  * Auth: combinedAuth (Supabase JWT, kortix_ token, or cookie).
  */
 
@@ -26,6 +29,7 @@ type NgrokTunnel = {
 
 const NGROK_API_PORTS = [4040, 4041, 4042]
 const LOCAL_SHARE_TUNNEL_NAME = 'kortix-share'
+type ResolvedProvider = NonNullable<Awaited<ReturnType<typeof resolveProvider>>>
 
 function isNgrokInstalled(): boolean {
   try {
@@ -122,6 +126,58 @@ function buildSharedUrl(baseUrl: string, token: string): string {
   return base.toString()
 }
 
+function buildSandboxShareBaseUrl(resolved: ResolvedProvider): string | null {
+  if (resolved.provider === 'justavps' && resolved.slug && resolved.proxyToken) {
+    const domain = config.JUSTAVPS_PROXY_DOMAIN
+    return `https://8000--${resolved.slug}.${domain}/kortix/share`
+  }
+  if (resolved.baseUrl) {
+    return `${resolved.baseUrl}/kortix/share`
+  }
+  return null
+}
+
+function buildSandboxHeaders(resolved: ResolvedProvider): Record<string, string> {
+  const headers: Record<string, string> = {}
+  if (resolved.serviceKey) {
+    headers.Authorization = `Bearer ${resolved.serviceKey}`
+  }
+  if (resolved.proxyToken) {
+    headers['X-Proxy-Token'] = resolved.proxyToken
+  }
+  return headers
+}
+
+async function parseJsonResponse(resp: Response): Promise<Record<string, unknown>> {
+  const text = await resp.text().catch(() => '')
+  if (!text) return {}
+  try {
+    return JSON.parse(text) as Record<string, unknown>
+  } catch {
+    return { error: text.slice(0, 500) }
+  }
+}
+
+async function resolveShareTarget(sandboxId: string): Promise<{
+  resolved: ResolvedProvider
+  sandboxShareBaseUrl: string
+} | {
+  error: string
+  status: number
+}> {
+  const resolved = await resolveProvider(sandboxId)
+  if (!resolved) {
+    return { error: 'Sandbox not found or not active', status: 404 }
+  }
+
+  const sandboxShareBaseUrl = buildSandboxShareBaseUrl(resolved)
+  if (!sandboxShareBaseUrl) {
+    return { error: 'Cannot reach sandbox', status: 502 }
+  }
+
+  return { resolved, sandboxShareBaseUrl }
+}
+
 shareApp.post('/',
   combinedAuth,
   async (c) => {
@@ -140,60 +196,41 @@ shareApp.post('/',
       return c.json({ error: 'port is required (1-65535)' }, 400)
     }
 
-    // Resolve the sandbox to find how to reach it
-    const resolved = await resolveProvider(sandbox_id)
-    if (!resolved) {
-      return c.json({ error: 'Sandbox not found or not active' }, 404)
+    const target = await resolveShareTarget(sandbox_id)
+    if ('error' in target) {
+      return c.json({ error: target.error }, target.status as any)
     }
 
-    // Build the URL to the sandbox's /kortix/share/:port endpoint
-    let sandboxUrl: string
     const queryParams = new URLSearchParams()
     if (ttl) queryParams.set('ttl', ttl)
     if (label) queryParams.set('label', label)
     const qs = queryParams.toString() ? `?${queryParams.toString()}` : ''
-
-    if (resolved.provider === 'justavps' && resolved.slug && resolved.proxyToken) {
-      const domain = config.JUSTAVPS_PROXY_DOMAIN
-      sandboxUrl = `https://8000--${resolved.slug}.${domain}/kortix/share/${port}${qs}`
-    } else if (resolved.baseUrl) {
-      sandboxUrl = `${resolved.baseUrl}/kortix/share/${port}${qs}`
-    } else {
-      return c.json({ error: 'Cannot reach sandbox' }, 502)
-    }
+    const sandboxUrl = `${target.sandboxShareBaseUrl}/${port}${qs}`
 
     // Forward the request to the sandbox
     try {
-      const headers: Record<string, string> = {}
-      if (resolved.serviceKey) {
-        headers['Authorization'] = `Bearer ${resolved.serviceKey}`
-      }
-      if (resolved.proxyToken) {
-        headers['X-Proxy-Token'] = resolved.proxyToken
-      }
-
       const resp = await fetch(sandboxUrl, {
-        headers,
+        headers: buildSandboxHeaders(target.resolved),
         signal: AbortSignal.timeout(10_000),
       })
 
-      const result = await resp.json() as Record<string, unknown>
+      const result = await parseJsonResponse(resp)
 
       if (!resp.ok) {
         return c.json(result, resp.status as any)
       }
 
-      if (resolved.provider === 'local_docker') {
+      if (target.resolved.provider === 'local_docker') {
         const hostPort = (() => {
           try {
-            const parsed = new URL(resolved.baseUrl)
+            const parsed = new URL(target.resolved.baseUrl)
             return Number(parsed.port || '14000')
           } catch {
             return 14000
           }
         })()
         const publicBaseUrl = await ensureLocalTunnel(hostPort)
-        await syncSandboxPublicBase(resolved.baseUrl, resolved.serviceKey, publicBaseUrl)
+        await syncSandboxPublicBase(target.resolved.baseUrl, target.resolved.serviceKey, publicBaseUrl)
         if (typeof result.token === 'string') {
           result.url = buildSharedUrl(publicBaseUrl, result.token)
         }
@@ -206,5 +243,59 @@ shareApp.post('/',
     }
   },
 )
+
+shareApp.get('/', combinedAuth, async (c) => {
+  const sandbox_id = c.req.query('sandbox_id')
+  if (!sandbox_id || typeof sandbox_id !== 'string') {
+    return c.json({ error: 'sandbox_id is required (string)' }, 400)
+  }
+
+  const target = await resolveShareTarget(sandbox_id)
+  if ('error' in target) {
+    return c.json({ error: target.error }, target.status as any)
+  }
+
+  try {
+    const resp = await fetch(target.sandboxShareBaseUrl, {
+      headers: buildSandboxHeaders(target.resolved),
+      signal: AbortSignal.timeout(10_000),
+    })
+    const result = await parseJsonResponse(resp)
+    return c.json(result, resp.status as any)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return c.json({ error: 'Failed to load share links', details: msg }, 502)
+  }
+})
+
+shareApp.delete('/:token', combinedAuth, async (c) => {
+  const sandbox_id = c.req.query('sandbox_id')
+  if (!sandbox_id || typeof sandbox_id !== 'string') {
+    return c.json({ error: 'sandbox_id is required (string)' }, 400)
+  }
+
+  const token = c.req.param('token')
+  if (!token) {
+    return c.json({ error: 'token is required' }, 400)
+  }
+
+  const target = await resolveShareTarget(sandbox_id)
+  if ('error' in target) {
+    return c.json({ error: target.error }, target.status as any)
+  }
+
+  try {
+    const resp = await fetch(`${target.sandboxShareBaseUrl}/${encodeURIComponent(token)}`, {
+      method: 'DELETE',
+      headers: buildSandboxHeaders(target.resolved),
+      signal: AbortSignal.timeout(10_000),
+    })
+    const result = await parseJsonResponse(resp)
+    return c.json(result, resp.status as any)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return c.json({ error: 'Failed to revoke share link', details: msg }, 502)
+  }
+})
 
 export { shareApp }

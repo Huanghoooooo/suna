@@ -140,7 +140,7 @@ export default async function RootLayout({
               (function() {
                 window.dataLayer = window.dataLayer || [];
                 var pathname = window.location.pathname;
-                pathname = pathname.replace(/^\/instances\/[^/]+/, '') || '/';
+                pathname = pathname.replace(new RegExp('^/instances/[^/]+'), '') || '/';
                 
                 // Get language from localStorage, cookie, or default to 'en'
                 var lang = 'en';

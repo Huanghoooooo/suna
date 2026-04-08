@@ -30,23 +30,26 @@ const GoogleSignIn = lazy(() => import('@/components/GoogleSignIn'));
 /* ─── Live clock ────────────────────────────────────────────────────────── */
 
 function LiveClock() {
-  const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
+    const update = () => setNow(new Date());
+    update();
+    const id = setInterval(update, 1000);
     return () => clearInterval(id);
   }, []);
-  const day = now.toLocaleDateString('en-US', { weekday: 'short' });
-  const month = now.toLocaleDateString('en-US', { month: 'short' });
-  const date = now.getDate();
-  const h = now.getHours() % 12 || 12;
-  const m = now.getMinutes().toString().padStart(2, '0');
+  const day = now?.toLocaleDateString('en-US', { weekday: 'short' }) ?? '---';
+  const month = now?.toLocaleDateString('en-US', { month: 'short' }) ?? '---';
+  const date = now?.getDate() ?? '--';
+  const h = now ? now.getHours() % 12 || 12 : '--';
+  const m = now ? now.getMinutes().toString().padStart(2, '0') : '--';
   return (
     <div className="flex flex-col items-center select-none pointer-events-none">
-      <p className="text-foreground/35 text-[13px] font-light tracking-widest">
+      <p className="text-foreground/35 text-[13px] font-light tracking-widest" suppressHydrationWarning>
         {day} {month} {date}
       </p>
       <p
         className="text-foreground/80 text-[80px] sm:text-[104px] font-extralight leading-none -tracking-[0.02em] tabular-nums"
+        suppressHydrationWarning
       >
         {h}:{m}
       </p>

@@ -8,6 +8,8 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
+const LEGAL_LAST_UPDATED = 'April 8, 2026';
+
 function LegalContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -157,14 +159,14 @@ function LegalContent() {
                         Terms of Service
                       </h2>
                       <p className="text-sm text-muted-foreground mb-6">
-                        Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        Last updated: {LEGAL_LAST_UPDATED}
                       </p>
 
                       <h3 className="text-lg font-medium tracking-tight">
                         Terms of Service & Privacy Policy
                       </h3>
                       <p className="text-muted-foreground text-balance mb-4">
-                        Last updated and effective date: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        Last updated and effective date: {LEGAL_LAST_UPDATED}
                       </p>
 
                       <p className="text-muted-foreground text-balance mb-6">
@@ -1529,7 +1531,7 @@ function LegalContent() {
                         Privacy Policy
                       </h2>
                       <p className="text-sm text-muted-foreground mb-6">
-                        Last updated: {new Date().toLocaleDateString()}
+                        Last updated: {LEGAL_LAST_UPDATED}
                       </p>
 
                       <h3 className="text-lg font-medium tracking-tight">

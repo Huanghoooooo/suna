@@ -43,13 +43,22 @@ if (SENTRY_DSN) {
       'The operation was aborted',
       // PostHog retry noise
       'ERR_BLOCKED_BY_CLIENT',
+      // External Safari / WebView video probing noise
+      'webkitPresentationMode',
     ],
 
     // Filter out internal/low-value errors before sending
     beforeSend(event) {
+      const message = event.exception?.values?.[0]?.value || event.message || '';
       // Don't report errors from browser extensions
       const frames = event.exception?.values?.[0]?.stacktrace?.frames || [];
       if (frames.some((f) => f.filename?.includes('extension://'))) {
+        return null;
+      }
+      if (
+        message.includes('webkitPresentationMode') ||
+        frames.some((f) => f.filename?.startsWith('app:///'))
+      ) {
         return null;
       }
       return event;

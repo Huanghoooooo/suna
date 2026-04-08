@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import * as Sentry from '@sentry/nextjs';
 
 export default function GlobalError({
@@ -11,6 +11,8 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const [timestamp, setTimestamp] = useState('');
+
   useEffect(() => {
     console.error('[Kortix Global Error]', error);
     // Report to Better Stack via Sentry SDK
@@ -26,6 +28,10 @@ export default function GlobalError({
       },
     });
   }, [error]);
+
+  useEffect(() => {
+    setTimestamp(new Date().toISOString());
+  }, []);
 
   return (
     <html lang="en">
@@ -267,13 +273,14 @@ export default function GlobalError({
 
           {/* Timestamp */}
           <div
+            suppressHydrationWarning
             style={{
               fontSize: '11px',
               color: 'rgba(255,255,255,0.15)',
               letterSpacing: '0.05em',
             }}
           >
-            {new Date().toISOString()}
+            {timestamp || '---- -- --T--:--:--.---Z'}
           </div>
         </div>
 
