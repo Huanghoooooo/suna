@@ -1,21 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import {
   ArrowDownToLine,
-  Check,
-  Download,
   GitCommit,
-  HeartPulse,
   Menu,
-  Package,
-  Play,
-  Square,
   Tag,
-  X,
 } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Icon } from '@/components/ui/icon';
@@ -24,11 +17,11 @@ import {
   getAllVersions,
   type VersionEntry,
   type VersionChannel,
-  type UpdatePhase,
 } from '@/lib/platform/client';
 import { useTabStore, type PageTab } from '@/stores/tab-store';
 import { useThemeColors } from '@/lib/theme-colors';
 import { Ionicons } from '@expo/vector-icons';
+import { UpdateDialog } from '@/components/updates/UpdateDialog';
 
 // ─── Version type classification ─────────────────────────────────────────
 
@@ -106,11 +99,13 @@ export function UpdatesPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: U
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
   const themeColors = useThemeColors();
+  const queryClient = useQueryClient();
 
   const {
     updateAvailable,
     currentVersion,
     latestVersion,
+    changelog,
     update,
     isUpdating,
     phase,
@@ -175,15 +170,29 @@ export function UpdatesPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: U
     return Boolean(data?.versions?.some((v) => v.channel === 'dev'));
   }, [data?.versions]);
 
-  const handleUpdate = useCallback(() => {
+  // Update dialog state
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const handleOpenDialog = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setDialogOpen(true);
+  }, []);
+
+  const handleDialogClose = useCallback(() => {
+    setDialogOpen(false);
+    // Refresh version data after dialog closes (covers both success and cancel)
+    queryClient.invalidateQueries({ queryKey: ['sandbox', 'versions'] });
+    queryClient.invalidateQueries({ queryKey: ['sandbox', 'latest-version'] });
+  }, [queryClient]);
+
+  const handleDialogConfirm = useCallback(() => {
     update();
   }, [update]);
 
-  const handleRetry = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const handleDialogRetry = useCallback(() => {
     resetStatus();
-  }, [resetStatus]);
+    update();
+  }, [resetStatus, update]);
 
   const toggleDev = useCallback(() => {
     Haptics.selectionAsync();
@@ -253,10 +262,10 @@ export function UpdatesPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: U
             )}
           </View>
 
-          {/* Update button */}
-          {updateAvailable && !isUpdating && !updateResult && latestVersion && (
+          {/* Update button — opens dialog */}
+          {updateAvailable && latestVersion && (
             <Pressable
-              onPress={handleUpdate}
+              onPress={handleOpenDialog}
               className="mt-4 flex-row items-center justify-center self-start rounded-xl px-5 py-2.5 active:opacity-90"
               style={{ backgroundColor: themeColors.primary }}
             >
@@ -265,64 +274,6 @@ export function UpdatesPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: U
                 Update to {latestVersion.startsWith('dev-') ? latestVersion : `v${latestVersion}`}
               </Text>
             </Pressable>
-          )}
-
-          {/* Update success */}
-          {updateResult?.success && (
-            <View className="mt-4 flex-row items-center self-start rounded-xl bg-emerald-400/15 px-4 py-2.5">
-              <Icon as={Check} size={15} className="text-emerald-500" strokeWidth={2.5} />
-              <Text className="ml-2 font-roobert-medium text-sm text-emerald-500">
-                Updated to v{updateResult.currentVersion}
-              </Text>
-            </View>
-          )}
-
-          {/* Update progress */}
-          {(isUpdating || updateError) && (
-            <View
-              className="mt-4 rounded-2xl border px-4 py-4"
-              style={{
-                borderColor: updateError
-                  ? isDark ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.15)'
-                  : borderColor,
-                backgroundColor: updateError
-                  ? isDark ? 'rgba(239,68,68,0.05)' : 'rgba(239,68,68,0.03)'
-                  : undefined,
-              }}
-            >
-              <View className="flex-row items-center mb-3">
-                {updateError ? (
-                  <Icon as={X} size={18} className="text-destructive" strokeWidth={2.5} />
-                ) : (
-                  <ActivityIndicator size="small" />
-                )}
-                <View className="ml-3 flex-1">
-                  <Text className={`font-roobert-medium text-[15px] ${updateError ? 'text-destructive' : 'text-foreground'}`}>
-                    {updateError ? 'Update failed' : `Updating to v${latestVersion}`}
-                  </Text>
-                </View>
-                {!updateError && (
-                  <Text className="font-roobert text-xs tabular-nums text-muted-foreground">{Math.round(phaseProgress)}%</Text>
-                )}
-              </View>
-
-              {!updateError && (
-                <View className="mb-4 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: isDark ? 'rgba(248,248,248,0.08)' : 'rgba(18,18,21,0.06)' }}>
-                  <View className="h-full rounded-full" style={{ width: `${Math.max(phaseProgress, 2)}%`, backgroundColor: themeColors.primary }} />
-                </View>
-              )}
-
-              <UpdatePhaseSteps currentPhase={phase} hasError={!!updateError} isDark={isDark} />
-
-              {updateError && (
-                <View className="mt-3 flex-row items-center">
-                  <Text className="flex-1 font-roobert text-xs text-muted-foreground">{updateError.message}</Text>
-                  <Pressable onPress={handleRetry} className="ml-2 rounded-lg bg-muted/60 px-3 py-1.5 active:opacity-70">
-                    <Text className="font-roobert-medium text-xs text-foreground">Try again</Text>
-                  </Pressable>
-                </View>
-              )}
-            </View>
           )}
         </View>
 
@@ -400,6 +351,22 @@ export function UpdatesPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: U
           )}
         </View>
       </ScrollView>
+
+      {/* Update dialog */}
+      <UpdateDialog
+        open={dialogOpen}
+        phase={phase}
+        phaseMessage={phaseMessage}
+        phaseProgress={phaseProgress}
+        latestVersion={latestVersion}
+        changelog={changelog}
+        currentVersion={currentVersion}
+        errorMessage={updateError?.message ?? null}
+        updateResult={updateResult}
+        onClose={handleDialogClose}
+        onConfirm={handleDialogConfirm}
+        onRetry={handleDialogRetry}
+      />
     </View>
   );
 }
@@ -669,104 +636,3 @@ function formatInlineMarkdown(text: string): string {
     .replace(/`(.*?)`/g, '$1');
 }
 
-// ─── Update Phase Steps ─────────────────────────────────────────────────
-
-const UPDATE_PHASES: { phase: UpdatePhase; label: string; icon: typeof Download }[] = [
-  { phase: 'pulling', label: 'Downloading update', icon: Download },
-  { phase: 'stopping', label: 'Stopping sandbox', icon: Square },
-  { phase: 'removing', label: 'Preparing update', icon: Package },
-  { phase: 'recreating', label: 'Installing update', icon: Package },
-  { phase: 'starting', label: 'Starting sandbox', icon: Play },
-  { phase: 'health_check', label: 'Health checks', icon: HeartPulse },
-  { phase: 'complete', label: 'Complete', icon: Check },
-];
-
-const PHASE_ORDER: UpdatePhase[] = ['pulling', 'stopping', 'removing', 'recreating', 'starting', 'health_check', 'complete'];
-
-function UpdatePhaseSteps({ currentPhase, hasError, isDark }: { currentPhase: string; hasError: boolean; isDark: boolean }) {
-  const currentIdx = PHASE_ORDER.indexOf(currentPhase as UpdatePhase);
-
-  return (
-    <View style={{ gap: 0 }}>
-      {UPDATE_PHASES.map((step, idx) => {
-        const isComplete = currentIdx > idx;
-        const isActive = currentIdx === idx && !hasError;
-        const isFailed = currentIdx === idx && hasError;
-
-        const textColor = isComplete
-          ? 'text-emerald-500'
-          : isActive
-          ? 'text-foreground'
-          : isFailed
-          ? 'text-destructive'
-          : 'text-muted-foreground/30';
-
-        const iconColor = isComplete
-          ? '#10B981'
-          : isActive
-          ? isDark ? '#F8F8F8' : '#121215'
-          : isFailed
-          ? '#EF4444'
-          : isDark ? 'rgba(248,248,248,0.2)' : 'rgba(18,18,21,0.15)';
-
-        return (
-          <View key={step.phase} className="flex-row items-center" style={{ height: 28 }}>
-            <View className="w-5 items-center justify-center">
-              {isComplete ? (
-                <Icon as={Check} size={11} style={{ color: '#10B981' }} strokeWidth={3} />
-              ) : isActive ? (
-                <PulsingDot color={iconColor} />
-              ) : (
-                <View className="h-1 w-1 rounded-full" style={{ backgroundColor: iconColor }} />
-              )}
-            </View>
-            <Text
-              className={`font-roobert text-[12px] ${textColor} ${isActive ? 'font-roobert-medium' : ''}`}
-            >
-              {step.label}
-            </Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-function PulsingDot({ color }: { color: string }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(scale, { toValue: 2.2, duration: 800, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0, duration: 800, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-        ]),
-        Animated.parallel([
-          Animated.timing(scale, { toValue: 1, duration: 0, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 1, duration: 0, useNativeDriver: true }),
-        ]),
-      ]),
-    );
-    pulse.start();
-    return () => pulse.stop();
-  }, [scale, opacity]);
-
-  return (
-    <View style={{ width: 8, height: 8, alignItems: 'center', justifyContent: 'center' }}>
-      <Animated.View
-        style={{
-          position: 'absolute',
-          width: 6,
-          height: 6,
-          borderRadius: 3,
-          backgroundColor: color,
-          opacity,
-          transform: [{ scale }],
-        }}
-      />
-      <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: color }} />
-    </View>
-  );
-}

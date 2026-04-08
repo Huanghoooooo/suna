@@ -50,6 +50,9 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useSandboxContext } from '@/contexts/SandboxContext';
 import { getSandboxPortUrl } from '@/lib/platform/client';
+import { getAuthToken } from '@/api/config';
+import { FileViewer } from '@/components/files/FileViewer';
+import type { SandboxFile } from '@/api/types';
 import { useTabStore } from '@/stores/tab-store';
 import type {
   Turn,
@@ -86,6 +89,91 @@ import {
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// ─── Image extension detection ──────────────────────────────────────────────
+
+const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif|tiff?|heic|heif)$/i;
+
+function isImagePath(filePath: string): boolean {
+  return IMAGE_EXT_RE.test(filePath);
+}
+
+// ─── SandboxImage — loads an image from the sandbox with auth ────────────────
+
+function SandboxImage({
+  filePath,
+  isDark,
+  height = 240,
+}: {
+  filePath: string;
+  isDark: boolean;
+  height?: number;
+}) {
+  const { sandboxUrl } = useSandboxContext();
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!sandboxUrl || !filePath) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getAuthToken();
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch(
+          `${sandboxUrl}/file/raw?path=${encodeURIComponent(filePath)}`,
+          { headers },
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (!cancelled && typeof reader.result === 'string') {
+            setImageUri(reader.result);
+            setLoading(false);
+          }
+        };
+        reader.onerror = () => {
+          if (!cancelled) { setError(true); setLoading(false); }
+        };
+        reader.readAsDataURL(blob);
+      } catch {
+        if (!cancelled) { setError(true); setLoading(false); }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [sandboxUrl, filePath]);
+
+  if (loading) {
+    return (
+      <View style={{ height, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>
+        <ReAnimated.View>
+          <Loader2 size={20} color={isDark ? '#52525b' : '#a1a1aa'} />
+        </ReAnimated.View>
+      </View>
+    );
+  }
+
+  if (error || !imageUri) {
+    return (
+      <View style={{ height: 60, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: 12, color: isDark ? '#71717a' : '#a1a1aa' }}>
+          Failed to load image
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      source={{ uri: imageUri }}
+      style={{ width: '100%', height, borderBottomLeftRadius: 13, borderBottomRightRadius: 13 }}
+      resizeMode="cover"
+    />
+  );
 }
 
 // ─── Shimmer text for status indicators ──────────────────────────────────────
@@ -148,14 +236,46 @@ function ShimmerStatusText({ text, size = 'sm' }: { text: string; size?: 'sm' | 
 // ─── Tool input resolver ─────────────────────────────────────────────────────
 // The SDK sends `input` inside `state.input`, but mobile types define it at `tool.input`.
 // At runtime the data may be in either location. This helper checks both.
+// During pending/running state, tries to parse the streaming raw field for early labels.
+
+function parsePartialJSON(raw: string): Record<string, unknown> {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Try closing open braces for partial JSON
+    let patched = raw.trim();
+    if (!patched.startsWith('{')) return {};
+    // Close unclosed strings
+    const quoteCount = (patched.match(/(?<!\\)"/g) || []).length;
+    if (quoteCount % 2 !== 0) patched += '"';
+    // Close any open braces
+    const opens = (patched.match(/{/g) || []).length;
+    const closes = (patched.match(/}/g) || []).length;
+    for (let i = 0; i < opens - closes; i++) patched += '}';
+    try {
+      return JSON.parse(patched);
+    } catch {
+      return {};
+    }
+  }
+}
 
 function getToolInput(tool: ToolPart): Record<string, any> {
   const stateInput = (tool.state as any)?.input;
   if (stateInput && typeof stateInput === 'object' && Object.keys(stateInput).length > 0) {
     return stateInput;
   }
+  // During pending/running state, try to parse the streaming raw field
+  if (
+    (tool.state.status === 'pending' || tool.state.status === 'running') &&
+    'raw' in (tool.state as any)
+  ) {
+    const raw = (tool.state as any).raw as string;
+    if (raw) return parsePartialJSON(raw);
+  }
   return tool.input || {};
 }
+
 
 // ─── Tool icon resolver ──────────────────────────────────────────────────────
 
@@ -536,6 +656,28 @@ function tokenizeLine(line: string, ext: string): CodeToken[] {
   return tokenizeCode(line);
 }
 
+/**
+ * Strip markdown code fences from content.
+ * Tool inputs sometimes wrap code in ```lang ... ``` which should not be rendered literally.
+ * Strips opening fence (first line if it matches ```lang) and closing fence (last non-empty line if ```).
+ * Also filters out any stray ``` lines that are purely fence markers.
+ */
+function stripCodeFences(text: string): string {
+  // Normalize line endings
+  let t = text.replace(/\r\n?/g, '\n');
+
+  // Strip opening fence: ```lang, ```lang filename, or just ``` (anything after ```)
+  t = t.replace(/^\s*```[^\n]*\n/, '');
+
+  // Strip closing fence: ``` at end (with optional trailing whitespace/newlines)
+  t = t.replace(/\n\s*```\s*\n?\s*$/, '');
+
+  // Also strip if closing ``` is the very last line with no preceding newline (edge)
+  t = t.replace(/\s*```\s*$/, '');
+
+  return t;
+}
+
 function HighlightedCode({
   content,
   filePath,
@@ -564,8 +706,9 @@ function HighlightedCode({
     plain: mutedStrong(isDark),
   };
 
-  const lines = content.split('\n').slice(0, maxLines);
-  const truncated = content.split('\n').length > maxLines;
+  const cleaned = stripCodeFences(content);
+  const lines = cleaned.split('\n').slice(0, maxLines);
+  const truncated = cleaned.split('\n').length > maxLines;
   const fs = 10;
   const lh = 15;
 
@@ -636,65 +779,98 @@ function ShellExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boolea
   );
 }
 
+// LCS-based diff utilities — shared with ViewChangesSheet
+import { generateLineDiff, getDiffStats } from '@/lib/opencode/diff-utils';
+
 function WriteEditExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boolean }) {
   const input = getToolInput(tool);
   const content = input.content || input.newString || '';
   const filePath = input.filePath || '';
-  const output = useMemo(() => {
-    if (tool.state.status === 'completed' && 'output' in tool.state && tool.state.output) {
-      return stripAnsi(tool.state.output).trim();
-    }
-    return undefined;
-  }, [tool.state]);
 
-  // For edit, show old -> new
+  // For edit, show unified diff
   const oldString = input.oldString;
   const newString = input.newString;
   const isEdit = tool.tool === 'edit' || tool.tool === 'morph_edit';
 
+  const lineDiff = useMemo(() => {
+    if (isEdit && oldString && newString) {
+      return generateLineDiff(oldString, newString);
+    }
+    return null;
+  }, [isEdit, oldString, newString]);
+
+  const fs = 10.5;
+  const lh = 16;
+
   return (
     <View>
-      {isEdit && oldString && newString ? (
-        <View style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
-          {/* Deletions */}
-          <View style={{ marginBottom: 4 }}>
-            {oldString.split('\n').slice(0, 15).map((line: string, i: number) => (
+      {lineDiff ? (
+        <ScrollView
+          style={{ maxHeight: 300 }}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+        >
+          {lineDiff.slice(0, 40).map((line, i) => {
+            const isRemoved = line.type === 'removed';
+            const isAdded = line.type === 'added';
+
+            return (
               <View
-                key={`del-${i}`}
+                key={i}
                 style={{
                   flexDirection: 'row',
-                  backgroundColor: isDark ? 'rgba(239,68,68,0.08)' : 'rgba(239,68,68,0.06)',
-                  paddingHorizontal: 4,
-                  borderRadius: 2,
+                  backgroundColor: isRemoved
+                    ? (isDark ? 'rgba(239,68,68,0.10)' : 'rgba(239,68,68,0.07)')
+                    : isAdded
+                    ? (isDark ? 'rgba(34,197,94,0.10)' : 'rgba(34,197,94,0.07)')
+                    : 'transparent',
+                  borderLeftWidth: 2,
+                  borderLeftColor: isRemoved
+                    ? (isDark ? '#f87171' : '#ef4444')
+                    : isAdded
+                    ? (isDark ? '#4ade80' : '#22c55e')
+                    : 'transparent',
                 }}
               >
-                <Text style={{ fontSize: 11, fontFamily: monoFont, lineHeight: 17, color: isDark ? '#f87171' : '#dc2626', marginRight: 6 }}>-</Text>
-                <Text style={{ fontSize: 11, fontFamily: monoFont, lineHeight: 17, color: isDark ? '#f87171' : '#dc2626', flex: 1 }} numberOfLines={1}>
-                  {line}
+                {/* +/- indicator */}
+                <View style={{ width: 20, alignItems: 'center', justifyContent: 'center' }}>
+                  {isRemoved && (
+                    <Text style={{ fontSize: fs, fontFamily: monoFont, color: isDark ? '#f87171' : '#dc2626', fontWeight: '600' }}>−</Text>
+                  )}
+                  {isAdded && (
+                    <Text style={{ fontSize: fs, fontFamily: monoFont, color: isDark ? '#4ade80' : '#16a34a', fontWeight: '600' }}>+</Text>
+                  )}
+                </View>
+                {/* Code content */}
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flex: 1,
+                    fontSize: fs,
+                    fontFamily: monoFont,
+                    lineHeight: lh,
+                    paddingVertical: 1,
+                    paddingRight: 12,
+                    color: isRemoved
+                      ? (isDark ? '#fca5a5' : '#b91c1c')
+                      : isAdded
+                      ? (isDark ? '#bbf7d0' : '#15803d')
+                      : (isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)'),
+                  }}
+                >
+                  {line.text}
                 </Text>
               </View>
-            ))}
-          </View>
-          {/* Additions */}
-          <View>
-            {newString.split('\n').slice(0, 15).map((line: string, i: number) => (
-              <View
-                key={`add-${i}`}
-                style={{
-                  flexDirection: 'row',
-                  backgroundColor: isDark ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.06)',
-                  paddingHorizontal: 4,
-                  borderRadius: 2,
-                }}
-              >
-                <Text style={{ fontSize: 11, fontFamily: monoFont, lineHeight: 17, color: isDark ? '#34d399' : '#059669', marginRight: 6 }}>+</Text>
-                <Text style={{ fontSize: 11, fontFamily: monoFont, lineHeight: 17, color: isDark ? '#34d399' : '#059669', flex: 1 }} numberOfLines={1}>
-                  {line}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
+            );
+          })}
+          {lineDiff.length > 40 && (
+            <View style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
+              <Text style={{ fontSize: 10, fontFamily: monoFont, color: muted(isDark) }}>
+                ... {lineDiff.length - 40} more lines
+              </Text>
+            </View>
+          )}
+        </ScrollView>
       ) : content ? (
         <ScrollView
           style={{ maxHeight: 250 }}
@@ -703,14 +879,16 @@ function WriteEditExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: bo
           showsVerticalScrollIndicator
         >
           <HighlightedCode
-            content={content.length > 3000 ? content.slice(0, 3000) : content}
+            content={(() => {
+              const cleaned = stripCodeFences(content);
+              return cleaned.length > 3000 ? cleaned.slice(0, 3000) : cleaned;
+            })()}
             filePath={filePath}
             isDark={isDark}
             maxLines={40}
           />
         </ScrollView>
       ) : null}
-      {!!output && <OutputSection output={output} isDark={isDark} />}
     </View>
   );
 }
@@ -1215,6 +1393,11 @@ function ShowExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boolean
     return undefined;
   }, [tool.state, title]);
 
+  // Show image directly if the input path is an image
+  if (filePath && isImagePath(filePath) && !content) {
+    return <SandboxImage filePath={filePath} isDark={isDark} height={240} />;
+  }
+
   // Show file content with syntax highlighting if available
   if (content) {
     return (
@@ -1237,6 +1420,10 @@ function ShowExpandedContent({ tool, isDark }: { tool: ToolPart; isDark: boolean
   if (!parsedOutput) return null;
 
   if (parsedOutput.type === 'file') {
+    // If the output file is an image, render it inline
+    if (isImagePath(parsedOutput.path)) {
+      return <SandboxImage filePath={parsedOutput.path} isDark={isDark} height={240} />;
+    }
     return (
       <View style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
@@ -1705,7 +1892,7 @@ function ShowToolCard({
   isDark: boolean;
 }) {
   const input = getToolInput(tool);
-  const { sandboxId } = useSandboxContext();
+  const { sandboxId, sandboxUrl: ctxSandboxUrl } = useSandboxContext();
 
   const title = (input.title as string) || '';
   const description = (input.description as string) || '';
@@ -1742,6 +1929,9 @@ function ShowToolCard({
   // Open button label
   const openLabel = isHtmlFile || hasLocalhostUrl ? 'Open Preview' : url ? 'Open Link' : 'Open File';
 
+  // File viewer state
+  const [fileViewerVisible, setFileViewerVisible] = useState(false);
+
   // Expandable content state
   const [expanded, setExpanded] = useState(false);
   const hasExpandableContent = !!(content || (tool.state.status === 'completed' && 'output' in tool.state && tool.state.output?.trim()));
@@ -1775,9 +1965,11 @@ function ShowToolCard({
         savedUrl: url,
         savedDisplay: url.replace(/^https?:\/\//, '').replace(/\/$/, ''),
       });
+    } else if (path) {
+      // Open file in the file viewer (supports download)
+      setFileViewerVisible(true);
     }
-    // File paths could open in a file viewer — for now just expand content
-  }, [canOpen, sandboxId, hasLocalhostUrl, localhostMatch, url]);
+  }, [canOpen, sandboxId, hasLocalhostUrl, localhostMatch, url, path]);
 
   const handleToggle = useCallback(() => {
     if (!hasExpandableContent) return;
@@ -1853,10 +2045,10 @@ function ShowToolCard({
                 <Text
                   numberOfLines={1}
                   style={{
-                    fontSize: 12,
+                    fontSize: 11,
                     fontFamily: 'Roobert',
                     color: muted(isDark),
-                    marginTop: 1,
+                    lineHeight: 15,
                   }}
                 >
                   {description}
@@ -1866,8 +2058,8 @@ function ShowToolCard({
           )}
         </View>
 
-        {/* Open button */}
-        {!isRunning && canOpen && (url || hasLocalhostUrl) && (
+        {/* Open button — for URLs, localhost, and file paths */}
+        {!isRunning && canOpen && (
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={handleOpen}
@@ -1881,7 +2073,7 @@ function ShowToolCard({
               marginLeft: 8,
             }}
           >
-            <MonitorPlay size={13} color={fg(isDark)} style={{ marginRight: 5 }} />
+            <ExternalLink size={12} color={fg(isDark)} style={{ marginRight: 4 }} />
             <Text style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: fg(isDark) }}>
               {openLabel}
             </Text>
@@ -1889,8 +2081,13 @@ function ShowToolCard({
         )}
       </View>
 
-      {/* ── Expand toggle for content ── */}
-      {hasExpandableContent && !isRunning && (
+      {/* ── Inline image preview (like web) ── */}
+      {!isRunning && type === 'image' && path && isImagePath(path) && (
+        <SandboxImage filePath={path} isDark={isDark} height={260} />
+      )}
+
+      {/* ── Expand toggle for non-image content ── */}
+      {hasExpandableContent && !isRunning && !(type === 'image' && path && isImagePath(path)) && (
         <>
           <TouchableOpacity
             activeOpacity={0.7}
@@ -1931,6 +2128,17 @@ function ShowToolCard({
           )}
         </>
       )}
+
+      {/* File Viewer modal */}
+      {path && (
+        <FileViewer
+          visible={fileViewerVisible}
+          onClose={() => setFileViewerVisible(false)}
+          file={{ name: path.split('/').pop() || 'file', path, type: 'file' } as SandboxFile}
+          sandboxId={sandboxId || ''}
+          sandboxUrl={ctxSandboxUrl}
+        />
+      )}
     </View>
   );
 }
@@ -1970,6 +2178,16 @@ function ToolCard({
     }
     return undefined;
   }, [tool.tool, tool.state]);
+
+  // Edit tool: compute diff stats for +N -N badges
+  const diffStats = useMemo(() => {
+    const isEditTool = tool.tool === 'edit' || tool.tool === 'morph_edit';
+    if (!isEditTool) return null;
+    const oldStr = input.oldString;
+    const newStr = input.newString;
+    if (!oldStr || !newStr) return null;
+    return getDiffStats(oldStr, newStr);
+  }, [tool.tool, input.oldString, input.newString]);
 
   const displaySubtitle = questionSubtitle || info.subtitle;
 
@@ -2058,6 +2276,22 @@ function ToolCard({
               </Text>
             )}
           </>
+        )}
+
+        {/* Diff stats badges (+N -N) for edit tools */}
+        {diffStats && !isRunning && (diffStats.additions > 0 || diffStats.deletions > 0) && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8, gap: 4 }}>
+            {diffStats.additions > 0 && (
+              <Text style={{ fontSize: 11, fontFamily: monoFont, color: isDark ? '#4ade80' : '#16a34a' }}>
+                +{diffStats.additions}
+              </Text>
+            )}
+            {diffStats.deletions > 0 && (
+              <Text style={{ fontSize: 11, fontFamily: monoFont, color: isDark ? '#f87171' : '#dc2626' }}>
+                -{diffStats.deletions}
+              </Text>
+            )}
+          </View>
         )}
 
         {/* Right side: status indicator or chevron */}

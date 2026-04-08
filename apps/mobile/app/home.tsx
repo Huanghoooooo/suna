@@ -50,6 +50,7 @@ import { useCompactSession } from '@/lib/opencode/hooks/use-compact-session';
 import { useTabStore, PAGE_TABS } from '@/stores/tab-store';
 import { RightDrawerContent } from '@/components/session/RightDrawerContent';
 import { UserMenuSheet } from '@/components/session/UserMenuSheet';
+import { ViewChangesSheet } from '@/components/session/ViewChangesSheet';
 import { useGlobalSandboxUpdate } from '@/hooks/useSandboxUpdate';
 import { PlaceholderPage } from '@/components/session/PlaceholderPage';
 import { UpdatesPage } from '@/components/pages/UpdatesPage';
@@ -421,6 +422,7 @@ export default function HomeScreen() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [pendingFilePath, setPendingFilePath] = useState<string | null>(null);
   const userMenuSheetRef = useRef<BottomSheetModal>(null);
+  const viewChangesSheetRef = useRef<BottomSheetModal>(null);
   const [themePreference, setThemePreference] = useState<ThemePreference>('light');
   const { updateAvailable: hasUpdate } = useGlobalSandboxUpdate();
 
@@ -1367,7 +1369,11 @@ export default function HomeScreen() {
                   }
                 }}
                 onExportTranscript={() => log.log('TODO: export transcript')}
-                onViewChanges={() => log.log('TODO: view changes')}
+                onViewChanges={() => {
+                  if (activeSessionId) {
+                    viewChangesSheetRef.current?.present();
+                  }
+                }}
                 onDiagnostics={() => log.log('TODO: diagnostics')}
                 onArchiveSession={() => { if (activeSessionId) handleArchive(activeSessionId); }}
                 customMenuItems={
@@ -1502,6 +1508,11 @@ export default function HomeScreen() {
         onSelectTheme={handleThemeSelect}
         activeTheme={themePreference}
         isSigningOut={isSigningOut}
+      />
+
+      <ViewChangesSheet
+        ref={viewChangesSheetRef}
+        sessionId={activeSessionId}
       />
 
       {/* Command Palette */}
