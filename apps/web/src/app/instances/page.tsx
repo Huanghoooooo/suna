@@ -354,7 +354,7 @@ export default function InstancesPage() {
         <div className="w-full max-w-lg">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-xl font-semibold text-foreground">Instances</h1>
-            {(isCloud || visible.length === 0) && (
+            {isCloud && visible.length > 0 && (
               <Button
                 size="sm"
                 onClick={handleCreateInstance}
@@ -434,22 +434,47 @@ export default function InstancesPage() {
             </div>
           )}
 
-          {/* Empty state */}
+          {/* Get your computer card for users with no instances (non-legacy) */}
           {!pageLoading && !error && visible.length === 0 && fallbackServers.length === 0 && !canClaimComputer && (
-            <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 p-8 flex flex-col items-center gap-4">
-              <div className="flex items-center justify-center h-14 w-14 rounded-xl bg-muted/50">
-                <Server className="h-7 w-7 text-muted-foreground/40" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-medium text-foreground/80">No instances yet</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">
-                  Create your first Kortix instance to get started.
+            <div className="rounded-2xl border border-border/50 bg-gradient-to-b from-background to-muted/20 px-8 py-14 pb-6 flex flex-col items-center text-center gap-6">
+              <img
+                src="/kortix-computer.png"
+                alt="Kortix Computer"
+                className="h-40 w-40 object-contain"
+              />
+
+              <div className="space-y-3 max-w-md">
+                <h3 className="text-2xl font-semibold tracking-tight text-foreground">
+                  Get Your Cloud Computer
+                </h3>
+                <p className="text-base text-muted-foreground leading-relaxed">
+                  A dedicated cloud computer that&apos;s always on, runs while you sleep, with full root access and persistent storage.
                 </p>
               </div>
-              <Button onClick={handleCreateInstance} className="gap-1.5">
-                <Plus className="h-3.5 w-3.5" />
-                New Kortix
+
+              <Button
+                size="lg"
+                onClick={handleCreateInstance}
+                disabled={autoCreating}
+                className="gap-2 px-8 h-11 text-sm font-medium"
+              >
+                {autoCreating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Setting up...
+                  </>
+                ) : (
+                  'Get Started'
+                )}
               </Button>
+
+              <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground/60 mt-8">
+                <span>Always on</span>
+                <span className="h-3 w-px bg-border/50" />
+                <span>Full root access</span>
+                <span className="h-3 w-px bg-border/50" />
+                <span>Persistent storage</span>
+              </div>
             </div>
           )}
 
