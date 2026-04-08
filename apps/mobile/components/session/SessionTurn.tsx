@@ -5,7 +5,7 @@
  */
 
 import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
-import { View, TouchableOpacity, Animated, StyleSheet, LayoutAnimation, Platform, UIManager, ScrollView, Image } from 'react-native';
+import { View, TouchableOpacity, Animated, StyleSheet, LayoutAnimation, Platform, UIManager, ScrollView, Image, Modal, TextInput } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useColorScheme } from 'nativewind';
 import { Ionicons } from '@expo/vector-icons';
@@ -2761,7 +2761,8 @@ interface SessionTurnProps {
   sessionStatus?: SessionStatus;
   isBusy: boolean;
   pendingQuestions?: QuestionRequest[];
-  onFork?: (assistantMessageId: string) => void;
+  onFork?: (messageId: string) => void;
+  onEditFork?: (messageId: string, editedText: string) => void;
   agentNames?: string[];
   onFileMention?: (path: string) => void;
   onSessionMention?: (sessionId: string) => void;
@@ -2775,6 +2776,7 @@ export function SessionTurn({
   isBusy,
   pendingQuestions = [],
   onFork,
+  onEditFork,
   agentNames,
   onFileMention,
   onSessionMention,
@@ -2907,10 +2909,17 @@ export function SessionTurn({
     return turn.assistantMessages[turn.assistantMessages.length - 1].info.id;
   }, [turn.assistantMessages]);
 
+  // User message ID (for fork/edit on user bubble)
+  const userMessageId = turn.userMessage.info.id;
+
+  // Edit prompt modal state
+  const [editModalVisible, setEditModalVisible] = useState(false);
+
   return (
     <View className="mb-4">
       {/* User message */}
-      <View className="flex-row justify-end mb-2 px-4">
+      <View className="mb-2 px-4">
+        <View className="flex-row justify-end">
         {channelMessageInfo ? (
           <View
             style={{
@@ -3053,6 +3062,33 @@ export function SessionTurn({
             />
           </View>
         )}
+        </View>
+
+        {/* User message actions — copy, edit, fork */}
+        {!!userText && !channelMessageInfo && !triggerEventInfo && (
+          <UserMessageActions
+            userText={userText}
+            isDark={isDark}
+            isBusy={isBusy}
+            onCopy={async () => {
+              await Clipboard.setStringAsync(userText);
+            }}
+            onEdit={() => setEditModalVisible(true)}
+            onFork={() => onFork?.(userMessageId)}
+          />
+        )}
+
+        {/* Edit prompt modal */}
+        <EditPromptModal
+          visible={editModalVisible}
+          initialText={userText}
+          isDark={isDark}
+          onSave={(editedText) => {
+            setEditModalVisible(false);
+            onEditFork?.(userMessageId, editedText);
+          }}
+          onCancel={() => setEditModalVisible(false)}
+        />
       </View>
 
       {/* Assistant response — interleaved text + tool calls */}
@@ -3165,7 +3201,6 @@ export function SessionTurn({
                 costInfo={costInfo}
                 isDark={isDark}
                 tightToResponse={!turnError}
-                onFork={lastAssistantMessageId ? () => onFork?.(lastAssistantMessageId) : undefined}
               />
             </View>
           )}
@@ -3176,7 +3211,187 @@ export function SessionTurn({
 }
 
 // ---------------------------------------------------------------------------
-// TurnActions — fade-in action bar below assistant response
+// UserMessageActions — copy, edit, fork buttons below user message
+// ---------------------------------------------------------------------------
+
+function UserMessageActions({
+  userText,
+  isDark,
+  isBusy,
+  onCopy,
+  onEdit,
+  onFork,
+}: {
+  userText: string;
+  isDark: boolean;
+  isBusy: boolean;
+  onCopy: () => void;
+  onEdit: () => void;
+  onFork: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const mutedColor = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)';
+  const copiedColor = isDark ? '#4ade80' : '#16a34a';
+
+  const handleCopy = useCallback(async () => {
+    await Clipboard.setStringAsync(userText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [userText]);
+
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 3, gap: 0 }}>
+      {/* Copy */}
+      <TouchableOpacity
+        onPress={handleCopy}
+        activeOpacity={0.6}
+        hitSlop={6}
+        style={{ padding: 5, borderRadius: 6 }}
+      >
+        <Ionicons
+          name={copied ? 'checkmark' : 'copy-outline'}
+          size={13}
+          color={copied ? copiedColor : mutedColor}
+        />
+      </TouchableOpacity>
+
+      {/* Edit (fork with edited text) */}
+      {!isBusy && (
+        <TouchableOpacity
+          onPress={onEdit}
+          activeOpacity={0.6}
+          hitSlop={6}
+          style={{ padding: 5, borderRadius: 6 }}
+        >
+          <Ionicons name="pencil-outline" size={13} color={mutedColor} />
+        </TouchableOpacity>
+      )}
+
+      {/* Fork */}
+      {!isBusy && (
+        <TouchableOpacity
+          onPress={onFork}
+          activeOpacity={0.6}
+          hitSlop={6}
+          style={{ padding: 5, borderRadius: 6 }}
+        >
+          <Ionicons name="git-branch-outline" size={13} color={mutedColor} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EditPromptModal — edit user message text before forking
+// ---------------------------------------------------------------------------
+
+function EditPromptModal({
+  visible,
+  initialText,
+  isDark,
+  onSave,
+  onCancel,
+}: {
+  visible: boolean;
+  initialText: string;
+  isDark: boolean;
+  onSave: (text: string) => void;
+  onCancel: () => void;
+}) {
+  const [text, setText] = useState(initialText);
+
+  useEffect(() => {
+    if (visible) setText(initialText);
+  }, [visible, initialText]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
+    >
+      <TouchableOpacity
+        activeOpacity={1}
+        onPress={onCancel}
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'center',
+          paddingHorizontal: 24,
+        }}
+      >
+        <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+          <View
+            style={{
+              backgroundColor: isDark ? '#1a1a1f' : '#FFFFFF',
+              borderRadius: 16,
+              padding: 16,
+              maxHeight: '70%',
+            }}
+          >
+            <Text style={{ fontSize: 15, fontFamily: 'Roobert-Medium', color: isDark ? '#e4e4e7' : '#18181b', marginBottom: 12 }}>
+              Edit prompt
+            </Text>
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              multiline
+              autoFocus
+              style={{
+                fontSize: 14,
+                fontFamily: 'Roobert',
+                color: isDark ? '#e4e4e7' : '#18181b',
+                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+                padding: 12,
+                minHeight: 100,
+                maxHeight: 300,
+                textAlignVertical: 'top',
+                lineHeight: 20,
+              }}
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+              <TouchableOpacity
+                onPress={onCancel}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 8,
+                }}
+              >
+                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: isDark ? '#71717a' : '#a1a1aa' }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  if (text.trim()) onSave(text.trim());
+                }}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 8,
+                  backgroundColor: isDark ? '#e4e4e7' : '#18181b',
+                }}
+              >
+                <Text style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: isDark ? '#18181b' : '#FFFFFF' }}>
+                  Fork & Edit
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TurnActions — fade-in action bar below assistant response (copy only)
 // ---------------------------------------------------------------------------
 
 function TurnActions({
@@ -3185,14 +3400,12 @@ function TurnActions({
   costInfo,
   isDark,
   tightToResponse = true,
-  onFork,
 }: {
   response: string;
   duration?: number;
   costInfo?: { cost: number; tokens: { input: number; output: number } } | undefined;
   isDark: boolean;
   tightToResponse?: boolean;
-  onFork?: () => void;
 }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [copied, setCopied] = useState(false);
@@ -3213,7 +3426,6 @@ function TurnActions({
   }, [response]);
 
   const mutedColor = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)';
-  const hoverColor = isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
   const durationClassName = tightToResponse
     ? 'text-xs text-muted-foreground/50 mr-2 mt-0.5'
     : 'text-xs text-muted-foreground/50 mr-2';
@@ -3247,43 +3459,13 @@ function TurnActions({
         onPress={handleCopy}
         activeOpacity={0.6}
         hitSlop={6}
-        style={{
-          padding: 5,
-          borderRadius: 6,
-        }}
+        style={{ padding: 5, borderRadius: 6 }}
       >
         <Ionicons
           name={copied ? 'checkmark' : 'copy-outline'}
           size={14}
           color={copied ? (isDark ? '#4ade80' : '#16a34a') : mutedColor}
         />
-      </TouchableOpacity>
-
-      {/* Fork */}
-      {onFork && (
-        <TouchableOpacity
-          onPress={onFork}
-          activeOpacity={0.6}
-          hitSlop={6}
-          style={{
-            padding: 5,
-            borderRadius: 6,
-          }}
-        >
-          <Ionicons name="git-branch-outline" size={14} color={mutedColor} />
-        </TouchableOpacity>
-      )}
-
-      {/* Revert */}
-      <TouchableOpacity
-        activeOpacity={0.6}
-        hitSlop={6}
-        style={{
-          padding: 5,
-          borderRadius: 6,
-        }}
-      >
-        <Ionicons name="arrow-undo-outline" size={14} color={mutedColor} />
       </TouchableOpacity>
     </Animated.View>
   );

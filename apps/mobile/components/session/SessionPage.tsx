@@ -652,6 +652,24 @@ export function SessionPage({ sessionId, onBack, onOpenDrawer, onOpenRightDrawer
     [sandboxUrl, sessionId, safeMessages],
   );
 
+  // Fork with edited prompt — forks at the user message and pre-fills new text
+  const handleEditFork = useCallback(
+    async (messageId: string, editedText: string) => {
+      if (!sandboxUrl) return;
+      try {
+        // Fork at this message (exclusive — copies everything before it)
+        const forkedSession = await forkSession(sandboxUrl, sessionId, messageId);
+        AsyncStorage.setItem(`fork_origin_${forkedSession.id}`, sessionId);
+        // Stash the edited prompt so the new session can pre-fill it
+        AsyncStorage.setItem(`fork_prompt_${forkedSession.id}`, editedText);
+        useTabStore.getState().navigateToSession(forkedSession.id);
+      } catch (err: any) {
+        log.error('Failed to edit-fork session:', err?.message || err);
+      }
+    },
+    [sandboxUrl, sessionId],
+  );
+
   // Track last turn height for footer sizing
   const turnHeights = useRef<Record<string, number>>({});
   const [lastTurnHeight, setLastTurnHeight] = useState(80);
@@ -675,6 +693,7 @@ export function SessionPage({ sessionId, onBack, onOpenDrawer, onOpenRightDrawer
           isBusy={isBusy}
           pendingQuestions={pendingQuestions}
           onFork={handleFork}
+          onEditFork={handleEditFork}
           agentNames={agentNames}
           onFileMention={handleFileMention}
           onSessionMention={handleSessionMention}
@@ -682,7 +701,7 @@ export function SessionPage({ sessionId, onBack, onOpenDrawer, onOpenRightDrawer
         />
       </View>
     ),
-    [safeMessages, sessionStatus, isBusy, turns.length, pendingQuestions, handleFork, agentNames, handleFileMention, handleSessionMention, commands],
+    [safeMessages, sessionStatus, isBusy, turns.length, pendingQuestions, handleFork, handleEditFork, agentNames, handleFileMention, handleSessionMention, commands],
   );
 
   const title = session?.title || 'New Session';
