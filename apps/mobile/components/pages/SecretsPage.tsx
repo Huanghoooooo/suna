@@ -327,13 +327,6 @@ export function SecretsPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: S
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 18, fontFamily: 'Roobert-SemiBold', color: fgColor }} numberOfLines={1}>{page.label}</Text>
           </View>
-          <TouchableOpacity
-            onPress={openAdd}
-            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: themeColors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 }}
-          >
-            <Plus size={14} color={themeColors.primaryForeground} style={{ marginRight: 4 }} />
-            <Text style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: themeColors.primaryForeground }}>Add</Text>
-          </TouchableOpacity>
           {onOpenRightDrawer && (
             <TouchableOpacity onPress={onOpenRightDrawer} style={{ padding: 4 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="apps-outline" size={20} color={fgColor} />
@@ -342,16 +335,17 @@ export function SecretsPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: S
         </View>
       </View>
 
-      {/* Search */}
-      <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
+      {/* Search + Add */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 8, gap: 10 }}>
         <View
           style={{
+            flex: 1,
             flexDirection: 'row',
             alignItems: 'center',
-            backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
             borderRadius: 12,
             paddingHorizontal: 12,
-            height: 40,
+            height: 42,
           }}
         >
           <Search size={16} color={mutedColor} />
@@ -360,14 +354,30 @@ export function SecretsPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: S
             onChangeText={setSearchQuery}
             placeholder="Search secrets..."
             placeholderTextColor={mutedColor}
-            style={{ flex: 1, marginLeft: 8, fontSize: 14, fontFamily: 'Roobert', color: fgColor, paddingVertical: 0 }}
+            style={{ flex: 1, marginLeft: 8, fontSize: 15, fontFamily: 'Roobert', color: fgColor }}
+            returnKeyType="search"
+            autoCorrect={false}
+            autoCapitalize="none"
           />
           {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')} hitSlop={10}>
+            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
               <X size={16} color={mutedColor} />
             </Pressable>
           )}
         </View>
+        <Pressable
+          onPress={openAdd}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 12,
+            backgroundColor: themeColors.primary,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Plus size={20} color={themeColors.primaryForeground} />
+        </Pressable>
       </View>
 
       {/* List */}
