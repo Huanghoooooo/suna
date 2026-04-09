@@ -83,7 +83,7 @@ import {
 import type { BottomBarMenuItem } from '@/components/session/BottomBar';
 import { log } from '@/lib/logger';
 import { KortixLogo } from '@/components/ui/KortixLogo';
-import { useTabScreenshotStore } from '@/stores/tab-screenshot-store';
+import { useTabScreenshotStore, validatePersistedScreenshots } from '@/stores/tab-screenshot-store';
 
 // Safe import of react-native-view-shot — requires native rebuild.
 // Returns null if the native module isn't available yet.
@@ -462,6 +462,9 @@ export default function HomeScreen() {
       mounted = false;
     };
   }, [colorScheme]);
+
+  // Validate persisted tab screenshots (remove stale entries on startup)
+  useEffect(() => { validatePersistedScreenshots(); }, []);
 
   // Compact session mutation
   const compactSession = useCompactSession();
