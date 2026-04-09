@@ -6,6 +6,21 @@ import { serviceManager } from './service-manager'
 // 30s timeout for regular requests
 const FETCH_TIMEOUT_MS = 30_000
 const OPENCODE_HEALTH_TIMEOUT_MS = 1_500
+const LOG_COOLDOWN_MS = 60_000
+
+const seen = new Map<string, number>()
+
+function note(key: string, msg: string): void {
+  const now = Date.now()
+  const prev = seen.get(key) || 0
+  if (now - prev < LOG_COOLDOWN_MS) return
+  seen.set(key, now)
+  console.error(msg)
+}
+
+function recover(path: string): boolean {
+  return path !== '/file/status'
+}
 
 async function isOpenCodeHealthy(): Promise<boolean> {
   try {
@@ -123,10 +138,13 @@ export async function proxyToOpenCode(c: Context): Promise<Response> {
     if (error instanceof DOMException && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
       if (!acceptsSSE) {
         const healthy = await isOpenCodeHealthy()
-        if (!healthy) {
+        if (!healthy && recover(url.pathname)) {
           void serviceManager.requestRecovery('opencode-serve', `proxy-timeout:${url.pathname}`)
         }
-        console.error(`[Kortix Master] OpenCode timeout on ${c.req.method} ${url.pathname} after ${FETCH_TIMEOUT_MS / 1000}s`)
+        note(
+          `timeout:${c.req.method}:${url.pathname}`,
+          `[Kortix Master] OpenCode timeout on ${c.req.method} ${url.pathname} after ${FETCH_TIMEOUT_MS / 1000}s`,
+        )
         return c.json({ error: 'OpenCode not responding', details: `${url.pathname} timed out after ${FETCH_TIMEOUT_MS / 1000}s — OpenCode may still be starting` }, 504)
       }
       // SSE client disconnected — just return empty response (connection is already gone)
@@ -135,8 +153,13 @@ export async function proxyToOpenCode(c: Context): Promise<Response> {
     const errMsg = error instanceof Error ? error.message : String(error)
     const isConnRefused = errMsg.includes('ECONNREFUSED') || errMsg.includes('Unable to connect')
     if (isConnRefused) {
-      console.error(`[Kortix Master] OpenCode unreachable on ${c.req.method} ${url.pathname}: ${errMsg} — is OpenCode running on ${config.OPENCODE_HOST}:${config.OPENCODE_PORT}?`)
-      const recovery = await serviceManager.requestRecovery('opencode-serve', `proxy-connect:${url.pathname}`)
+      note(
+        `unreachable:${c.req.method}:${url.pathname}`,
+        `[Kortix Master] OpenCode unreachable on ${c.req.method} ${url.pathname}: ${errMsg} — is OpenCode running on ${config.OPENCODE_HOST}:${config.OPENCODE_PORT}?`,
+      )
+      const recovery = recover(url.pathname)
+        ? await serviceManager.requestRecovery('opencode-serve', `proxy-connect:${url.pathname}`)
+        : null
       if (recovery?.ok) {
         try {
           const retryResponse = await fetchUpstream()
@@ -157,12 +180,18 @@ export async function proxyToOpenCode(c: Context): Promise<Response> {
           })
         } catch (retryError) {
           const retryMsg = retryError instanceof Error ? retryError.message : String(retryError)
-          console.error(`[Kortix Master] OpenCode retry after recovery failed on ${c.req.method} ${url.pathname}: ${retryMsg}`)
+          note(
+            `retry:${c.req.method}:${url.pathname}`,
+            `[Kortix Master] OpenCode retry after recovery failed on ${c.req.method} ${url.pathname}: ${retryMsg}`,
+          )
           return c.json({ error: 'Failed to proxy to OpenCode after recovery attempt', details: retryMsg }, 502)
         }
       }
     } else {
-      console.error(`[Kortix Master] Proxy error on ${c.req.method} ${url.pathname}: ${errMsg}`)
+      note(
+        `proxy:${c.req.method}:${url.pathname}`,
+        `[Kortix Master] Proxy error on ${c.req.method} ${url.pathname}: ${errMsg}`,
+      )
     }
     return c.json({ error: 'Failed to proxy to OpenCode', details: errMsg }, 502)
   }

@@ -18,6 +18,7 @@ export { OcImageGenToolView } from './OcImageGenToolView';
 export { OcShowUserToolView } from './OcShowUserToolView';
 export { OcApplyPatchToolView } from './OcApplyPatchToolView';
 export { OcTaskToolView } from './OcTaskToolView';
+export { OcKortixTaskToolView } from './OcKortixTaskToolView';
 export { OcTodoToolView } from './OcTodoToolView';
 export { OcGenericToolView } from './OcGenericToolView';
 export { OcQuestionToolView } from './OcQuestionToolView';
@@ -84,6 +85,7 @@ import { OcProjectCreateToolView } from './OcProjectCreateToolView';
 import { OcConnectorListToolView } from './OcConnectorListToolView';
 import { OcConnectorGetToolView } from './OcConnectorGetToolView';
 import { OcConnectorSetupToolView } from './OcConnectorSetupToolView';
+import { OcKortixTaskToolView } from './OcKortixTaskToolView';
 
 /**
  * Registry entries for OpenCode tools.
@@ -150,9 +152,31 @@ export const ocToolViewRegistrations: Record<string, ToolViewComponent> = {
   'oc-apply-patch': OcApplyPatchToolView,
   'oc-apply_patch': OcApplyPatchToolView,
 
-  // Sub-agent delegation
+  // Sub-agent delegation (legacy)
   'oc-task': OcTaskToolView,
   'task': OcTaskToolView,
+
+  // Kortix task management tools
+  'oc-task_create': OcKortixTaskToolView,
+  'task_create': OcKortixTaskToolView,
+  'oc-task_list': OcKortixTaskToolView,
+  'task_list': OcKortixTaskToolView,
+  'oc-task_get': OcKortixTaskToolView,
+  'task_get': OcKortixTaskToolView,
+  'oc-task_start': OcKortixTaskToolView,
+  'task_start': OcKortixTaskToolView,
+  'oc-task_update': OcKortixTaskToolView,
+  'task_update': OcKortixTaskToolView,
+  'oc-task_comment': OcKortixTaskToolView,
+  'task_comment': OcKortixTaskToolView,
+  'oc-task_question': OcKortixTaskToolView,
+  'task_question': OcKortixTaskToolView,
+  'oc-task_deliver': OcKortixTaskToolView,
+  'task_deliver': OcKortixTaskToolView,
+  'oc-task_done': OcKortixTaskToolView,
+  'task_done': OcKortixTaskToolView,
+  'oc-task_delete': OcKortixTaskToolView,
+  'task_delete': OcKortixTaskToolView,
 
   // Kortix orchestrator session spawning
   'oc-session_spawn': OcSessionSpawnToolView,

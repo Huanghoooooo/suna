@@ -29,12 +29,18 @@ permission:
   agent_message: allow
   agent_stop: allow
   agent_status: allow
-  # Task tracking
+  # Task management — Kortix orchestrates, workers execute
   task_create: allow
   task_list: allow
+  task_get: allow
   task_update: allow
+  task_start: allow
   task_done: allow
   task_delete: allow
+  # Workers use these — Kortix doesn't call them directly but has access for edge cases
+  task_deliver: allow
+  task_comment: allow
+  task_question: allow
   # Project management
   project_create: allow
   project_delete: allow

@@ -139,6 +139,19 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { PageShell } from '@/components/ui/page-shell';
+import { Section as BrandSection } from '@/components/ui/section';
+import {
+  DefinitionList,
+  DefinitionRow,
+} from '@/components/ui/definition-list';
+import { InlineMeta } from '@/components/ui/inline-meta';
+import { EmptyState } from '@/components/ui/empty-state';
+import { IconInbox } from '@/components/ui/kortix-icons';
+import { PageHeader } from '@/components/ui/page-header';
+import { SpotlightCard } from '@/components/ui/spotlight-card';
+import { PageSearchBar } from '@/components/ui/page-search-bar';
+import { Cable, Radio, Zap, Plug } from 'lucide-react';
 
 /* ─────────────────────── Data ─────────────────────── */
 
@@ -293,6 +306,19 @@ const TOC_SECTIONS = [
     { id: 'comp-kbd', label: 'Kbd' },
     { id: 'comp-calendar', label: 'Calendar' },
     { id: 'comp-scrollarea', label: 'Scroll Area' },
+  ]},
+  { id: 'page-patterns', label: 'Page Patterns', children: [
+    { id: 'pat-page-header', label: 'PageHeader' },
+    { id: 'pat-spotlight-card', label: 'SpotlightCard' },
+    { id: 'pat-search-bar', label: 'PageSearchBar' },
+    { id: 'pat-stagger', label: 'Stagger Mount' },
+  ]},
+  { id: 'patterns', label: 'Primitives', children: [
+    { id: 'pat-page-shell', label: 'PageShell' },
+    { id: 'pat-section', label: 'Section' },
+    { id: 'pat-definition-list', label: 'DefinitionList' },
+    { id: 'pat-inline-meta', label: 'InlineMeta' },
+    { id: 'pat-empty-state', label: 'EmptyState' },
   ]},
   { id: 'anti-patterns', label: 'Anti-Patterns' },
   { id: 'usage', label: 'Usage' },
@@ -1999,6 +2025,273 @@ export default function BrandPage() {
                   </DemoContainer>
                 </div>
               </section>
+
+            {/* ═══════════════ Page Patterns ═══════════════ */}
+            <section id="page-patterns">
+              <SectionDivider />
+              <h2 className="text-xs uppercase tracking-widest text-muted-foreground/40 mb-5">
+                Page Patterns
+              </h2>
+              <p className="text-base text-muted-foreground/60 leading-relaxed mb-8">
+                How Kortix list / management pages are built. These are the
+                shared chrome pieces used by <code className="text-[11px] font-mono">/scheduled-tasks</code>,{' '}
+                <code className="text-[11px] font-mono">/channels</code>,{' '}
+                <code className="text-[11px] font-mono">/tunnel</code>,{' '}
+                <code className="text-[11px] font-mono">/connectors</code>. New
+                management-style pages should compose the same pieces in the
+                same order so the whole app feels like one product.
+              </p>
+
+              {/* ── PageHeader ── */}
+              <div id="pat-page-header" className="mb-12">
+                <ComponentLabel>PageHeader</ComponentLabel>
+                <ComponentDesc>
+                  The canonical hero for list/management pages. Rounded card
+                  with animated background, centered icon tile, and a single
+                  bold title line. Always rendered inside a container wrapper
+                  with <code className="text-[11px] font-mono">max-w-7xl</code> horizontal padding.
+                </ComponentDesc>
+                <DemoContainer className="p-0 overflow-hidden">
+                  <div className="p-6">
+                    <PageHeader icon={Zap}>
+                      <div className="space-y-2 sm:space-y-4">
+                        <div className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
+                          <span className="text-primary">Scheduled Tasks</span>
+                        </div>
+                      </div>
+                    </PageHeader>
+                  </div>
+                </DemoContainer>
+                <pre className="mt-3 text-[11px] font-mono text-muted-foreground/60 bg-muted/20 rounded-lg px-4 py-3 overflow-x-auto">{`<div className="container mx-auto max-w-7xl px-3 sm:px-4 py-3 sm:py-4">
+  <PageHeader icon={Zap}>
+    <div className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
+      <span className="text-primary">Scheduled Tasks</span>
+    </div>
+  </PageHeader>
+</div>`}</pre>
+              </div>
+
+              {/* ── SpotlightCard ── */}
+              <div id="pat-spotlight-card" className="mb-12">
+                <ComponentLabel>SpotlightCard</ComponentLabel>
+                <ComponentDesc>
+                  Item card used across every list page. Mouse-following
+                  radial spotlight on hover plus a subtle border glow. Wrap
+                  with <code className="text-[11px] font-mono">bg-card border border-border/50</code> and
+                  apply your own inner padding.
+                </ComponentDesc>
+                <DemoContainer>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {[
+                      { icon: Cable, label: 'tunnel-42', sub: 'exposes :3000' },
+                      { icon: Radio, label: '#releases', sub: 'Slack channel' },
+                      { icon: Zap, label: 'nightly-cron', sub: 'every day at 03:00' },
+                      { icon: Plug, label: 'GitHub', sub: 'Connected' },
+                    ].map((item, i) => {
+                      const I = item.icon;
+                      return (
+                        <SpotlightCard
+                          key={i}
+                          className="bg-card border border-border/50"
+                        >
+                          <div className="p-4 flex items-center gap-3 cursor-pointer">
+                            <div className="flex items-center justify-center w-9 h-9 rounded-[10px] bg-muted border border-border/50 shrink-0">
+                              <I className="h-4 w-4 text-foreground" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-foreground truncate">
+                                {item.label}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {item.sub}
+                              </div>
+                            </div>
+                          </div>
+                        </SpotlightCard>
+                      );
+                    })}
+                  </div>
+                </DemoContainer>
+              </div>
+
+              {/* ── PageSearchBar ── */}
+              <div id="pat-search-bar" className="mb-12">
+                <ComponentLabel>PageSearchBar</ComponentLabel>
+                <ComponentDesc>
+                  Standard search pill placed in the action bar below the
+                  PageHeader. Leave a <code className="text-[11px] font-mono">max-w-md</code> width so
+                  it sits next to a right-aligned primary action without
+                  taking over.
+                </ComponentDesc>
+                <DemoContainer>
+                  <div className="flex items-center justify-between gap-4">
+                    <PageSearchBar
+                      value=""
+                      onChange={() => {}}
+                      placeholder="Search connections..."
+                      className="max-w-md"
+                    />
+                    <Button size="sm" className="gap-1.5">
+                      <Plus className="h-3.5 w-3.5" />
+                      New
+                    </Button>
+                  </div>
+                </DemoContainer>
+              </div>
+
+              {/* ── Stagger Mount ── */}
+              <div id="pat-stagger" className="mb-12">
+                <ComponentLabel>Stagger Mount</ComponentLabel>
+                <ComponentDesc>
+                  Every management page mounts its three zones with a
+                  staggered fade + slide. Header on entry, search bar
+                  at <code className="text-[11px] font-mono">delay-75</code>, content at <code className="text-[11px] font-mono">delay-150</code>.
+                </ComponentDesc>
+                <DemoContainer>
+                  <pre className="text-[11px] font-mono text-muted-foreground/70 bg-muted/20 rounded-lg px-4 py-3 overflow-x-auto leading-relaxed">{`// Page header
+<div className="... animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both">
+
+// Search + action bar
+<div className="... animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both delay-75">
+
+// Content area
+<div className="... animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both delay-150">`}</pre>
+                </DemoContainer>
+              </div>
+            </section>
+
+            {/* ═══════════════ Primitives ═══════════════ */}
+            <section id="patterns">
+              <SectionDivider />
+              <h2 className="text-xs uppercase tracking-widest text-muted-foreground/40 mb-5">
+                Primitives
+              </h2>
+              <p className="text-base text-muted-foreground/60 leading-relaxed mb-8">
+                Small composition pieces used inside project pages, issue
+                details, and other structured internal surfaces that don't
+                fit the hero + list shape.
+              </p>
+
+              {/* ── PageShell ── */}
+              <div id="pat-page-shell" className="mb-12">
+                <ComponentLabel>PageShell</ComponentLabel>
+                <ComponentDesc>
+                  The one layout wrapper. Standardises max-width, horizontal
+                  padding, and scroll behavior. Four width presets:{' '}
+                  <code className="text-[11px] font-mono">reading (720)</code>,{' '}
+                  <code className="text-[11px] font-mono">default (1000)</code>,{' '}
+                  <code className="text-[11px] font-mono">wide (1280)</code>,{' '}
+                  <code className="text-[11px] font-mono">full</code>.
+                </ComponentDesc>
+                <DemoContainer>
+                  <div className="rounded-lg border border-dashed border-border/60 py-10 text-center text-[11px] text-muted-foreground/60">
+                    <code>&lt;PageShell width=&quot;default&quot;&gt; … &lt;/PageShell&gt;</code>
+                    <div className="mt-1 opacity-60">max-w-[1000px] · px-6 lg:px-10 · py-10</div>
+                  </div>
+                </DemoContainer>
+              </div>
+
+              {/* ── Section ── */}
+              <div id="pat-section" className="mb-12">
+                <ComponentLabel>Section</ComponentLabel>
+                <ComponentDesc>
+                  Labelled section inside a PageShell. Uppercase micro-label,
+                  optional trailing action, opinionated top margin between
+                  siblings. No box, no chrome — typography and whitespace do
+                  the work.
+                </ComponentDesc>
+                <DemoContainer>
+                  <BrandSection label="About">
+                    <p className="text-[14px] text-muted-foreground/80 leading-relaxed">
+                      Description content lives here. Sections separate
+                      concerns on a page without ever drawing a card.
+                    </p>
+                  </BrandSection>
+                  <BrandSection
+                    label="Details"
+                    action={
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px]">
+                        Edit
+                      </Button>
+                    }
+                  >
+                    <p className="text-[13px] text-muted-foreground/70">
+                      A second section with a trailing action.
+                    </p>
+                  </BrandSection>
+                </DemoContainer>
+              </div>
+
+              {/* ── DefinitionList ── */}
+              <div id="pat-definition-list" className="mb-12">
+                <ComponentLabel>DefinitionList</ComponentLabel>
+                <ComponentDesc>
+                  Key/value pairs. Fixed-width label column so values align
+                  vertically. Optional dividers for a Linear-style meta list.
+                </ComponentDesc>
+                <DemoContainer>
+                  <DefinitionList dividers>
+                    <DefinitionRow label="Path">
+                      <code className="text-[12px] font-mono text-foreground/80">
+                        /workspace/jjk-domain-search
+                      </code>
+                    </DefinitionRow>
+                    <DefinitionRow label="Created">2 days ago</DefinitionRow>
+                    <DefinitionRow label="Updated">
+                      <span className="tabular-nums">3m ago</span>
+                    </DefinitionRow>
+                    <DefinitionRow label="Sessions">8</DefinitionRow>
+                  </DefinitionList>
+                </DemoContainer>
+              </div>
+
+              {/* ── InlineMeta ── */}
+              <div id="pat-inline-meta" className="mb-12">
+                <ComponentLabel>InlineMeta</ComponentLabel>
+                <ComponentDesc>
+                  Dot-separated facts. Drop any number of children — falsy
+                  ones are skipped. Used in page headers, row subtitles, card
+                  footers.
+                </ComponentDesc>
+                <DemoContainer>
+                  <InlineMeta>
+                    <span className="font-mono text-muted-foreground/80">
+                      /workspace/jjk
+                    </span>
+                    <span>24 issues</span>
+                    <span>created 2d ago</span>
+                    <span>8 sessions</span>
+                  </InlineMeta>
+                </DemoContainer>
+              </div>
+
+              {/* ── EmptyState ── */}
+              <div id="pat-empty-state" className="mb-12">
+                <ComponentLabel>EmptyState</ComponentLabel>
+                <ComponentDesc>
+                  The calm teaching moment. Icon, headline, one-line
+                  description, up to two actions. Used for zero-state views
+                  across every list and detail page.
+                </ComponentDesc>
+                <DemoContainer className="p-0">
+                  <EmptyState
+                    icon={IconInbox}
+                    title="No issues yet"
+                    description="Create your first issue with C, or import from a session."
+                    action={
+                      <Button size="sm" className="h-8 px-4 text-[13px]">
+                        New issue
+                      </Button>
+                    }
+                    secondaryAction={
+                      <Button variant="ghost" size="sm" className="h-8 px-3 text-[13px]">
+                        Learn more
+                      </Button>
+                    }
+                  />
+                </DemoContainer>
+              </div>
+            </section>
 
             {/* ═══════════════ Anti-Patterns ═══════════════ */}
             <section id="anti-patterns">

@@ -1,5 +1,5 @@
 import { timingSafeEqual, createHash } from 'crypto'
-import { existsSync, mkdirSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync } from 'fs'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
@@ -84,8 +84,16 @@ initShareStore()
     if (val) {
       try {
         if (!existsSync(S6_ENV_DIR)) mkdirSync(S6_ENV_DIR, { recursive: true })
-        await Bun.write(`${S6_ENV_DIR}/${key}`, val)
-        synced++
+        const targetPath = `${S6_ENV_DIR}/${key}`
+        let existing: string | null = null
+        try {
+          existing = readFileSync(targetPath, 'utf-8')
+        } catch {}
+
+        if (existing !== val) {
+          await Bun.write(targetPath, val)
+          synced++
+        }
       } catch (err) {
         console.warn(`[Kortix Master] Failed to write ${key} to s6 env dir:`, err)
       }
@@ -114,7 +122,7 @@ if (!authSyncDisabled) {
 // Updates are Docker image-based — no crash recovery needed
 
 if (process.env.KORTIX_DISABLE_CORE_SUPERVISOR !== 'true') {
-  await serviceManager.start().catch(err =>
+  void serviceManager.start().catch(err =>
     console.error('[Kortix Master] service manager start error:', err)
   )
 }

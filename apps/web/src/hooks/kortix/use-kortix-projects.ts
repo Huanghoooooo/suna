@@ -7,7 +7,7 @@
  * dashboard/OpenCode APIs.
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useServerStore } from '@/stores/server-store';
 import { authenticatedFetch } from '@/lib/auth-token';
 import { useAuth } from '@/components/AuthProvider';
@@ -86,6 +86,9 @@ export function useKortixProject(id: string) {
     staleTime: 15_000,
     gcTime: 5 * 60 * 1000,
     retry: 2,
+    // Keep previous data while a new query (e.g. from a serverVersion bump
+    // when another tab closes) is loading. Prevents the skeleton flash.
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -105,6 +108,7 @@ export function useKortixProjectSessions(projectId: string) {
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: true,
     retry: 2,
+    placeholderData: keepPreviousData,
   });
 }
 

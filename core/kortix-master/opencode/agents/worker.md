@@ -16,6 +16,8 @@ permission:
   scrape_webpage: allow
   webfetch: allow
   show: allow
+  todoread: allow
+  todowrite: allow
   question: deny
   'context7_resolve-library-id': allow
   context7_query-docs: allow
@@ -29,14 +31,18 @@ permission:
   agent_message: deny
   agent_stop: deny
   agent_status: deny
+  # Task execution tools — can read own task, comment, deliver, ask questions
+  task_get: allow
+  task_comment: allow
+  task_deliver: allow
+  task_question: allow
+  # Cannot manage tasks — only Kortix/human does that
   task_create: deny
   task_list: deny
   task_update: deny
   task_done: deny
   task_delete: deny
   task: deny
-  todoread: deny
-  todowrite: deny
   # Can select projects (required by system) but cannot create/delete/update
   project_create: deny
   project_delete: deny
@@ -139,11 +145,21 @@ Share links are for sending to external people. The default preview is always `l
 - **Random ports** — NEVER use 3000, 8080, 5000, 4000 or any common port. Generate a random port: `shuf -i 10000-59999 -n 1`. Common ports are always taken.
 - **Diagnose before retrying** — if something fails, read the error and fix the cause. Don't retry the same thing blindly.
 
-## When Running with /autowork
+## Task Execution
 
-If your prompt starts with `/autowork`, you enter the autonomous execution loop:
+When you own a task (spawned via task start), you have these tools:
+- `task_get` — re-read task details and the full comment thread at any time
+- `task_comment` — leave progress updates for the human to see
+- `task_question` — if you're blocked on missing input, ask a question (pauses the task for human response)
+- `task_deliver` — when done, attach your result + verification summary (moves task to human review)
+
+**Inbound messages:** The human can comment on your task at any time. Their comments arrive as `<task_comment>` messages in your session. Read them with `task_get` to get full context, then respond or adjust your work accordingly.
+
+## When Running with /ralph or /autowork
+
+If your prompt starts with `/ralph`, `/ralph-loop`, or `/autowork`, you enter the Ralph persistence loop:
 - Work iteratively until the task is fully complete
+- Keep your native todo list current — Ralph uses it as a completion contract
 - The system auto-continues you on idle — keep working
-- When done: emit `<promise>DONE</promise>`
-- Then verify adversarially and emit `<promise>VERIFIED</promise>`
+- Emit the configured completion promise only when the task is actually verified complete
 - Never weaken tests to make them pass — fix the code

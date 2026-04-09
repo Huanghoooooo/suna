@@ -284,11 +284,11 @@ export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId:
 						statusXml = [
 							`<project_status selected="${project.name}" path="${project.path}" />`,
 							`<system-reminder>`,
-							`Orchestrator workflow:`,
-							`1. task_create → plan the work, tell user`,
-							`2. agent_message existing workers. agent_spawn ONLY if no worker exists yet.`,
-							`3. Default: sync (blocking). Use async: true ONLY when user explicitly asks for parallel/background work.`,
-							`4. Review results, task_done, report to user`,
+							`Task-centric workflow:`,
+							`1. Create or refine tasks with title, description, and verification_condition.`,
+							`2. Move a task to in_progress only when it is ready for single-owner execution.`,
+							`3. in_progress binds the task to one worker session running in Ralph.`,
+							`4. Use task comments / task_question / task_deliver to manage execution and outcomes.`,
 							`</system-reminder>`,
 						].join("\n")
 					} else {

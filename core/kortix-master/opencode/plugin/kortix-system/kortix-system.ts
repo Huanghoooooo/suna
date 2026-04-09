@@ -134,14 +134,14 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 				if (!currentSessionId) return
 				const project = mgr.getSessionProject(currentSessionId)
 				if (!project) return
-				const tasks = db.prepare("SELECT * FROM tasks WHERE project_id=$pid AND status IN ('todo','in_progress','info_needed','in_review','failed') ORDER BY CASE status WHEN 'in_progress' THEN 0 WHEN 'todo' THEN 1 WHEN 'info_needed' THEN 2 WHEN 'in_review' THEN 3 WHEN 'failed' THEN 4 ELSE 5 END, CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END, created_at")
-					.all({ $pid: project.id }) as Array<{ id: string; title: string; status: string; priority: string }>
+				const tasks = db.prepare("SELECT * FROM tasks WHERE project_id=$pid AND status IN ('todo','in_progress','in_review') ORDER BY CASE status WHEN 'in_progress' THEN 0 WHEN 'in_review' THEN 1 WHEN 'todo' THEN 2 ELSE 3 END, created_at")
+					.all({ $pid: project.id }) as Array<{ id: string; title: string; status: string }>
 				if (!tasks.length) return
-				const icon = (s: string) => s === "in_progress" ? "→" : s === "info_needed" ? "?" : s === "in_review" ? "◐" : s === "failed" ? "!" : "○"
+				const icon = (s: string) => s === "in_progress" ? "→" : s === "in_review" ? "◐" : "○"
 				output.context.push([
 					`<kortix_system type="tasks" source="kortix-system">`,
 					`Active tasks for project ${project.name}:`,
-					...tasks.map(t => `${icon(t.status)} [${t.priority}] ${t.id}: ${t.title}`),
+					...tasks.map(t => `${icon(t.status)} ${t.id}: ${t.title}`),
 					`</kortix_system>`,
 				].join("\n"))
 			} catch {}
