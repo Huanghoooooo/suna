@@ -75,3 +75,25 @@ export async function getAccessTokenFromPage(page: Page): Promise<string> {
   if (!token) throw new Error('Could not extract access token from browser');
   return token;
 }
+
+export async function loginToDashboard(page: Page): Promise<void> {
+  await page.goto('/auth');
+  await page.waitForTimeout(2_000);
+
+  const lockScreen = page.getByText('Click or press Enter to sign in');
+  if (await lockScreen.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await page.locator('div.fixed.inset-0.cursor-pointer').first().click({ force: true });
+    await page.waitForTimeout(1_500);
+  }
+
+  await page.locator('input[name="email"]').fill(ownerEmail);
+  await page.locator('input[name="password"]').fill(ownerPassword);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  const providerStep = page.getByRole('heading', { name: /Connect a provider/i });
+  if (await providerStep.isVisible({ timeout: 10_000 }).catch(() => false)) {
+    await page.goto('/onboarding?skip_onboarding=1');
+  }
+
+  await page.goto('/workspace');
+}

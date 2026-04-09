@@ -8,7 +8,7 @@ import {
   Home,
   Edit3,
 } from 'lucide-react';
-import { useFilesStore } from '../store/files-store';
+import { useFilesStore, useFilesStoreApi } from '../store/files-store';
 import { useCurrentProject } from '../hooks';
 import { openTabAndNavigate } from '@/stores/tab-store';
 import { cn } from '@/lib/utils';
@@ -293,6 +293,7 @@ interface FilePathBreadcrumbsProps {
  * and is styled as the active/current item.
  */
 export function FilePathBreadcrumbs({ filePath, className }: FilePathBreadcrumbsProps) {
+  const filesStore = useFilesStoreApi();
   const rootPath = useFilesStore((s) => s.rootPath);
   const homePath = rootPath || '/workspace';
 
@@ -306,7 +307,7 @@ export function FilePathBreadcrumbs({ filePath, className }: FilePathBreadcrumbs
   const handleSegmentClick = useCallback(
     (index: number) => {
       const dirPath = '/' + segments.slice(0, index + 1).join('/');
-      useFilesStore.getState().navigateToPath(dirPath);
+      filesStore.getState().navigateToPath(dirPath);
       openTabAndNavigate({
         id: 'page:/files',
         title: 'Files',
@@ -314,18 +315,18 @@ export function FilePathBreadcrumbs({ filePath, className }: FilePathBreadcrumbs
         href: '/files',
       });
     },
-    [segments],
+    [filesStore, segments],
   );
 
   const handleHomeClick = useCallback(() => {
-    useFilesStore.getState().navigateToPath(homePath);
+    filesStore.getState().navigateToPath(homePath);
     openTabAndNavigate({
       id: 'page:/files',
       title: 'Files',
       type: 'page',
       href: '/files',
     });
-  }, [homePath]);
+  }, [filesStore, homePath]);
 
   return (
     <div className={cn('min-w-0 flex-1', className)}>
