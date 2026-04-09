@@ -42,7 +42,13 @@ import {
   AlertTriangle,
   Ban,
   FolderOpen,
+  Code2,
 } from 'lucide-react-native';
+
+import { FileItem } from '@/components/files/FileItem';
+import { FileViewer } from '@/components/files/FileViewer';
+import { useOpenCodeFiles } from '@/lib/files/hooks';
+import type { SandboxFile } from '@/api/types';
 
 import { useSandboxContext } from '@/contexts/SandboxContext';
 import {
@@ -71,7 +77,7 @@ function ago(t?: string | number) {
   return d < 30 ? d + 'd ago' : new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-type Tab = 'sessions' | 'tasks' | 'agents' | 'about';
+type Tab = 'files' | 'sessions' | 'tasks' | 'agents' | 'about';
 
 const STATUS_CONFIG: Record<string, { icon: typeof Circle; color: string }> = {
   pending: { icon: Circle, color: '#71717a' },
@@ -123,7 +129,7 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
     }
   }, [project?.name, projectId]);
 
-  const [tab, setTab] = useState<Tab>('sessions');
+  const [tab, setTab] = useState<Tab>('files');
   const editSheetRef = useRef<BottomSheetModal>(null);
   const [editField, setEditField] = useState<'name' | 'description'>('name');
   const [editValue, setEditValue] = useState('');
@@ -146,7 +152,48 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
     return { done, inProgress, pending, total: taskList.length };
   }, [taskList]);
 
+  // Files tab state
+  const hasFiles = !!project?.path && project.path !== '/';
+  const [filePath, setFilePath] = useState(project?.path || '/workspace');
+  const { data: files, isLoading: filesLoading, refetch: refetchFiles } = useOpenCodeFiles(
+    hasFiles && tab === 'files' ? sandboxUrl : undefined,
+    filePath,
+  );
+  const [viewerFile, setViewerFile] = useState<SandboxFile | null>(null);
+  const [viewerVisible, setViewerVisible] = useState(false);
+
+  // Reset file path when project changes
+  useEffect(() => {
+    if (project?.path) setFilePath(project.path);
+  }, [project?.path]);
+
+  const { folders, regularFiles } = useMemo(() => {
+    if (!files || !Array.isArray(files)) return { folders: [], regularFiles: [] };
+    const sort = (a: SandboxFile, b: SandboxFile) => a.name.localeCompare(b.name);
+    return {
+      folders: files.filter((f: SandboxFile) => f.type === 'directory' && !f.name.startsWith('.')).sort(sort),
+      regularFiles: files.filter((f: SandboxFile) => f.type === 'file' && !f.name.startsWith('.')).sort(sort),
+    };
+  }, [files]);
+
+  const handleFilePress = useCallback((file: SandboxFile) => {
+    if (file.type === 'directory') {
+      setFilePath(file.path);
+    } else {
+      setViewerFile(file);
+      setViewerVisible(true);
+    }
+  }, []);
+
+  // Navigate up in file tree
+  const canGoUp = hasFiles && filePath !== project?.path;
+  const handleFileGoUp = useCallback(() => {
+    const parent = filePath.substring(0, filePath.lastIndexOf('/')) || '/';
+    setFilePath(parent);
+  }, [filePath]);
+
   const tabs: Array<{ id: Tab; label: string; count: number; icon: typeof MessageSquare }> = [
+    ...(hasFiles ? [{ id: 'files' as Tab, label: 'Files', count: 0, icon: Code2 }] : []),
     { id: 'sessions', label: 'Sessions', count: sessionList.length, icon: MessageSquare },
     { id: 'tasks', label: 'Tasks', count: taskList.length, icon: ListTodo },
     { id: 'agents', label: 'Agents', count: agentList.length, icon: Cpu },
@@ -309,6 +356,64 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
         refreshControl={<RefreshControl refreshing={false} onRefresh={refetch} tintColor={muted} />}
         contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
       >
+        {/* ── Files Tab ── */}
+        {tab === 'files' && (
+          hasFiles ? (
+            <View>
+              {/* Breadcrumb / back navigation */}
+              {canGoUp && (
+                <TouchableOpacity
+                  onPress={handleFileGoUp}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                    paddingVertical: 8,
+                    paddingHorizontal: 4,
+                    marginBottom: 4,
+                  }}
+                >
+                  <Ionicons name="arrow-back" size={16} color={mutedStrong} />
+                  <RNText style={{ fontSize: 12, fontFamily: 'Menlo', color: mutedStrong }} numberOfLines={1}>
+                    {filePath.split('/').pop() || filePath}
+                  </RNText>
+                </TouchableOpacity>
+              )}
+
+              {filesLoading && folders.length === 0 && regularFiles.length === 0 && (
+                <View style={{ padding: 30, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color={muted} />
+                </View>
+              )}
+
+              {/* Folders */}
+              {folders.length > 0 && (
+                <View style={{ marginBottom: 8 }}>
+                  {folders.map((file: SandboxFile) => (
+                    <FileItem key={file.path} file={file} onPress={handleFilePress} />
+                  ))}
+                </View>
+              )}
+
+              {/* Files */}
+              {regularFiles.length > 0 && (
+                <View>
+                  {regularFiles.map((file: SandboxFile) => (
+                    <FileItem key={file.path} file={file} onPress={handleFilePress} />
+                  ))}
+                </View>
+              )}
+
+              {!filesLoading && folders.length === 0 && regularFiles.length === 0 && (
+                <EmptyState icon={FolderOpen} text="Empty directory" isDark={isDark} />
+              )}
+            </View>
+          ) : (
+            <EmptyState icon={FolderOpen} text="No project path configured" sub="This project doesn't have a file path" isDark={isDark} />
+          )
+        )}
+
         {/* ── Sessions Tab ── */}
         {tab === 'sessions' && (
           sessionList.length === 0 ? (
@@ -529,6 +634,17 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
           </View>
         )}
       </ScrollView>
+
+      {/* File Viewer */}
+      {viewerFile && (
+        <FileViewer
+          visible={viewerVisible}
+          onClose={() => { setViewerVisible(false); setViewerFile(null); }}
+          file={viewerFile}
+          sandboxId={''}
+          sandboxUrl={sandboxUrl}
+        />
+      )}
 
       {/* Edit sheet — matches FilesPage rename sheet pattern */}
       <BottomSheetModal
