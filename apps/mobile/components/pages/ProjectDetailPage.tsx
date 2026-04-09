@@ -10,16 +10,24 @@ import {
   ScrollView,
   RefreshControl,
   Alert,
-  TextInput,
   ActivityIndicator,
+  Keyboard,
   Text as RNText,
 } from 'react-native';
 import { Text } from '@/components/ui/text';
+import { Icon } from '@/components/ui/icon';
 import { useColorScheme } from 'nativewind';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { BottomSheetModal, BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
+import {
+  BottomSheetModal,
+  BottomSheetBackdrop,
+  BottomSheetView,
+  BottomSheetTextInput,
+  TouchableOpacity as BottomSheetTouchable,
+} from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { useThemeColors } from '@/lib/theme-colors';
 import {
   FolderGit2,
   MessageSquare,
@@ -99,6 +107,7 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
   const { sandboxUrl } = useSandboxContext();
+  const themeColors = useThemeColors();
 
   const { data: project, isLoading, refetch } = useKortixProject(sandboxUrl, projectId);
   const { data: sessions } = useKortixProjectSessions(sandboxUrl, projectId);
@@ -155,9 +164,15 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
     if (!project) return;
     const trimmed = editValue.trim();
     if (editField === 'name' && !trimmed) return;
+    Keyboard.dismiss();
     updateProject.mutate(
       { id: project.id, [editField]: trimmed },
-      { onSuccess: () => editSheetRef.current?.dismiss() },
+      {
+        onSuccess: () => {
+          editSheetRef.current?.dismiss();
+          setEditValue('');
+        },
+      },
     );
   }, [project, editField, editValue, updateProject]);
 
@@ -472,55 +487,139 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
         </View>
       </ScrollView>
 
-      {/* Edit sheet */}
+      {/* Edit sheet — matches FilesPage rename sheet pattern */}
       <BottomSheetModal
         ref={editSheetRef}
         enableDynamicSizing
         enablePanDownToClose
+        backdropComponent={renderBackdrop}
         keyboardBehavior="interactive"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
-        handleIndicatorStyle={{ backgroundColor: isDark ? '#3F3F46' : '#D4D4D8', width: 36, height: 5, borderRadius: 3 }}
-        backgroundStyle={{ backgroundColor: isDark ? '#161618' : '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24 }}
-        backdropComponent={renderBackdrop}
+        onDismiss={() => { setEditValue(''); }}
+        backgroundStyle={{
+          backgroundColor: isDark ? '#161618' : '#FFFFFF',
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+        }}
+        handleIndicatorStyle={{
+          backgroundColor: isDark ? '#3F3F46' : '#D4D4D8',
+          width: 36,
+          height: 5,
+          borderRadius: 3,
+        }}
       >
-        <BottomSheetView style={{ paddingHorizontal: 24, paddingBottom: 40 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14 }}>
-            <RNText style={{ fontSize: 16, fontFamily: 'Roobert-Medium', color: fg }}>
-              Edit {editField}
-            </RNText>
-            <TouchableOpacity
-              onPress={handleSaveEdit}
-              disabled={updateProject.isPending}
-              activeOpacity={0.8}
-              style={{ backgroundColor: fg, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 }}
+        <BottomSheetView
+          style={{
+            paddingHorizontal: 24,
+            paddingTop: 8,
+            paddingBottom: Math.max(insets.bottom, 20) + 16,
+          }}
+        >
+          {/* Header */}
+          <View className="flex-row items-center mb-5">
+            <View
+              className="w-10 h-10 rounded-xl items-center justify-center mr-3"
+              style={{
+                backgroundColor: isDark
+                  ? 'rgba(248, 248, 248, 0.08)'
+                  : 'rgba(18, 18, 21, 0.05)',
+              }}
             >
-              {updateProject.isPending ? (
-                <ActivityIndicator size="small" color={bg} />
-              ) : (
-                <RNText style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: bg }}>Save</RNText>
-              )}
-            </TouchableOpacity>
+              <Icon
+                as={editField === 'name' ? FolderGit2 : Pencil}
+                size={20}
+                color={fg}
+                strokeWidth={1.8}
+              />
+            </View>
+            <View className="flex-1">
+              <Text
+                className="text-lg font-roobert-semibold"
+                style={{ color: fg }}
+              >
+                {editField === 'name' ? 'Rename' : 'Edit description'}
+              </Text>
+              <Text
+                className="text-xs font-roobert mt-0.5"
+                style={{
+                  color: isDark
+                    ? 'rgba(248, 248, 248, 0.4)'
+                    : 'rgba(18, 18, 21, 0.4)',
+                }}
+                numberOfLines={1}
+              >
+                {project?.name}
+              </Text>
+            </View>
           </View>
-          <TextInput
+
+          {/* Input */}
+          <BottomSheetTextInput
             value={editValue}
             onChangeText={setEditValue}
-            multiline={editField === 'description'}
+            placeholder={editField === 'name' ? 'Enter project name' : 'Enter description'}
+            placeholderTextColor={isDark ? 'rgba(248, 248, 248, 0.25)' : 'rgba(18, 18, 21, 0.3)'}
             autoFocus
-            textAlignVertical={editField === 'description' ? 'top' : 'center'}
+            autoCapitalize="none"
+            autoCorrect={false}
+            multiline={editField === 'description'}
+            returnKeyType={editField === 'name' ? 'done' : 'default'}
+            onSubmitEditing={editField === 'name' ? handleSaveEdit : undefined}
             style={{
-              fontSize: 15,
+              backgroundColor: isDark
+                ? 'rgba(248, 248, 248, 0.06)'
+                : 'rgba(18, 18, 21, 0.04)',
+              borderWidth: 1,
+              borderColor: isDark
+                ? 'rgba(248, 248, 248, 0.1)'
+                : 'rgba(18, 18, 21, 0.08)',
+              borderRadius: 14,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              fontSize: 16,
               fontFamily: 'Roobert',
               color: fg,
-              backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: border,
-              padding: 14,
-              lineHeight: 22,
-              minHeight: editField === 'description' ? 100 : 46,
+              marginBottom: 20,
+              minHeight: editField === 'description' ? 80 : undefined,
+              textAlignVertical: editField === 'description' ? 'top' : 'center',
             }}
           />
+
+          {/* Save button */}
+          {(() => {
+            const canSave = !!editValue.trim() && (editField !== 'name' || editValue.trim() !== project?.name);
+            return (
+              <BottomSheetTouchable
+                onPress={handleSaveEdit}
+                disabled={!canSave || updateProject.isPending}
+                style={{
+                  backgroundColor: canSave
+                    ? themeColors.primary
+                    : isDark
+                      ? 'rgba(248, 248, 248, 0.08)'
+                      : 'rgba(18, 18, 21, 0.06)',
+                  borderRadius: 14,
+                  paddingVertical: 15,
+                  alignItems: 'center',
+                  opacity: canSave ? 1 : 0.5,
+                }}
+              >
+                <Text
+                  className="text-[15px] font-roobert-semibold"
+                  style={{
+                    color: canSave
+                      ? themeColors.primaryForeground
+                      : isDark
+                        ? 'rgba(248, 248, 248, 0.3)'
+                        : 'rgba(18, 18, 21, 0.3)',
+                  }}
+                >
+                  {updateProject.isPending ? 'Saving...' : 'Save'}
+                </Text>
+              </BottomSheetTouchable>
+            );
+          })()}
         </BottomSheetView>
       </BottomSheetModal>
     </View>
