@@ -79,6 +79,8 @@ export function ProjectsPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: 
 
   const handleProjectPress = useCallback((project: KortixProject) => {
     const pageId = `page:project:${project.id}`;
+    // Store project name for tab title display
+    useTabStore.getState().setTabState(pageId, { projectName: project.name });
     useTabStore.getState().navigateToPage(pageId);
   }, []);
 

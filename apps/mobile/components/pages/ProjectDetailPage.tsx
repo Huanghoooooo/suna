@@ -3,7 +3,7 @@
  * Ported from web's /projects/[id]/page.tsx.
  */
 
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -116,6 +116,13 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
   const updateProject = useUpdateProject(sandboxUrl);
   const deleteProject = useDeleteProject(sandboxUrl);
 
+  // Store project name in tab state for TabsOverview title
+  useEffect(() => {
+    if (project?.name) {
+      useTabStore.getState().setTabState(`page:project:${projectId}`, { projectName: project.name });
+    }
+  }, [project?.name, projectId]);
+
   const [tab, setTab] = useState<Tab>('sessions');
   const editSheetRef = useRef<BottomSheetModal>(null);
   const [editField, setEditField] = useState<'name' | 'description'>('name');
@@ -227,6 +234,7 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
     <View style={{ flex: 1, backgroundColor: bg }}>
       {/* Header */}
       <View style={{ paddingTop: insets.top, paddingHorizontal: 16, paddingBottom: 8 }}>
+        {/* Top row: menu + name + actions — all centered on one line */}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           {onOpenDrawer && (
             <TouchableOpacity onPress={onOpenDrawer} style={{ marginRight: 12, padding: 4 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -234,24 +242,15 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
             </TouchableOpacity>
           )}
 
-          {/* Project name + path */}
-          <View style={{ flex: 1 }}>
-            <TouchableOpacity onPress={() => handleEdit('name')} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <FolderGit2 size={16} color={mutedStrong} />
-              <Text style={{ fontSize: 17, fontFamily: 'Roobert-SemiBold', color: fg }} numberOfLines={1}>
-                {project.name}
-              </Text>
-              <Pencil size={12} color={isDark ? '#3f3f46' : '#d4d4d8'} />
-            </TouchableOpacity>
-            {project.path && project.path !== '/' && (
-              <RNText numberOfLines={1} style={{ fontSize: 11, fontFamily: 'Menlo', color: isDark ? '#3f3f46' : '#a1a1aa', marginTop: 2, marginLeft: 22 }}>
-                {project.path}
-              </RNText>
-            )}
-          </View>
+          <TouchableOpacity onPress={() => handleEdit('name')} activeOpacity={0.7} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <FolderGit2 size={16} color={mutedStrong} />
+            <Text style={{ fontSize: 17, fontFamily: 'Roobert-SemiBold', color: fg, flexShrink: 1 }} numberOfLines={1}>
+              {project.name}
+            </Text>
+            <Pencil size={12} color={isDark ? '#3f3f46' : '#d4d4d8'} />
+          </TouchableOpacity>
 
-          {/* Actions */}
-          <TouchableOpacity onPress={handleDelete} style={{ padding: 6, marginRight: 4 }} hitSlop={8}>
+          <TouchableOpacity onPress={handleDelete} style={{ padding: 6, marginLeft: 4 }} hitSlop={8}>
             <Trash2 size={18} color={isDark ? '#52525b' : '#a1a1aa'} />
           </TouchableOpacity>
           {onOpenRightDrawer && (
@@ -260,6 +259,13 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Path — below the name row */}
+        {project.path && project.path !== '/' && (
+          <RNText numberOfLines={1} style={{ fontSize: 11, fontFamily: 'Menlo', color: isDark ? '#52525b' : '#a1a1aa', marginTop: 2, marginLeft: onOpenDrawer ? 44 : 22 }}>
+            {project.path}
+          </RNText>
+        )}
       </View>
 
       {/* Tab bar */}
