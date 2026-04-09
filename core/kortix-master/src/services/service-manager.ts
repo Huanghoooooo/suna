@@ -193,6 +193,13 @@ function s6svc(
   s6Name: string,
   opts: Partial<RegisteredServiceSpec> = {},
 ): RegisteredServiceSpec {
+  const { healthCheck, ...restOpts } = opts;
+  const defaultHealthCheck: ServiceHealthCheck = healthCheck
+    ? { ...healthCheck }
+    : opts.port
+      ? { type: "tcp", timeoutMs: 2000 }
+      : { type: "none" };
+
   return {
     id,
     name,
@@ -219,10 +226,10 @@ function s6svc(
     restartDelayMs: 2000,
     s6ServiceName: s6Name,
     processPatterns: [],
-    healthCheck: { type: "none" },
+    healthCheck: defaultHealthCheck,
     createdAt: "",
     updatedAt: "",
-    ...opts,
+    ...restOpts,
   };
 }
 
@@ -254,7 +261,7 @@ const BUILTIN_SERVICES: RegisteredServiceSpec[] = [
     restartDelayMs: 3000,
     s6ServiceName: null,
     processPatterns: ["opencode serve --port 4096"],
-    healthCheck: { type: "none" },
+    healthCheck: { type: "tcp", timeoutMs: 2000 },
     createdAt: "",
     updatedAt: "",
   },
@@ -262,6 +269,7 @@ const BUILTIN_SERVICES: RegisteredServiceSpec[] = [
   s6svc("chromium-persistent", "Chromium", "core", "svc-chromium-persistent", {
     port: 9222,
     processPatterns: ["chromium-browser"],
+    healthCheck: { type: "tcp", timeoutMs: 1500 },
   }),
   s6svc(
     "agent-browser-session",
@@ -278,11 +286,16 @@ const BUILTIN_SERVICES: RegisteredServiceSpec[] = [
     "Agent Browser Viewer",
     "core",
     "svc-agent-browser-viewer",
-    { port: 9224, processPatterns: ["agent-browser-viewer.js"] },
+    {
+      port: 9224,
+      processPatterns: ["agent-browser-viewer.js"],
+      healthCheck: { type: "tcp", timeoutMs: 1500 },
+    },
   ),
   s6svc("static-web", "Static Web Server", "core", "svc-static-web", {
     port: 3211,
     processPatterns: ["static-web.js"],
+    healthCheck: { type: "tcp", timeoutMs: 1500 },
   }),
   s6svc("lss-sync", "LSS Sync", "core", "svc-lss-sync", {
     envVarKeys: ["OPENAI_API_KEY"],
@@ -291,6 +304,7 @@ const BUILTIN_SERVICES: RegisteredServiceSpec[] = [
   s6svc("sshd", "SSH Daemon", "bootstrap", "svc-sshd", {
     port: 22,
     processPatterns: ["sshd -D"],
+    healthCheck: { type: "none" },
   }),
   s6svc("docker", "Docker Daemon", "bootstrap", "svc-docker", {
     processPatterns: ["dockerd"],
@@ -552,6 +566,7 @@ async function probeServicePort(
   timeoutMs: number = 2000,
 ): Promise<boolean> {
   if (!spec.port) return false;
+  if (spec.healthCheck.type === "none") return false;
   if (spec.healthCheck.type === "http") {
     return probeHttpPort(spec.port, spec.healthCheck.path, timeoutMs);
   }
@@ -940,7 +955,7 @@ export class ServiceManager {
 
     // s6-svstat requires root access to supervise dirs.
     // Instead, probe by port (if service has one) or by process pattern.
-    if (spec.port) {
+    if (spec.port && spec.healthCheck.type !== "none") {
       const portOk = await probeServicePort(
         spec,
         spec.healthCheck.timeoutMs || 1500,
@@ -1010,6 +1025,10 @@ export class ServiceManager {
 
   private async isServiceHealthy(item: ManagedService): Promise<boolean> {
     const { spec, state } = item;
+
+    if (spec.adapter === "s6" && spec.healthCheck.type === "none") {
+      return state.status === "running";
+    }
 
     if (spec.port) {
       return probeServicePort(spec, spec.healthCheck.timeoutMs || 1500);

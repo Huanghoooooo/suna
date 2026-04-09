@@ -458,4 +458,68 @@ describe("ServiceManager — Managed project services", () => {
       await new Promise<void>((resolve) => tcpServer.close(() => resolve()));
     }
   });
+
+  it("does not open TCP probe connections when a port-bound s6 health check is disabled", async () => {
+    const storageDir = makeTempDir("service-manager-store-");
+    const port = await findFreePort();
+    const netModule = require("net") as typeof import("net");
+    const originalCreateConnection = netModule.createConnection.bind(
+      netModule,
+    ) as typeof netModule.createConnection;
+    let connectionAttempts = 0;
+
+    netModule.createConnection = ((
+      ...args: Parameters<typeof netModule.createConnection>
+    ) => {
+      connectionAttempts += 1;
+      return originalCreateConnection(...args);
+    }) as typeof netModule.createConnection;
+
+    const manager = new ServiceManager({
+      registryFile: join(storageDir, "registry.json"),
+      logsDir: join(storageDir, "logs"),
+      builtins: [
+        {
+          id: "sshd-no-probe-test",
+          name: "SSH no-probe test",
+          adapter: "s6",
+          scope: "bootstrap",
+          description: "",
+          builtin: true,
+          userVisible: false,
+          projectId: null,
+          template: "sshd-no-probe-test",
+          framework: null,
+          sourcePath: null,
+          sourceType: "files",
+          sourceRef: null,
+          startCommand: null,
+          installCommand: null,
+          buildCommand: null,
+          envVarKeys: [],
+          deps: [],
+          port,
+          desiredState: "running",
+          autoStart: true,
+          restartPolicy: "always",
+          restartDelayMs: 2000,
+          s6ServiceName: "svc-sshd-no-probe-test",
+          processPatterns: [],
+          healthCheck: { type: "none" },
+          createdAt: "",
+          updatedAt: "",
+        },
+      ],
+    });
+    managers.push(manager);
+
+    try {
+      await manager.start();
+      const service = await manager.getService("sshd-no-probe-test");
+      expect(service?.status).toBe("stopped");
+      expect(connectionAttempts).toBe(0);
+    } finally {
+      netModule.createConnection = originalCreateConnection;
+    }
+  });
 });
