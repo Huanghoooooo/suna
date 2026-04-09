@@ -39,6 +39,7 @@ export const PAGE_TABS: Record<string, PageTab> = {
   'page:browser':           { id: 'page:browser',           label: 'Browser',           icon: 'compass-outline' },
   'page:agent-browser':     { id: 'page:agent-browser',     label: 'Agent Browser',     icon: 'globe-outline' },
   'page:updates':           { id: 'page:updates',           label: 'Updates',           icon: 'arrow-down-circle-outline' },
+  'page:projects':          { id: 'page:projects',          label: 'Projects',          icon: 'folder-outline' },
 };
 
 // ---------------------------------------------------------------------------

@@ -971,7 +971,7 @@ export function SessionChatInput({
                           maxWidth: 140,
                         }}
                       >
-                        {agent?.name || 'Agent'}
+                        {agent?.name ? agent.name.charAt(0).toUpperCase() + agent.name.slice(1) : 'Agent'}
                         {model?.modelName ? ` · ${model.modelName}` : ''}
                         {variant ? ` · ${variantLabel}` : ''}
                       </Text>
@@ -1127,7 +1127,7 @@ export function SessionChatInput({
         onAutoContinue={availableAutoAlgorithms.length > 0 ? () => { setShowActionsSheet(false); setTimeout(() => setShowAutoSheet(true), 300); } : undefined}
         autocontinueLabel={autocontinueMode ? (currentAutoAlgorithm?.label || 'Auto') : 'Off'}
         autocontinueActive={!!autocontinueMode}
-        configLabel={`${agent?.name || 'Agent'}${model?.modelName ? ` · ${model.modelName}` : ''}${variant ? ` · ${variantLabel}` : ''}`}
+        configLabel={`${agent?.name ? agent.name.charAt(0).toUpperCase() + agent.name.slice(1) : 'Agent'}${model?.modelName ? ` · ${model.modelName}` : ''}${variant ? ` · ${variantLabel}` : ''}`}
         onboardingMode={onboardingMode}
       />
 

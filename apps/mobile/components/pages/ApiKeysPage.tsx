@@ -129,38 +129,45 @@ function ApiKeysContent() {
   const secretSheetRef = useRef<BottomSheetModal>(null);
   const createLinkSheetRef = useRef<BottomSheetModal>(null);
 
-  // ── Public Links ──
+  // ── Public Links (via backend proxy, not sandbox directly) ──
+  const backendBase = useMemo(
+    () => getServerUrl().replace(/\/+$/, ''),
+    [],
+  );
+
   const {
     data: publicShares,
     isLoading: isSharesLoading,
     refetch: refetchShares,
   } = useQuery({
-    queryKey: ['public-shares', sandboxUrl],
-    enabled: !!sandboxUrl,
+    queryKey: ['public-shares', sandboxId],
+    enabled: !!sandboxId,
+    retry: false,
     queryFn: async (): Promise<PublicShareEntry[]> => {
+      if (!sandboxId) throw new Error('No active sandbox');
       const token = await getAuthToken();
-      const res = await fetch(`${sandboxUrl}/kortix/share`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+      if (!token) throw new Error('Not authenticated');
+      const url = `${backendBase}/p/share?sandbox_id=${encodeURIComponent(sandboxId)}`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error('Failed to load public links');
-      const data = await res.json() as { shares?: PublicShareEntry[] };
-      return data.shares ?? [];
+      const text = await res.text().catch(() => '');
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { data = { error: text || 'Unknown error' }; }
+      if (!res.ok) throw new Error(data?.error || data?.message || `Failed to load public links (${res.status})`);
+      return (data as { shares?: PublicShareEntry[] }).shares ?? [];
     },
   });
 
   const revokeShareMutation = useMutation({
     mutationFn: async (shareToken: string) => {
-      if (!sandboxUrl) throw new Error('No sandbox URL');
-      const token = await getAuthToken();
-      const res = await fetch(`${sandboxUrl}/kortix/share/${shareToken}`, {
+      if (!sandboxId) throw new Error('No active sandbox');
+      const authToken = await getAuthToken();
+      if (!authToken) throw new Error('Not authenticated');
+      const url = `${backendBase}/p/share/${encodeURIComponent(shareToken)}?sandbox_id=${encodeURIComponent(sandboxId)}`;
+      const res = await fetch(url, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

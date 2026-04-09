@@ -52,6 +52,8 @@ import { RightDrawerContent } from '@/components/session/RightDrawerContent';
 import { UserMenuSheet } from '@/components/session/UserMenuSheet';
 import { ViewChangesSheet } from '@/components/session/ViewChangesSheet';
 import { ExportTranscriptSheet } from '@/components/session/ExportTranscriptSheet';
+import { ProjectsPage } from '@/components/pages/ProjectsPage';
+import { ProjectDetailPage } from '@/components/pages/ProjectDetailPage';
 import { useGlobalSandboxUpdate } from '@/hooks/useSandboxUpdate';
 import { PlaceholderPage } from '@/components/session/PlaceholderPage';
 import { UpdatesPage } from '@/components/pages/UpdatesPage';
@@ -1231,6 +1233,27 @@ export default function HomeScreen() {
               onOpenDrawer={handleDrawerOpen}
               onOpenRightDrawer={handleRightDrawerOpen}
               onCreateSessionWithPrompt={handleCreateSessionWithPrompt}
+            />
+
+          /* Active page tab — Projects list */
+          ) : activePageId === 'page:projects' && PAGE_TABS[activePageId] && !showTabsOverview ? (
+            <ProjectsPage
+              page={PAGE_TABS[activePageId]}
+              onBack={handleBack}
+              onOpenDrawer={handleDrawerOpen}
+              onOpenRightDrawer={handleRightDrawerOpen}
+            />
+
+          /* Active page tab — Single project detail (dynamic: page:project:{id}) */
+          ) : activePageId?.startsWith('page:project:') && !showTabsOverview ? (
+            <ProjectDetailPage
+              projectId={activePageId.replace('page:project:', '')}
+              onBack={() => {
+                // Go back to projects list
+                useTabStore.getState().navigateToPage('page:projects');
+              }}
+              onOpenDrawer={handleDrawerOpen}
+              onOpenRightDrawer={handleRightDrawerOpen}
             />
 
           /* Active page tab — other pages (placeholder) */

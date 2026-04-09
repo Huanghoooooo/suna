@@ -237,6 +237,13 @@ export function CommandPalette({
         onSelect: () => { onSessionSelect(''); onClose(); },
       },
       {
+        id: 'page:projects',
+        label: 'Projects',
+        icon: 'folder-outline',
+        group: 'navigation',
+        onSelect: () => { onPageSelect('page:projects'); onClose(); },
+      },
+      {
         id: 'page:triggers',
         label: 'Scheduled Tasks',
         icon: 'calendar-outline',
