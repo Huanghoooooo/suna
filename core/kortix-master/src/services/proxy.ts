@@ -5,6 +5,19 @@ import { serviceManager } from './service-manager'
 
 // 30s timeout for regular requests
 const FETCH_TIMEOUT_MS = 30_000
+const OPENCODE_HEALTH_TIMEOUT_MS = 1_500
+
+async function isOpenCodeHealthy(): Promise<boolean> {
+  try {
+    const res = await fetch(`http://${config.OPENCODE_HOST}:${config.OPENCODE_PORT}/session`, {
+      signal: AbortSignal.timeout(OPENCODE_HEALTH_TIMEOUT_MS),
+    })
+    await res.arrayBuffer().catch(() => {})
+    return res.ok
+  } catch {
+    return false
+  }
+}
 
 export async function proxyToOpenCode(c: Context): Promise<Response> {
   const url = new URL(c.req.url)
@@ -109,7 +122,10 @@ export async function proxyToOpenCode(c: Context): Promise<Response> {
     // AbortError for manual controller.abort())
     if (error instanceof DOMException && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
       if (!acceptsSSE) {
-        void serviceManager.requestRecovery('opencode-serve', `proxy-timeout:${url.pathname}`)
+        const healthy = await isOpenCodeHealthy()
+        if (!healthy) {
+          void serviceManager.requestRecovery('opencode-serve', `proxy-timeout:${url.pathname}`)
+        }
         console.error(`[Kortix Master] OpenCode timeout on ${c.req.method} ${url.pathname} after ${FETCH_TIMEOUT_MS / 1000}s`)
         return c.json({ error: 'OpenCode not responding', details: `${url.pathname} timed out after ${FETCH_TIMEOUT_MS / 1000}s — OpenCode may still be starting` }, 504)
       }
