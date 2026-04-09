@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   Linking,
 } from 'react-native';
+import type { TextInput as TextInputType } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'nativewind';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -153,7 +154,7 @@ function LocalAuthScreen() {
                 onSubmitEditing={handleSignIn}
               />
             </View>
-            <AuthButton label="Sign in" onPress={handleSignIn} isLoading={loading} variant="primary" showArrow={false} />
+            <AuthButton label="Sign in" loadingLabel="Signing in..." onPress={handleSignIn} isLoading={loading} variant="primary" showArrow={false} />
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -175,6 +176,7 @@ function CloudAuthScreen() {
   const [email, setEmail] = React.useState('');
   const [otpCode, setOtpCode] = React.useState('');
   const [loading, setLoading] = React.useState(false);
+  const [oauthLoading, setOauthLoading] = React.useState<'google' | 'apple' | null>(null);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const otpRef = React.useRef<TextInput>(null);
 
@@ -306,6 +308,7 @@ function CloudAuthScreen() {
                 {/* Continue button */}
                 <AuthButton
                   label="Continue with email"
+                  loadingLabel="Sending code..."
                   onPress={handleSendOtp}
                   isLoading={loading}
                   variant="primary"
@@ -323,7 +326,7 @@ function CloudAuthScreen() {
                 <TouchableOpacity
                   onPress={async () => {
                     try {
-                      setLoading(true);
+                      setOauthLoading('google');
                       setErrorMessage(null);
                       const { data, error } = await supabase.auth.signInWithOAuth({
                         provider: 'google',
@@ -339,25 +342,31 @@ function CloudAuthScreen() {
                     } catch (err: any) {
                       setErrorMessage(err.message || 'Google sign-in failed');
                     } finally {
-                      setLoading(false);
+                      setOauthLoading(null);
                     }
                   }}
+                  disabled={!!oauthLoading}
                   activeOpacity={0.7}
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 10,
-                    paddingVertical: 14,
+                    height: 52,
                     borderRadius: 14,
                     borderWidth: 1,
                     borderColor: border,
                     backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
+                    opacity: oauthLoading && oauthLoading !== 'google' ? 0.5 : 1,
                   }}
                 >
-                  <Ionicons name="logo-google" size={18} color={fg} />
+                  {oauthLoading === 'google' ? (
+                    <ActivityIndicator size="small" color={fg} style={{ marginRight: 2 }} />
+                  ) : (
+                    <Ionicons name="logo-google" size={18} color={fg} />
+                  )}
                   <Text style={{ fontSize: 15, fontFamily: 'Roobert-Medium', color: fg }}>
-                    Continue with Google
+                    {oauthLoading === 'google' ? 'Opening Google...' : 'Continue with Google'}
                   </Text>
                 </TouchableOpacity>
 
@@ -366,7 +375,7 @@ function CloudAuthScreen() {
                   <TouchableOpacity
                     onPress={async () => {
                       try {
-                        setLoading(true);
+                        setOauthLoading('apple');
                         setErrorMessage(null);
                         const credential = await AppleAuthentication.signInAsync({
                           requestedScopes: [
@@ -384,29 +393,38 @@ function CloudAuthScreen() {
                           router.replace('/home');
                         }
                       } catch (err: any) {
-                        if (err.code === 'ERR_REQUEST_CANCELED') return;
+                        if (err.code === 'ERR_REQUEST_CANCELED') {
+                          setOauthLoading(null);
+                          return;
+                        }
                         setErrorMessage(err.message || 'Apple sign-in failed');
                       } finally {
-                        setLoading(false);
+                        setOauthLoading(null);
                       }
                     }}
+                    disabled={!!oauthLoading}
                     activeOpacity={0.7}
                     style={{
                       flexDirection: 'row',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: 10,
-                      paddingVertical: 14,
+                      height: 52,
                       borderRadius: 14,
                       borderWidth: 1,
                       borderColor: border,
                       backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
                       marginTop: 10,
+                      opacity: oauthLoading && oauthLoading !== 'apple' ? 0.5 : 1,
                     }}
                   >
-                    <Ionicons name="logo-apple" size={20} color={fg} />
+                    {oauthLoading === 'apple' ? (
+                      <ActivityIndicator size="small" color={fg} style={{ marginRight: 2 }} />
+                    ) : (
+                      <Ionicons name="logo-apple" size={20} color={fg} />
+                    )}
                     <Text style={{ fontSize: 15, fontFamily: 'Roobert-Medium', color: fg }}>
-                      Continue with Apple
+                      {oauthLoading === 'apple' ? 'Signing in...' : 'Continue with Apple'}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -430,6 +448,7 @@ function CloudAuthScreen() {
                 {/* Verify button */}
                 <AuthButton
                   label="Verify code"
+                  loadingLabel="Verifying..."
                   onPress={handleVerifyOtp}
                   isLoading={loading}
                   variant="primary"
