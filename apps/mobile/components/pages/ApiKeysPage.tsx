@@ -39,6 +39,7 @@ import * as Clipboard from 'expo-clipboard';
 import { BottomSheetModal, BottomSheetView, BottomSheetTextInput, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 
 import { useThemeColors } from '@/lib/theme-colors';
+import { useSheetBottomPadding } from '@/hooks/useSheetKeyboard';
 import { useSandboxContext } from '@/contexts/SandboxContext';
 import { getAuthToken, getServerUrl } from '@/api/config';
 import type { PageTab } from '@/stores/tab-store';
@@ -664,6 +665,7 @@ function CreateApiKeySheet({
   onCreated: (result: APIKeyCreateResponse) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const sheetPadding = useSheetBottomPadding();
   const createKey = useCreateApiKey();
 
   const fg = isDark ? '#f8f8f8' : '#121215';
@@ -729,7 +731,7 @@ function CreateApiKeySheet({
       backgroundStyle={{ backgroundColor: isDark ? '#161618' : '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24 }}
       handleIndicatorStyle={{ backgroundColor: isDark ? '#3F3F46' : '#D4D4D8', width: 36, height: 5, borderRadius: 3 }}
     >
-      <BottomSheetView style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 20) + 16 }}>
+      <BottomSheetView style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: sheetPadding }}>
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
           <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
@@ -831,6 +833,7 @@ function SecretKeySheet({
   onDone: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const sheetPadding = useSheetBottomPadding();
   const [copied, setCopied] = useState(false);
 
   const fg = isDark ? '#f8f8f8' : '#121215';
@@ -857,7 +860,7 @@ function SecretKeySheet({
       backgroundStyle={{ backgroundColor: isDark ? '#161618' : '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24 }}
       handleIndicatorStyle={{ backgroundColor: isDark ? '#3F3F46' : '#D4D4D8', width: 36, height: 5, borderRadius: 3 }}
     >
-      <BottomSheetView style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 20) + 16 }}>
+      <BottomSheetView style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: sheetPadding }}>
         <Text style={{ fontSize: 18, fontFamily: 'Roobert-Semibold', color: fg, marginBottom: 4 }}>
           {createdKey?.type === 'sandbox' ? 'Token Regenerated' : 'Key Created'}
         </Text>
@@ -1032,6 +1035,7 @@ function CreatePublicLinkSheet({
   onCreated: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const sheetPadding = useSheetBottomPadding();
 
   const fg = isDark ? '#f8f8f8' : '#121215';
   const muted = isDark ? 'rgba(248,248,248,0.5)' : 'rgba(18,18,21,0.5)';
@@ -1118,7 +1122,7 @@ function CreatePublicLinkSheet({
       backgroundStyle={{ backgroundColor: isDark ? '#161618' : '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24 }}
       handleIndicatorStyle={{ backgroundColor: isDark ? '#3F3F46' : '#D4D4D8', width: 36, height: 5, borderRadius: 3 }}
     >
-      <BottomSheetView style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 20) + 16 }}>
+      <BottomSheetView style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: sheetPadding }}>
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
           <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>

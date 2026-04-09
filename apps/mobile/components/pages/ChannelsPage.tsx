@@ -48,6 +48,7 @@ import BottomSheet, {
 } from '@gorhom/bottom-sheet';
 
 import { useThemeColors } from '@/lib/theme-colors';
+import { useSheetBottomPadding } from '@/hooks/useSheetKeyboard';
 import { useSandboxContext } from '@/contexts/SandboxContext';
 import type { PageTab } from '@/stores/tab-store';
 import {
@@ -441,6 +442,7 @@ function ChannelDetailSheet({
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const sheetPadding = useSheetBottomPadding();
   const { sandboxUrl } = useSandboxContext();
   const updateChannel = useUpdateChannel();
 
@@ -535,7 +537,7 @@ function ChannelDetailSheet({
       handleIndicatorStyle={{ backgroundColor: isDark ? '#3F3F46' : '#D4D4D8', width: 36, height: 5, borderRadius: 3 }}
     >
       {channel ? (
-      <BottomSheetScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: Math.max(insets.bottom, 20) + 16 }} showsVerticalScrollIndicator={false}>
+      <BottomSheetScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: sheetPadding }} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
           <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
@@ -711,6 +713,7 @@ function AddChannelSheet({
   isCreating: boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const sheetPadding = useSheetBottomPadding();
   const [view, setView] = useState<WizardView>('type-select');
   const [selectedType, setSelectedType] = useState<ChannelType | null>(null);
   const [channelName, setChannelName] = useState('');
@@ -763,7 +766,7 @@ function AddChannelSheet({
       handleIndicatorStyle={{ backgroundColor: isDark ? '#3F3F46' : '#D4D4D8', width: 36, height: 5, borderRadius: 3 }}
     >
       <BottomSheetScrollView
-        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 20) + 16 }}
+        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: sheetPadding }}
         keyboardShouldPersistTaps="handled"
       >
         {/* Header */}

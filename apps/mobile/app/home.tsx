@@ -18,6 +18,7 @@ import {
   Platform,
   StyleSheet,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { Text } from '@/components/ui/text';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar as RNStatusBar } from 'react-native';
@@ -1290,7 +1291,7 @@ export default function HomeScreen() {
 
           /* Dashboard */
           ) : (
-            <View className="flex-1 bg-background">
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" className="bg-background">
               <View
                 style={{ paddingTop: insets.top }}
                 className="px-4 pb-3 bg-background"
@@ -1347,7 +1348,7 @@ export default function HomeScreen() {
                   sandboxUrl={sandboxUrl}
                 />
               </View>
-            </View>
+            </KeyboardAvoidingView>
           )}
 
         </>
