@@ -71,7 +71,7 @@ function ago(t?: string | number) {
   return d < 30 ? d + 'd ago' : new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-type Tab = 'sessions' | 'tasks' | 'agents';
+type Tab = 'sessions' | 'tasks' | 'agents' | 'about';
 
 const STATUS_CONFIG: Record<string, { icon: typeof Circle; color: string }> = {
   pending: { icon: Circle, color: '#71717a' },
@@ -150,6 +150,7 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
     { id: 'sessions', label: 'Sessions', count: sessionList.length, icon: MessageSquare },
     { id: 'tasks', label: 'Tasks', count: taskList.length, icon: ListTodo },
     { id: 'agents', label: 'Agents', count: agentList.length, icon: Cpu },
+    { id: 'about', label: 'About', count: 0, icon: FolderOpen },
   ];
 
   const handleSessionPress = useCallback((sessionId: string) => {
@@ -260,12 +261,7 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
           )}
         </View>
 
-        {/* Path — below the name row */}
-        {project.path && project.path !== '/' && (
-          <RNText numberOfLines={1} style={{ fontSize: 11, fontFamily: 'Menlo', color: isDark ? '#52525b' : '#a1a1aa', marginTop: 2, marginLeft: onOpenDrawer ? 44 : 22 }}>
-            {project.path}
-          </RNText>
-        )}
+        {/* Path removed from header — now in About tab */}
       </View>
 
       {/* Tab bar */}
@@ -460,37 +456,78 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
           )
         )}
 
-        {/* ── About section (below tabs on mobile) ── */}
-        <View style={{ marginTop: 20, gap: 10 }}>
-          {/* Description */}
-          <TouchableOpacity onPress={() => handleEdit('description')} activeOpacity={0.7}>
-            {project.description ? (
-              <RNText style={{ fontSize: 14, fontFamily: 'Roobert', color: isDark ? '#a1a1aa' : '#52525b', lineHeight: 20 }}>
-                {project.description}
-              </RNText>
-            ) : (
-              <RNText style={{ fontSize: 13, fontFamily: 'Roobert', color: isDark ? '#3f3f46' : '#a1a1aa', fontStyle: 'italic' }}>
-                No description — tap to add
-              </RNText>
-            )}
-          </TouchableOpacity>
+        {/* ── About Tab ── */}
+        {tab === 'about' && (
+          <View style={{ gap: 16 }}>
+            {/* Description */}
+            <View style={{ borderRadius: 12, borderWidth: 1, borderColor: border, backgroundColor: cardBg, padding: 14 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <RNText style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg }}>Description</RNText>
+                <TouchableOpacity onPress={() => handleEdit('description')} hitSlop={8}>
+                  <Pencil size={14} color={mutedStrong} />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity onPress={() => handleEdit('description')} activeOpacity={0.7}>
+                {project.description ? (
+                  <RNText style={{ fontSize: 14, fontFamily: 'Roobert', color: isDark ? '#a1a1aa' : '#52525b', lineHeight: 20 }}>
+                    {project.description}
+                  </RNText>
+                ) : (
+                  <RNText style={{ fontSize: 13, fontFamily: 'Roobert', color: isDark ? '#3f3f46' : '#a1a1aa', fontStyle: 'italic' }}>
+                    No description — tap to add
+                  </RNText>
+                )}
+              </TouchableOpacity>
+            </View>
 
-          {/* Meta */}
-          <View style={{ gap: 6 }}>
-            {project.path && project.path !== '/' && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <FolderOpen size={13} color={isDark ? '#3f3f46' : '#a1a1aa'} />
-                <RNText style={{ fontSize: 12, fontFamily: 'Menlo', color: isDark ? '#52525b' : '#a1a1aa' }}>{project.path}</RNText>
-              </View>
-            )}
-            {project.created_at && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Clock size={13} color={isDark ? '#3f3f46' : '#a1a1aa'} />
-                <RNText style={{ fontSize: 12, fontFamily: 'Roobert', color: isDark ? '#52525b' : '#a1a1aa' }}>Created {ago(project.created_at)}</RNText>
-              </View>
-            )}
+            {/* Details */}
+            <View style={{ borderRadius: 12, borderWidth: 1, borderColor: border, backgroundColor: cardBg, padding: 14, gap: 10 }}>
+              <RNText style={{ fontSize: 14, fontFamily: 'Roobert-Medium', color: fg, marginBottom: 2 }}>Details</RNText>
+              {project.path && project.path !== '/' && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <FolderOpen size={14} color={mutedStrong} />
+                  <RNText style={{ fontSize: 13, fontFamily: 'Menlo', color: isDark ? '#71717a' : '#a1a1aa' }}>{project.path}</RNText>
+                </View>
+              )}
+              {project.created_at && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Clock size={14} color={mutedStrong} />
+                  <RNText style={{ fontSize: 13, fontFamily: 'Roobert', color: isDark ? '#71717a' : '#a1a1aa' }}>Created {ago(project.created_at)}</RNText>
+                </View>
+              )}
+              {sessionList.length > 0 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <MessageSquare size={14} color={mutedStrong} />
+                  <RNText style={{ fontSize: 13, fontFamily: 'Roobert', color: isDark ? '#71717a' : '#a1a1aa' }}>
+                    {sessionList.length} session{sessionList.length !== 1 ? 's' : ''}
+                  </RNText>
+                </View>
+              )}
+              {agentList.length > 0 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Cpu size={14} color={mutedStrong} />
+                  <RNText style={{ fontSize: 13, fontFamily: 'Roobert', color: isDark ? '#71717a' : '#a1a1aa' }}>
+                    {agentList.length} agent{agentList.length !== 1 ? 's' : ''}
+                  </RNText>
+                </View>
+              )}
+              {taskStats.total > 0 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <ListTodo size={14} color={mutedStrong} />
+                  <RNText style={{ fontSize: 13, fontFamily: 'Roobert', color: isDark ? '#71717a' : '#a1a1aa' }}>
+                    {taskStats.done}/{taskStats.total} tasks complete
+                  </RNText>
+                </View>
+              )}
+              {project.opencode_id && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <FolderGit2 size={14} color={mutedStrong} />
+                  <RNText style={{ fontSize: 12, fontFamily: 'Menlo', color: isDark ? '#52525b' : '#a1a1aa' }}>{project.opencode_id}</RNText>
+                </View>
+              )}
+            </View>
           </View>
-        </View>
+        )}
       </ScrollView>
 
       {/* Edit sheet — matches FilesPage rename sheet pattern */}
