@@ -51,6 +51,7 @@ import { useTabStore, PAGE_TABS } from '@/stores/tab-store';
 import { RightDrawerContent } from '@/components/session/RightDrawerContent';
 import { UserMenuSheet } from '@/components/session/UserMenuSheet';
 import { ViewChangesSheet } from '@/components/session/ViewChangesSheet';
+import { ExportTranscriptSheet } from '@/components/session/ExportTranscriptSheet';
 import { useGlobalSandboxUpdate } from '@/hooks/useSandboxUpdate';
 import { PlaceholderPage } from '@/components/session/PlaceholderPage';
 import { UpdatesPage } from '@/components/pages/UpdatesPage';
@@ -423,6 +424,7 @@ export default function HomeScreen() {
   const [pendingFilePath, setPendingFilePath] = useState<string | null>(null);
   const userMenuSheetRef = useRef<BottomSheetModal>(null);
   const viewChangesSheetRef = useRef<BottomSheetModal>(null);
+  const exportTranscriptSheetRef = useRef<BottomSheetModal>(null);
   const [themePreference, setThemePreference] = useState<ThemePreference>('light');
   const { updateAvailable: hasUpdate } = useGlobalSandboxUpdate();
 
@@ -1371,7 +1373,11 @@ export default function HomeScreen() {
                     );
                   }
                 }}
-                onExportTranscript={() => log.log('TODO: export transcript')}
+                onExportTranscript={() => {
+                  if (activeSessionId) {
+                    exportTranscriptSheetRef.current?.present();
+                  }
+                }}
                 onViewChanges={() => {
                   if (activeSessionId) {
                     viewChangesSheetRef.current?.present();
@@ -1515,6 +1521,11 @@ export default function HomeScreen() {
 
       <ViewChangesSheet
         ref={viewChangesSheetRef}
+        sessionId={activeSessionId}
+      />
+
+      <ExportTranscriptSheet
+        ref={exportTranscriptSheetRef}
         sessionId={activeSessionId}
       />
 
