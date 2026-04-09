@@ -51,6 +51,7 @@ import { useOpenCodeFiles } from '@/lib/files/hooks';
 import type { SandboxFile } from '@/api/types';
 
 import { useSandboxContext } from '@/contexts/SandboxContext';
+import { useSheetBottomPadding } from '@/hooks/useSheetKeyboard';
 import {
   useKortixProject,
   useKortixProjectSessions,
@@ -131,6 +132,7 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
 
   const [tab, setTab] = useState<Tab>('files');
   const editSheetRef = useRef<BottomSheetModal>(null);
+  const sheetPadding = useSheetBottomPadding();
   const tabScrollRef = useRef<ScrollView>(null);
   const tabLayoutsRef = useRef<Record<number, { x: number; width: number }>>({});
   const [editField, setEditField] = useState<'name' | 'description'>('name');
@@ -689,7 +691,7 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
           style={{
             paddingHorizontal: 24,
             paddingTop: 8,
-            paddingBottom: Math.max(insets.bottom, 20) + 16,
+            paddingBottom: sheetPadding,
           }}
         >
           {/* Header */}

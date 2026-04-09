@@ -46,6 +46,7 @@ import * as Haptics from 'expo-haptics';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal, BottomSheetView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 
 import { useThemeColors } from '@/lib/theme-colors';
+import { useSheetBottomPadding } from '@/hooks/useSheetKeyboard';
 import { useTabStore, type PageTab } from '@/stores/tab-store';
 import {
   useScheduledTasks,
@@ -975,6 +976,7 @@ function CreateTaskSheet({
   renderBackdrop: (props: any) => React.ReactElement;
 }) {
   const insets = useSafeAreaInsets();
+  const sheetPadding = useSheetBottomPadding();
   const createTask = useCreateScheduledTask();
 
   const fg = isDark ? '#f8f8f8' : '#121215';
@@ -1106,7 +1108,7 @@ function CreateTaskSheet({
         contentContainerStyle={{
           paddingHorizontal: 24,
           paddingTop: 8,
-          paddingBottom: Math.max(insets.bottom, 20) + 16,
+          paddingBottom: sheetPadding,
         }}
         keyboardShouldPersistTaps="handled"
       >

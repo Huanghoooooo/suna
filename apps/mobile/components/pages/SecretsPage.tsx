@@ -43,6 +43,7 @@ import {
 } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 
+import { useSheetBottomPadding } from '@/hooks/useSheetKeyboard';
 import { useSandboxContext } from '@/contexts/SandboxContext';
 import { getAuthToken } from '@/api/config';
 import { log } from '@/lib/logger';
@@ -178,6 +179,7 @@ export function SecretsPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: S
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
+  const sheetPadding = useSheetBottomPadding();
   const { sandboxUrl } = useSandboxContext();
 
   const fgColor = isDark ? '#F8F8F8' : '#121215';
@@ -434,7 +436,7 @@ export function SecretsPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: S
         onDismiss={() => { setNewKey(''); setNewValue(''); }}
         {...sheetStyles}
       >
-        <BottomSheetView style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 20) + 16 }}>
+        <BottomSheetView style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: sheetPadding }}>
           {/* Header */}
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
             <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
@@ -507,7 +509,7 @@ export function SecretsPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: S
         onDismiss={() => { setEditKey(''); setEditValue(''); }}
         {...sheetStyles}
       >
-        <BottomSheetView style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 20) + 16 }}>
+        <BottomSheetView style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: sheetPadding }}>
           {/* Header */}
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
             <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
@@ -561,7 +563,7 @@ export function SecretsPage({ page, onBack, onOpenDrawer, onOpenRightDrawer }: S
         onDismiss={() => setDeleteKey('')}
         {...sheetStyles}
       >
-        <BottomSheetView style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 20) + 16 }}>
+        <BottomSheetView style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: sheetPadding }}>
           {/* Header */}
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
             <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.06)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>

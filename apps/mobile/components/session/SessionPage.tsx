@@ -15,9 +15,11 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   Animated,
+  Platform,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '@/components/ui/text';
 import { useColorScheme } from 'nativewind';
@@ -707,7 +709,11 @@ export function SessionPage({ sessionId, onBack, onOpenDrawer, onOpenRightDrawer
   const title = session?.title || 'New Session';
 
   return (
-    <View className="flex-1 bg-background">
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior="padding"
+      className="bg-background"
+    >
       {/* Header — matches dashboard layout exactly */}
       <View
         style={{ paddingTop: insets.top }}
@@ -929,7 +935,7 @@ export function SessionPage({ sessionId, onBack, onOpenDrawer, onOpenRightDrawer
         sandboxId=""
         sandboxUrl={sandboxUrl}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
