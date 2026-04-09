@@ -131,6 +131,8 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
 
   const [tab, setTab] = useState<Tab>('files');
   const editSheetRef = useRef<BottomSheetModal>(null);
+  const tabScrollRef = useRef<ScrollView>(null);
+  const tabLayoutsRef = useRef<Record<number, { x: number; width: number }>>({});
   const [editField, setEditField] = useState<'name' | 'description'>('name');
   const [editValue, setEditValue] = useState('');
 
@@ -312,14 +314,29 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
       </View>
 
       {/* Tab bar */}
-      <View style={{ flexDirection: 'row', paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: border }}>
-        {tabs.map((t) => {
+      <ScrollView
+        ref={tabScrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ borderBottomWidth: 1, borderBottomColor: border, flexGrow: 0 }}
+        contentContainerStyle={{ paddingHorizontal: 16 }}
+      >
+        {tabs.map((t, index) => {
           const active = tab === t.id;
           const Icon = t.icon;
           return (
             <TouchableOpacity
               key={t.id}
-              onPress={() => setTab(t.id)}
+              onLayout={(e) => {
+                tabLayoutsRef.current[index] = { x: e.nativeEvent.layout.x, width: e.nativeEvent.layout.width };
+              }}
+              onPress={() => {
+                setTab(t.id);
+                const layout = tabLayoutsRef.current[index];
+                if (layout && tabScrollRef.current) {
+                  tabScrollRef.current.scrollTo({ x: Math.max(0, layout.x - 16), animated: true });
+                }
+              }}
               activeOpacity={0.7}
               style={{
                 flexDirection: 'row',
@@ -348,7 +365,7 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
 
       {/* Content */}
       <ScrollView
