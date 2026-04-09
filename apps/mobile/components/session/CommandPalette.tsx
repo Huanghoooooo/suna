@@ -199,12 +199,20 @@ export function CommandPalette({
 
   const commandItems: CommandItem[] = useMemo(
     () => [
+      // ── Actions (matching web order) ──
       {
         id: 'newSession',
         label: 'New Session',
         icon: 'add-outline',
         group: 'action',
         onSelect: () => { onNewSession(); onClose(); },
+      },
+      {
+        id: 'page:terminal',
+        label: 'Open Terminal',
+        icon: 'terminal-outline',
+        group: 'action',
+        onSelect: () => { onPageSelect('page:terminal'); onClose(); },
       },
       {
         id: 'restart-config',
@@ -220,6 +228,7 @@ export function CommandPalette({
         group: 'action',
         onSelect: () => handleRuntimeReload('full'),
       },
+      // ── Navigation (matching web order) ──
       {
         id: 'dashboard',
         label: 'Dashboard',
@@ -228,11 +237,39 @@ export function CommandPalette({
         onSelect: () => { onSessionSelect(''); onClose(); },
       },
       {
+        id: 'page:triggers',
+        label: 'Scheduled Tasks',
+        icon: 'calendar-outline',
+        group: 'navigation',
+        onSelect: () => { onPageSelect('page:triggers'); onClose(); },
+      },
+      {
+        id: 'page:channels',
+        label: 'Channels',
+        icon: 'chatbox-outline',
+        group: 'navigation',
+        onSelect: () => { onPageSelect('page:channels'); onClose(); },
+      },
+      {
+        id: 'page:integrations',
+        label: 'Connectors',
+        icon: 'git-branch-outline',
+        group: 'navigation',
+        onSelect: () => { onPageSelect('page:integrations'); onClose(); },
+      },
+      {
         id: 'page:files',
         label: 'Files',
         icon: 'folder-open-outline',
         group: 'navigation',
         onSelect: () => { onPageSelect('page:files'); onClose(); },
+      },
+      {
+        id: 'page:browser',
+        label: 'Browser',
+        icon: 'compass-outline',
+        group: 'navigation',
+        onSelect: () => { onPageSelect('page:browser'); onClose(); },
       },
       {
         id: 'page:memory',
@@ -261,41 +298,6 @@ export function CommandPalette({
         icon: 'key-outline',
         group: 'navigation',
         onSelect: () => { onPageSelect('page:secrets'); onClose(); },
-      },
-      {
-        id: 'page:triggers',
-        label: 'Triggers',
-        icon: 'calendar-outline',
-        group: 'navigation',
-        onSelect: () => { onPageSelect('page:triggers'); onClose(); },
-      },
-      {
-        id: 'page:channels',
-        label: 'Channels',
-        icon: 'chatbox-outline',
-        group: 'navigation',
-        onSelect: () => { onPageSelect('page:channels'); onClose(); },
-      },
-      {
-        id: 'page:integrations',
-        label: 'Integrations',
-        icon: 'git-branch-outline',
-        group: 'navigation',
-        onSelect: () => { onPageSelect('page:integrations'); onClose(); },
-      },
-      {
-        id: 'page:terminal',
-        label: 'Terminal',
-        icon: 'terminal-outline',
-        group: 'navigation',
-        onSelect: () => { onPageSelect('page:terminal'); onClose(); },
-      },
-      {
-        id: 'page:browser',
-        label: 'Browser',
-        icon: 'compass-outline',
-        group: 'navigation',
-        onSelect: () => { onPageSelect('page:browser'); onClose(); },
       },
       {
         id: 'settings',
@@ -543,6 +545,19 @@ export function CommandPalette({
               /* ── Default: Suggestions ── */
               <>
                 <SectionHeader label="SUGGESTIONS" color={sectionColor} />
+
+                {/* Search Files — top entry, before other commands */}
+                {sandboxUrl && (
+                  <CommandRow
+                    icon="document-text-outline"
+                    label="Search Files..."
+                    onPress={enterFileSearchMode}
+                    fgColor={fgColor}
+                    mutedColor={mutedColor}
+                    hoverBg={hoverBg}
+                  />
+                )}
+
                 {commandItems.map((item) => (
                   <CommandRow
                     key={item.id}
@@ -554,18 +569,6 @@ export function CommandPalette({
                     hoverBg={hoverBg}
                   />
                 ))}
-
-                {/* Search Files — entry point to file search mode */}
-                {sandboxUrl && (
-                  <CommandRow
-                    icon="document-text-outline"
-                    label="Search Files..."
-                    onPress={enterFileSearchMode}
-                    fgColor={fgColor}
-                    mutedColor={mutedColor}
-                    hoverBg={hoverBg}
-                  />
-                )}
 
                 {recentSessions.length > 0 && (
                   <>
