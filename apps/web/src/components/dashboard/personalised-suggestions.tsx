@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -86,24 +86,29 @@ const defaultSuggestions: Suggestion[] = [
   { text: 'Optimise performance', category: 'code', icon: 'zap' },
 ];
 
-function pickRandom<T>(arr: T[], n: number): T[] {
+function pickDeterministic<T>(arr: T[], n: number, seed: number): T[] {
   const copy = [...arr];
   const result: T[] = [];
+  let state = seed >>> 0;
+  const next = () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
   for (let i = 0; i < n && copy.length > 0; i++) {
-    const idx = Math.floor(Math.random() * copy.length);
+    const idx = Math.floor(next() * copy.length);
     result.push(copy.splice(idx, 1)[0]);
   }
   return result;
 }
 
-// Stable fallback — generated once at module level so it doesn't change on re-renders
-const fallbackSuggestions = pickRandom(defaultSuggestions, 4);
+const DEFAULT_FALLBACK_SEED = 0x4b3158;
 
 // ============================================================================
 // Component
 // ============================================================================
 
 export function PersonalisedSuggestions({ onSuggestionClick }: PersonalisedSuggestionsProps) {
+  const [mounted, setMounted] = useState(false);
   const { data: suggestions, isLoading } = useQuery<Suggestion[]>({
     queryKey: ['opencode', 'sessions', 'suggestions'],
     queryFn: async () => {
@@ -122,11 +127,21 @@ export function PersonalisedSuggestions({ onSuggestionClick }: PersonalisedSugge
   });
 
   const greeting = useMemo(() => {
+    if (!mounted) return 'Welcome back';
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
+  }, [mounted]);
+
+  useEffect(() => {
+    setMounted(true);
   }, []);
+
+  const fallbackSuggestions = useMemo(
+    () => pickDeterministic(defaultSuggestions, 4, DEFAULT_FALLBACK_SEED),
+    [],
+  );
 
   const items = suggestions && suggestions.length > 0 ? suggestions : fallbackSuggestions;
 

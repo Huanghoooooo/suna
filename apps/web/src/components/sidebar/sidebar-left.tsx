@@ -799,6 +799,7 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
     avatar: string;
     isAdmin?: boolean;
   }>({ name: 'Loading...', email: '', avatar: '', isAdmin: false });
+  const [isMac, setIsMac] = useState(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -815,6 +816,10 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
     };
     fetchUserData();
   }, [isAdmin]);
+
+  useEffect(() => {
+    setIsMac(/Mac/.test(navigator.userAgent));
+  }, []);
 
   const createSession = useCreateOpenCodeSession();
 
@@ -982,7 +987,6 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
             icon={<Search className="h-4 w-4" />}
             label="Search"
             onClick={() => {
-              const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent);
               document.dispatchEvent(
                 new KeyboardEvent('keydown', {
                   key: 'k',
@@ -1041,14 +1045,13 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
               <SquarePen className="h-4 w-4 flex-shrink-0" />
               <span className="flex-1 text-left">{createSession.isPending ? 'Creating...' : 'New session'}</span>
               <kbd className="text-[10px] text-muted-foreground">
-                {typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent) ? '\u2318J' : 'Ctrl J'}
+                {isMac ? '\u2318J' : 'Ctrl J'}
               </kbd>
             </button>
 
             {/* Search */}
             <button
               onClick={() => {
-                const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent);
                 document.dispatchEvent(
                   new KeyboardEvent('keydown', {
                     key: 'k',
@@ -1065,7 +1068,7 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
               <Search className="h-4 w-4 flex-shrink-0" />
               <span className="flex-1 text-left">Search</span>
               <kbd className="text-[10px] text-muted-foreground">
-                {typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent) ? '\u2318K' : 'Ctrl K'}
+                {isMac ? '\u2318K' : 'Ctrl K'}
               </kbd>
             </button>
 

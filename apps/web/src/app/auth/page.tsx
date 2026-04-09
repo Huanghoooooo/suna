@@ -59,10 +59,9 @@ function LiveClock() {
 
 /* ─── Email provider helper ─────────────────────────────────────────────── */
 
-function getEmailProviderInfo(email: string) {
+function getEmailProviderInfo(email: string, isMobileDevice: boolean) {
   const domain = email.split('@')[1]?.toLowerCase();
   if (!domain) return null;
-  const isMobileDevice = typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const providers: { [key: string]: { name: string; webUrl: string; mobileUrl: string } } = {
     'gmail.com': { name: 'Gmail', webUrl: 'https://mail.google.com', mobileUrl: 'googlegmail://' },
     'googlemail.com': { name: 'Gmail', webUrl: 'https://mail.google.com', mobileUrl: 'googlegmail://' },
@@ -167,6 +166,7 @@ function LoginContent() {
   const [showReferralDialog, setShowReferralDialog] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
 
   const { wasLastMethod: wasEmailLastMethod, markAsUsed: markEmailAsUsed } = useAuthMethodTracking('email');
 
@@ -203,6 +203,10 @@ function LoginContent() {
   }, [returnUrl]);
 
   useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    setIsMobileDevice(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+  }, []);
 
   useEffect(() => {
     if (!isLoading && user) {
@@ -367,7 +371,7 @@ function LoginContent() {
 
   /* ── Registration success ── */
   if (registrationSuccess) {
-    const provider = registrationEmail ? getEmailProviderInfo(registrationEmail) : null;
+    const provider = registrationEmail ? getEmailProviderInfo(registrationEmail, isMobileDevice) : null;
     return (
       <div className="fixed inset-0">
         <WallpaperBackground />
@@ -496,7 +500,7 @@ function LoginContent() {
   /* ── Expired link / OTP flow ── */
   if (linkExpired) {
     const emailForProvider = expiredEmailState || resendEmail;
-    const provider = emailForProvider ? getEmailProviderInfo(emailForProvider) : null;
+    const provider = emailForProvider ? getEmailProviderInfo(emailForProvider, isMobileDevice) : null;
     const otpDigits = otpCode.padEnd(6, '').split('');
 
     return (

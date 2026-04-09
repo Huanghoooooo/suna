@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import {
@@ -121,9 +121,18 @@ const allPrompts: PromptExample[] = [
   },
 ];
 
-const getRandomPrompts = (count: number = 3): PromptExample[] => {
-  const shuffled = [...allPrompts].sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, count);
+const getDeterministicPrompts = (count: number = 3, seed: number = 0x2a11ce): PromptExample[] => {
+  const copy = [...allPrompts];
+  let state = seed >>> 0;
+  const next = () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, count);
 };
 
 export const Examples = ({
@@ -135,14 +144,15 @@ export const Examples = ({
 }) => {
   const [displayedPrompts, setDisplayedPrompts] = useState<PromptExample[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const initialPrompts = useMemo(() => getDeterministicPrompts(count), [count]);
 
   useEffect(() => {
-    setDisplayedPrompts(getRandomPrompts(count));
-  }, [count]);
+    setDisplayedPrompts(initialPrompts);
+  }, [initialPrompts]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    setDisplayedPrompts(getRandomPrompts(count));
+    setDisplayedPrompts(getDeterministicPrompts(count, Date.now()));
     setTimeout(() => setIsRefreshing(false), 300);
   };
 

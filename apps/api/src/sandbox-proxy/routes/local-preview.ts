@@ -19,6 +19,25 @@ import { execSync } from 'child_process';
 const KORTIX_MASTER_PORT = 8000;
 const FETCH_TIMEOUT_MS = 30_000;
 
+function isExpectedStartupPreview(path: string, status: number, bodySnippet: string): boolean {
+  if (status !== 502 && status !== 503) return false;
+  const normalizedPath = path.split('?')[0];
+  const startupPaths = [
+    '/question',
+    '/global/health',
+    '/global/event',
+    '/session/status',
+    '/kortix/health',
+    '/log',
+  ];
+  return startupPaths.some((candidate) => normalizedPath.startsWith(candidate)) && (
+    bodySnippet.includes('Port 8000 — Not Reachable') ||
+    bodySnippet.includes('no such host') ||
+    bodySnippet.includes('connection refused') ||
+    bodySnippet.includes('Bad Gateway')
+  );
+}
+
 // ─── Service Key Sync ────────────────────────────────────────────────────────
 // Ensures the running sandbox container has the same INTERNAL_SERVICE_KEY as us.
 // Triggered on first 401 from the sandbox (key mismatch after startup).
@@ -219,16 +238,19 @@ export async function proxyToSandbox(
       try {
         const parsed = JSON.parse(snippet);
         const errMsg = parsed?.data?.message || parsed?.message || parsed?.error || snippet.slice(0, 150);
-        console.error(`[PREVIEW] Sandbox ${response.status} on ${method} ${path} (port ${port}): ${errMsg}`);
+        const log = isExpectedStartupPreview(path, response.status, errMsg) ? console.warn : console.error;
+        log(`[PREVIEW] Sandbox ${response.status} on ${method} ${path} (port ${port}): ${errMsg}`);
       } catch {
         if (snippet.includes('__bunfallback') || snippet.includes('BunError')) {
           console.error(`[PREVIEW] Sandbox ${response.status} on ${method} ${path} (port ${port}): Bun crash/module error (check sandbox logs)`);
         } else {
-          console.error(`[PREVIEW] Sandbox ${response.status} on ${method} ${path} (port ${port}): ${snippet || '(empty)'}`);
+          const log = isExpectedStartupPreview(path, response.status, snippet) ? console.warn : console.error;
+          log(`[PREVIEW] Sandbox ${response.status} on ${method} ${path} (port ${port}): ${snippet || '(empty)'}`);
         }
       }
     } catch {
-      console.error(`[PREVIEW] Sandbox ${response.status} on ${method} ${path} (port ${port})`);
+      const log = isExpectedStartupPreview(path, response.status, '') ? console.warn : console.error;
+      log(`[PREVIEW] Sandbox ${response.status} on ${method} ${path} (port ${port})`);
     }
   }
 
