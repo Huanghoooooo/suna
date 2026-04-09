@@ -169,6 +169,8 @@ const LOG_DIR = join(SERVICE_STATE_DIR, 'logs')
 const INSTALL_TIMEOUT_MS = 120_000
 const BUILD_TIMEOUT_MS = 120_000
 const START_WAIT_MS = 30_000  // Must cover run-opencode-serve.sh waits (~20s worst case) + startup
+const WATCHDOG_INTERVAL_MS = Number(process.env.KORTIX_SERVICE_WATCHDOG_INTERVAL_MS || 5_000)
+const RECOVERY_THROTTLE_MS = Number(process.env.KORTIX_SERVICE_RECOVERY_THROTTLE_MS || 4_000)
 const PORT_MIN = 10_000
 const PORT_MAX = 60_000
 const PERSISTED_SOURCE_ROOT = WORKSPACE_ROOT
@@ -462,6 +464,19 @@ async function waitForPortToClose(port: number, timeoutMs: number = 10_000): Pro
   return false
 }
 
+async function killPidAndWait(pid: number, port?: number | null, timeoutMs: number = 5_000): Promise<void> {
+  try { process.kill(pid, 'SIGTERM') } catch {}
+  await Bun.sleep(500)
+
+  if (port) {
+    const closed = await waitForPortToClose(port, timeoutMs).catch(() => false)
+    if (closed) return
+  }
+
+  try { process.kill(pid, 'SIGKILL') } catch {}
+  if (port) await waitForPortToClose(port, timeoutMs).catch(() => {})
+}
+
 async function findPidByPattern(pattern: string): Promise<number | null> {
   const result = await runShell(`pgrep -f ${JSON.stringify(pattern)}`, WORKSPACE_ROOT, undefined, 5000)
   if (!result.ok || !result.output) return null
@@ -598,6 +613,9 @@ export class ServiceManager {
   private readonly registryFile: string
   private readonly logsDir: string
   private readonly builtins: RegisteredServiceSpec[]
+  private watchdogTimer: Timer | null = null
+  private recoveryInFlight = new Map<string, Promise<ServiceActionResult>>()
+  private lastRecoveryAt = new Map<string, number>()
 
   constructor(options?: { registryFile?: string; logsDir?: string; builtins?: RegisteredServiceSpec[] }) {
     this.registryFile = options?.registryFile || REGISTRY_FILE
@@ -756,6 +774,110 @@ export class ServiceManager {
     }
   }
 
+  private async isServiceHealthy(item: ManagedService): Promise<boolean> {
+    const { spec, state } = item
+
+    if (spec.port) {
+      return probeTcpPort(spec.port, spec.healthCheck.timeoutMs || 1500)
+    }
+
+    if (spec.adapter === 's6') {
+      return state.status === 'running'
+    }
+
+    return !!item.proc || !!state.pid
+  }
+
+  private shouldAutoHeal(item: ManagedService): boolean {
+    const { spec } = item
+    if (spec.desiredState !== 'running') return false
+    if (!spec.autoStart && !spec.builtin) return false
+    return true
+  }
+
+  private startWatchdog(): void {
+    if (this.watchdogTimer) return
+    this.watchdogTimer = setInterval(() => {
+      void this.runWatchdog('interval')
+    }, WATCHDOG_INTERVAL_MS)
+    this.watchdogTimer.unref?.()
+  }
+
+  private stopWatchdog(): void {
+    if (!this.watchdogTimer) return
+    clearInterval(this.watchdogTimer)
+    this.watchdogTimer = null
+  }
+
+  private async runWatchdog(trigger: 'interval' | 'manual'): Promise<void> {
+    await this.ensureInitialized()
+    for (const item of this.services.values()) {
+      if (!this.shouldAutoHeal(item)) continue
+      await this.probeManagedService(item)
+      const healthy = await this.isServiceHealthy(item)
+      if (healthy) continue
+      void this.requestRecovery(item.spec.id, `watchdog:${trigger}`)
+    }
+  }
+
+  async requestRecovery(id: string, reason: string): Promise<ServiceActionResult | null> {
+    await this.ensureInitialized()
+    const item = this.services.get(id)
+    if (!item || !this.shouldAutoHeal(item)) return null
+
+    const inFlight = this.recoveryInFlight.get(id)
+    if (inFlight) return inFlight
+
+    const lastRecoveryAt = this.lastRecoveryAt.get(id) || 0
+    if (Date.now() - lastRecoveryAt < RECOVERY_THROTTLE_MS) {
+      return {
+        ok: false,
+        output: `Recovery throttled for ${id}`,
+        service: this.buildServiceSnapshot(item),
+      }
+    }
+
+    const recovery = (async () => {
+      this.lastRecoveryAt.set(id, Date.now())
+      await this.probeManagedService(item)
+      if (await this.isServiceHealthy(item)) {
+        return {
+          ok: true,
+          output: 'already healthy',
+          service: this.buildServiceSnapshot(item),
+        }
+      }
+
+      this.appendLog(id, `[manager] auto-heal triggered (${reason})`)
+
+      if (item.spec.adapter === 's6') {
+        if (item.state.status === 'running') {
+          return this.restartS6Service(item)
+        } else {
+          return this.startS6Service(item)
+        }
+      }
+
+      if (item.proc) {
+        await this.stopSpawnService(item)
+      }
+
+      const result = await this.startSpawnService(item)
+      if (!result.ok) {
+        this.appendLog(id, `[manager] auto-heal failed (${reason}): ${result.output}`)
+      }
+      return result
+    })()
+
+    this.recoveryInFlight.set(id, recovery)
+    void recovery.finally(() => {
+      if (this.recoveryInFlight.get(id) === recovery) {
+        this.recoveryInFlight.delete(id)
+      }
+    })
+    return recovery
+  }
+
   private async ensureInitialized(): Promise<void> {
     if (this.started) return
     const specs = this.loadRegistryFromDisk()
@@ -815,11 +937,19 @@ export class ServiceManager {
       const persistedPid = this.readPidFile(spec.id)
       const adoptedPid = await findPidByPort(spec.port)
         || (spec.processPatterns.length > 0 ? await findPidByPattern(spec.processPatterns[0]) : null)
-      state.status = 'running'
-      state.port = spec.port
-      state.pid = persistedPid || (adoptedPid ? (getInnerNsPid(adoptedPid) || adoptedPid) : null)
-      state.startedAt = state.startedAt || nowIso()
-      return { ok: true, output: 'already bound', service: { ...state } }
+      if (item.proc) {
+        state.status = 'running'
+        state.port = spec.port
+        state.pid = item.proc.pid
+        state.startedAt = state.startedAt || nowIso()
+        return { ok: true, output: 'already running', service: { ...state } }
+      }
+
+      const existingPid = persistedPid || (adoptedPid ? (getInnerNsPid(adoptedPid) || adoptedPid) : null)
+      if (existingPid) {
+        this.appendLog(spec.id, `[manager] reclaiming port ${spec.port} from pid ${existingPid}`)
+        await killPidAndWait(existingPid, spec.port, 5_000)
+      }
     }
 
     const cwd = resolveSourcePath(spec.sourcePath)
@@ -1000,10 +1130,12 @@ export class ServiceManager {
     await this.ensureInitialized()
     await this.cleanupLegacyOrphans()
     await this.reconcile()
+    this.startWatchdog()
   }
 
   async stop(): Promise<void> {
     await this.ensureInitialized()
+    this.stopWatchdog()
     const ids = [...this.services.keys()].reverse()
     for (const id of ids) {
       const item = this.services.get(id)

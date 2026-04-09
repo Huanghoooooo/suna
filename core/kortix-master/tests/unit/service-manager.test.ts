@@ -2,6 +2,7 @@ import { describe, it, expect, afterAll } from 'bun:test'
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
+import { createServer } from 'net'
 import { ServiceManager, detectFramework, getFrameworkCommands, type RegisteredServiceSpec } from '../../src/services/service-manager'
 
 const tempDirs: string[] = []
@@ -21,6 +22,32 @@ function createManager(storageDir: string) {
   })
   managers.push(manager)
   return manager
+}
+
+async function findFreePort(): Promise<number> {
+  return await new Promise((resolve, reject) => {
+    const server = createServer()
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      if (!address || typeof address === 'string') {
+        server.close()
+        reject(new Error('Failed to allocate test port'))
+        return
+      }
+      const { port } = address
+      server.close(() => resolve(port))
+    })
+    server.once('error', reject)
+  })
+}
+
+async function waitFor(check: () => Promise<boolean>, timeoutMs: number = 10000): Promise<void> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (await check()) return
+    await Bun.sleep(200)
+  }
+  throw new Error(`Condition not met within ${timeoutMs}ms`)
 }
 
 afterAll(async () => {
@@ -164,5 +191,83 @@ describe('ServiceManager — Managed project services', () => {
       stoppedFetchFailed = true
     }
     expect(stoppedFetchFailed).toBe(true)
+  }, 30000)
+
+  it('reclaims the configured port and auto-heals the managed process', async () => {
+    const storageDir = makeTempDir('service-manager-store-')
+    const appDir = makeTempDir('service-manager-app-')
+    const port = await findFreePort()
+
+    writeFileSync(join(appDir, 'server.js'), `
+      Bun.serve({
+        port: Number(process.env.PORT),
+        fetch() {
+          return new Response('autoheal-ok')
+        },
+      })
+      console.log('autoheal:' + process.env.PORT)
+    `)
+
+    const manager = createManager(storageDir)
+    const serviceId = `autoheal-${Date.now()}`
+    await manager.registerService({
+      id: serviceId,
+      sourcePath: appDir,
+      framework: 'node',
+      startCommand: 'bun server.js',
+      port,
+      desiredState: 'running',
+      healthCheck: { type: 'tcp', timeoutMs: 500 },
+    })
+
+    const externalProc = Bun.spawn(['/bin/sh', '-c', 'bun server.js'], {
+      cwd: appDir,
+      env: {
+        ...process.env,
+        PORT: String(port),
+        HOST: '0.0.0.0',
+      },
+      stdout: 'ignore',
+      stderr: 'ignore',
+    })
+
+    await waitFor(async () => {
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}`, { signal: AbortSignal.timeout(500) })
+        return (await res.text()) === 'autoheal-ok'
+      } catch {
+        return false
+      }
+    })
+
+    await manager.start()
+
+    await waitFor(async () => {
+      const service = await manager.getService(serviceId)
+      return !!service?.pid && service.pid !== externalProc.pid && service.status === 'running'
+    }, 15000)
+
+    const owned = await manager.getService(serviceId)
+    expect(owned?.status).toBe('running')
+    expect(owned?.pid).toBeDefined()
+    expect(owned?.pid).not.toBe(externalProc.pid)
+
+    const stopped = await manager.stopService(serviceId, { persistDesiredState: false })
+    expect(stopped.ok).toBe(true)
+
+    const recoveryTriggered = await manager.requestRecovery(serviceId, 'unit-test')
+    expect(recoveryTriggered?.ok).toBe(true)
+
+    await waitFor(async () => {
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}`, { signal: AbortSignal.timeout(500) })
+        return (await res.text()) === 'autoheal-ok'
+      } catch {
+        return false
+      }
+    }, 15000)
+
+    const logs = await manager.getLogs(serviceId)
+    expect(logs.logs.some((line) => line.includes('auto-heal triggered') || line.includes('starting bun server.js'))).toBe(true)
   }, 30000)
 })

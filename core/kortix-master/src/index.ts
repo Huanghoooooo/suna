@@ -211,22 +211,29 @@ let openCodeLastCheck = 0
 const OPENCODE_CHECK_INTERVAL = 5_000 // recheck every 5s when not ready
 
 async function checkOpenCodeReady(): Promise<boolean> {
-  if (openCodeReady) return true
   const now = Date.now()
-  if (now - openCodeLastCheck < OPENCODE_CHECK_INTERVAL) return false
+  if (now - openCodeLastCheck < OPENCODE_CHECK_INTERVAL) return openCodeReady
   openCodeLastCheck = now
   try {
     const res = await fetch(`http://${config.OPENCODE_HOST}:${config.OPENCODE_PORT}/session`, {
       signal: AbortSignal.timeout(3_000),
     })
     if (res.ok) {
+      if (!openCodeReady) {
+        console.log('[Kortix Master] OpenCode is ready')
+      }
       openCodeReady = true
-      console.log('[Kortix Master] OpenCode is ready')
       // Consume body to free connection
       await res.arrayBuffer()
       return true
     }
+    await res.arrayBuffer().catch(() => {})
   } catch {}
+  if (openCodeReady) {
+    console.warn('[Kortix Master] OpenCode is no longer reachable')
+  }
+  openCodeReady = false
+  void serviceManager.requestRecovery('opencode-serve', 'health-check')
   return false
 }
 
