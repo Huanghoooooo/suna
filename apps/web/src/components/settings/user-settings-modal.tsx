@@ -320,6 +320,7 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
     const requestDeletion = useRequestAccountDeletion();
     const cancelDeletion = useCancelAccountDeletion();
     const deleteImmediately = useDeleteAccountImmediately();
+    const accountDeletionSupported = deletionStatus?.supported ?? !isCheckingStatus;
 
     useEffect(() => {
         const fetchUserData = async () => {
@@ -449,19 +450,27 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
     };
 
     const handleRequestDeletion = async () => {
-        if (deletionType === 'immediate') {
-            await deleteImmediately.mutateAsync();
-        } else {
-            await requestDeletion.mutateAsync('User requested deletion');
+        try {
+            if (deletionType === 'immediate') {
+                await deleteImmediately.mutateAsync();
+            } else {
+                await requestDeletion.mutateAsync('User requested deletion');
+            }
+            setShowDeleteDialog(false);
+            setDeleteConfirmText('');
+            setDeletionType('grace-period'); // Reset to default
+        } catch {
+            // Mutation onError already shows the user-facing message.
         }
-        setShowDeleteDialog(false);
-        setDeleteConfirmText('');
-        setDeletionType('grace-period'); // Reset to default
     };
 
     const handleCancelDeletion = async () => {
-        await cancelDeletion.mutateAsync();
-        setShowCancelDialog(false);
+        try {
+            await cancelDeletion.mutateAsync();
+            setShowCancelDialog(false);
+        } catch {
+            // Mutation onError already shows the user-facing message.
+        }
     };
 
     const formatDate = (dateString: string | null) => {
@@ -598,7 +607,7 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                 </Button>
             </div>
 
-            {isBillingEnabled() && (
+            {isBillingEnabled() && accountDeletionSupported && (
                 <>
                     <div className="pt-8 space-y-4">
                         <div>

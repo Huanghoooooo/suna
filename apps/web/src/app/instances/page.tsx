@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useQuery } from '@tanstack/react-query';
 import { KortixLogo } from '@/components/sidebar/kortix-logo';
@@ -185,6 +185,7 @@ function FallbackInstanceCard({ server, isActive, onClick }: { server: ServerEnt
 
 export default function InstancesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, isLoading: authLoading } = useAuth();
   const { servers, activeServerId } = useServerStore();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -225,6 +226,18 @@ export default function InstancesPage() {
     window.history.replaceState({}, '', clean.pathname);
     refetch();
   }, [user, refetch]);
+
+  useEffect(() => {
+    if (!user) return;
+    const settingsParam = searchParams.get('settings');
+    if (!settingsParam) return;
+
+    setSettingsOpen(true);
+
+    const clean = new URL(window.location.href);
+    clean.searchParams.delete('settings');
+    window.history.replaceState({}, '', `${clean.pathname}${clean.search}`);
+  }, [user, searchParams]);
 
   // Local mode: auto-create the single sandbox if none exists, then redirect.
   // Only 1 instance allowed in local mode.

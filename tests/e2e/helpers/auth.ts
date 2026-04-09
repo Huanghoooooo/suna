@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
 export const ownerEmail = process.env.E2E_OWNER_EMAIL || 'test@kortix.ai';
 export const ownerPassword = process.env.E2E_OWNER_PASSWORD || 'testpass123';
@@ -76,24 +76,30 @@ export async function getAccessTokenFromPage(page: Page): Promise<string> {
   return token;
 }
 
-export async function loginToDashboard(page: Page): Promise<void> {
-  await page.goto('/auth');
-  await page.waitForTimeout(2_000);
+export async function loginToDashboard(
+  page: Page,
+  credentials: { email?: string; password?: string } = {},
+): Promise<void> {
+  const email = credentials.email || ownerEmail;
+  const password = credentials.password || ownerPassword;
 
-  const lockScreen = page.getByText('Click or press Enter to sign in');
-  if (await lockScreen.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await page.locator('div.fixed.inset-0.cursor-pointer').first().click({ force: true });
-    await page.waitForTimeout(1_500);
-  }
+  await page.goto('/auth/password?redirect=%2Finstances', {
+    waitUntil: 'commit',
+    timeout: 120_000,
+  });
+  await page.waitForTimeout(1_500);
 
-  await page.locator('input[name="email"]').fill(ownerEmail);
-  await page.locator('input[name="password"]').fill(ownerPassword);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  const signInHeading = page.getByRole('heading', { name: /^Sign in$/i });
+  await expect(signInHeading).toBeVisible({ timeout: 15_000 });
+
+  await page.locator('input[name="email"]').fill(email);
+  await page.locator('input[name="password"]').fill(password);
+  await page.locator('form').getByRole('button', { name: 'Sign in' }).click();
 
   const providerStep = page.getByRole('heading', { name: /Connect a provider/i });
   if (await providerStep.isVisible({ timeout: 10_000 }).catch(() => false)) {
     await page.goto('/onboarding?skip_onboarding=1');
   }
 
-  await page.goto('/workspace');
+  await page.goto('/instances', { waitUntil: 'commit', timeout: 120_000 });
 }
