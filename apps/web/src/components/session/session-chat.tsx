@@ -111,7 +111,9 @@ import { cn } from '@/lib/utils';
 import {
   stripKortixSystemTags,
   extractSessionReport,
+  extractKortixSystemMessages,
   type SessionReport,
+  type KortixSystemMessage,
 } from '@/lib/utils/kortix-system-tags';
 import { SubSessionModal } from '@/components/session/sub-session-modal';
 import { ChatMinimap } from '@/components/session/chat-minimap';
@@ -325,6 +327,40 @@ function formatCommandError(errorLike: unknown): string {
   }
 
   return 'Command failed';
+}
+
+// ============================================================================
+// System message indicator — subtle inline pill for kortix_system messages
+// ============================================================================
+
+function SystemMessageIndicator({
+  messages,
+}: {
+  messages: KortixSystemMessage[];
+}) {
+  if (messages.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 py-1">
+      {messages.map((msg, i) => (
+        <div
+          key={`${msg.type}-${i}`}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full',
+            'text-[10px] text-muted-foreground/40',
+            'border border-border/20',
+            'select-none',
+          )}
+        >
+          <span className="size-1 rounded-full bg-muted-foreground/20 flex-shrink-0" />
+          <span className="font-medium">{msg.label}</span>
+          {msg.detail && (
+            <span className="text-muted-foreground/30">{msg.detail}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // ============================================================================
@@ -2704,6 +2740,17 @@ function SessionTurn({
   }, [turn.userMessage.parts]);
   const [sessionReportModalOpen, setSessionReportModalOpen] = useState(false);
 
+  // Extract kortix_system messages for inline rendering (autowork continuations, etc.)
+  const systemMessages = useMemo<KortixSystemMessage[]>(() => {
+    const msgs: KortixSystemMessage[] = [];
+    for (const p of turn.userMessage.parts) {
+      if (isTextPart(p) && (p as TextPart).text) {
+        msgs.push(...extractKortixSystemMessages((p as TextPart).text!));
+      }
+    }
+    return msgs;
+  }, [turn.userMessage.parts]);
+
   const hasVisibleUserContent = useMemo(() => {
     // Session reports render as their own card — don't show as user bubble
     if (sessionReport) return false;
@@ -2967,6 +3014,11 @@ function SessionTurn({
             title={`Worker${sessionReport.project ? ` · ${sessionReport.project}` : ''}`}
           />
         </>
+      )}
+
+      {/* ── System message indicator — shown for kortix_system-only messages ── */}
+      {!hasVisibleUserContent && !sessionReport && systemMessages.length > 0 && (
+        <SystemMessageIndicator messages={systemMessages} />
       )}
 
       {/* ── User message ── */}
