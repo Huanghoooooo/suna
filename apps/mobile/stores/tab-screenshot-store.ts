@@ -102,6 +102,13 @@ export const useTabScreenshotStore = create<TabScreenshotState>()(
       storage: createJSONStorage(() => AsyncStorage),
       // Only persist the path mapping, not the actual image data
       partialize: (state) => ({ screenshots: state.screenshots }),
+      // Guard against corrupted AsyncStorage data
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        if (!state.screenshots || typeof state.screenshots !== 'object' || Array.isArray(state.screenshots)) {
+          state.screenshots = {};
+        }
+      },
     },
   ),
 );
