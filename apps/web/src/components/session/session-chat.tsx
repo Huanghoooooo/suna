@@ -683,7 +683,7 @@ const PTY_FAILURE_HINT_REGEX =
 
 // ── agent_completed notifications ──────────────────────────────────────
 const AGENT_COMPLETED_BLOCK_REGEX =
-  /<agent_(?:completed|failed|stopped)>[\s\S]*?<\/agent_(?:completed|failed|stopped)>/gi;
+  /<agent_(?:task_)?(?:completed|failed|stopped)>[\s\S]*?<\/agent_(?:task_)?(?:completed|failed|stopped)>/gi;
 
 interface AgentCompletedNotification {
   agentId?: string;
@@ -702,7 +702,7 @@ function parseAgentCompletedNotifications(text: string): {
   const cleanText = text
     .replace(AGENT_COMPLETED_BLOCK_REGEX, (full) => {
       const body = full
-        .replace(/<\/?agent_(?:completed|failed|stopped)>/gi, '')
+        .replace(/<\/?agent_(?:task_)?(?:completed|failed|stopped)>/gi, '')
         .trim();
       const getField = (label: string) => {
         const m = body.match(new RegExp(`^${label}:\\s*(.+)$`, 'mi'));
@@ -2127,89 +2127,139 @@ function ThrottledMarkdown({
   return <UnifiedMarkdown content={displayContent} isStreaming={isStreaming} />;
 }
 
-function ReasoningPartCard({
-  part,
+/**
+ * Groups consecutive reasoning parts into a single, minimal collapsible card.
+ * Shows aggregate duration and a one-line preview; expands to show all
+ * reasoning blocks concatenated with subtle separators.
+ */
+function GroupedReasoningCard({
+  parts,
   isStreaming,
 }: {
-  part: ReasoningPart;
+  parts: ReasoningPart[];
   isStreaming: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [streamSeconds, setStreamSeconds] = useState(0);
-  const start = (part as any).time?.start;
-  const end = (part as any).time?.end;
+
+  // Determine if the last part is still streaming
+  const lastPart = parts[parts.length - 1];
+  const lastEnd = (lastPart as any).time?.end;
   const reasoningStreaming =
-    isStreaming && !(typeof end === 'number' && end > 0);
+    isStreaming && !(typeof lastEnd === 'number' && lastEnd > 0);
+
+  // Find the earliest start across all parts for the live timer
+  const earliestStart = useMemo(() => {
+    let earliest: number | undefined;
+    for (const p of parts) {
+      const s = (p as any).time?.start;
+      if (typeof s === 'number' && (earliest === undefined || s < earliest))
+        earliest = s;
+    }
+    return earliest;
+  }, [parts]);
 
   useEffect(() => {
-    if (!reasoningStreaming) {
+    if (!reasoningStreaming || typeof earliestStart !== 'number') {
       setStreamSeconds(0);
       return;
     }
-    if (typeof start !== 'number') {
-      setStreamSeconds(0);
-      return;
-    }
-    const update = () => {
-      setStreamSeconds(Math.max(0, Math.round((Date.now() - start) / 1000)));
-    };
+    const update = () =>
+      setStreamSeconds(
+        Math.max(0, Math.round((Date.now() - earliestStart) / 1000)),
+      );
     update();
     const timer = setInterval(update, 1000);
     return () => clearInterval(timer);
-  }, [reasoningStreaming, start]);
+  }, [reasoningStreaming, earliestStart]);
 
-  const text = part.text?.trim();
-  if (!text) return null;
+  // Aggregate total duration from all completed parts
+  const totalDuration = useMemo(() => {
+    let total = 0;
+    let any = false;
+    for (const p of parts) {
+      const s = (p as any).time?.start;
+      const e = (p as any).time?.end;
+      if (typeof s === 'number' && typeof e === 'number' && e > s) {
+        total += e - s;
+        any = true;
+      }
+    }
+    return any ? total : undefined;
+  }, [parts]);
 
-  const hasDuration =
-    typeof start === 'number' && typeof end === 'number' && end > start;
-  const duration = hasDuration ? formatDuration(end - start) : null;
+  // Build a one-line preview from the first reasoning block
+  const preview = useMemo(() => {
+    for (const p of parts) {
+      const t = p.text?.trim();
+      if (t) {
+        // Extract the first bold heading or first sentence
+        const boldMatch = t.match(/\*\*(.+?)\*\*/);
+        if (boldMatch) return boldMatch[1];
+        const firstLine = t.split('\n')[0].replace(/^#+\s*/, '');
+        return firstLine.length > 80
+          ? firstLine.slice(0, 77) + '...'
+          : firstLine;
+      }
+    }
+    return '';
+  }, [parts]);
+
+  const nonEmptyParts = useMemo(
+    () => parts.filter((p) => p.text?.trim()),
+    [parts],
+  );
+
+  if (nonEmptyParts.length === 0) return null;
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger asChild>
         <div
           className={cn(
-            'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg',
-            'bg-muted/20 border border-border/40',
-            'text-xs transition-colors select-none',
-            'cursor-pointer hover:bg-muted/40',
-            'max-w-full group',
+            'flex items-center gap-2 px-2.5 py-1 rounded-md',
+            'text-xs select-none cursor-pointer',
+            'text-muted-foreground/50 hover:text-muted-foreground/70',
+            'transition-colors',
+            'max-w-full group/reasoning',
           )}
         >
-          {/* Icon */}
-          <span className="flex-shrink-0">
-            <Brain
-              className={cn(
-                'size-3.5 text-muted-foreground/65',
-                reasoningStreaming && 'animate-pulse-heartbeat',
-              )}
-            />
+          <Brain
+            className={cn(
+              'size-3 flex-shrink-0',
+              reasoningStreaming && 'animate-pulse-heartbeat text-muted-foreground/60',
+            )}
+          />
+
+          {/* Preview text or "Reasoning" label */}
+          <span className="min-w-0 flex-1 truncate">
+            {preview || 'Reasoning'}
           </span>
 
-          {/* Title + duration */}
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <span className="font-medium text-xs text-foreground whitespace-nowrap">
-              Reasoning
+          {/* Duration badge */}
+          {reasoningStreaming ? (
+            <span className="text-[10px] font-mono tabular-nums flex-shrink-0">
+              {streamSeconds}s
             </span>
-            {reasoningStreaming ? (
-              <span className="text-[10px] px-1 py-0.5 rounded bg-muted/60 text-muted-foreground font-mono whitespace-nowrap">
-                {streamSeconds}s
-              </span>
-            ) : duration ? (
-              <span className="text-[10px] px-1 py-0.5 rounded bg-muted/60 text-muted-foreground font-mono whitespace-nowrap">
-                {duration}
-              </span>
-            ) : null}
-          </div>
+          ) : totalDuration ? (
+            <span className="text-[10px] font-mono tabular-nums flex-shrink-0">
+              {formatDuration(totalDuration)}
+            </span>
+          ) : null}
 
-          {/* Right side: spinner when streaming, chevron */}
+          {/* Count badge when multiple */}
+          {nonEmptyParts.length > 1 && (
+            <span className="text-[10px] font-mono tabular-nums flex-shrink-0 opacity-60">
+              {nonEmptyParts.length}x
+            </span>
+          )}
+
           {reasoningStreaming && (
-            <Loader2 className="size-3 animate-spin text-muted-foreground/40 flex-shrink-0" />
+            <Loader2 className="size-2.5 animate-spin flex-shrink-0 opacity-40" />
           )}
           <ChevronRight
             className={cn(
-              'size-3 transition-transform flex-shrink-0 text-muted-foreground/50',
+              'size-2.5 transition-transform flex-shrink-0 opacity-40',
               open && 'rotate-90',
             )}
           />
@@ -2217,9 +2267,13 @@ function ReasoningPartCard({
       </CollapsibleTrigger>
 
       <CollapsibleContent>
-        <div className="mt-1.5 mb-2 rounded-lg bg-muted/20 border border-border/30 text-xs overflow-hidden">
-          <div className="p-3 text-muted-foreground/65 [&_.kortix-markdown]:italic [&_.kortix-markdown_div]:!text-[13px] [&_.kortix-markdown_div]:!leading-[1.45] [&_.kortix-markdown_div]:!text-muted-foreground/65 [&_.kortix-markdown_li]:!text-[13px] [&_.kortix-markdown_li]:!leading-[1.45] [&_.kortix-markdown_li]:!text-muted-foreground/65 [&_.kortix-markdown_strong]:!text-muted-foreground/70 [&_.kortix-markdown_em]:!text-muted-foreground/70">
-            <ThrottledMarkdown content={part.text} isStreaming={false} />
+        <div className="ml-[18px] mt-0.5 mb-1.5 pl-3 border-l border-border/30">
+          <div className="space-y-2 text-muted-foreground/50 [&_.kortix-markdown]:italic [&_.kortix-markdown_div]:!text-[12px] [&_.kortix-markdown_div]:!leading-[1.5] [&_.kortix-markdown_div]:!text-muted-foreground/50 [&_.kortix-markdown_li]:!text-[12px] [&_.kortix-markdown_li]:!leading-[1.5] [&_.kortix-markdown_li]:!text-muted-foreground/50 [&_.kortix-markdown_strong]:!text-muted-foreground/60 [&_.kortix-markdown_em]:!text-muted-foreground/60">
+            {nonEmptyParts.map((p, i) => (
+              <div key={p.id ?? i}>
+                <ThrottledMarkdown content={p.text!} isStreaming={false} />
+              </div>
+            ))}
           </div>
         </div>
       </CollapsibleContent>
@@ -2666,6 +2720,8 @@ function SessionTurn({
         (!!stripSystemPtyText((p as TextPart).text || '') ||
           (p as TextPart).text?.includes('<pty_exited>') ||
           (p as TextPart).text?.includes('<agent_completed>') ||
+          (p as TextPart).text?.includes('<agent_task_completed>') ||
+          (p as TextPart).text?.includes('<agent_task_failed>') ||
           (p as TextPart).text?.includes('<agent_failed>') ||
           (p as TextPart).text?.includes('<agent_stopped>')),
     );
@@ -3003,115 +3059,146 @@ function SessionTurn({
       {(working || hasSteps || hasReasoning) &&
         turn.assistantMessages.length > 0 && (
           <div className="space-y-2">
-            {allParts.map(({ part, message }) => {
-              // When inline content rendering is active (text + answered questions in order),
-              // hide ALL text parts from steps since they render in the inline section
-              if (
-                shouldUseInlineContent &&
-                isTextPart(part) &&
-                part.text?.trim()
-              )
-                return null;
+            {(() => {
+              // Group consecutive reasoning parts together for a cleaner UI.
+              // Build a list of render items: either a single part or a reasoning group.
+              type RenderItem =
+                | { type: 'part'; part: Part; message: MessageWithParts }
+                | { type: 'reasoning-group'; parts: ReasoningPart[]; key: string };
 
-              // Text parts (intermediate + streaming response while working)
-              if (isTextPart(part)) {
-                if (!part.text?.trim()) return null;
-                // Text response rendering for no-step turns is handled below in
-                // the dedicated response section to avoid duplicate output.
-                if (!hasSteps) return null;
-                return (
-                  <div key={part.id} className="text-sm">
-                    <ThrottledMarkdown
-                      content={part.text}
-                      isStreaming={working}
+              const items: RenderItem[] = [];
+              let pendingReasoning: ReasoningPart[] = [];
+
+              const flushReasoning = () => {
+                if (pendingReasoning.length > 0) {
+                  items.push({
+                    type: 'reasoning-group',
+                    parts: pendingReasoning,
+                    key: `reasoning-group-${(pendingReasoning[0] as any).id ?? items.length}`,
+                  });
+                  pendingReasoning = [];
+                }
+              };
+
+              for (const { part, message } of allParts) {
+                if (isReasoningPart(part) && part.text?.trim()) {
+                  pendingReasoning.push(part);
+                } else {
+                  flushReasoning();
+                  items.push({ type: 'part', part, message: message });
+                }
+              }
+              flushReasoning();
+
+              const reasoningActive =
+                working && permissions.length === 0 && questions.length === 0;
+
+              return items.map((item) => {
+                if (item.type === 'reasoning-group') {
+                  return (
+                    <GroupedReasoningCard
+                      key={item.key}
+                      parts={item.parts}
+                      isStreaming={reasoningActive}
                     />
-                  </div>
-                );
-              }
+                  );
+                }
 
-              // Reasoning
-              if (isReasoningPart(part)) {
-                if (!part.text?.trim()) return null;
-                // Stop the reasoning timer when questions/permissions are pending —
-                // reasoning is done even though the session is still busy.
-                const reasoningActive =
-                  working && permissions.length === 0 && questions.length === 0;
-                return (
-                  <ReasoningPartCard
-                    key={part.id}
-                    part={part}
-                    isStreaming={reasoningActive}
-                  />
-                );
-              }
+                const { part, message } = item;
 
-              // Compaction indicator
-              if (isCompactionPart(part)) {
-                return (
-                  <div key={part.id} className="flex items-center gap-2 py-2.5">
-                    <div className="flex-1 h-px bg-border" />
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/80 border border-border/60">
-                      <Layers className="size-3 text-muted-foreground" />
-                      <span className="text-[10px] font-semibold text-muted-foreground tracking-wide">
-                        Compaction
-                      </span>
-                    </div>
-                    <div className="flex-1 h-px bg-border" />
-                  </div>
-                );
-              }
+                // When inline content rendering is active (text + answered questions in order),
+                // hide ALL text parts from steps since they render in the inline section
+                if (
+                  shouldUseInlineContent &&
+                  isTextPart(part) &&
+                  part.text?.trim()
+                )
+                  return null;
 
-              // Tool parts
-              if (isToolPart(part)) {
-                if (!shouldShowToolPart(part)) return null;
-                if (part.tool === 'todowrite') return null;
-                if (part.tool === 'question') {
-                  // When inline content rendering is active, answered questions
-                  // render in the inline content section — skip here to avoid duplicates.
-                  if (shouldUseInlineContent) return null;
-                  // Render answered questions inline at their natural position
-                  // so they appear exactly where the user answered them.
-                  const answeredPart = answeredQuestionPartsById.get(part.id);
-                  if (answeredPart) {
-                    return (
-                      <AnsweredQuestionCard
-                        key={part.id}
-                        part={answeredPart}
-                        defaultExpanded
+                // Text parts (intermediate + streaming response while working)
+                if (isTextPart(part)) {
+                  if (!part.text?.trim()) return null;
+                  // Text response rendering for no-step turns is handled below in
+                  // the dedicated response section to avoid duplicate output.
+                  if (!hasSteps) return null;
+                  return (
+                    <div key={part.id} className="text-sm">
+                      <ThrottledMarkdown
+                        content={part.text}
+                        isStreaming={working}
                       />
-                    );
+                    </div>
+                  );
+                }
+
+                // Compaction indicator
+                if (isCompactionPart(part)) {
+                  return (
+                    <div key={part.id} className="flex items-center gap-2 py-2.5">
+                      <div className="flex-1 h-px bg-border" />
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/80 border border-border/60">
+                        <Layers className="size-3 text-muted-foreground" />
+                        <span className="text-[10px] font-semibold text-muted-foreground tracking-wide">
+                          Compaction
+                        </span>
+                      </div>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                  );
+                }
+
+                // Tool parts
+                if (isToolPart(part)) {
+                  if (!shouldShowToolPart(part)) return null;
+                  if (part.tool === 'todowrite') return null;
+                  if (part.tool === 'question') {
+                    // When inline content rendering is active, answered questions
+                    // render in the inline content section — skip here to avoid duplicates.
+                    if (shouldUseInlineContent) return null;
+                    // Render answered questions inline at their natural position
+                    // so they appear exactly where the user answered them.
+                    const answeredPart = answeredQuestionPartsById.get(part.id);
+                    if (answeredPart) {
+                      return (
+                        <AnsweredQuestionCard
+                          key={part.id}
+                          part={answeredPart}
+                          defaultExpanded
+                        />
+                      );
+                    }
+                    // Unanswered/dismissed questions: don't render in steps;
+                    // dismissed ones show via the turnError banner.
+                    return null;
                   }
-                  // Unanswered/dismissed questions: don't render in steps;
-                  // dismissed ones show via the turnError banner.
+
+                  const perm = getPermissionForTool(permissions, part.callID);
+
+                  // Hide tool parts that have active permission
+                  if (isToolPartHidden(part, message.info.id, hidden))
+                    return null;
+
+                  return (
+                    <div key={part.id}>
+                      <ToolPartRenderer
+                        part={part}
+                        sessionId={sessionId}
+                        disableNavigation={disableToolNavigation}
+                        permission={perm}
+                        onPermissionReply={onPermissionReply}
+                      />
+                    </div>
+                  );
+                }
+
+                // Snapshot & patch parts — internal bookkeeping, not rendered in chat
+                if (isSnapshotPart(part) || isPatchPart(part)) {
                   return null;
                 }
 
-                const perm = getPermissionForTool(permissions, part.callID);
-
-                // Hide tool parts that have active permission
-                if (isToolPartHidden(part, message.info.id, hidden))
-                  return null;
-
-                return (
-                  <div key={part.id}>
-                    <ToolPartRenderer
-                      part={part}
-                      sessionId={sessionId}
-                      disableNavigation={disableToolNavigation}
-                      permission={perm}
-                      onPermissionReply={onPermissionReply}
-                    />
-                  </div>
-                );
-              }
-
-              // Snapshot & patch parts — internal bookkeeping, not rendered in chat
-              if (isSnapshotPart(part) || isPatchPart(part)) {
                 return null;
-              }
-
-              return null;
-            })}
+              });
+            })()}
           </div>
         )}
 
