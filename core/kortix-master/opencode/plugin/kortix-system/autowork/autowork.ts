@@ -1,7 +1,7 @@
 /**
  * Autowork plugin — single-owner persistent execution loop.
  *
- * `/autowork` is the command. `/ralph` kept as alias.
+ * `/autowork` is the command.
  */
 
 import type { Plugin } from "@opencode-ai/plugin"
@@ -54,7 +54,7 @@ function cleanText(text: string): string {
 }
 
 function isInternalMessage(text: string): boolean {
-	return text.includes(INTERNAL_MARKER) || text.includes("[RALPH -") || text.includes("<kortix_system")
+	return text.includes(INTERNAL_MARKER) || text.includes("[AUTOWORK -") || text.includes("<kortix_system")
 }
 
 function extractRenderedCommandArgs(text: string): string {
@@ -174,7 +174,7 @@ const RalphPlugin: Plugin = async ({ client }) => {
 			const sessionId = input?.sessionID as string | undefined
 			const args = (input?.arguments as string | undefined) || ""
 			if (!command || !sessionId) return
-			if (["ralph", "ralph-loop", "autowork", "cancel-ralph", "autowork-cancel"].includes(command)) {
+			if (["autowork", "autowork-cancel"].includes(command)) {
 				pendingCommand.set(sessionId, { command, args })
 				log("info", `[autowork][${sid(sessionId)}] command.execute.before: ${command} \"${args.slice(0, 80)}\"`)
 			}
@@ -192,9 +192,8 @@ const RalphPlugin: Plugin = async ({ client }) => {
 				const clean = cleanText(messageText)
 				const pending = pendingCommand.get(sessionId)
 
-				const cancelMatch = pending?.command === "cancel-ralph"
-					|| pending?.command === "autowork-cancel"
-					|| /\/(?:cancel-ralph|autowork-cancel)\b/.test(clean)
+				const cancelMatch = pending?.command === "autowork-cancel"
+					|| /\/autowork-cancel\b/.test(clean)
 
 				if (cancelMatch) {
 					pendingCommand.delete(sessionId)
@@ -207,16 +206,14 @@ const RalphPlugin: Plugin = async ({ client }) => {
 					return
 				}
 
-				const ralphMatch = pending?.command === "ralph"
-					|| pending?.command === "ralph-loop"
-					|| pending?.command === "autowork"
-					|| /\/(?:ralph|ralph-loop|autowork)\b/.test(clean)
+				const ralphMatch = pending?.command === "autowork"
+					|| /\/autowork\b/.test(clean)
 
 				if (ralphMatch) {
 					const pendingArgs = pending?.args?.trim()
 					const rawArgs = pendingArgs
 						|| (() => {
-							const slashForm = clean.replace(/^.*?\/(?:ralph|ralph-loop|autowork)\s*/i, "").trim()
+							const slashForm = clean.replace(/^.*?\/autowork\s*/i, "").trim()
 							if (slashForm && slashForm !== clean) return slashForm
 							return extractRenderedCommandArgs(clean)
 						})()

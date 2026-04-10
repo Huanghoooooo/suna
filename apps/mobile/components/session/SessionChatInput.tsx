@@ -66,7 +66,7 @@ export type { TrackedMention } from './useMentions';
 
 // ─── AutoContinue configuration (shared with frontend) ────────────────────────
 
-export type AutoContinueMode = 'autowork' | 'autowork1' | 'autowork2' | 'autowork3' | 'orchestrate';
+export type AutoContinueMode = 'autowork' | 'autowork1' | 'autowork2' | 'autowork3';
 
 interface AutoContinueAlgorithm {
   id: AutoContinueMode;
@@ -159,24 +159,6 @@ const AUTOCONTINUE_ALGORITHMS: AutoContinueAlgorithm[] = [
     ],
     howItWorks:
       'Uses five entropy-phased stages: EXPAND (diverge problem framings), BRANCH (crystallize distinct candidates), ATTACK (candidates cross-attack), RANK (score + pick one path), COMPRESS (execute winner with TDD). Phase markers ensure it does not converge early.',
-  },
-  {
-    id: 'orchestrate',
-    label: 'Orchestrate',
-    role: 'Spawner',
-    description: 'Multi-session — parallel workers',
-    commandName: 'orchestrate',
-    bestFor: 'Large tasks that can be parallelized across independent sub-tasks',
-    strengths: [
-      'Parallel execution across multiple sessions',
-      'Great for large codebases with independent modules',
-    ],
-    weaknesses: [
-      'Coordination overhead between sessions',
-      'Not suitable for tightly coupled work',
-    ],
-    howItWorks:
-      'Spawns worker sessions that execute sub-tasks in parallel. The orchestrator decomposes the work, assigns tasks, aggregates results, and ensures alignment across workers.',
   },
 ];
 

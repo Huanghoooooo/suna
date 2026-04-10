@@ -5,13 +5,14 @@ import { useServerStore } from '@/stores/server-store';
 import { authenticatedFetch } from '@/lib/auth-token';
 
 // ---------------------------------------------------------------------------
-// Types — mirror suna/core/kortix-master/opencode/plugin/kortix-system/tasks.ts
+// Types — mirror the live /kortix/tasks API contract
 // ---------------------------------------------------------------------------
 
 export type KortixTaskStatus =
   | 'todo'
   | 'in_progress'
   | 'input_needed'
+  | 'awaiting_review'
   | 'completed'
   | 'cancelled';
 
@@ -34,6 +35,50 @@ export interface KortixTask {
   updated_at: string;
 }
 
+export interface KortixTaskEvent {
+  id: string;
+  task_id: string;
+  project_id: string;
+  session_id: string | null;
+  type:
+    | 'progress'
+    | 'blocker'
+    | 'evidence'
+    | 'verification_started'
+    | 'verification_passed'
+    | 'verification_failed'
+    | 'delivered';
+  message: string | null;
+  payload_json: string | null;
+  created_at: string;
+}
+
+export interface KortixTaskRun {
+  id: string;
+  task_id: string;
+  project_id: string;
+  parent_session_id: string | null;
+  manager_session_id: string | null;
+  owner_session_id: string | null;
+  owner_agent: string | null;
+  status: 'running' | 'input_needed' | 'awaiting_review' | 'completed' | 'cancelled' | 'failed';
+  result: string | null;
+  verification_summary: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  updated_at: string;
+}
+
+export interface KortixTaskLiveStatus {
+  task_id: string;
+  status: KortixTaskStatus;
+  latest_run_id: string | null;
+  run_status: 'running' | 'input_needed' | 'awaiting_review' | 'completed' | 'cancelled' | 'failed' | null;
+  owner_session_id: string | null;
+  detail: string;
+}
+
 interface KortixTaskQueryOptions {
   enabled?: boolean;
   pollingEnabled?: boolean;
@@ -47,6 +92,9 @@ const taskKeys = {
   all: ['kortix', 'tasks'] as const,
   byProject: (projectId: string) => ['kortix', 'tasks', projectId] as const,
   single: (id: string) => ['kortix', 'tasks', 'detail', id] as const,
+  events: (id: string) => ['kortix', 'tasks', 'events', id] as const,
+  runs: (id: string) => ['kortix', 'tasks', 'runs', id] as const,
+  status: (id: string) => ['kortix', 'tasks', 'status', id] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -61,7 +109,7 @@ async function kortixTaskFetch<T>(serverUrl: string, path: string, init?: Reques
 }
 
 const VALID_STATUSES: KortixTaskStatus[] = [
-  'todo', 'in_progress', 'input_needed',
+  'todo', 'in_progress', 'input_needed', 'awaiting_review',
   'completed', 'cancelled',
 ];
 
@@ -129,6 +177,50 @@ export function useKortixTask(id: string, options: KortixTaskQueryOptions = {}) 
   });
 }
 
+export function useKortixTaskEvents(id: string, options: KortixTaskQueryOptions = {}) {
+  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
+  return useQuery({
+    queryKey: taskKeys.events(id),
+    queryFn: async () => {
+      const rows = await kortixTaskFetch<KortixTaskEvent[]>(serverUrl, `/${encodeURIComponent(id)}/events`);
+      return Array.isArray(rows) ? rows : [];
+    },
+    enabled: !!id && (options.enabled ?? true),
+    refetchInterval: options.pollingEnabled === false ? false : 3000,
+    refetchIntervalInBackground: false,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useKortixTaskRuns(id: string, options: KortixTaskQueryOptions = {}) {
+  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
+  return useQuery({
+    queryKey: taskKeys.runs(id),
+    queryFn: async () => {
+      const rows = await kortixTaskFetch<KortixTaskRun[]>(serverUrl, `/${encodeURIComponent(id)}/runs`);
+      return Array.isArray(rows) ? rows : [];
+    },
+    enabled: !!id && (options.enabled ?? true),
+    refetchInterval: options.pollingEnabled === false ? false : 3000,
+    refetchIntervalInBackground: false,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useKortixTaskStatus(id: string, options: KortixTaskQueryOptions = {}) {
+  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
+  return useQuery({
+    queryKey: taskKeys.status(id),
+    queryFn: async () => {
+      return kortixTaskFetch<KortixTaskLiveStatus>(serverUrl, `/${encodeURIComponent(id)}/status`);
+    },
+    enabled: !!id && (options.enabled ?? true),
+    refetchInterval: options.pollingEnabled === false ? false : 3000,
+    refetchIntervalInBackground: false,
+    placeholderData: keepPreviousData,
+  });
+}
+
 export function useCreateKortixTask() {
   const qc = useQueryClient();
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
@@ -177,8 +269,13 @@ export function useStartKortixTask() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id, agent }),
       }),
-    onSuccess: () => {
+    onSuccess: (task) => {
       qc.invalidateQueries({ queryKey: taskKeys.all });
+      qc.invalidateQueries({ queryKey: ['kortix', 'projects'] });
+      if ((task as any)?.project_id) {
+        qc.invalidateQueries({ queryKey: ['kortix', 'projects', (task as any).project_id] });
+        qc.invalidateQueries({ queryKey: ['kortix', 'projects', (task as any).project_id, 'sessions'] });
+      }
     },
   });
 }

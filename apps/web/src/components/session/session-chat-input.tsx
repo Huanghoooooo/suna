@@ -381,7 +381,7 @@ function VariantSelector({
 // AutoContinue Mode Selector
 // ============================================================================
 
-export type AutoContinueMode = 'autowork' | 'autowork1' | 'autowork2' | 'autowork3' | 'orchestrate';
+export type AutoContinueMode = 'autowork' | 'autowork1' | 'autowork2' | 'autowork3';
 
 interface AutoContinueAlgorithm {
   id: AutoContinueMode;
@@ -470,23 +470,6 @@ const AUTOCONTINUE_ALGORITHMS: AutoContinueAlgorithm[] = [
       'Tests may validate internal components without catching integration bugs',
     ],
     howItWorks: 'Uses controlled entropy scheduling — high entropy in search, low entropy in execution.\n\nThe system drives the agent through 5 phases:\n\n1. EXPAND (high entropy) — Reframe the task 5+ ways, list hidden assumptions, generate diverse solution families across multiple lenses.\n\n2. BRANCH (high entropy) — Crystallize 3-5 materially different candidate approaches. Each must differ in strategy, not wording.\n\n3. ATTACK (medium entropy) — Candidates cross-attack each other. Find failure modes, blind spots, merge strongest parts.\n\n4. RANK (low entropy) — Score by robustness/novelty/feasibility. Pick ONE path. No hedging.\n\n5. COMPRESS (minimal entropy) — Execute the ranked winner with TDD. No re-exploring.\n\nThe agent emits phase markers (<phase>X-done</phase>) and the system advances it. DONE before the compress phase is rejected as premature convergence.',
-  },
-  {
-    id: 'orchestrate',
-    label: 'Orchestrate',
-    role: 'Spawner',
-    description: 'Multi-session — parallel workers',
-    commandName: 'orchestrate',
-    bestFor: 'Large tasks that can be parallelized across independent sub-tasks',
-    strengths: [
-      'Parallel execution across multiple sessions',
-      'Good for large codebases with independent modules',
-    ],
-    weaknesses: [
-      'Coordination overhead between sessions',
-      'Not suitable for tightly-coupled work',
-    ],
-    howItWorks: 'Spawns multiple worker sessions that execute sub-tasks in parallel. The orchestrator decomposes the task, assigns work to workers, and aggregates results. Best for work that naturally splits into independent units.',
   },
 ];
 
@@ -1009,7 +992,7 @@ function SlashCommandPopover({
 
   return (
     <div
-      className="fixed z-[9999] bg-popover border border-border/60 rounded-lg shadow-lg overflow-hidden"
+      className="fixed z-[99999] bg-popover border border-border/60 rounded-lg shadow-lg overflow-hidden"
       style={{ bottom: window.innerHeight - r.top + 4, left: r.left, width: Math.min(r.width, 480) }}
     >
       <div ref={scrollRef} className="max-h-64 overflow-y-auto py-1">
@@ -1021,8 +1004,8 @@ function SlashCommandPopover({
               onSelect(cmd);
             }}
             className={cn(
-              'w-full flex flex-col gap-0.5 px-3 py-2 text-left transition-colors cursor-pointer',
-              i === selectedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted',
+              'w-full flex flex-col gap-0.5 px-3 py-2 text-left transition-colors cursor-pointer border border-transparent rounded-md -mx-1',
+              i === selectedIndex ? 'bg-muted border-border/50' : 'hover:bg-muted/50',
             )}
           >
             <span className="font-mono text-sm text-foreground">/{cmd.name}</span>
@@ -1089,7 +1072,7 @@ function MentionPopover({
 
   return (
     <div
-      className="fixed z-[9999] bg-popover border border-border/60 rounded-lg shadow-lg overflow-hidden"
+      className="fixed z-[99999] bg-popover border border-border/60 rounded-lg shadow-lg overflow-hidden"
       style={{ bottom: window.innerHeight - r.top + 4, left: r.left, width: Math.min(r.width, 480) }}
     >
       <div ref={listRef} className="max-h-72 overflow-y-auto py-1">
@@ -1108,7 +1091,7 @@ function MentionPopover({
                     idx === selectedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted',
                   )}
                 >
-                  <span className="size-4 rounded flex items-center justify-center bg-purple-500/15 text-purple-500 text-[10px] font-semibold shrink-0">@</span>
+                  <span className="size-4 rounded flex items-center justify-center bg-foreground/10 text-foreground/60 text-[10px] font-semibold shrink-0">@</span>
                   <span className="truncate font-medium capitalize">{item.label}</span>
                   {item.description && <span className="text-muted-foreground/40 truncate text-[10px]">{item.description}</span>}
                 </button>
@@ -1131,7 +1114,7 @@ function MentionPopover({
                     idx === selectedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted',
                   )}
                 >
-                  <MessageSquare className="size-4 text-emerald-500 shrink-0" />
+                  <MessageSquare className="size-4 text-foreground/50 shrink-0" />
                   <span className="truncate text-sm font-medium">{item.label}</span>
                   {item.description && <span className="text-[10px] text-muted-foreground/35 truncate ml-auto">{item.description}</span>}
                 </button>
@@ -1159,9 +1142,9 @@ function MentionPopover({
                   )}
                 >
                   {isDir ? (
-                    <Folder className="size-4 shrink-0 text-blue-400" />
+                    <Folder className="size-4 shrink-0 text-foreground/50" />
                   ) : (
-                    getFileIcon(fileName, { className: 'size-4 shrink-0' })
+                    getFileIcon(fileName, { className: 'size-4 shrink-0 text-foreground/50' })
                   )}
                   <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
                     <span className="truncate text-sm font-medium">{fileName}</span>
@@ -2246,9 +2229,7 @@ export function SessionChatInput({
                     <span
                       key={i}
                       className={cn(
-                        seg.kind === 'file' && 'text-blue-500 font-medium',
-                        seg.kind === 'agent' && 'text-purple-500 font-medium',
-                        seg.kind === 'session' && 'text-emerald-500 font-medium',
+                        (seg.kind === 'file' || seg.kind === 'agent' || seg.kind === 'session') && 'border-b border-foreground/40 font-medium text-foreground/80',
                       )}
                     >
                       {seg.text}

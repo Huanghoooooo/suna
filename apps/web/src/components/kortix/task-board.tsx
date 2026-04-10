@@ -6,7 +6,7 @@
  * Groups:
  *   Planning (Backlog + Todo)
  *   Running (in_progress)
- *   Needs Input (input_needed)
+ *   Review / Input (awaiting_review + input_needed)
  *   Done (completed + cancelled)
  */
 
@@ -58,7 +58,7 @@ export function TaskBoard({
 
   const planning = useMemo(() => tasks.filter((t) => t.status === 'todo'), [tasks]);
   const running = useMemo(() => tasks.filter((t) => t.status === 'in_progress'), [tasks]);
-  const needsInput = useMemo(() => tasks.filter((t) => t.status === 'input_needed'), [tasks]);
+  const review = useMemo(() => tasks.filter((t) => t.status === 'input_needed' || t.status === 'awaiting_review'), [tasks]);
   const done = useMemo(() => tasks.filter((t) => t.status === 'completed' || t.status === 'cancelled'), [tasks]);
 
   return (
@@ -139,16 +139,16 @@ export function TaskBoard({
           )}
         </section>
 
-        {/* ─── Needs Input ────────────────────────────────── */}
+        {/* ─── Review / Input ─────────────────────────────── */}
         <section>
           <SectionHeader
-            icon={<STATUS_META.input_needed.icon className="h-4 w-4 text-violet-500/50" />}
-            label="Needs Input"
-            count={needsInput.length}
+            icon={<STATUS_META.awaiting_review.icon className="h-4 w-4 text-amber-500/50" />}
+            label="Review / Input"
+            count={review.length}
           />
-          {needsInput.length > 0 ? (
+          {review.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {needsInput.map((task) => (
+              {review.map((task) => (
                 <TaskCard
                   key={task.id}
                   task={task}
@@ -169,7 +169,7 @@ export function TaskBoard({
               ))}
             </div>
           ) : (
-            <EmptySection text="No tasks awaiting input" />
+            <EmptySection text="No tasks awaiting review or input" />
           )}
         </section>
 

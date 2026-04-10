@@ -207,7 +207,7 @@ function CollapsedIconButton({ icon, label, onClick, flyoutContent, disabled, is
 // Sessions Flyout Content
 // ============================================================================
 
-function SessionsFlyout() {
+function SessionsFlyout({ collapsed }: { collapsed?: boolean }) {
   const pathname = normalizeAppPathname(usePathname());
   const { data: sessions } = useOpenCodeSessions();
   const permissions = useOpenCodePendingStore((s) => s.permissions);
@@ -252,7 +252,7 @@ function SessionsFlyout() {
                   : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground',
               )}
             >
-              <ThreadIcon iconName={(session as any).icon} className="flex-shrink-0" size={14} />
+              {!collapsed && <ThreadIcon iconName={(session as any).icon} className="flex-shrink-0" size={14} />}
               <span className="flex-1 truncate text-left">{session.title || 'Untitled'}</span>
               {pending > 0 && (
                 <span className="flex-shrink-0 h-4 min-w-4 px-1 rounded-full bg-amber-500/15 text-amber-500 text-[10px] font-semibold flex items-center justify-center">
@@ -1020,7 +1020,7 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
           <CollapsedIconButton
             icon={<ListTree className="h-4 w-4" />}
             label="Sessions"
-            flyoutContent={<SessionsFlyout />}
+            flyoutContent={<SessionsFlyout collapsed />}
           />
         </div>
 

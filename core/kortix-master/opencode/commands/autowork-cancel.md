@@ -1,6 +1,6 @@
 ---
 description: "Cancel the active autowork loop."
-agent: kortix
+agent: general
 ---
 
 <!-- KORTIX_CANCEL_AUTOWORK -->

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Renderer for the unified agent_task system + legacy agent_spawn/message/stop/status.
+ * Renderer for the unified task orchestration system + legacy agent_spawn/message/stop/status.
  */
 
 import React from 'react';
@@ -27,7 +27,12 @@ import { UnifiedMarkdown } from '@/components/markdown/unified-markdown';
 
 /** Map tool function name → display config */
 const TOOL_CONFIG: Record<string, { icon: typeof Cpu; label: string; verb: string }> = {
-  // New unified system
+  // Canonical task orchestration system
+  task_create:       { icon: Cpu,            label: 'Task Create',     verb: 'Spawning worker' },
+  task_update:       { icon: Pencil,         label: 'Task Update',     verb: 'Updating task' },
+  task_list:         { icon: ListTodo,       label: 'Task List',       verb: 'Listing tasks' },
+  task_get:          { icon: CircleDot,      label: 'Task Details',    verb: 'Reading task' },
+  // Compatibility aliases
   agent_task:        { icon: Cpu,            label: 'Agent Task',      verb: 'Spawning worker' },
   agent_task_update: { icon: Pencil,         label: 'Task Update',     verb: 'Updating task' },
   agent_task_list:   { icon: ListTodo,       label: 'Task List',       verb: 'Listing tasks' },

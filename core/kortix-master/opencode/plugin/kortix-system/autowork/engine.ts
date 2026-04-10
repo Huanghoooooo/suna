@@ -128,7 +128,7 @@ export function checkRalphSafetyGates(
 	failureResetWindowMs: number,
 	baseCooldownMs: number,
 ): string | null {
-	if (state.stopped) return "continuation stopped by user — use /ralph or /autowork to restart"
+	if (state.stopped) return "continuation stopped by user — use /autowork to restart"
 	if (state.lastAbortAt > 0) {
 		const timeSinceAbort = Date.now() - state.lastAbortAt
 		if (timeSinceAbort < abortGracePeriodMs) return `abort grace period: ${Math.round((abortGracePeriodMs - timeSinceAbort) / 1000)}s remaining`

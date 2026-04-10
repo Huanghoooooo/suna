@@ -1,6 +1,6 @@
 ---
 description: "Plan before execution. Writes PRD + test spec artifacts under .kortix/docs/plans/ and stops before implementation."
-agent: kortix
+agent: general
 ---
 
 # Autowork Plan
@@ -33,5 +33,5 @@ Your final response must include:
 - the paths you wrote
  - the recommended execution mode:
    - `/autowork` for single-owner execution
-   - `/autowork` with `agent_task` for parallel work
+   - `/autowork` with `task_create` for parallel work
 - the key risks or open questions, if any

@@ -37,7 +37,6 @@ interface ProjectOverviewProps {
   project: any;
   tasks: KortixTask[];
   sessions: any[];
-  agents: any[];
   onUpdateProject: (data: { name?: string; description?: string }) => void;
   isUpdating?: boolean;
   onJumpToTasks: () => void;

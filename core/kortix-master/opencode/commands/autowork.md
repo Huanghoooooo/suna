@@ -1,6 +1,6 @@
 ---
 description: "Start autowork — single-owner persistent execution until completion."
-agent: kortix
+agent: general
 ---
 
 # Autowork

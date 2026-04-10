@@ -5518,7 +5518,7 @@ export function SessionChat({
           {shouldShowWelcomeOverlay && (
             <div
               className={cn(
-                'absolute inset-0 z-20 pointer-events-none transition-opacity ease-out',
+                'absolute inset-0 -z-10 pointer-events-none transition-opacity ease-out',
                 hasChatContent ? 'opacity-0' : 'opacity-100',
               )}
               style={{ transitionDuration: `${WELCOME_FADE_MS}ms` }}
@@ -5528,7 +5528,7 @@ export function SessionChat({
           )}
           <div
             ref={scrollContainerCallbackRef}
-            className="flex-1 overflow-y-auto scrollbar-hide px-4 py-4 bg-background h-full [scroll-behavior:auto]"
+            className="relative flex-1 overflow-y-auto scrollbar-hide px-4 py-4 bg-background h-full [scroll-behavior:auto] z-0"
             onMouseUp={handleChatMouseUp}
             onMouseDown={handleChatMouseDown}
             onScroll={handleChatScroll}

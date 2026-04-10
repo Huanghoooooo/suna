@@ -11,22 +11,21 @@ import { Hono } from 'hono'
 import { Database } from 'bun:sqlite'
 import { existsSync, mkdirSync, unlinkSync, statSync } from 'fs'
 import { dirname, join } from 'path'
+import { createOpencodeClient } from '@opencode-ai/sdk/client'
+import { config } from '../config'
+import { ensureProjectManagerSession } from '../services/project-thread-service'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface ProjectRow {
   id: string; name: string; path: string; description: string
-  created_at: string; opencode_id: string | null
-}
-
-interface DelegationRow {
-  session_id: string; project_id: string; prompt: string; agent: string
-  status: string; result: string | null; created_at: string; completed_at: string | null
+  created_at: string; opencode_id: string | null; manager_session_id?: string | null
 }
 
 // ── DB singleton ─────────────────────────────────────────────────────────────
 
 let _db: Database | null = null
+let _ocClient: ReturnType<typeof createOpencodeClient> | null = null
 
 function getDb(): Database {
   if (_db) return _db
@@ -65,18 +64,20 @@ function getDb(): Database {
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL UNIQUE,
       description TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
-      opencode_id TEXT
-    );
-    CREATE TABLE IF NOT EXISTS delegations (
-      session_id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
-      prompt TEXT NOT NULL, agent TEXT NOT NULL DEFAULT 'kortix',
-      parent_session_id TEXT NOT NULL, parent_agent TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL DEFAULT 'running', result TEXT,
-      created_at TEXT NOT NULL, completed_at TEXT
+      opencode_id TEXT, manager_session_id TEXT
     );
   `)
 
   return _db
+}
+
+function getOpenCodeClient() {
+  if (!_ocClient) {
+    _ocClient = createOpencodeClient({
+      baseUrl: `http://${config.OPENCODE_HOST}:${config.OPENCODE_PORT}`,
+    })
+  }
+  return _ocClient
 }
 
 // ── Router ───────────────────────────────────────────────────────────────────
@@ -88,22 +89,18 @@ projectsRouter.get('/', async (c) => {
   const db = getDb()
   const rows = db.prepare('SELECT * FROM projects ORDER BY created_at DESC').all() as ProjectRow[]
   const enriched = rows.map((p) => {
-    const delegationStats = db.prepare(
-      'SELECT status, COUNT(*) as c FROM delegations WHERE project_id=$pid GROUP BY status'
-    ).all({ $pid: p.id }) as Array<{ status: string; c: number }>
     const sessionCount = (db.prepare(
       'SELECT COUNT(*) as c FROM session_projects WHERE project_id=$pid'
     ).get({ $pid: p.id }) as { c: number })?.c || 0
     return {
       ...p,
       sessionCount,
-      delegationStats: Object.fromEntries(delegationStats.map((s) => [s.status, s.c])),
     }
   })
   return c.json(enriched)
 })
 
-// GET /:id — single project with delegations
+// GET /:id — single project
 projectsRouter.get('/:id', async (c) => {
   const db = getDb()
   const id = decodeURIComponent(c.req.param('id'))
@@ -114,11 +111,7 @@ projectsRouter.get('/:id', async (c) => {
   ) as ProjectRow | null
   if (!p) return c.json({ error: 'Project not found' }, 404)
 
-  const delegations = db.prepare(
-    'SELECT * FROM delegations WHERE project_id=$pid ORDER BY created_at DESC LIMIT 20'
-  ).all({ $pid: p.id }) as DelegationRow[]
-
-  return c.json({ ...p, delegations })
+  return c.json(p)
 })
 
 // GET /:id/sessions — sessions linked to this project via session_projects table
@@ -184,17 +177,8 @@ projectsRouter.delete('/:id', async (c) => {
   ) as ProjectRow | null
   if (!p) return c.json({ error: 'Project not found' }, 404)
 
-  // Block if sessions are still running
-  const running = db.prepare(
-    "SELECT COUNT(*) as c FROM delegations WHERE project_id=$pid AND status='running'"
-  ).get({ $pid: p.id }) as { c: number }
-  if (running.c > 0) {
-    return c.json({ error: `Cannot delete: ${running.c} session(s) still running` }, 409)
-  }
-
   // Clean up all related records
   try { db.prepare('DELETE FROM session_projects WHERE project_id=$pid').run({ $pid: p.id }) } catch {}
-  db.prepare('DELETE FROM delegations WHERE project_id=$pid').run({ $pid: p.id })
   db.prepare('DELETE FROM projects WHERE id=$id').run({ $id: p.id })
 
   return c.json({ deleted: true, name: p.name, path: p.path })
@@ -215,6 +199,25 @@ projectsRouter.patch('/:id', async (c) => {
     db.prepare('UPDATE projects SET description=$d WHERE id=$id').run({ $d: body.description, $id: id })
   }
   return c.json(db.prepare('SELECT * FROM projects WHERE id=$id').get({ $id: id }))
+})
+
+// POST /:id/manager-session — create/reuse canonical project thread
+projectsRouter.post('/:id/manager-session', async (c) => {
+  try {
+    const db = getDb()
+    const id = decodeURIComponent(c.req.param('id'))
+    const p = (
+      db.prepare('SELECT * FROM projects WHERE id=$v').get({ $v: id })
+      || db.prepare('SELECT * FROM projects WHERE opencode_id=$v').get({ $v: id })
+      || db.prepare('SELECT * FROM projects WHERE LOWER(name)=LOWER($v)').get({ $v: id })
+    ) as ProjectRow | null
+    if (!p) return c.json({ error: 'Project not found' }, 404)
+
+    await ensureProjectManagerSession(db, getOpenCodeClient(), p.id)
+    return c.json(db.prepare('SELECT * FROM projects WHERE id=$id').get({ $id: p.id }))
+  } catch (e) {
+    return c.json({ error: String(e) }, 500)
+  }
 })
 
 export default projectsRouter

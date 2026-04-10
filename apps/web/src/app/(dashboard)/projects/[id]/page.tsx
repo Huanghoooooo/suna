@@ -31,6 +31,7 @@ import {
 import {
   useKortixProject,
   useKortixProjectSessions,
+  useEnsureKortixManagerSession,
   useUpdateProject,
 } from '@/hooks/kortix/use-kortix-projects';
 import {
@@ -42,7 +43,6 @@ import {
   type KortixTask,
   type KortixTaskStatus,
 } from '@/hooks/kortix/use-kortix-tasks';
-import { useKortixAgents } from '@/hooks/kortix/use-kortix-agents';
 import { openTabAndNavigate } from '@/stores/tab-store';
 import {
   createFilesStore,
@@ -59,6 +59,7 @@ import { TasksTab } from '@/components/kortix/tasks-tab';
 import { TaskDetailView } from '@/components/kortix/task-detail-view';
 import { NewTaskDialog } from '@/components/kortix/new-task-dialog';
 import { useIsRouteActive } from '@/hooks/utils/use-is-route-active';
+import { SessionChat } from '@/components/session/session-chat';
 
 export default function ProjectPage({ params }: { params?: Promise<{ id: string }> }) {
   const { id: raw } = params ? use(params) : { id: '' };
@@ -67,12 +68,11 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
   const projectFilesStore = projectFilesStoreRef.current;
 
   // ── Tabs ────────────────────────────────────────────────────
-  const [tab, setTabState] = useState<ProjectTab>('overview');
+  const [tab, setTabState] = useState<ProjectTab>('thread');
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const isProjectRouteActive = useIsRouteActive(`/projects/${encodeURIComponent(pid)}`);
   const shouldLoadProjectSessions = isProjectRouteActive && (tab === 'overview' || tab === 'sessions');
   const shouldLoadProjectTasks = isProjectRouteActive && (tab === 'overview' || tab === 'tasks');
-  const shouldLoadProjectAgents = isProjectRouteActive && tab === 'overview';
 
   // ── Data ────────────────────────────────────────────────────
   const { data: project, isLoading } = useKortixProject(pid);
@@ -83,10 +83,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
     enabled: shouldLoadProjectTasks,
     pollingEnabled: shouldLoadProjectTasks,
   });
-  const { data: agents } = useKortixAgents(project?.id, {
-    enabled: shouldLoadProjectAgents,
-    pollingEnabled: shouldLoadProjectAgents,
-  });
+  const ensureManagerSession = useEnsureKortixManagerSession();
   const updateProject = useUpdateProject();
   const updateTask = useUpdateKortixTask();
   const startTask = useStartKortixTask();
@@ -95,7 +92,13 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
 
   const sessionList = useMemo(() => sessions ?? [], [sessions]);
   const taskList = useMemo<KortixTask[]>(() => tasks ?? [], [tasks]);
-  const agentList = useMemo(() => agents ?? [], [agents]);
+  const ensureProjectManager = ensureManagerSession.mutate;
+  const ensuringProjectManager = ensureManagerSession.isPending;
+
+  useEffect(() => {
+    if (!project?.id || project.manager_session_id || ensuringProjectManager) return;
+    ensureProjectManager(project.id);
+  }, [project?.id, project?.manager_session_id, ensuringProjectManager, ensureProjectManager]);
 
   // ── File explorer scoping ───────────────────────────────────
   useEffect(() => {
@@ -117,6 +120,26 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
     setOpenTaskId(task.id);
   }, []);
   const closeTask = useCallback(() => setOpenTaskId(null), []);
+  const openProjectThread = useCallback(() => {
+    if (!project?.id) return;
+    const open = (sessionId: string) => openTabAndNavigate({
+      id: sessionId,
+      title: `${project.name} orchestrator`,
+      type: 'session',
+      href: `/sessions/${sessionId}`,
+    });
+
+    if (project.manager_session_id) {
+      open(project.manager_session_id);
+      return;
+    }
+
+    ensureProjectManager(project.id, {
+      onSuccess: (nextProject) => {
+        if (nextProject.manager_session_id) open(nextProject.manager_session_id);
+      },
+    });
+  }, [project?.id, project?.manager_session_id, project?.name, ensureProjectManager]);
 
   // Re-navigate file explorer when files tab activated
   useEffect(() => {
@@ -205,16 +228,24 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
         tab={tab}
         onTabChange={setTab}
         onNewTask={() => openNewTask()}
+        onOpenThread={openProjectThread}
       />
 
       {/* ── Pre-mounted tab bodies ─────────────────────────── */}
       <div className="flex-1 min-h-0 relative">
+        <TabPanel active={tab === 'thread'}>
+          {project.manager_session_id ? (
+            <SessionChat sessionId={project.manager_session_id} hideHeader />
+          ) : (
+            <EmptyState text="Bootstrapping project thread" sub="Kortix is preparing the canonical project orchestrator thread." />
+          )}
+        </TabPanel>
+
         <TabPanel active={tab === 'overview'}>
           <ProjectOverview
             project={project}
             tasks={taskList}
             sessions={sessionList}
-            agents={agentList}
             onUpdateProject={(data) => updateProject.mutate({ id: project.id, ...data })}
             isUpdating={updateProject.isPending}
             onJumpToTasks={() => setTab('tasks')}
@@ -229,7 +260,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
             setSearch={setSearch}
             searchRef={searchRef}
             onUpdateStatus={(id, s) => updateTask.mutate({ id, status: s })}
-            onStartTask={(id) => startTask.mutate({ id })}
+            onStartTask={(id) => startTask.mutate({ id, session_id: project.manager_session_id || undefined })}
             onApproveTask={(id) => approveTask.mutate(id)}
             onOpenTask={openTask}
             onNewTask={openNewTask}
@@ -250,7 +281,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
         </TabPanel>
 
         <TabPanel active={tab === 'sessions'}>
-          <SessionsList sessions={sessionList} />
+          <SessionsList sessions={sessionList} managerSessionId={project.manager_session_id || null} />
         </TabPanel>
       </div>
 
@@ -261,6 +292,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
         projectId={project.id}
         projectName={project.name}
         projectPath={project.path}
+        managerSessionId={project.manager_session_id || undefined}
         defaultStatus={newTaskDefault}
       />
 
@@ -293,12 +325,18 @@ function TabPanel({
   );
 }
 
-function SessionsList({ sessions }: { sessions: any[] }) {
+function SessionsList({ sessions, managerSessionId }: { sessions: any[]; managerSessionId: string | null }) {
   if (sessions.length === 0)
     return <EmptyState text="No sessions linked" sub="Sessions appear here when you select this project" />;
 
   // Separate parent and child sessions
-  const parents = sessions.filter((s) => !s.parentID);
+  const parents = sessions
+    .filter((s) => !s.parentID)
+    .sort((a, b) => {
+      if (a.id === managerSessionId) return -1;
+      if (b.id === managerSessionId) return 1;
+      return (b.time?.updated ?? 0) - (a.time?.updated ?? 0);
+    });
   const children = sessions.filter((s) => !!s.parentID);
   const childrenByParent = new Map<string, any[]>();
   for (const c of children) {
@@ -339,6 +377,9 @@ function SessionsList({ sessions }: { sessions: any[] }) {
                   >
                     <TableCell className="text-[13px] text-foreground/85 truncate max-w-0 group-hover:text-foreground">
                       {s.title || 'Untitled session'}
+                      {s.id === managerSessionId && (
+                        <span className="ml-2 text-[10px] uppercase tracking-[0.08em] text-muted-foreground/45">Project orchestrator</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-[11px] text-muted-foreground/35 tabular-nums text-right">
                       {relativeTime(s.time?.updated)}

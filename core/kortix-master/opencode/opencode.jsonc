@@ -6,10 +6,29 @@
   },
   "autoupdate": false,
   "disabled_providers": ["opencode"],
-  "default_agent": "kortix",
+  "default_agent": "general",
+  "command": {
+    "caveman": {
+      "description": "switch caveman response mode",
+      "template": "Caveman control: $ARGUMENTS"
+    },
+    "caveman-commit": {
+      "description": "draft terse conventional commit messages",
+      "template": "Caveman commit request: $ARGUMENTS"
+    },
+    "caveman-review": {
+      "description": "draft terse review comments",
+      "template": "Caveman review request: $ARGUMENTS"
+    },
+    "caveman-compress": {
+      "description": "compress prose memory files in place with backup",
+      "template": "Caveman compress request: $ARGUMENTS"
+    }
+  },
   "agent": {
     "build": { "disable": true },
-    "plan": { "disable": true }
+    "plan": { "disable": true },
+    "explore": { "disable": true }
   },
   "provider": {
     "kortix": {
@@ -52,7 +71,8 @@
     }
   },
   "plugin": [
-    "./plugin/kortix-system/kortix-system.ts"
+    "./plugin/kortix-system/kortix-system.ts",
+    "./plugin/opencode-caveman-plugin/opencode-caveman-plugin.ts"
   ],
   "mcp": {
     "context7": {

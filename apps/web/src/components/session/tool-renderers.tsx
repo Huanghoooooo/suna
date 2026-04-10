@@ -6919,13 +6919,17 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 }
 ToolRegistry.register('agent_spawn', AgentSpawnTool);
 ToolRegistry.register('agent-spawn', AgentSpawnTool);
-// Unified agent_task system — maps to the same AgentSpawnTool UX
+// Canonical task orchestration tools + compatibility aliases
 ToolRegistry.register('agent_task', AgentSpawnTool);
 ToolRegistry.register('agent-task', AgentSpawnTool);
 ToolRegistry.register('agent_task_create', AgentSpawnTool);
 ToolRegistry.register('agent-task-create', AgentSpawnTool);
 ToolRegistry.register('agent_task_start', AgentSpawnTool);
 ToolRegistry.register('agent-task-start', AgentSpawnTool);
+ToolRegistry.register('task_create', AgentSpawnTool);
+ToolRegistry.register('task-create', AgentSpawnTool);
+ToolRegistry.register('task_start', AgentSpawnTool);
+ToolRegistry.register('task-start', AgentSpawnTool);
 
 // ============================================================================
 // Agent utility tools — card components matching AgentSpawnTool visual standard
@@ -7046,12 +7050,20 @@ function AgentTaskUpdateTool({ part, forceOpen }: ToolProps) {
 }
 ToolRegistry.register('agent_task_update', AgentTaskUpdateTool);
 ToolRegistry.register('agent-task-update', AgentTaskUpdateTool);
+ToolRegistry.register('task_update', AgentTaskUpdateTool);
+ToolRegistry.register('task-update', AgentTaskUpdateTool);
 ToolRegistry.register('agent_task_message', AgentMessageTool);
 ToolRegistry.register('agent-task-message', AgentMessageTool);
+ToolRegistry.register('task_message', AgentMessageTool);
+ToolRegistry.register('task-message', AgentMessageTool);
 ToolRegistry.register('agent_task_approve', TaskDoneTool);
 ToolRegistry.register('agent-task-approve', TaskDoneTool);
 ToolRegistry.register('agent_task_cancel', AgentStopTool);
 ToolRegistry.register('agent-task-cancel', AgentStopTool);
+ToolRegistry.register('task_approve', TaskDoneTool);
+ToolRegistry.register('task-approve', TaskDoneTool);
+ToolRegistry.register('task_cancel', AgentStopTool);
+ToolRegistry.register('task-cancel', AgentStopTool);
 
 function AgentStopTool({ part }: ToolProps) {
   const input = partInput(part);
@@ -7233,8 +7245,8 @@ function TaskCreateTool({ part }: ToolProps) {
     </div>
   );
 }
-ToolRegistry.register('task_create', TaskCreateTool);
-ToolRegistry.register('task-create', TaskCreateTool);
+// task_create is now a canonical orchestration tool that may spawn workers,
+// so it is registered earlier to AgentSpawnTool instead of this compact legacy chip.
 
 function TaskListTool({ part }: ToolProps) {
   const output = partOutput(part);
@@ -7256,6 +7268,8 @@ function TaskListTool({ part }: ToolProps) {
 }
 ToolRegistry.register('task_list', TaskListTool);
 ToolRegistry.register('task-list', TaskListTool);
+ToolRegistry.register('task_get', TaskListTool);
+ToolRegistry.register('task-get', TaskListTool);
 ToolRegistry.register('agent_task_get', TaskListTool);
 ToolRegistry.register('agent-task-get', TaskListTool);
 
@@ -7264,8 +7278,7 @@ function TaskUpdateTool({ part }: ToolProps) {
   // The agent_spawn card already shows task status and description.
   return null;
 }
-ToolRegistry.register('task_update', TaskUpdateTool);
-ToolRegistry.register('task-update', TaskUpdateTool);
+// task_update is now registered earlier to AgentTaskUpdateTool.
 
 function TaskDoneTool({ part }: ToolProps) {
   const input = partInput(part);

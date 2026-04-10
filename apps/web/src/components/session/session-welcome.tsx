@@ -8,7 +8,7 @@ import { WallpaperBackground } from '@/components/ui/wallpaper-background';
  */
 export function SessionWelcome() {
   return (
-    <div className="relative w-full h-full overflow-hidden">
+    <div className="relative w-full h-full overflow-hidden -z-20">
       <WallpaperBackground />
     </div>
   );

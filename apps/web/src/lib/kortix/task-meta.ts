@@ -1,8 +1,7 @@
 /**
  * Single source of truth for task status & priority presentation.
  *
- * Mirrors the canonical task model defined in
- * suna/core/kortix-master/opencode/plugin/kortix-system/tasks.ts
+ * Mirrors the canonical task statuses exposed by the live /kortix/tasks API.
  */
 
 import {
@@ -56,13 +55,22 @@ export const STATUS_META: Record<KortixTaskStatus, StatusMeta> = {
     order: 2,
     active: true,
   },
+  awaiting_review: {
+    icon: CircleDotDashed,
+    color: 'text-amber-400',
+    bg: 'bg-amber-500/10',
+    border: 'border-amber-500/30',
+    label: 'Awaiting Review',
+    order: 3,
+    active: true,
+  },
   completed: {
     icon: CheckCircle2,
     color: 'text-emerald-500',
     bg: 'bg-emerald-500/10',
     border: 'border-emerald-500/30',
     label: 'Completed',
-    order: 3,
+    order: 4,
     terminal: true,
   },
   cancelled: {
@@ -71,18 +79,19 @@ export const STATUS_META: Record<KortixTaskStatus, StatusMeta> = {
     bg: 'bg-muted/20',
     border: 'border-border',
     label: 'Cancelled',
-    order: 4,
+    order: 5,
     terminal: true,
   },
 };
 
 /**
- * Pipeline: todo → [START] → in_progress → input_needed → [APPROVE] → completed
+ * Pipeline: todo → [START] → in_progress → awaiting_review/input_needed → [APPROVE] → completed
  */
 export const VALID_TRANSITIONS: Record<KortixTaskStatus, KortixTaskStatus[]> = {
   todo: ['cancelled'],                                // START → in_progress (separate action)
-  in_progress: ['input_needed', 'todo', 'cancelled'], // worker delivers → input_needed
+  in_progress: ['input_needed', 'awaiting_review', 'todo', 'cancelled'],
   input_needed: ['todo', 'cancelled'],                // APPROVE → completed (separate action)
+  awaiting_review: ['todo', 'cancelled'],
   completed: [],                                         // terminal
   cancelled: ['todo'],                                // can be reopened
 };
@@ -92,6 +101,7 @@ export const ALL_STATUSES: KortixTaskStatus[] = [
   'todo',
   'in_progress',
   'input_needed',
+  'awaiting_review',
   'completed',
   'cancelled',
 ];

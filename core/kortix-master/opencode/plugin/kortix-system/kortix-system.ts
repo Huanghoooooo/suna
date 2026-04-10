@@ -6,20 +6,22 @@
  *
  * Native OpenCode task is disabled, but native todowrite/todoread can be used
  * alongside Kortix project tasks to support Ralph-style persistent worker loops.
- * Kortix also provides its own: agent_spawn/message/stop/status + task_create/list/update/done/delete.
+ * Kortix also provides its own project/task orchestration surface plus worker lifecycle tools.
  *
  * opencode.jsonc: "./plugin/kortix-system/kortix-system.ts"
  */
 
 import * as path from "node:path"
+import { Database } from "bun:sqlite"
 import type { Plugin } from "@opencode-ai/plugin"
 
 import { initProjectsDb, ProjectManager, projectTools, projectGateHook, projectStatusTransform } from "./projects"
 import { agentTaskTools, ensureAgentTasksTable, handleAgentTaskSessionEvent, getTaskSystemPrompt } from "./agent-tasks"
+import { reconcileAllRunningTasks } from "../../../src/services/task-service"
 import { resolveKortixWorkspaceRoot, ensureKortixDir } from "./lib/paths"
 import { getBusySessionIds } from "../../../src/services/runtime-reload"
 
-async function cleanupLingeringBusySessions(client: any, cleanupStartedAt: number): Promise<void> {
+async function cleanupLingeringBusySessions(client: any, db: Database, cleanupStartedAt: number): Promise<void> {
 	for (let attempt = 1; attempt <= 5; attempt++) {
 		try {
 			const [statusRes, sessionsRes] = await Promise.all([
@@ -31,6 +33,8 @@ async function cleanupLingeringBusySessions(client: any, cleanupStartedAt: numbe
 				((sessionsRes.data ?? []) as Array<{ id: string; time?: { updated?: number } }>).map((session) => [session.id, session]),
 			)
 			const busySessionIds = candidateBusySessionIds.filter((sessionId) => {
+				const activeTaskRun = db.prepare("SELECT 1 FROM task_runs WHERE owner_session_id=$sid AND status='running' LIMIT 1").get({ $sid: sessionId })
+				if (activeTaskRun) return false
 				const updatedAt = sessionsById.get(sessionId)?.time?.updated
 				return typeof updatedAt !== "number" || updatedAt <= cleanupStartedAt
 			})
@@ -103,10 +107,13 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 		return typeof btwRaw === "object" && "server" in btwRaw ? await btwRaw.server(ctx) : await btwRaw(ctx)
 	})
 	
-	console.log("[kortix-system] Plugin initialized. Tools:", Object.keys(projectTools(mgr, db)).length, "project +", Object.keys(agentTaskTools(db, mgr, client)).length, "agent_task")
+	console.log("[kortix-system] Plugin initialized. Tools:", Object.keys(projectTools(mgr, db)).length, "project +", Object.keys(agentTaskTools(db, mgr, client)).length, "task")
 	setTimeout(() => {
-		void cleanupLingeringBusySessions(client, startupCleanupStartedAt)
+		void cleanupLingeringBusySessions(client, db, startupCleanupStartedAt)
 	}, 750)
+	setInterval(() => {
+		void reconcileAllRunningTasks(db, client).catch(() => {})
+	}, 5000)
  
 	// ── Merge all tools ──
 	return {
@@ -188,10 +195,10 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 				if (!currentSessionId) return
 				const project = mgr.getSessionProject(currentSessionId)
 				if (!project) return
-				const tasks = db.prepare("SELECT * FROM tasks WHERE project_id=$pid AND status IN ('todo','in_progress','input_needed') ORDER BY CASE status WHEN 'in_progress' THEN 0 WHEN 'input_needed' THEN 1 WHEN 'todo' THEN 2 ELSE 3 END, created_at")
+				const tasks = db.prepare("SELECT * FROM tasks WHERE project_id=$pid AND status IN ('todo','in_progress','input_needed','awaiting_review') ORDER BY CASE status WHEN 'in_progress' THEN 0 WHEN 'input_needed' THEN 1 WHEN 'awaiting_review' THEN 2 WHEN 'todo' THEN 3 ELSE 4 END, created_at")
 					.all({ $pid: project.id }) as Array<{ id: string; title: string; status: string }>
 				if (!tasks.length) return
-				const icon = (s: string) => s === "in_progress" ? "→" : s === "input_needed" ? "◐" : "○"
+				const icon = (s: string) => s === "in_progress" ? "→" : s === "input_needed" ? "◐" : s === "awaiting_review" ? "◌" : "○"
 				output.context.push([
 					`<kortix_system type="tasks" source="kortix-system">`,
 					`Active tasks for project ${project.name}:`,

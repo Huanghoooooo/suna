@@ -17,7 +17,7 @@ import { ensureSchema } from "./lib/schema"
 
 export interface ProjectRow {
 	id: string; name: string; path: string; description: string
-	created_at: string; opencode_id: string | null
+	created_at: string; opencode_id: string | null; manager_session_id?: string | null
 }
 
 // ── Database ─────────────────────────────────────────────────────────────────
@@ -50,6 +50,7 @@ export function initProjectsDb(dbPath: string): Database {
 		{ name: "description", type: "TEXT", notNull: true,  defaultValue: "''",   primaryKey: false },
 		{ name: "created_at",  type: "TEXT", notNull: true,  defaultValue: null,   primaryKey: false },
 		{ name: "opencode_id", type: "TEXT", notNull: false, defaultValue: null,   primaryKey: false },
+		{ name: "manager_session_id", type: "TEXT", notNull: false, defaultValue: null,   primaryKey: false },
 	])
 
 	ensureSchema(db, "session_projects", [
@@ -97,6 +98,20 @@ export class ProjectManager {
 	setSessionProject(sessionId: string, projectId: string): void {
 		this.db.prepare("INSERT OR REPLACE INTO session_projects (session_id, project_id, set_at) VALUES ($sid, $pid, $now)")
 			.run({ $sid: sessionId, $pid: projectId, $now: new Date().toISOString() })
+		const project = this.db.prepare("SELECT * FROM projects WHERE id = $id").get({ $id: projectId }) as ProjectRow | null
+		if (project) this.sessionProjectCache.set(sessionId, project)
+	}
+
+	getManagerSessionId(projectId: string): string | null {
+		const row = this.db.prepare("SELECT manager_session_id FROM projects WHERE id = $id").get({ $id: projectId }) as { manager_session_id?: string | null } | null
+		return row?.manager_session_id || null
+	}
+
+	ensureManagerSession(sessionId: string, projectId: string): void {
+		const current = this.getManagerSessionId(projectId)
+		if (current) return
+		this.db.prepare("UPDATE projects SET manager_session_id=$sid WHERE id=$id AND (manager_session_id IS NULL OR manager_session_id='')")
+			.run({ $sid: sessionId, $id: projectId })
 		const project = this.db.prepare("SELECT * FROM projects WHERE id = $id").get({ $id: projectId }) as ProjectRow | null
 		if (project) this.sessionProjectCache.set(sessionId, project)
 	}
@@ -218,6 +233,7 @@ export function projectTools(mgr: ProjectManager, db: Database) {
 				const p = mgr.getProject(args.project)
 				if (!p) return `Project "${args.project}" not found. Use project_list or project_create.`
 				mgr.setSessionProject(toolCtx.sessionID, p.id)
+				mgr.ensureManagerSession(toolCtx.sessionID, p.id)
 				return `Project **${p.name}** selected for this session.\nPath: \`${p.path}\`\nYou can now use file, bash, and edit tools.`
 			},
 		}),
@@ -256,13 +272,19 @@ export function projectGateHook(mgr: ProjectManager) {
 
 export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId: () => string | null) {
 	return async (_input: any, output: { messages: any[] }) => {
-		// Only inject orchestrator reminder for the primary agent (kortix), not sub-agents
-		const isOrchestrator = (() => {
+		const activeAgent = (() => {
+			for (let i = output.messages.length - 1; i >= 0; i--) {
+				const agent = output.messages[i]?.info?.agent
+				if (agent) return agent
+			}
+			return null
+		})()
+		const isWorkerSession = (() => {
 			for (const m of output.messages) {
 				const agent = m?.info?.agent
-				if (agent && agent !== "kortix") return false
+				if (agent === "worker") return true
 			}
-			return true
+			return false
 		})()
 		try {
 			// Get session ID from messages (more reliable than event-based tracking)
@@ -279,20 +301,31 @@ export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId:
 			try {
 				const project = mgr.getSessionProject(sid)
 				if (project) {
-					if (isOrchestrator) {
+					const isManagerSession = project.manager_session_id === sid
+					if (isWorkerSession) {
+						statusXml = `<project_status selected="${project.name}" path="${project.path}" manager_session_id="${project.manager_session_id || ""}" />`
+					} else if (isManagerSession || activeAgent === "orchestrator") {
 						statusXml = [
-							`<project_status selected="${project.name}" path="${project.path}" />`,
+							`<project_status selected="${project.name}" path="${project.path}" manager_session_id="${project.manager_session_id || ""}" mode="project-orchestrator" />`,
 							`<system-reminder>`,
-							`Task-centric workflow:`,
-							`1. Create or refine tasks with title, description, and verification_condition.`,
-							`2. Move a task to in_progress only when it is ready for single-owner execution.`,
-							`3. in_progress binds the task to one worker session running in autowork.`,
-							`4. Use agent_task to create and run tasks. Use agent_task_update to manage lifecycle.`,
+							`Project orchestrator workflow:`,
+							`1. This session is the canonical project manager / CEO / memory brain for the project.`,
+							`2. Use task_create/task_update/task_list/task_get/task_status as the canonical orchestration surface.`,
+							`3. All task events should flow back here for review, planning, reprioritization, and next-step decisions.`,
+							`4. Keep project documentation and .kortix/CONTEXT.md updated as durable memory.`,
+							`5. Prefer orchestrating and documenting over deep implementation unless direct work is clearly best.`,
 							`</system-reminder>`,
 						].join("\n")
 					} else {
-						// Sub-agents just get project context, no orchestrator instructions
-						statusXml = `<project_status selected="${project.name}" path="${project.path}" />`
+						statusXml = [
+							`<project_status selected="${project.name}" path="${project.path}" manager_session_id="${project.manager_session_id || ""}" mode="regular-project-session" />`,
+							`<system-reminder>`,
+							`Regular project session workflow:`,
+							`1. This is NOT the canonical project-manager session. Use it for direct work or focused ad hoc work.`,
+							`2. If the work should become ongoing project orchestration, use the project manager thread.`,
+							`3. Use canonical task_* tools if you need delegated execution.`,
+							`</system-reminder>`,
+						].join("\n")
 					}
 				} else {
 					// Count user messages to detect first message

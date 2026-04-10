@@ -167,6 +167,22 @@ export const ocToolViewRegistrations: Record<string, ToolViewComponent> = {
   'oc-agent-task-get': OcKortixTaskToolView,
   'agent_task_get': OcKortixTaskToolView,
   'agent-task-get': OcKortixTaskToolView,
+  'oc-task_create': OcKortixTaskToolView,
+  'oc-task-create': OcKortixTaskToolView,
+  'task_create': OcKortixTaskToolView,
+  'task-create': OcKortixTaskToolView,
+  'oc-task_update': OcKortixTaskToolView,
+  'oc-task-update': OcKortixTaskToolView,
+  'task_update': OcKortixTaskToolView,
+  'task-update': OcKortixTaskToolView,
+  'oc-task_list': OcKortixTaskToolView,
+  'oc-task-list': OcKortixTaskToolView,
+  'task_list': OcKortixTaskToolView,
+  'task-list': OcKortixTaskToolView,
+  'oc-task_get': OcKortixTaskToolView,
+  'oc-task-get': OcKortixTaskToolView,
+  'task_get': OcKortixTaskToolView,
+  'task-get': OcKortixTaskToolView,
 
   // Legacy agent tools (backwards compat for old sessions)
   'oc-task': OcKortixTaskToolView,
@@ -232,7 +248,7 @@ export const ocToolViewRegistrations: Record<string, ToolViewComponent> = {
   'oc-mem_save': OcMemSaveToolView,
   'oc-mem-save': OcMemSaveToolView,
 
-  // Session tools (kortix-sessions + kortix-orchestrator)
+  // Session tools (Kortix session surfaces)
   'oc-session_list': OcSessionListToolView,
   'oc-session-list': OcSessionListToolView,
   'session_list': OcSessionListToolView,
@@ -258,7 +274,7 @@ export const ocToolViewRegistrations: Record<string, ToolViewComponent> = {
   'oc-session-list-spawned': OcSessionListToolView,
   'session_list_spawned': OcSessionListToolView,
 
-  // Project tools (kortix-orchestrator)
+  // Project tools (Kortix project surfaces)
   'oc-project_list': OcProjectListToolView,
   'oc-project-list': OcProjectListToolView,
   'project_list': OcProjectListToolView,

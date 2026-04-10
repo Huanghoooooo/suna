@@ -25,6 +25,9 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { InlineTextEditor } from '@/components/ui/inline-text-editor';
 import {
   useKortixTask,
+  useKortixTaskEvents,
+  useKortixTaskRuns,
+  useKortixTaskStatus,
   useUpdateKortixTask,
   useStartKortixTask,
   useApproveKortixTask,
@@ -53,6 +56,18 @@ export function TaskDetailView({
   pollingEnabled = true,
 }: TaskDetailViewProps) {
   const { data: task, isLoading } = useKortixTask(taskId || '', {
+    enabled: !!taskId && pollingEnabled,
+    pollingEnabled: !!taskId && pollingEnabled,
+  });
+  const { data: events } = useKortixTaskEvents(taskId || '', {
+    enabled: !!taskId && pollingEnabled,
+    pollingEnabled: !!taskId && pollingEnabled,
+  });
+  const { data: runs } = useKortixTaskRuns(taskId || '', {
+    enabled: !!taskId && pollingEnabled,
+    pollingEnabled: !!taskId && pollingEnabled,
+  });
+  const { data: liveStatus } = useKortixTaskStatus(taskId || '', {
     enabled: !!taskId && pollingEnabled,
     pollingEnabled: !!taskId && pollingEnabled,
   });
@@ -238,6 +253,97 @@ export function TaskDetailView({
                 </div>
               )}
 
+              {liveStatus && (
+                <div className="px-5 pb-4">
+                  <div className="rounded-xl border border-border/40 bg-muted/[0.18] p-4">
+                    <span className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground/60 font-semibold">
+                      Live status
+                    </span>
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12px]">
+                      <div>
+                        <div className="text-muted-foreground/60">Status</div>
+                        <div className="font-medium text-foreground/85">{liveStatus.status}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground/60">Run status</div>
+                        <div className="font-medium text-foreground/85">{liveStatus.run_status || '—'}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground/60">Worker session</div>
+                        <div className="font-medium text-foreground/85 break-all">
+                          {liveStatus.owner_session_id || '—'}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-[12px] text-foreground/70 leading-relaxed whitespace-pre-wrap">
+                      {liveStatus.detail}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Event timeline ──────────────────────────── */}
+              {events && events.length > 0 && (
+                <div className="px-5 pb-4">
+                  <div className="rounded-xl border border-border/40 bg-muted/[0.18] p-4">
+                    <span className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground/60 font-semibold">
+                      Timeline
+                    </span>
+                    <div className="mt-3 space-y-2">
+                      {events.slice(0, 12).map((event) => (
+                        <div key={event.id} className="rounded-lg border border-border/30 bg-background/60 px-3 py-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/70">
+                              {event.type.replace(/_/g, ' ')}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground/50">
+                              {relativeTime(event.created_at)}
+                            </span>
+                          </div>
+                          {event.message && (
+                            <p className="mt-1 text-[12px] text-foreground/75 whitespace-pre-wrap leading-relaxed">
+                              {event.message}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {runs && runs.length > 0 && (
+                <div className="px-5 pb-4">
+                  <div className="rounded-xl border border-border/40 bg-muted/[0.18] p-4">
+                    <span className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground/60 font-semibold">
+                      Runs
+                    </span>
+                    <div className="mt-3 space-y-2">
+                      {runs.slice(0, 6).map((run) => (
+                        <div key={run.id} className="rounded-lg border border-border/30 bg-background/60 px-3 py-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/70">
+                              {run.status}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground/50">
+                              {relativeTime(run.created_at)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-[12px] text-foreground/65 font-mono break-all">
+                            {run.id}
+                          </p>
+                          {run.owner_session_id && (
+                            <p className="mt-1 text-[12px] text-foreground/70">
+                              Session: {run.owner_session_id}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* ── Content (description + verification) ────── */}
               <div className="px-5 pt-1 pb-4 space-y-3">
                 <InlineTextEditor
@@ -284,13 +390,13 @@ export function TaskDetailView({
                     <Button
                       size="sm"
                       className="h-8 px-4 gap-1.5"
-                      onClick={() => startTask.mutate({ id: task.id })}
+                      onClick={() => startTask.mutate({ id: task.id, session_id: project?.manager_session_id || undefined })}
                     >
                       <Play className="h-3 w-3" />
                       Start task
                     </Button>
                   )}
-                  {task.status === 'input_needed' && (
+                  {(task.status === 'input_needed' || task.status === 'awaiting_review') && (
                     <Button
                       size="sm"
                       className="h-8 px-4 gap-1.5"

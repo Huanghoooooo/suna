@@ -35,7 +35,6 @@ import marketplaceRouter from './routes/marketplace'
 import preferencesRouter from './routes/preferences'
 import projectsRouter from './routes/projects'
 import { tasksRouter } from './routes/tasks'
-import { agentsRouter } from './routes/agents'
 import { serviceManager } from './services/service-manager'
 import { config } from './config'
 import { loadBootstrapEnv, saveBootstrapEnv } from './services/bootstrap-env'
@@ -382,8 +381,6 @@ app.route('/kortix/projects', projectsRouter)
 app.route('/kortix/projects/', projectsRouter)
 app.route('/kortix/tasks', tasksRouter)
 app.route('/kortix/tasks/', tasksRouter)
-app.route('/kortix/agents', agentsRouter)
-app.route('/kortix/agents/', agentsRouter)
 
 // Public URL sharing — /kortix/share/:port returns the public URL for a sandbox port
 app.route('/kortix/share', shareRouter)

@@ -6,25 +6,27 @@
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { MessageSquare, Plus } from 'lucide-react';
 
-export type ProjectTab = 'overview' | 'tasks' | 'files' | 'sessions';
+export type ProjectTab = 'thread' | 'overview' | 'tasks' | 'files' | 'sessions';
 
 export interface ProjectHeaderProps {
   project: any;
   tab: ProjectTab;
   onTabChange: (tab: ProjectTab) => void;
   onNewTask?: () => void;
+  onOpenThread?: () => void;
 }
 
 const TAB_DEFS: Array<{ id: ProjectTab; label: string }> = [
+  { id: 'thread', label: 'Thread' },
   { id: 'overview', label: 'Overview' },
   { id: 'tasks', label: 'Tasks' },
   { id: 'files', label: 'Files' },
   { id: 'sessions', label: 'Sessions' },
 ];
 
-export function ProjectHeader({ project, tab, onTabChange, onNewTask }: ProjectHeaderProps) {
+export function ProjectHeader({ project, tab, onTabChange, onNewTask, onOpenThread }: ProjectHeaderProps) {
   return (
     <div className="shrink-0 bg-background border-b border-border/60">
       <div className="container mx-auto max-w-7xl px-3 sm:px-4">
@@ -37,17 +39,32 @@ export function ProjectHeader({ project, tab, onTabChange, onNewTask }: ProjectH
             {project.name}
           </h1>
 
-          {onNewTask && (
-            <Button
-              size="sm"
-              className="h-7 px-2 sm:px-3 text-[12px] gap-1.5 shrink-0"
-              onClick={onNewTask}
-              title="New task (C)"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">New task</span>
-            </Button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {onOpenThread && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 sm:px-3 text-[12px] gap-1.5"
+                onClick={onOpenThread}
+                title="Open project orchestrator"
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Open orchestrator</span>
+              </Button>
+            )}
+
+            {onNewTask && (
+              <Button
+                size="sm"
+                className="h-7 px-2 sm:px-3 text-[12px] gap-1.5 shrink-0"
+                onClick={onNewTask}
+                title="New task (C)"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">New task</span>
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Row 2: Tab bar — scrollable on mobile */}

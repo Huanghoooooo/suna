@@ -272,7 +272,7 @@ export default function Home() {
                 <ConfigCard
                   icon={<Terminal className="size-4 text-foreground" />}
                   title="Commands"
-                  desc="Slash commands that trigger structured workflows. /autowork, /orchestrate, /onboarding — your playbooks, automated."
+                  desc="Slash commands that trigger structured workflows. /autowork and /onboarding — your playbooks, automated."
                 />
                 <ConfigCard
                   icon={<Zap className="size-4 text-foreground" />}

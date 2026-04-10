@@ -21,6 +21,7 @@ export interface KortixProject {
   description: string;
   created_at: string;
   opencode_id: string | null;
+  manager_session_id?: string | null;
   sessionCount?: number;
   // Extended properties from OpenCode Project (optional for compatibility)
   worktree?: string;
@@ -139,6 +140,22 @@ export function useDeleteProject() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: kortixKeys.projects() });
+    },
+  });
+}
+
+export function useEnsureKortixManagerSession() {
+  const qc = useQueryClient();
+  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
+  return useMutation({
+    mutationFn: (id: string) =>
+      kortixFetch<KortixProject>(serverUrl, `/${encodeURIComponent(id)}/manager-session`, {
+        method: 'POST',
+      }),
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: kortixKeys.project(id) });
+      qc.invalidateQueries({ queryKey: kortixKeys.projects() });
+      qc.invalidateQueries({ queryKey: ['kortix', 'projects', id, 'sessions'] });
     },
   });
 }
