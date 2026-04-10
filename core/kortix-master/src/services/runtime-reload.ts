@@ -16,6 +16,8 @@
  *   svc-kortix-master      — This process (port 8000)
  */
 
+import { config } from '../config'
+
 export type ReloadMode = 'dispose-only' | 'full'
 
 export interface ReloadResult {
@@ -23,6 +25,71 @@ export interface ReloadResult {
   mode: ReloadMode
   steps: string[]
   errors: string[]
+}
+
+interface SessionStatusLike {
+  type?: string
+}
+
+export function getBusySessionIds(statuses?: Record<string, SessionStatusLike> | null): string[] {
+  if (!statuses) return []
+  return Object.entries(statuses)
+    .filter(([sessionId, status]) => Boolean(sessionId) && !!status && status.type !== 'idle')
+    .map(([sessionId]) => sessionId)
+}
+
+async function cancelActiveSessionsBeforeShutdown(result: ReloadResult): Promise<void> {
+  const baseUrl = `http://${config.OPENCODE_HOST}:${config.OPENCODE_PORT}`
+
+  let busySessionIds: string[] = []
+  try {
+    const res = await fetch(`${baseUrl}/session/status`, {
+      signal: AbortSignal.timeout(5_000),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const statuses = (await res.json()) as Record<string, SessionStatusLike>
+    busySessionIds = getBusySessionIds(statuses)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    result.errors.push(`Could not inspect active sessions before shutdown: ${msg}`)
+    return
+  }
+
+  if (busySessionIds.length === 0) {
+    result.steps.push('No active sessions needed cancellation before shutdown')
+    return
+  }
+
+  result.steps.push(`Cancelling ${busySessionIds.length} active session(s) before shutdown`)
+
+  const failures: string[] = []
+  await Promise.all(
+    busySessionIds.map(async (sessionId) => {
+      try {
+        const res = await fetch(`${baseUrl}/session/${sessionId}/abort`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(5_000),
+        })
+        if (!res.ok && res.status !== 404) {
+          const body = await res.text().catch(() => '')
+          throw new Error(body ? `HTTP ${res.status}: ${body.slice(0, 200)}` : `HTTP ${res.status}`)
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        failures.push(`${sessionId}: ${msg}`)
+      }
+    }),
+  )
+
+  const cancelledCount = busySessionIds.length - failures.length
+  if (cancelledCount > 0) {
+    result.steps.push(`Cancelled ${cancelledCount} active session(s) before shutdown`)
+    await Bun.sleep(250)
+  }
+
+  if (failures.length > 0) {
+    result.errors.push(`Failed to cancel ${failures.length} active session(s): ${failures.join('; ')}`)
+  }
 }
 
 export function getSafeFullReloadFallback(options?: {
@@ -142,6 +209,8 @@ export async function initiateRuntimeReload(mode: ReloadMode): Promise<ReloadRes
     steps: [],
     errors: [],
   }
+
+  await cancelActiveSessionsBeforeShutdown(result)
 
   // ── dispose-only: hot-reload config without killing processes ──
   if (mode === 'dispose-only') {

@@ -17,9 +17,63 @@ import type { Plugin } from "@opencode-ai/plugin"
 import { initProjectsDb, ProjectManager, projectTools, projectGateHook, projectStatusTransform } from "./projects"
 import { agentTaskTools, ensureAgentTasksTable, handleAgentTaskSessionEvent, getTaskSystemPrompt } from "./agent-tasks"
 import { resolveKortixWorkspaceRoot, ensureKortixDir } from "./lib/paths"
+import { getBusySessionIds } from "../../../src/services/runtime-reload"
+
+async function cleanupLingeringBusySessions(client: any, cleanupStartedAt: number): Promise<void> {
+	for (let attempt = 1; attempt <= 5; attempt++) {
+		try {
+			const [statusRes, sessionsRes] = await Promise.all([
+				client.session.status(),
+				client.session.list(),
+			])
+			const candidateBusySessionIds = getBusySessionIds(statusRes.data as Record<string, { type?: string }> | null | undefined)
+			const sessionsById = new Map(
+				((sessionsRes.data ?? []) as Array<{ id: string; time?: { updated?: number } }>).map((session) => [session.id, session]),
+			)
+			const busySessionIds = candidateBusySessionIds.filter((sessionId) => {
+				const updatedAt = sessionsById.get(sessionId)?.time?.updated
+				return typeof updatedAt !== "number" || updatedAt <= cleanupStartedAt
+			})
+			if (busySessionIds.length === 0) {
+				if (candidateBusySessionIds.length > 0) {
+					console.log("[kortix-system] startup cleanup: only fresh busy sessions found, skipping cleanup")
+				} else {
+					console.log("[kortix-system] startup cleanup: no lingering busy sessions")
+				}
+				return
+			}
+
+			console.log(`[kortix-system] startup cleanup: aborting ${busySessionIds.length} lingering busy session(s)`)
+			const failures: string[] = []
+			await Promise.all(
+				busySessionIds.map(async (sessionId) => {
+					try {
+						await client.session.abort({ path: { id: sessionId } })
+					} catch (err) {
+						failures.push(`${sessionId}: ${err instanceof Error ? err.message : String(err)}`)
+					}
+				}),
+			)
+
+			if (failures.length > 0) {
+				console.warn(`[kortix-system] startup cleanup: failed to abort ${failures.length} session(s): ${failures.join("; ")}`)
+			} else {
+				console.log("[kortix-system] startup cleanup: lingering busy sessions aborted")
+			}
+			return
+		} catch (err) {
+			if (attempt === 5) {
+				console.warn(`[kortix-system] startup cleanup failed after ${attempt} attempts: ${err instanceof Error ? err.message : String(err)}`)
+				return
+			}
+			await Bun.sleep(attempt * 250)
+		}
+	}
+}
 
 const KortixSystemPlugin: Plugin = async (ctx) => {
 	const { client } = ctx
+	const startupCleanupStartedAt = Date.now()
 
 	// ── Core infra ──
 	const workspaceRoot = resolveKortixWorkspaceRoot(import.meta.dir)
@@ -50,7 +104,10 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 	})
 	
 	console.log("[kortix-system] Plugin initialized. Tools:", Object.keys(projectTools(mgr, db)).length, "project +", Object.keys(agentTaskTools(db, mgr, client)).length, "agent_task")
-
+	setTimeout(() => {
+		void cleanupLingeringBusySessions(client, startupCleanupStartedAt)
+	}, 750)
+ 
 	// ── Merge all tools ──
 	return {
 		tool: {
