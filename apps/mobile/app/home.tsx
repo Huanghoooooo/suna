@@ -55,6 +55,7 @@ import { ViewChangesSheet } from '@/components/session/ViewChangesSheet';
 import { ExportTranscriptSheet } from '@/components/session/ExportTranscriptSheet';
 import { ProjectsPage } from '@/components/pages/ProjectsPage';
 import { ProjectDetailPage } from '@/components/pages/ProjectDetailPage';
+import { useKortixProjects, type KortixProject } from '@/lib/kortix';
 import { useGlobalSandboxUpdate } from '@/hooks/useSandboxUpdate';
 import { PlaceholderPage } from '@/components/session/PlaceholderPage';
 import { UpdatesPage } from '@/components/pages/UpdatesPage';
@@ -501,6 +502,13 @@ export default function HomeScreen() {
   // Data
   const { data: sessions = [], isLoading: sessionsLoading } =
     useSessions(sandboxUrl);
+  const { data: kortixProjects } = useKortixProjects(sandboxUrl);
+  const sortedProjects = useMemo(() => {
+    if (!kortixProjects || !Array.isArray(kortixProjects)) return [];
+    return [...kortixProjects].sort(
+      (a: KortixProject, b: KortixProject) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+  }, [kortixProjects]);
   const createSession = useCreateSession(sandboxUrl);
   const deleteSession = useDeleteSession(sandboxUrl);
   const archiveSession = useArchiveSession(sandboxUrl);
@@ -519,6 +527,7 @@ export default function HomeScreen() {
   // Collapsible state
   const [sessionsExpanded, setSessionsExpanded] = useState(true);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
+  const [projectsExpanded, setProjectsExpanded] = useState(false);
 
   // Agent/model/variant for dashboard input
   const { data: agents = [] } = useOpenCodeAgents(sandboxUrl);
@@ -586,6 +595,13 @@ export default function HomeScreen() {
     navigateToSession(session.id);
     setDrawerOpen(false);
   }, [navigateToSession]);
+
+  const handleProjectPress = useCallback((project: KortixProject) => {
+    const pageId = `page:project:${project.id}`;
+    useTabStore.getState().setTabState(pageId, { projectName: project.name });
+    useTabStore.getState().navigateToPage(pageId);
+    setDrawerOpen(false);
+  }, []);
 
   const handleBack = useCallback(() => navigateToSession(null), [navigateToSession]);
 
@@ -801,6 +817,51 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Projects header (collapsible) — above Sessions, matches web sidebar */}
+        {sortedProjects.length > 0 && (
+          <>
+            <TouchableOpacity
+              onPress={() => setProjectsExpanded((v) => !v)}
+              className="flex-row items-center justify-between px-5 py-2.5"
+              activeOpacity={0.6}
+            >
+              <View className="flex-row items-center">
+                <Ionicons name="folder-outline" size={18} color={iconColor} />
+                <Text className="text-sm font-medium ml-3 text-foreground">Projects</Text>
+              </View>
+              <View className="flex-row items-center">
+                <View className="bg-muted rounded-full px-2 py-0.5 mr-1">
+                  <Text className="text-xs text-muted-foreground">{sortedProjects.length}</Text>
+                </View>
+                <AnimatedChevron expanded={projectsExpanded} color={mutedColor} size={16} />
+              </View>
+            </TouchableOpacity>
+
+            <AnimatedCollapsible expanded={projectsExpanded}>
+              <View className="px-2 pb-2">
+                {sortedProjects.map((project: KortixProject) => (
+                  <TouchableOpacity
+                    key={project.id}
+                    onPress={() => handleProjectPress(project)}
+                    className="flex-row items-center rounded-lg px-4 py-2 mb-0.5"
+                    activeOpacity={0.6}
+                  >
+                    <Ionicons name="folder-outline" size={14} color={mutedColor} style={{ marginRight: 8 }} />
+                    <Text className="flex-1 text-sm text-muted-foreground" numberOfLines={1}>
+                      {project.name}
+                    </Text>
+                    {(project.sessionCount ?? 0) > 0 && (
+                      <Text className="text-xs text-muted-foreground/50 ml-2">
+                        {project.sessionCount}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </AnimatedCollapsible>
+          </>
+        )}
+
         {/* Sessions header (collapsible) */}
         <TouchableOpacity
           onPress={() => setSessionsExpanded((v) => !v)}
@@ -938,6 +999,9 @@ export default function HomeScreen() {
     sessionsLoading,
     sessionsExpanded,
     archivedExpanded,
+    projectsExpanded,
+    sortedProjects,
+    handleProjectPress,
     activeSessionId,
     userDisplayName,
     planLabel,

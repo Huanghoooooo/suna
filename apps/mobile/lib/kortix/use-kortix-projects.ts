@@ -182,3 +182,39 @@ export function useDeleteProject(sandboxUrl: string | undefined) {
     },
   });
 }
+
+// ── Task mutation hooks (ported from web 8e1bc7b) ───────────────────────────
+
+export type KortixTaskStatus = KortixTask['status'];
+
+export function useUpdateKortixTask(sandboxUrl: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Partial<KortixTask>) =>
+      kortixFetch<KortixTask>(sandboxUrl!, `/kortix/tasks/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      if (sandboxUrl) {
+        // Invalidate all task queries for this sandbox
+        qc.invalidateQueries({ queryKey: ['kortix', 'tasks', sandboxUrl] });
+      }
+    },
+  });
+}
+
+export function useDeleteKortixTask(sandboxUrl: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      kortixFetch<{ deleted: boolean }>(sandboxUrl!, `/kortix/tasks/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      if (sandboxUrl) {
+        qc.invalidateQueries({ queryKey: ['kortix', 'tasks', sandboxUrl] });
+      }
+    },
+  });
+}

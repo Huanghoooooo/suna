@@ -59,8 +59,11 @@ import {
   useKortixAgents,
   useUpdateProject,
   useDeleteProject,
+  useUpdateKortixTask,
+  useDeleteKortixTask,
   type KortixTask,
   type KortixAgent,
+  type KortixTaskStatus,
 } from '@/lib/kortix';
 import { useTabStore } from '@/stores/tab-store';
 
@@ -122,6 +125,8 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
   const { data: agents } = useKortixAgents(sandboxUrl, project?.id);
   const updateProject = useUpdateProject(sandboxUrl);
   const deleteProject = useDeleteProject(sandboxUrl);
+  const updateTask = useUpdateKortixTask(sandboxUrl);
+  const deleteTask = useDeleteKortixTask(sandboxUrl);
 
   // Store project name in tab state for TabsOverview title
   useEffect(() => {
@@ -132,11 +137,13 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
 
   const [tab, setTab] = useState<Tab>('files');
   const editSheetRef = useRef<BottomSheetModal>(null);
+  const taskSheetRef = useRef<BottomSheetModal>(null);
   const sheetPadding = useSheetBottomPadding();
   const tabScrollRef = useRef<ScrollView>(null);
   const tabLayoutsRef = useRef<Record<number, { x: number; width: number }>>({});
   const [editField, setEditField] = useState<'name' | 'description'>('name');
   const [editValue, setEditValue] = useState('');
+  const [selectedTask, setSelectedTask] = useState<KortixTask | null>(null);
 
   const fg = isDark ? '#F8F8F8' : '#121215';
   const muted = isDark ? 'rgba(248,248,248,0.5)' : 'rgba(18,18,21,0.5)';
@@ -497,8 +504,13 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
                   const isDone = t.status === 'done' || t.status === 'cancelled';
                   const pc = PRIORITY_COLORS[t.priority];
                   return (
-                    <View
+                    <TouchableOpacity
                       key={t.id}
+                      onPress={() => {
+                        setSelectedTask(t);
+                        taskSheetRef.current?.present();
+                      }}
+                      activeOpacity={0.7}
                       style={{
                         flexDirection: 'row',
                         alignItems: 'center',
@@ -507,7 +519,7 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
                         gap: 10,
                         borderBottomWidth: i < taskList.length - 1 ? 1 : 0,
                         borderBottomColor: border,
-                        opacity: isDone ? 0.4 : 1,
+                        opacity: isDone ? 0.5 : 1,
                       }}
                     >
                       <StatusIcon size={14} color={sc.color} />
@@ -531,7 +543,7 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
                       <RNText style={{ fontSize: 11, fontFamily: 'Roobert', color: isDark ? '#3f3f46' : '#a1a1aa' }}>
                         {ago(t.updated_at)}
                       </RNText>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
@@ -664,6 +676,169 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
           sandboxUrl={sandboxUrl}
         />
       )}
+
+      {/* Task detail sheet — view & edit task status */}
+      <BottomSheetModal
+        ref={taskSheetRef}
+        enableDynamicSizing
+        enablePanDownToClose
+        backdropComponent={renderBackdrop}
+        onDismiss={() => setSelectedTask(null)}
+        backgroundStyle={{
+          backgroundColor: isDark ? '#161618' : '#FFFFFF',
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+        }}
+        handleIndicatorStyle={{
+          backgroundColor: isDark ? '#3F3F46' : '#D4D4D8',
+          width: 36,
+          height: 5,
+          borderRadius: 3,
+        }}
+      >
+        <BottomSheetView
+          style={{
+            paddingHorizontal: 20,
+            paddingTop: 8,
+            paddingBottom: sheetPadding,
+          }}
+        >
+          {selectedTask && (
+            <>
+              {/* Header: title + delete */}
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14, gap: 12 }}>
+                <RNText
+                  style={{
+                    flex: 1,
+                    fontSize: 17,
+                    fontFamily: 'Roobert-Medium',
+                    color: fg,
+                    lineHeight: 22,
+                    textDecorationLine: (selectedTask.status === 'done' || selectedTask.status === 'cancelled') ? 'line-through' : 'none',
+                  }}
+                >
+                  {selectedTask.title}
+                </RNText>
+                <TouchableOpacity
+                  onPress={() => {
+                    Alert.alert(
+                      'Delete task',
+                      `Delete "${selectedTask.title}"? This cannot be undone.`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Delete',
+                          style: 'destructive',
+                          onPress: () => {
+                            deleteTask.mutate(selectedTask.id, {
+                              onSuccess: () => {
+                                taskSheetRef.current?.dismiss();
+                              },
+                            });
+                          },
+                        },
+                      ],
+                    );
+                  }}
+                  hitSlop={10}
+                  style={{ padding: 4 }}
+                >
+                  <Trash2 size={18} color={isDark ? '#52525b' : '#a1a1aa'} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Priority */}
+              {selectedTask.priority && (() => {
+                const pc = PRIORITY_COLORS[selectedTask.priority];
+                return (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                    <RNText style={{ fontSize: 12, fontFamily: 'Roobert', color: mutedStrong }}>
+                      Priority
+                    </RNText>
+                    <View style={{ backgroundColor: pc?.bg || cardBg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                      <RNText style={{ fontSize: 11, fontFamily: 'Roobert-Medium', color: pc?.fg || mutedStrong, textTransform: 'capitalize' }}>
+                        {selectedTask.priority}
+                      </RNText>
+                    </View>
+                  </View>
+                );
+              })()}
+
+              {/* Description */}
+              {!!selectedTask.description && (
+                <View style={{ marginBottom: 16 }}>
+                  <RNText style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: mutedStrong, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Description
+                  </RNText>
+                  <RNText style={{ fontSize: 14, fontFamily: 'Roobert', color: isDark ? '#a1a1aa' : '#52525b', lineHeight: 20 }}>
+                    {selectedTask.description}
+                  </RNText>
+                </View>
+              )}
+
+              {/* Status options */}
+              <RNText style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: mutedStrong, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Status
+              </RNText>
+              <View style={{ gap: 6, marginBottom: 16 }}>
+                {(['pending', 'in_progress', 'done', 'blocked', 'cancelled'] as KortixTaskStatus[]).map((s) => {
+                  const sc = STATUS_CONFIG[s];
+                  const SIcon = sc.icon;
+                  const isCurrent = selectedTask.status === s;
+                  const label = s === 'in_progress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1);
+                  return (
+                    <TouchableOpacity
+                      key={s}
+                      onPress={() => {
+                        if (isCurrent) return;
+                        updateTask.mutate(
+                          { id: selectedTask.id, status: s },
+                          {
+                            onSuccess: (updated: KortixTask) => {
+                              setSelectedTask(updated);
+                            },
+                          },
+                        );
+                      }}
+                      activeOpacity={0.7}
+                      disabled={updateTask.isPending}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 10,
+                        paddingHorizontal: 12,
+                        paddingVertical: 11,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: isCurrent ? sc.color : border,
+                        backgroundColor: isCurrent ? `${sc.color}15` : cardBg,
+                      }}
+                    >
+                      <SIcon size={15} color={sc.color} />
+                      <RNText style={{ flex: 1, fontSize: 14, fontFamily: isCurrent ? 'Roobert-Medium' : 'Roobert', color: fg }}>
+                        {label}
+                      </RNText>
+                      {isCurrent && <CheckCircle2 size={14} color={sc.color} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Meta */}
+              <View style={{ flexDirection: 'row', gap: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: border }}>
+                <RNText style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>
+                  Created {ago(selectedTask.created_at)}
+                </RNText>
+                {selectedTask.updated_at !== selectedTask.created_at && (
+                  <RNText style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>
+                    Updated {ago(selectedTask.updated_at)}
+                  </RNText>
+                )}
+              </View>
+            </>
+          )}
+        </BottomSheetView>
+      </BottomSheetModal>
 
       {/* Edit sheet — matches FilesPage rename sheet pattern */}
       <BottomSheetModal
