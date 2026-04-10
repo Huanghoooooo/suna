@@ -159,16 +159,20 @@ export function DashboardContent() {
         </div>
       )}
 
-      {/* Wallpaper background with brandmark */}
+      {/* Wallpaper area — flex-1 above input, same structure as session-chat */}
       <div
         className={cn(
-          "flex-1 relative overflow-hidden transition-[opacity,transform] ease-out",
+          "relative flex-1 min-h-0 transition-[opacity,transform] ease-out",
           isFadingOutWelcome
             ? "opacity-0 scale-[0.995] duration-700"
             : "opacity-100 scale-100 duration-300",
         )}
       >
-        <WallpaperBackground />
+        <div className="absolute inset-0">
+          <div className="relative w-full h-full overflow-hidden">
+            <WallpaperBackground />
+          </div>
+        </div>
       </div>
 
       {/* Chat Input — pinned to bottom */}

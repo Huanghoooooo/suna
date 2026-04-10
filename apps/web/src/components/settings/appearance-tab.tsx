@@ -61,36 +61,65 @@ function WallpaperCard({
   isActive: boolean;
   onSelect: () => void;
 }) {
-  const isSvg = wallpaper.type === 'svg';
+  const { type } = wallpaper;
 
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        'group relative cursor-pointer rounded-lg overflow-hidden transition-colors duration-200',
-        'ring-2 ring-offset-1 ring-offset-background',
-        isActive
-          ? 'ring-primary'
-          : 'ring-transparent hover:ring-border/50'
-      )}
-    >
-      <div className="relative w-full aspect-video bg-muted">
-        {isSvg ? (
-          /* SVG brandmark — theme-aware: dark bg in dark mode, light bg in light mode */
-          <>
-            <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-950 flex items-center justify-center overflow-hidden">
+  // Theme-aware preview backgrounds:
+  // Light mode → light bg with dark assets, Dark mode → dark bg with light assets
+  // Mirrors exactly how each wallpaper renders on the actual page.
+  const renderPreview = () => {
+    switch (type) {
+      case 'svg':
+        // Brandmark SVG has white strokes — needs dark bg to see them.
+        // In light mode, the actual wallpaper inverts them to black on white bg.
+        return (
+          <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-950 flex items-center justify-center overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={wallpaper.thumbnailUrl}
+              alt={wallpaper.name}
+              className="w-[200%] h-auto object-contain select-none invert dark:invert-0"
+              draggable={false}
+            />
+          </div>
+        );
+      case 'symbol':
+        // Symbol SVG has black fill — visible on light, needs invert on dark.
+        return (
+          <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-950 flex items-center justify-center overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={wallpaper.thumbnailUrl}
+              alt={wallpaper.name}
+              className="w-[12%] h-auto object-contain select-none opacity-[0.12] dark:opacity-[0.15] dark:invert"
+              draggable={false}
+            />
+          </div>
+        );
+      case 'aurora':
+        // Logomark SVG is white fill — invert to black on light, keep white on dark.
+        // Radial glow hints at the animated arcs on the edges.
+        return (
+          <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-950 overflow-hidden">
+            <div
+              className="absolute inset-0 opacity-30 dark:opacity-50"
+              style={{
+                background:
+                  'radial-gradient(ellipse at 10% 30%, rgba(120,120,120,0.2) 0%, transparent 50%), radial-gradient(ellipse at 90% 40%, rgba(100,100,100,0.16) 0%, transparent 45%)',
+              }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={wallpaper.thumbnailUrl}
                 alt={wallpaper.name}
-                className="w-[200%] h-auto object-contain select-none opacity-30 dark:opacity-30 invert dark:invert-0"
+                className="w-[28%] h-auto object-contain select-none invert dark:invert-0"
                 draggable={false}
               />
             </div>
-          </>
-        ) : (
-          /* Image wallpaper — show light variant in light mode, dark in dark */
+          </div>
+        );
+      default:
+        return (
           <>
             <div className="absolute inset-0 dark:hidden">
               <Image
@@ -113,7 +142,24 @@ function WallpaperCard({
               />
             </div>
           </>
-        )}
+        );
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        'group relative cursor-pointer rounded-lg overflow-hidden transition-colors duration-200',
+        'ring-2 ring-offset-1 ring-offset-background',
+        isActive
+          ? 'ring-primary'
+          : 'ring-transparent hover:ring-border/50'
+      )}
+    >
+      <div className="relative w-full aspect-video bg-muted">
+        {renderPreview()}
         {/* Hover overlay */}
         <div
           className={cn(

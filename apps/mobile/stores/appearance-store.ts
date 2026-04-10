@@ -11,7 +11,7 @@ export type AppearanceThemeId =
   | 'emerald'
   | 'neon';
 
-export type WallpaperId = 'brandmark';
+export type WallpaperId = 'brandmark' | 'symbol' | 'aurora';
 
 interface AppearanceState {
   themeId: AppearanceThemeId;

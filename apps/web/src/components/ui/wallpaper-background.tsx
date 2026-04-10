@@ -4,20 +4,16 @@ import { memo } from 'react';
 import Image from 'next/image';
 import { useUserPreferencesStore } from '@/stores/user-preferences-store';
 import { getWallpaperById, DEFAULT_WALLPAPER_ID } from '@/lib/wallpapers';
+import { AnimatedBg } from '@/components/ui/animated-bg';
 
-/**
- * Full-screen wallpaper background used on the dashboard, onboarding, and login screens.
- * Reads the user's selected wallpaper from preferences.
- *
- * - Default ("brandmark"): renders the SVG brandmark centered (same as the original).
- * - Image wallpapers: renders a full-bleed light/dark image pair.
- */
 export const WallpaperBackground = memo(function WallpaperBackground() {
   const wallpaperId = useUserPreferencesStore(
     (s) => s.preferences.wallpaperId ?? DEFAULT_WALLPAPER_ID
   );
   const wallpaper = getWallpaperById(wallpaperId);
 
+  // ── Variant 1: Brandmark ──────────────────────────────────────────────
+  // Full-bleed oversized Kortix symbol outline, faded
   if (wallpaper.type === 'svg') {
     return (
       <div
@@ -35,7 +31,108 @@ export const WallpaperBackground = memo(function WallpaperBackground() {
     );
   }
 
-  // Image-based wallpaper with light/dark variants
+  // ── Variant 2: Symbol ─────────────────────────────────────────────────
+  // Tiny Kortix symbol, dead center, ghost-level opacity
+  if (wallpaper.type === 'symbol') {
+    return (
+      <div
+        className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center"
+        aria-hidden="true"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={wallpaper.symbolUrl}
+          alt=""
+          className="w-[100px] sm:w-[130px] md:w-[160px] h-auto object-contain select-none opacity-[0.045] dark:opacity-[0.055] dark:invert translate-y-[10%]"
+          draggable={false}
+        />
+      </div>
+    );
+  }
+
+  // ── Variant 3: Aurora ─────────────────────────────────────────────────
+  // Layered composition: background symbol watermark + animated arcs
+  // breathing on the edges + logomark center + grain overlay
+  if (wallpaper.type === 'aurora') {
+    return (
+      <div
+        className="absolute inset-0 pointer-events-none overflow-hidden"
+        aria-hidden="true"
+      >
+        {/* L1 — Animated arcs breathing on the edges */}
+        <AnimatedBg
+          variant="hero"
+          blurMultiplier={1.4}
+          sizeMultiplier={1}
+          duration={12}
+          customArcs={{
+            left: [
+              {
+                pos: { left: -160, top: -40 },
+                size: 500,
+                tone: 'medium',
+                opacity: 0.14,
+                delay: 0,
+                x: [0, 7, -4, 0],
+                y: [0, 5, -3, 0],
+                scale: [0.88, 1.04, 0.94, 0.88],
+                blur: ['8px', '14px', '10px', '8px'],
+              },
+              {
+                pos: { left: -80, top: 280 },
+                size: 580,
+                tone: 'dark',
+                opacity: 0.18,
+                delay: 1.8,
+                x: [0, 8, -5, 0],
+                y: [0, 6, -3, 0],
+                scale: [0.9, 1.05, 0.95, 0.9],
+                blur: ['4px', '10px', '6px', '4px'],
+              },
+            ],
+            right: [
+              {
+                pos: { right: -140, top: -20 },
+                size: 540,
+                tone: 'dark',
+                opacity: 0.16,
+                delay: 0.9,
+                x: [0, -7, 4, 0],
+                y: [0, 6, -3, 0],
+                scale: [0.89, 1.05, 0.95, 0.89],
+                blur: ['6px', '12px', '8px', '6px'],
+              },
+              {
+                pos: { right: -60, top: 320 },
+                size: 440,
+                tone: 'light',
+                opacity: 0.1,
+                delay: 2.5,
+                x: [0, -6, 3, 0],
+                y: [0, 5, -3, 0],
+                scale: [0.92, 1.03, 0.96, 0.92],
+                blur: ['12px', '20px', '16px', '12px'],
+              },
+            ],
+          }}
+        />
+
+        {/* L2 — Kortix logomark, small, full opacity, dead center */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={wallpaper.svgUrl}
+            alt=""
+            className="w-[120px] sm:w-[150px] md:w-[170px] h-auto object-contain select-none invert dark:invert-0 translate-y-[10%]"
+            draggable={false}
+          />
+        </div>
+
+      </div>
+    );
+  }
+
+  // ── Fallback: Image wallpaper ─────────────────────────────────────────
   return (
     <div
       className="absolute inset-0 pointer-events-none overflow-hidden"
