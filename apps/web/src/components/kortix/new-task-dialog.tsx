@@ -39,6 +39,7 @@ export function NewTaskDialog({
   projectId,
   projectName,
   projectPath,
+  managerSessionId,
   defaultStatus,
 }: {
   open: boolean;
@@ -46,6 +47,7 @@ export function NewTaskDialog({
   projectId: string;
   projectName?: string;
   projectPath?: string;
+  managerSessionId?: string;
   defaultStatus?: KortixTaskStatus;
 }) {
   const [title, setTitle] = useState('');
@@ -140,7 +142,7 @@ export function NewTaskDialog({
         onSuccess: (task) => {
           const taskId = (task as any)?.id;
           if (autoRun && taskId) {
-            start.mutate({ id: taskId }, {
+            start.mutate({ id: taskId, session_id: managerSessionId }, {
               onSuccess: () => toast('Task started', { description: t }),
               onError: () => toast('Task created but failed to start', { description: t }),
             });
@@ -171,7 +173,7 @@ export function NewTaskDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         hideCloseButton
-        className="sm:max-w-[680px] p-0 overflow-visible gap-0 rounded-2xl border-border shadow-2xl"
+        className="sm:max-w-[680px] max-h-[85vh] p-0 gap-0 rounded-2xl border-border shadow-2xl overflow-hidden flex flex-col"
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
@@ -201,6 +203,8 @@ export function NewTaskDialog({
           </div>
         </div>
 
+        {/* ── Scrollable body ─────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto min-h-0">
         {/* ── Content ────────────────────────────────────────── */}
         <div className="px-5 pt-2 pb-4 space-y-3">
           <input
@@ -301,6 +305,8 @@ export function NewTaskDialog({
             </div>
           )}
         </div>
+
+        </div>{/* end scrollable body */}
 
         {/* Hidden file input */}
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
