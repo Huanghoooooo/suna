@@ -74,7 +74,7 @@ interface WorkspaceItem {
   kind: ItemKind;
   scope: ItemScope;
   meta?: string;
-  raw?: Agent | Skill | Command | Project | { toolId: string; server?: string } | { serverName: string; status: McpStatus };
+  raw?: Agent | Skill | Command | Project | KortixConnector | { toolId: string; server?: string } | { serverName: string; status: McpStatus };
 }
 
 const COMPOSER_PRESETS: Record<WorkspaceComposerKind, { title: string; prompt: string }> = {
@@ -189,7 +189,7 @@ function DetailSheet({
     }
   }
   if (item?.kind === 'connector' && item.raw) {
-    const c = item.raw as KortixConnector;
+    const c = item.raw as unknown as KortixConnector;
     if (c.source) rows.push({ label: 'Source', value: c.source });
     if (c.pipedream_slug) rows.push({ label: 'Pipedream', value: c.pipedream_slug, mono: true });
     if (c.env_keys?.length) rows.push({ label: 'Env', value: c.env_keys.join(', '), mono: true });

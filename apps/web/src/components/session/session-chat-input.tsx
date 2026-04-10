@@ -170,8 +170,8 @@ export function AgentSelector({
   const [flash, setFlash] = useState(false);
   const prevAgentRef = useRef(selectedAgent);
 
-  const primaryAgents = useMemo(() => agents.filter((a) => a.mode !== 'subagent'), [agents]);
-  const subAgents = useMemo(() => agents.filter((a) => a.mode === 'subagent'), [agents]);
+  const primaryAgents = useMemo(() => agents.filter((a) => !a.hidden && a.mode !== 'subagent'), [agents]);
+  const subAgents = useMemo(() => agents.filter((a) => !a.hidden && a.mode === 'subagent'), [agents]);
 
   // Flash highlight when agent changes (e.g. via Tab cycling)
   useEffect(() => {
@@ -209,7 +209,7 @@ export function AgentSelector({
     );
   }, [subAgents, search]);
 
-  const currentAgent = agents.find((a) => a.name === selectedAgent) || agents[0];
+  const currentAgent = agents.find((a) => a.name === selectedAgent) || agents.filter((a) => !a.hidden)[0];
   const displayName = currentAgent?.name || 'Agent';
 
   return (

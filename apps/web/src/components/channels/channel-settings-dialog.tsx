@@ -20,7 +20,7 @@ import { getActiveOpenCodeUrl } from '@/stores/server-store';
 import { authenticatedFetch } from '@/lib/auth-token';
 import { AgentSelector, flattenModels } from '@/components/session/session-chat-input';
 import { ModelSelector } from '@/components/session/model-selector';
-import { useOpenCodeAgents, useOpenCodeProviders } from '@/hooks/opencode/use-opencode-sessions';
+import { useVisibleAgents, useOpenCodeProviders } from '@/hooks/opencode/use-opencode-sessions';
 
 interface Channel {
   id: string;
@@ -67,7 +67,7 @@ export function ChannelSettingsDialog({ channel, open, onOpenChange, onUpdated }
   const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const { data: agents = [], isLoading: agentsLoading } = useOpenCodeAgents();
+  const agents = useVisibleAgents();
   const { data: providers, isLoading: modelsLoading } = useOpenCodeProviders();
   const models = useMemo(() => flattenModels(providers), [providers]);
 
@@ -166,19 +166,13 @@ export function ChannelSettingsDialog({ channel, open, onOpenChange, onUpdated }
           {/* Agent */}
           <div className="space-y-1.5">
             <Label className="text-xs">Agent</Label>
-            {agentsLoading ? (
-              <div className="flex items-center gap-2 h-9 px-3 text-sm text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" /> Loading agents...
-              </div>
-            ) : (
-              <div className="rounded-xl border bg-card px-2 py-1">
-                <AgentSelector
-                  agents={agents}
-                  selectedAgent={agentName}
-                  onSelect={(next) => setAgentName(next)}
-                />
-              </div>
-            )}
+            <div className="rounded-xl border bg-card px-2 py-1">
+              <AgentSelector
+                agents={agents}
+                selectedAgent={agentName}
+                onSelect={(next) => setAgentName(next)}
+              />
+            </div>
           </div>
 
           {/* Model */}

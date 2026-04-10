@@ -22,20 +22,13 @@ export interface KortixProject {
   created_at: string;
   opencode_id: string | null;
   sessionCount?: number;
-  delegationStats?: Record<string, number>;
-}
-
-export interface KortixProjectDetail extends KortixProject {
-  delegations: Array<{
-    session_id: string;
-    project_id: string;
-    prompt: string;
-    agent: string;
-    status: string;
-    result: string | null;
-    created_at: string;
-    completed_at: string | null;
-  }>;
+  // Extended properties from OpenCode Project (optional for compatibility)
+  worktree?: string;
+  time?: {
+    created: number;
+    updated: number;
+    initialized?: number;
+  };
 }
 
 // ── Fetch helper ─────────────────────────────────────────────────────────────
@@ -83,9 +76,9 @@ export function useKortixProject(id: string) {
   const { user, isLoading: isAuthLoading } = useAuth();
   const serverVersion = useServerStore((s) => s.serverVersion);
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
-  return useQuery<KortixProjectDetail>({
+  return useQuery<KortixProject>({
     queryKey: [...kortixKeys.project(id), user?.id ?? 'anonymous', serverUrl, serverVersion],
-    queryFn: () => kortixFetch<KortixProjectDetail>(serverUrl, `/${encodeURIComponent(id)}`),
+    queryFn: () => kortixFetch<KortixProject>(serverUrl, `/${encodeURIComponent(id)}`),
     enabled: !isAuthLoading && !!user && !!serverUrl && !!id,
     staleTime: 15_000,
     gcTime: 5 * 60 * 1000,

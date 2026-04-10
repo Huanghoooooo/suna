@@ -26,7 +26,7 @@ export interface InlineMetaProps {
 
 export function InlineMeta({ className, children }: InlineMetaProps) {
   const items = Children.toArray(children).filter(
-    (c) => c !== null && c !== false && c !== undefined && c !== '',
+    (c) => c !== null && c !== undefined && c !== '',
   );
   return (
     <div
