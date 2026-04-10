@@ -29,7 +29,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       }}
     >
       <DocsLayout
-        tree={source.pageTree}
+        tree={source.getPageTree()}
         nav={{
           title: <DocsLogo />,
           url: '/docs',
