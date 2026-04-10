@@ -1,17 +1,8 @@
 ---
-description: "Compatibility alias for cancel-ralph."
+description: "Cancel the active autowork loop."
 agent: kortix
 ---
 
-# Autowork Cancel
+<!-- KORTIX_CANCEL_AUTOWORK -->
 
-Use `/cancel-ralph` semantics.
-
-This command is a compatibility alias.
-
-Report:
-
-1. what was active
-2. what is already done
-3. what remains unfinished or blocked
-4. confirmation that persistence has stopped
+The active autowork loop has been cancelled.

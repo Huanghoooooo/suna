@@ -600,11 +600,12 @@ function firstMeaningfulLine(value: unknown, maxLength = 120): string {
 }
 
 function getAgentCardLabel(input: Record<string, unknown>): string {
-  const description = firstMeaningfulLine(input.description);
-  if (description) return description;
-
+  // Prefer title (agent_task uses title as the primary label)
   const title = firstMeaningfulLine(input.title, 80);
   if (title) return title;
+
+  const description = firstMeaningfulLine(input.description);
+  if (description) return description;
 
   const message = firstMeaningfulLine(input.message);
   if (message) return message;
@@ -6645,10 +6646,18 @@ function cleanWorkerOutput(raw: string): string {
   text = text.replace(/^\*\*Duration:\*\*.*\n?/m, '');
   text = text.replace(/<promise>[^]*?<\/promise>/g, '');
   text = text.replace(/<DONE>/g, '');
+  // Strip agent_task bookkeeping output
+  text = text.replace(/^Task \*\*task-[a-z0-9]+\*\* created and started\..*$/gm, '');
+  text = text.replace(/^Task \*\*task-[a-z0-9]+\*\* created:.*$/gm, '');
+  text = text.replace(/^Task \*\*task-[a-z0-9]+\*\* started\..*$/gm, '');
+  text = text.replace(/^Task \*\*task-[a-z0-9]+\*\* failed to start.*$/gm, '');
+  text = text.replace(/^Message sent to task.*$/gm, '');
+  text = text.replace(/^Task \*\*task-[a-z0-9]+\*\* approved.*$/gm, '');
+  text = text.replace(/^Task \*\*task-[a-z0-9]+\*\* cancelled.*$/gm, '');
+  text = text.replace(/Worker session: ses_[a-zA-Z0-9]+/g, '');
   // Strip leading/trailing horizontal rules
   text = text.replace(/^---\s*\n/gm, '');
   text = text.trim();
-  // If only whitespace/empty after cleaning, return ""
   return text || '';
 }
 
@@ -6676,6 +6685,11 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
   const status = partStatus(part);
   const output = partOutput(part);
   const description = getAgentCardLabel(input);
+  const verification = firstMeaningfulLine(input.verification_condition, 120);
+  const taskIdFromOutput = useMemo(() => {
+    const m = (output || '').match(/\btask-[a-z0-9]+/);
+    return m ? m[0] : null;
+  }, [output]);
   const isRunning = status === 'running' || status === 'pending';
   const isCompleted = status === 'completed';
   const isError = status === 'error';
@@ -6729,13 +6743,19 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
             hasSession ? 'cursor-pointer hover:bg-accent/50' : '',
           )}
         >
-          {/* Row 1: icon + description + status */}
+          {/* Row 1: icon + description + task ID + status */}
           <div className="flex items-center gap-2.5">
             <Cpu className="size-4 text-muted-foreground flex-shrink-0" />
 
             <span className="text-[13px] font-medium text-foreground truncate flex-1">
               {description}
             </span>
+
+            {taskIdFromOutput && (
+              <span className="text-[10px] text-muted-foreground/50 font-mono flex-shrink-0">
+                {taskIdFromOutput.slice(-8)}
+              </span>
+            )}
 
             {isRunning && (
               <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium flex-shrink-0 flex items-center gap-1">
@@ -6764,6 +6784,15 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
               <ChevronRight className="size-3.5 text-muted-foreground/20 group-hover:text-muted-foreground/50 transition-colors flex-shrink-0" />
             )}
           </div>
+
+          {/* Row 1b: verification condition */}
+          {verification && (
+            <div className="mt-1 pl-[26px]">
+              <span className="text-[11px] text-muted-foreground/40 leading-relaxed">
+                ✓ {verification}
+              </span>
+            </div>
+          )}
 
           {/* Row 2: live activity */}
           {isRunning && (
@@ -6890,6 +6919,13 @@ function AgentSpawnTool({ part, forceOpen }: ToolProps) {
 }
 ToolRegistry.register('agent_spawn', AgentSpawnTool);
 ToolRegistry.register('agent-spawn', AgentSpawnTool);
+// Unified agent_task system — maps to the same AgentSpawnTool UX
+ToolRegistry.register('agent_task', AgentSpawnTool);
+ToolRegistry.register('agent-task', AgentSpawnTool);
+ToolRegistry.register('agent_task_create', AgentSpawnTool);
+ToolRegistry.register('agent-task-create', AgentSpawnTool);
+ToolRegistry.register('agent_task_start', AgentSpawnTool);
+ToolRegistry.register('agent-task-start', AgentSpawnTool);
 
 // ============================================================================
 // Agent utility tools — card components matching AgentSpawnTool visual standard
@@ -6899,88 +6935,49 @@ function AgentMessageTool({ part }: ToolProps) {
   const input = partInput(part);
   const status = partStatus(part);
   const output = partOutput(part);
-  const message = firstMeaningfulLine(input.message, 240);
-  const description = message
-    ? message.length > 80
-      ? message.slice(0, 80).trim() + '…'
-      : message
-    : 'Message sent to agent';
+  const rawMessage = (input.message as string) || '';
+  const taskId = (input.id as string) || (input.agent_id as string) || '';
   const isRunning = status === 'running' || status === 'pending';
-  const isCompleted = status === 'completed';
   const isError = status === 'error';
-
-  const childSessionId: string | undefined = useMemo(
-    () => getChildSessionId(part),
-    [part],
-  );
-
-  const { data: childMessages } = useOpenCodeMessages(childSessionId ?? '');
-  const childToolParts = useMemo(() => {
-    if (!childMessages) return [];
-    return getChildSessionToolParts(childMessages as any);
-  }, [childMessages]);
-
+  const [expanded, setExpanded] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [outputExpanded, setOutputExpanded] = useState(false);
 
-  const lastActivity = useMemo(() => {
-    if (childToolParts.length === 0) return null;
-    const last = childToolParts[childToolParts.length - 1];
-    const info = getToolInfo(last.tool, partInput(last) as Record<string, any>);
-    return info.title + (info.subtitle ? ` · ${info.subtitle}` : '');
-  }, [childToolParts]);
+  const preview = rawMessage.length > 120 ? rawMessage.slice(0, 120).trim() + '…' : rawMessage;
+  const isLong = rawMessage.length > 120;
 
-  const cleanedOutput = useMemo(() => cleanWorkerOutput(output), [output]);
-  const workerPreview = useMemo(
-    () => extractWorkerPreview(cleanedOutput),
-    [cleanedOutput],
-  );
-
+  // Extract session ID from output or metadata
+  const childSessionId = useMemo(() => getChildSessionId(part), [part]);
   const hasSession = !!childSessionId;
 
   return (
     <>
-      <div
-        className={cn(
-          'rounded-lg border border-border/40 bg-muted/20 transition-colors select-none w-full group overflow-hidden',
-        )}
-      >
-        {/* Clickable header area */}
+      <div className={cn(
+        'rounded-lg border border-border/40 bg-muted/20 w-full overflow-hidden group',
+        hasSession && 'cursor-pointer',
+      )}>
         <div
-          role="button"
-          tabIndex={0}
-          onClick={() => hasSession && setModalOpen(true)}
-          onKeyDown={(e) =>
-            e.key === 'Enter' && hasSession && setModalOpen(true)
-          }
-          className={cn(
-            'p-3',
-            hasSession ? 'cursor-pointer hover:bg-accent/50' : '',
-          )}
+          className="p-3"
+          onClick={() => {
+            if (hasSession) { setModalOpen(true); return; }
+            if (isLong) setExpanded(!expanded);
+          }}
         >
-          {/* Row 1: icon + description + status */}
+          {/* Row 1: icon + task ID + status */}
           <div className="flex items-center gap-2.5">
             <MessageCircle className="size-4 text-muted-foreground flex-shrink-0" />
-
             <span className="text-[13px] font-medium text-foreground truncate flex-1">
-              {description}
+              Message → {taskId ? taskId.slice(-12) : 'worker'}
             </span>
-
             {isRunning && (
               <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium flex-shrink-0 flex items-center gap-1">
                 <Loader2 className="size-2.5 animate-spin" />
-                Running
+                Sending
               </span>
             )}
-            {isCompleted && childToolParts.length > 0 && (
-              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono flex-shrink-0">
-                {childToolParts.length} steps
-              </span>
-            )}
-            {isCompleted && childToolParts.length === 0 && !cleanedOutput && (
+            {!isRunning && !isError && (
               <span className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-medium flex-shrink-0 flex items-center gap-1">
                 <Check className="size-2.5" />
-                Done
+                Sent
               </span>
             )}
             {isError && (
@@ -6988,122 +6985,23 @@ function AgentMessageTool({ part }: ToolProps) {
                 Failed
               </span>
             )}
-
-            {hasSession && (
-              <ChevronRight className="size-3.5 text-muted-foreground/20 group-hover:text-muted-foreground/50 transition-colors flex-shrink-0" />
+            {(hasSession || isLong) && (
+              <ChevronRight className={cn(
+                'size-3 text-muted-foreground/20 group-hover:text-muted-foreground/50 transition-all flex-shrink-0',
+                expanded && !hasSession && 'rotate-90',
+              )} />
             )}
           </div>
 
-          {/* Row 2: live activity */}
-          {isRunning && (
-            <div className="mt-2 pl-[26px]">
-              {lastActivity ? (
-                <TextShimmer
-                  duration={1.5}
-                  spread={2}
-                  className="text-[11px] truncate font-mono text-muted-foreground"
-                >
-                  {lastActivity}
-                </TextShimmer>
-              ) : (
-                <span className="text-[11px] text-muted-foreground">
-                  Starting…
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Row 2: completed step summary (only when no worker output) */}
-          {isCompleted && childToolParts.length > 0 && !cleanedOutput && (
-            <div className="mt-2 pl-[26px] space-y-0.5">
-              {childToolParts.slice(-3).map((tp, i) => {
-                const info = getToolInfo(tp.tool, partInput(tp) as Record<string, any>);
-                return (
-                  <div
-                    key={i}
-                    className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate"
-                  >
-                    <Check className="size-2.5 text-muted-foreground/50 flex-shrink-0" />
-                    {info.title}
-                    {info.subtitle ? ` · ${info.subtitle}` : ''}
-                  </div>
-                );
-              })}
-              {childToolParts.length > 3 && (
-                <div className="text-[11px] text-muted-foreground/50 pl-4">
-                  +{childToolParts.length - 3} more
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Fallback: completed with no steps or output */}
-          {isCompleted && childToolParts.length === 0 && !cleanedOutput && (
+          {/* Row 2: message preview */}
+          {rawMessage && (
             <div className="mt-1.5 pl-[26px]">
-              <span className="text-[11px] text-muted-foreground/50 flex items-center gap-1.5">
-                <Check className="size-2.5" />
-                Completed
+              <span className="text-[11px] text-muted-foreground/70 leading-relaxed">
+                {expanded ? rawMessage : preview}
               </span>
             </div>
           )}
         </div>
-
-        {/* Worker result section */}
-        {isCompleted && cleanedOutput && (
-          <div className="border-t border-border/30">
-            {isShortOutput(cleanedOutput) ? (
-              /* Short result: show inline, no collapse */
-              <div className="px-3 py-2.5">
-                <div className="text-xs text-foreground/80 leading-relaxed border-l-2 border-border/40 pl-3 prose-sm [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-foreground [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_table]:text-[11px] [&_code]:text-[11px] [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:rounded [&_hr]:border-border/30 [&_hr]:my-3">
-                  <UnifiedMarkdown
-                    content={cleanedOutput}
-                    isStreaming={false}
-                  />
-                </div>
-              </div>
-            ) : (
-              /* Long result: collapsible */
-              <>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setOutputExpanded(!outputExpanded);
-                  }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-left cursor-pointer hover:bg-muted/30 transition-colors"
-                >
-                  <ChevronRight
-                    className={cn(
-                      'size-3 text-muted-foreground/40 transition-transform flex-shrink-0',
-                      outputExpanded && 'rotate-90',
-                    )}
-                  />
-                  <span className="text-[11px] text-muted-foreground font-medium flex-shrink-0">
-                    Result
-                  </span>
-                  {!outputExpanded && workerPreview && (
-                    <span className="text-[11px] text-muted-foreground/40 truncate">
-                      {workerPreview}
-                    </span>
-                  )}
-                </button>
-                {outputExpanded && (
-                  <div
-                    data-scrollable
-                    className="px-3 pb-3 max-h-80 overflow-y-auto"
-                  >
-                    <div className="text-xs text-foreground/80 leading-relaxed border-l-2 border-border/40 pl-3 prose-sm [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-foreground [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_table]:text-[11px] [&_code]:text-[11px] [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:rounded [&_hr]:border-border/30 [&_hr]:my-3">
-                      <UnifiedMarkdown
-                        content={cleanedOutput}
-                        isStreaming={false}
-                      />
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
       </div>
 
       {hasSession && (
@@ -7111,7 +7009,7 @@ function AgentMessageTool({ part }: ToolProps) {
           open={modalOpen}
           onOpenChange={setModalOpen}
           sessionId={childSessionId}
-          title={description}
+          title={`Message → ${taskId || 'worker'}`}
         />
       )}
     </>
@@ -7119,6 +7017,41 @@ function AgentMessageTool({ part }: ToolProps) {
 }
 ToolRegistry.register('agent_message', AgentMessageTool);
 ToolRegistry.register('agent-message', AgentMessageTool);
+
+// agent_task_update — routes to the right renderer based on action
+function AgentTaskUpdateTool({ part, forceOpen }: ToolProps) {
+  const input = partInput(part);
+  const action = (input.action as string) || '';
+  switch (action) {
+    case 'start':
+      return <AgentSpawnTool part={part} forceOpen={forceOpen} />;
+    case 'message':
+      return <AgentMessageTool part={part} forceOpen={forceOpen} />;
+    case 'cancel':
+      return <AgentStopTool part={part} forceOpen={forceOpen} />;
+    case 'approve': {
+      const taskId = (input.id as string) || '';
+      return (
+        <div className="flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg bg-muted/20 border border-border/40">
+          <Check className="size-3 text-emerald-500 flex-shrink-0" />
+          <span className="text-foreground/80 truncate flex-1">
+            Task approved{taskId ? ` · ${taskId.slice(-12)}` : ''}
+          </span>
+        </div>
+      );
+    }
+    default:
+      return <AgentMessageTool part={part} forceOpen={forceOpen} />;
+  }
+}
+ToolRegistry.register('agent_task_update', AgentTaskUpdateTool);
+ToolRegistry.register('agent-task-update', AgentTaskUpdateTool);
+ToolRegistry.register('agent_task_message', AgentMessageTool);
+ToolRegistry.register('agent-task-message', AgentMessageTool);
+ToolRegistry.register('agent_task_approve', TaskDoneTool);
+ToolRegistry.register('agent-task-approve', TaskDoneTool);
+ToolRegistry.register('agent_task_cancel', AgentStopTool);
+ToolRegistry.register('agent-task-cancel', AgentStopTool);
 
 function AgentStopTool({ part }: ToolProps) {
   const input = partInput(part);
@@ -7147,93 +7080,138 @@ function AgentStopTool({ part }: ToolProps) {
 ToolRegistry.register('agent_stop', AgentStopTool);
 ToolRegistry.register('agent-stop', AgentStopTool);
 
+/** Parse task list output into structured rows */
+function parseTaskRows(output: string): Array<{ id: string; title: string; status: string; sessionId?: string }> {
+  if (!output) return [];
+  const rows: Array<{ id: string; title: string; status: string; sessionId?: string }> = [];
+  // Match lines like: → **task-xxx** Title — status [session: ses_xxx]
+  // or: ○ **task-xxx** Title — status
+  const lines = output.split('\n').filter(l => l.trim());
+  for (const line of lines) {
+    const m = line.match(/\*\*(task-[a-z0-9]+)\*\*\s+(.+?)\s+—\s+(\w+)/);
+    if (m) {
+      const sessionMatch = line.match(/\bses_[a-zA-Z0-9]+/);
+      rows.push({ id: m[1], title: m[2], status: m[3], sessionId: sessionMatch?.[0] });
+    }
+  }
+  return rows;
+}
+
 function AgentStatusTool({ part }: ToolProps) {
   const status = partStatus(part);
   const output = partOutput(part);
   const isRunning = status === 'running' || status === 'pending';
-  const [expanded, setExpanded] = useState(false);
+  const [modalSessionId, setModalSessionId] = useState<string | null>(null);
+  const [modalTitle, setModalTitle] = useState('');
 
-  // Try to parse worker count from output
-  const workerCount = useMemo(() => {
-    if (!output) return 0;
-    const matches = output.match(/ag-[a-zA-Z0-9]+/g);
-    return matches ? matches.length : 0;
-  }, [output]);
-
+  const taskRows = useMemo(() => parseTaskRows(output), [output]);
   const cleanedOutput = useMemo(() => cleanWorkerOutput(output), [output]);
 
   return (
-    <div className="rounded-lg border border-border/40 bg-muted/20 w-full overflow-hidden">
-      <div className="p-3">
-        <div className="flex items-center gap-2.5">
-          <Layers className="size-4 text-muted-foreground flex-shrink-0" />
-          <span className="text-[13px] font-medium text-foreground truncate flex-1">
-            Agent status
-          </span>
-          {isRunning && (
-            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium flex-shrink-0 flex items-center gap-1">
-              <Loader2 className="size-2.5 animate-spin" />
-              Checking
+    <>
+      <div className="rounded-lg border border-border/40 bg-muted/20 w-full overflow-hidden">
+        <div className="p-3">
+          <div className="flex items-center gap-2.5">
+            <Layers className="size-4 text-muted-foreground flex-shrink-0" />
+            <span className="text-[13px] font-medium text-foreground truncate flex-1">
+              Tasks
             </span>
-          )}
-          {!isRunning && workerCount > 0 && (
-            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono flex-shrink-0">
-              {workerCount} agent{workerCount !== 1 ? 's' : ''}
-            </span>
-          )}
+            {isRunning && (
+              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium flex-shrink-0 flex items-center gap-1">
+                <Loader2 className="size-2.5 animate-spin" />
+                Loading
+              </span>
+            )}
+            {!isRunning && taskRows.length > 0 && (
+              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono flex-shrink-0">
+                {taskRows.length} task{taskRows.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Task rows — each clickable if it has a session */}
+        {!isRunning && taskRows.length > 0 && (
+          <div className="border-t border-border/30">
+            {taskRows.map((row) => {
+              const hasSession = !!row.sessionId;
+              const isActive = row.status === 'in_progress';
+              return (
+                <div
+                  key={row.id}
+                  role={hasSession ? 'button' : undefined}
+                  tabIndex={hasSession ? 0 : undefined}
+                  onClick={() => {
+                    if (hasSession) {
+                      setModalSessionId(row.sessionId!);
+                      setModalTitle(row.title);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && hasSession) {
+                      setModalSessionId(row.sessionId!);
+                      setModalTitle(row.title);
+                    }
+                  }}
+                  className={cn(
+                    'flex items-center gap-2.5 px-3 py-2 border-b border-border/20 last:border-0',
+                    hasSession && 'cursor-pointer hover:bg-accent/50 transition-colors',
+                  )}
+                >
+                  {isActive ? (
+                    <Loader2 className="size-3 animate-spin text-muted-foreground flex-shrink-0" />
+                  ) : row.status === 'completed' ? (
+                    <Check className="size-3 text-emerald-500 flex-shrink-0" />
+                  ) : row.status === 'input_needed' ? (
+                    <Clock className="size-3 text-amber-500 flex-shrink-0" />
+                  ) : row.status === 'cancelled' ? (
+                    <X className="size-3 text-muted-foreground/40 flex-shrink-0" />
+                  ) : (
+                    <Circle className="size-3 text-muted-foreground/40 flex-shrink-0" />
+                  )}
+
+                  <span className="text-[12px] text-foreground/80 truncate flex-1">
+                    {row.title}
+                  </span>
+
+                  <span className="text-[10px] text-muted-foreground/50 font-mono flex-shrink-0">
+                    {row.id.slice(-8)}
+                  </span>
+
+                  {hasSession && (
+                    <ChevronRight className="size-3 text-muted-foreground/20 flex-shrink-0" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Fallback: no parsed rows, show raw output */}
+        {!isRunning && taskRows.length === 0 && cleanedOutput && (
+          <div className="border-t border-border/30 px-3 py-2.5">
+            <div className="text-[11px] text-muted-foreground whitespace-pre-wrap">
+              {cleanedOutput}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Details section */}
-      {!isRunning && cleanedOutput && (
-        <div className="border-t border-border/30">
-          {isShortOutput(cleanedOutput) ? (
-            /* Short output: show inline, no collapse */
-            <div className="px-3 py-2.5">
-              <div className="text-xs text-foreground/80 leading-relaxed border-l-2 border-border/40 pl-3 prose-sm [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-foreground [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_table]:text-[11px] [&_code]:text-[11px] [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:rounded [&_hr]:border-border/30 [&_hr]:my-3">
-                <UnifiedMarkdown content={cleanedOutput} isStreaming={false} />
-              </div>
-            </div>
-          ) : (
-            /* Long output: collapsible */
-            <>
-              <button
-                type="button"
-                onClick={() => setExpanded(!expanded)}
-                className="flex items-center gap-2 w-full px-3 py-2 text-left cursor-pointer hover:bg-muted/30 transition-colors"
-              >
-                <ChevronRight
-                  className={cn(
-                    'size-3 text-muted-foreground/40 transition-transform flex-shrink-0',
-                    expanded && 'rotate-90',
-                  )}
-                />
-                <span className="text-[11px] text-muted-foreground font-medium flex-shrink-0">
-                  Details
-                </span>
-              </button>
-              {expanded && (
-                <div
-                  data-scrollable
-                  className="px-3 pb-3 max-h-80 overflow-y-auto"
-                >
-                  <div className="text-xs text-foreground/80 leading-relaxed border-l-2 border-border/40 pl-3 prose-sm [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-foreground [&_p]:text-muted-foreground [&_li]:text-muted-foreground [&_table]:text-[11px] [&_code]:text-[11px] [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:rounded [&_hr]:border-border/30 [&_hr]:my-3">
-                    <UnifiedMarkdown
-                      content={cleanedOutput}
-                      isStreaming={false}
-                    />
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+      {modalSessionId && (
+        <SubSessionModal
+          open={!!modalSessionId}
+          onOpenChange={(open) => { if (!open) setModalSessionId(null); }}
+          sessionId={modalSessionId}
+          title={modalTitle}
+        />
       )}
-    </div>
+    </>
   );
 }
 ToolRegistry.register('agent_status', AgentStatusTool);
 ToolRegistry.register('agent-status', AgentStatusTool);
+ToolRegistry.register('agent_task_list', AgentStatusTool);
+ToolRegistry.register('agent-task-list', AgentStatusTool);
 
 // ============================================================================
 // Task Tools — inline compact chips, visible at a glance
@@ -7278,6 +7256,8 @@ function TaskListTool({ part }: ToolProps) {
 }
 ToolRegistry.register('task_list', TaskListTool);
 ToolRegistry.register('task-list', TaskListTool);
+ToolRegistry.register('agent_task_get', TaskListTool);
+ToolRegistry.register('agent-task-get', TaskListTool);
 
 function TaskUpdateTool({ part }: ToolProps) {
   // task_update is internal bookkeeping — hide it entirely.

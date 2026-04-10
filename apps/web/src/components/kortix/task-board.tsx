@@ -1,7 +1,13 @@
 'use client';
 
 /**
- * Task Board — Kortix kanban with context menu actions.
+ * Task Board — grouped pipeline view.
+ *
+ * Groups:
+ *   Planning (Backlog + Todo)
+ *   Running (in_progress)
+ *   Needs Input (input_needed)
+ *   Done (completed + cancelled)
  */
 
 import { useMemo, useState } from 'react';
@@ -14,20 +20,20 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
-import { Play, CheckCircle2, Plus, Trash2, ArrowLeft, Copy } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Play, CheckCircle2, Plus, Trash2, ArrowLeft, Copy, Loader2, ExternalLink } from 'lucide-react';
 import {
   STATUS_META,
-  KANBAN_COLUMNS,
   shortTaskId,
   relativeTime,
-  getStatusMeta,
 } from '@/lib/kortix/task-meta';
+import { openTabAndNavigate } from '@/stores/tab-store';
 import type {
   KortixTask,
   KortixTaskStatus,
 } from '@/hooks/kortix/use-kortix-tasks';
 
-const DROPPABLE: Set<KortixTaskStatus> = new Set(['backlog', 'todo']);
+const DROPPABLE: Set<KortixTaskStatus> = new Set<KortixTaskStatus>(['todo']);
 
 interface TaskBoardProps {
   tasks: KortixTask[];
@@ -48,216 +54,234 @@ export function TaskBoard({
   onNewTask,
   onDeleteTask,
 }: TaskBoardProps) {
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [dragOverCol, setDragOverCol] = useState<KortixTaskStatus | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<KortixTask | null>(null);
 
-  const byStatus = useMemo(() => {
-    const m = new Map<KortixTaskStatus, KortixTask[]>();
-    KANBAN_COLUMNS.forEach((s) => m.set(s, []));
-    tasks.forEach((t) => {
-      const bucket = m.get(t.status);
-      if (bucket) bucket.push(t);
-    });
-    return m;
-  }, [tasks]);
-
-  const handleDrop = (status: KortixTaskStatus) => {
-    if (!dragId || !DROPPABLE.has(status)) return;
-    const t = tasks.find((x) => x.id === dragId);
-    if (t && t.status !== status) onUpdateStatus(dragId, status);
-    setDragId(null);
-    setDragOverCol(null);
-  };
+  const planning = useMemo(() => tasks.filter((t) => t.status === 'todo'), [tasks]);
+  const running = useMemo(() => tasks.filter((t) => t.status === 'in_progress'), [tasks]);
+  const needsInput = useMemo(() => tasks.filter((t) => t.status === 'input_needed'), [tasks]);
+  const done = useMemo(() => tasks.filter((t) => t.status === 'completed' || t.status === 'cancelled'), [tasks]);
 
   return (
-    <div className="h-full overflow-x-auto overflow-y-hidden">
-      <div className="container mx-auto max-w-7xl flex gap-3 px-3 sm:px-4 py-4 h-full min-w-max">
-        {KANBAN_COLUMNS.map((status) => {
-          const meta = STATUS_META[status];
-          const Icon = meta.icon;
-          const items = byStatus.get(status) || [];
-          const droppable = DROPPABLE.has(status);
-          const isOver = dragOverCol === status && droppable;
+    <div className="flex-1 overflow-y-auto">
+      <div className="container mx-auto max-w-5xl px-4 sm:px-6 py-6 space-y-8">
 
-          return (
-            <section
-              key={status}
-              onDragOver={(e) => {
-                if (!droppable) return;
-                e.preventDefault();
-                setDragOverCol(status);
-              }}
-              onDragLeave={() =>
-                setDragOverCol((prev) => (prev === status ? null : prev))
-              }
-              onDrop={() => handleDrop(status)}
-              className={cn(
-                'flex-1 min-w-[200px] flex flex-col rounded-lg transition-colors',
-                isOver && 'bg-primary/[0.04]',
-              )}
+        {/* ─── Planning ─────────────────────────────────── */}
+        <section>
+          <SectionHeader
+            icon={<STATUS_META.todo.icon className="h-4 w-4 text-muted-foreground/60" />}
+            label="Planning"
+            count={planning.length}
+            action={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-[12px] gap-1.5 text-muted-foreground/50 hover:text-foreground"
+                onClick={() => onNewTask('todo')}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add
+              </Button>
+            }
+          />
+          {planning.length === 0 ? (
+            <button
+              onClick={() => onNewTask('todo')}
+              className="w-full py-8 rounded-xl border border-dashed border-border/50 text-[13px] text-muted-foreground/30 hover:text-foreground hover:border-border hover:bg-muted/20 transition-all cursor-pointer"
             >
-              <header className="flex items-center gap-2 h-7 mb-2 px-1">
-                <Icon className={cn('h-3 w-3', meta.color)} />
-                <span className="text-[12px] font-semibold text-foreground/90 tracking-tight">
-                  {meta.label}
-                </span>
-                <span className="text-[11px] text-muted-foreground/50 tabular-nums">
-                  {items.length}
-                </span>
-                {droppable && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="ml-auto h-6 w-6 text-muted-foreground/40 hover:text-foreground"
-                    onClick={() => onNewTask(status)}
-                    title={`New task in ${meta.label}`}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </header>
-
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-                {items.length === 0 ? (
-                  droppable ? (
-                    <button
-                      onClick={() => onNewTask(status)}
-                      className="w-full py-5 rounded-lg border border-dashed border-border/50 text-[11px] text-muted-foreground/30 hover:text-foreground hover:border-border hover:bg-muted/20 transition-all cursor-pointer"
+              + Create your first task
+            </button>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {planning.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onSelect={() => onOpenTask(task)}
+                  onDelete={() => setDeleteTarget(task)}
+                  action={task.status === 'todo' ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-[12px] gap-1.5 shrink-0"
+                      onClick={(e) => { e.stopPropagation(); onStartTask(task.id); }}
                     >
-                      + New task
-                    </button>
-                  ) : (
-                    <div className="py-5 text-center text-[11px] text-muted-foreground/20">—</div>
-                  )
-                ) : (
-                  items.map((t) => (
-                    <BoardCard
-                      key={t.id}
-                      task={t}
-                      onSelect={() => onOpenTask(t)}
-                      onStart={status === 'todo' ? () => onStartTask(t.id) : undefined}
-                      onApprove={status === 'in_review' ? () => onApproveTask(t.id) : undefined}
-                      onDelete={() => onDeleteTask(t.id)}
-                      onMoveTo={
-                        status === 'backlog' ? () => onUpdateStatus(t.id, 'todo') :
-                        status === 'todo' ? () => onUpdateStatus(t.id, 'backlog') :
-                        undefined
-                      }
-                      moveToLabel={status === 'backlog' ? 'Move to Todo' : status === 'todo' ? 'Move to Backlog' : undefined}
-                      onDragStart={droppable ? () => setDragId(t.id) : undefined}
-                      onDragEnd={() => {
-                        setDragId(null);
-                        setDragOverCol(null);
-                      }}
-                      dragging={dragId === t.id}
-                      draggable={droppable}
-                    />
-                  ))
-                )}
-              </div>
-            </section>
-          );
-        })}
+                      <Play className="h-3 w-3" />
+                      Start
+                    </Button>
+                  ) : undefined}
+                  badge={undefined}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ─── Running ────────────────────────────────────── */}
+        <section>
+          <SectionHeader
+            icon={<Loader2 className={`h-4 w-4 ${running.length > 0 ? 'text-blue-500 animate-spin' : 'text-muted-foreground/30'}`} />}
+            label="Running"
+            count={running.length}
+          />
+          {running.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {running.map((task) => (
+                <RunningCard
+                  key={task.id}
+                  task={task}
+                  onSelect={() => onOpenTask(task)}
+                  onDelete={() => setDeleteTarget(task)}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptySection text="No active workers" />
+          )}
+        </section>
+
+        {/* ─── Needs Input ────────────────────────────────── */}
+        <section>
+          <SectionHeader
+            icon={<STATUS_META.input_needed.icon className="h-4 w-4 text-violet-500/50" />}
+            label="Needs Input"
+            count={needsInput.length}
+          />
+          {needsInput.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {needsInput.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onSelect={() => onOpenTask(task)}
+                  onDelete={() => setDeleteTarget(task)}
+                  action={
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-[12px] gap-1.5 shrink-0"
+                      onClick={(e) => { e.stopPropagation(); onApproveTask(task.id); }}
+                    >
+                      <CheckCircle2 className="h-3 w-3" />
+                      Approve
+                    </Button>
+                  }
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptySection text="No tasks awaiting input" />
+          )}
+        </section>
+
+        {/* ─── Done ───────────────────────────────────────── */}
+        <section>
+          <SectionHeader
+            icon={<STATUS_META.completed.icon className="h-4 w-4 text-emerald-500/50" />}
+            label="Done"
+            count={done.length}
+          />
+          {done.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {done.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onSelect={() => onOpenTask(task)}
+                  onDelete={() => setDeleteTarget(task)}
+                  dimmed
+                  badge={task.status === 'cancelled' ? 'Cancelled' : undefined}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptySection text="No completed tasks" />
+          )}
+        </section>
       </div>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete task"
+        description={<>Are you sure you want to delete <span className="font-semibold text-foreground">&quot;{deleteTarget?.title}&quot;</span>? This action cannot be undone.</>}
+        confirmLabel="Delete"
+        onConfirm={() => { if (deleteTarget) { onDeleteTask(deleteTarget.id); setDeleteTarget(null); } }}
+      />
     </div>
   );
 }
 
-interface BoardCardProps {
-  task: KortixTask;
-  onSelect: () => void;
-  onStart?: () => void;
-  onApprove?: () => void;
-  onDelete: () => void;
-  onMoveTo?: () => void;
-  moveToLabel?: string;
-  onDragStart?: () => void;
-  onDragEnd: () => void;
-  dragging: boolean;
-  draggable: boolean;
+// ── Section Header ───────────────────────────────────────────────────────
+
+function EmptySection({ text }: { text: string }) {
+  return (
+    <div className="py-4 text-center text-[12px] text-muted-foreground/25 rounded-xl border border-dashed border-border/30">
+      {text}
+    </div>
+  );
 }
 
-function BoardCard({
-  task,
-  onSelect,
-  onStart,
-  onApprove,
-  onDelete,
-  onMoveTo,
-  moveToLabel,
-  onDragStart,
-  onDragEnd,
-  dragging,
-  draggable,
-}: BoardCardProps) {
-  const sMeta = getStatusMeta(task.status);
-  const SIcon = sMeta.icon;
-  const hasOwner = !!task.owner_session_id;
+function SectionHeader({ icon, label, count, action }: {
+  icon: React.ReactNode;
+  label: string;
+  count: number;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2.5 mb-3">
+      {icon}
+      <span className="text-[14px] font-semibold text-foreground tracking-tight">{label}</span>
+      <span className="text-[12px] text-muted-foreground/40 tabular-nums">{count}</span>
+      {action && <div className="ml-auto">{action}</div>}
+    </div>
+  );
+}
 
+// ── Running Card ─────────────────────────────────────────────────────────
+
+function RunningCard({ task, onSelect, onDelete }: {
+  task: KortixTask;
+  onSelect: () => void;
+  onDelete: () => void;
+}) {
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
-          draggable={draggable}
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
           onClick={onSelect}
-          className={cn(
-            'rounded-xl border border-border/50 bg-card p-3 cursor-pointer transition-colors',
-            'hover:border-border hover:bg-muted/30',
-            draggable && 'active:cursor-grabbing active:scale-[0.98]',
-            dragging && 'opacity-40',
-          )}
+          className="rounded-xl border border-blue-500/15 bg-blue-500/[0.03] p-4 cursor-pointer transition-colors hover:bg-blue-500/[0.06] group"
         >
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[10px] font-mono text-muted-foreground/50 tabular-nums">
-              {shortTaskId(task.id)}
+          <div className="flex items-start gap-3 mb-3">
+            <span className="relative flex h-2.5 w-2.5 mt-1.5 shrink-0">
+              <span className="absolute inset-0 rounded-full bg-blue-500 animate-ping opacity-40" />
+              <span className="relative h-2.5 w-2.5 rounded-full bg-blue-500" />
             </span>
-            {hasOwner && (
-              <span className="ml-auto inline-flex items-center" title={`Owned by ${task.owner_agent || 'session'}`}>
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              </span>
-            )}
+            <p className="text-[15px] font-medium text-foreground leading-snug line-clamp-2 tracking-tight flex-1">
+              {task.title}
+            </p>
           </div>
 
-          <p className="text-[13px] font-medium text-foreground/90 leading-snug line-clamp-3 tracking-tight mb-2">
-            {task.title}
-          </p>
-
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground/50">
-            <SIcon className={cn('h-3 w-3', sMeta.color)} />
-            {task.verification_condition && (
-              <span className="text-violet-400/80" title={task.verification_condition}>✓</span>
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground/40">
+            <span className="font-mono tabular-nums">{shortTaskId(task.id)}</span>
+            {task.owner_session_id && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openTabAndNavigate({
+                    id: task.owner_session_id!,
+                    title: task.title,
+                    type: 'session',
+                    href: `/sessions/${task.owner_session_id}`,
+                  });
+                }}
+                className="inline-flex items-center gap-1 text-blue-500/60 hover:text-blue-500 transition-colors cursor-pointer"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Session
+              </button>
             )}
             <span className="ml-auto tabular-nums">{relativeTime(task.created_at)}</span>
           </div>
-
-          {(onStart || onApprove) && (
-            <div className="mt-2 pt-2 border-t border-border/30">
-              {onStart && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 w-full text-[11px] gap-1.5"
-                  onClick={(e) => { e.stopPropagation(); onStart(); }}
-                >
-                  <Play className="h-3 w-3" />
-                  Start
-                </Button>
-              )}
-              {onApprove && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 w-full text-[11px] gap-1.5 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
-                  onClick={(e) => { e.stopPropagation(); onApprove(); }}
-                >
-                  <CheckCircle2 className="h-3 w-3" />
-                  Approve
-                </Button>
-              )}
-            </div>
-          )}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
@@ -266,29 +290,66 @@ function BoardCard({
           <Copy className="mr-2 h-3.5 w-3.5" />
           Copy ID
         </ContextMenuItem>
-        {onStart && (
-          <ContextMenuItem onClick={onStart}>
-            <Play className="mr-2 h-3.5 w-3.5" />
-            Start task
-          </ContextMenuItem>
-        )}
-        {onApprove && (
-          <ContextMenuItem onClick={onApprove}>
-            <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
-            Approve
-          </ContextMenuItem>
-        )}
-        {onMoveTo && (
-          <ContextMenuItem onClick={onMoveTo}>
-            <ArrowLeft className="mr-2 h-3.5 w-3.5" />
-            {moveToLabel}
-          </ContextMenuItem>
-        )}
         <ContextMenuSeparator />
-        <ContextMenuItem
-          onClick={onDelete}
-          className="text-destructive focus:text-destructive"
+        <ContextMenuItem onClick={onDelete}>
+          <Trash2 className="mr-2 h-3.5 w-3.5" />
+          Cancel
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+// ── Task Card ────────────────────────────────────────────────────────────
+
+function TaskCard({ task, onSelect, onDelete, action, badge, dimmed }: {
+  task: KortixTask;
+  onSelect: () => void;
+  onDelete: () => void;
+  action?: React.ReactNode;
+  badge?: string;
+  dimmed?: boolean;
+}) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          onClick={onSelect}
+          className={cn(
+            'rounded-xl border border-border/50 bg-card p-4 cursor-pointer transition-colors',
+            'hover:border-border hover:bg-muted/30',
+            dimmed && 'opacity-50',
+          )}
         >
+          <div className="flex items-start gap-3">
+            <p className={cn(
+              'text-[15px] font-medium leading-snug line-clamp-2 tracking-tight flex-1',
+              dimmed ? 'text-muted-foreground/60 line-through decoration-muted-foreground/20' : 'text-foreground/90',
+            )}>
+              {task.title}
+            </p>
+            {action}
+          </div>
+
+          <div className="flex items-center gap-2 mt-3 text-[11px] text-muted-foreground/40">
+            <span className="font-mono tabular-nums">{shortTaskId(task.id)}</span>
+            {badge && (
+              <span className="text-[10px] text-muted-foreground/30 bg-muted/40 px-1.5 py-0.5 rounded">
+                {badge}
+              </span>
+            )}
+            <span className="ml-auto tabular-nums">{relativeTime(task.created_at)}</span>
+          </div>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem onClick={onSelect}>Open</ContextMenuItem>
+        <ContextMenuItem onClick={() => navigator.clipboard.writeText(task.id)}>
+          <Copy className="mr-2 h-3.5 w-3.5" />
+          Copy ID
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={onDelete}>
           <Trash2 className="mr-2 h-3.5 w-3.5" />
           Delete
         </ContextMenuItem>

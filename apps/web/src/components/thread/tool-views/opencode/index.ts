@@ -58,8 +58,6 @@ import { OcImageSearchToolView } from './OcImageSearchToolView';
 import { OcImageGenToolView } from './OcImageGenToolView';
 import { OcShowUserToolView } from './OcShowUserToolView';
 import { OcApplyPatchToolView } from './OcApplyPatchToolView';
-import { OcTaskToolView } from './OcTaskToolView';
-import { OcSessionSpawnToolView } from './OcSessionSpawnToolView';
 import { OcTodoToolView } from './OcTodoToolView';
 import { OcGenericToolView } from './OcGenericToolView';
 import { OcQuestionToolView } from './OcQuestionToolView';
@@ -152,41 +150,49 @@ export const ocToolViewRegistrations: Record<string, ToolViewComponent> = {
   'oc-apply-patch': OcApplyPatchToolView,
   'oc-apply_patch': OcApplyPatchToolView,
 
-  // Sub-agent delegation (legacy)
-  'oc-task': OcTaskToolView,
-  'task': OcTaskToolView,
+  // Agent task tools (unified system)
+  'oc-agent_task': OcKortixTaskToolView,
+  'oc-agent-task': OcKortixTaskToolView,
+  'agent_task': OcKortixTaskToolView,
+  'agent-task': OcKortixTaskToolView,
+  'oc-agent_task_update': OcKortixTaskToolView,
+  'oc-agent-task-update': OcKortixTaskToolView,
+  'agent_task_update': OcKortixTaskToolView,
+  'agent-task-update': OcKortixTaskToolView,
+  'oc-agent_task_list': OcKortixTaskToolView,
+  'oc-agent-task-list': OcKortixTaskToolView,
+  'agent_task_list': OcKortixTaskToolView,
+  'agent-task-list': OcKortixTaskToolView,
+  'oc-agent_task_get': OcKortixTaskToolView,
+  'oc-agent-task-get': OcKortixTaskToolView,
+  'agent_task_get': OcKortixTaskToolView,
+  'agent-task-get': OcKortixTaskToolView,
 
-  // Kortix task management tools
-  'oc-task_create': OcKortixTaskToolView,
-  'task_create': OcKortixTaskToolView,
-  'oc-task_list': OcKortixTaskToolView,
-  'task_list': OcKortixTaskToolView,
-  'oc-task_get': OcKortixTaskToolView,
-  'task_get': OcKortixTaskToolView,
-  'oc-task_start': OcKortixTaskToolView,
-  'task_start': OcKortixTaskToolView,
-  'oc-task_update': OcKortixTaskToolView,
-  'task_update': OcKortixTaskToolView,
-  'oc-task_comment': OcKortixTaskToolView,
-  'task_comment': OcKortixTaskToolView,
-  'oc-task_question': OcKortixTaskToolView,
-  'task_question': OcKortixTaskToolView,
-  'oc-task_deliver': OcKortixTaskToolView,
-  'task_deliver': OcKortixTaskToolView,
-  'oc-task_done': OcKortixTaskToolView,
-  'task_done': OcKortixTaskToolView,
-  'oc-task_delete': OcKortixTaskToolView,
-  'task_delete': OcKortixTaskToolView,
+  // Legacy agent tools (backwards compat for old sessions)
+  'oc-task': OcKortixTaskToolView,
+  'task': OcKortixTaskToolView,
+  'oc-agent_spawn': OcKortixTaskToolView,
+  'agent_spawn': OcKortixTaskToolView,
+  'agent-spawn': OcKortixTaskToolView,
+  'oc-agent_message': OcKortixTaskToolView,
+  'agent_message': OcKortixTaskToolView,
+  'agent-message': OcKortixTaskToolView,
+  'oc-agent_stop': OcKortixTaskToolView,
+  'agent_stop': OcKortixTaskToolView,
+  'agent-stop': OcKortixTaskToolView,
+  'oc-agent_status': OcKortixTaskToolView,
+  'agent_status': OcKortixTaskToolView,
+  'agent-status': OcKortixTaskToolView,
 
-  // Kortix orchestrator session spawning
-  'oc-session_spawn': OcSessionSpawnToolView,
-  'oc-session-spawn': OcSessionSpawnToolView,
-  'session_spawn': OcSessionSpawnToolView,
-  'session-spawn': OcSessionSpawnToolView,
-  'oc-session_start_background': OcSessionSpawnToolView,
-  'oc-session-start-background': OcSessionSpawnToolView,
-  'session_start_background': OcSessionSpawnToolView,
-  'session-start-background': OcSessionSpawnToolView,
+  // Session spawning (legacy — routed to unified renderer)
+  'oc-session_spawn': OcKortixTaskToolView,
+  'oc-session-spawn': OcKortixTaskToolView,
+  'session_spawn': OcKortixTaskToolView,
+  'session-spawn': OcKortixTaskToolView,
+  'oc-session_start_background': OcKortixTaskToolView,
+  'oc-session-start-background': OcKortixTaskToolView,
+  'session_start_background': OcKortixTaskToolView,
+  'session-start-background': OcKortixTaskToolView,
 
   // Todo / task management
   'oc-todowrite': OcTodoToolView,

@@ -109,8 +109,7 @@ export class ProjectManager {
 			return existing
 		}
 		const wm = async (f: string, c: string) => { if (!existsSync(f)) await fs.writeFile(f, c, "utf8") }
-		for (const d of [".kortix/docs", ".kortix/sessions"])
-			await fs.mkdir(path.join(pp, d), { recursive: true })
+		await fs.mkdir(path.join(pp, ".kortix"), { recursive: true })
 		ensureGlobalMemoryFiles(import.meta.dir)
 		await wm(path.join(pp, ".kortix", "CONTEXT.md"), `# ${name}\n\n${desc || "No description."}\n`)
 		const id = projectId(name), now = new Date().toISOString()
@@ -287,8 +286,8 @@ export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId:
 							`Task-centric workflow:`,
 							`1. Create or refine tasks with title, description, and verification_condition.`,
 							`2. Move a task to in_progress only when it is ready for single-owner execution.`,
-							`3. in_progress binds the task to one worker session running in Ralph.`,
-							`4. Use task comments / task_question / task_deliver to manage execution and outcomes.`,
+							`3. in_progress binds the task to one worker session running in autowork.`,
+							`4. Use agent_task to create and run tasks. Use agent_task_update to manage lifecycle.`,
 							`</system-reminder>`,
 						].join("\n")
 					} else {

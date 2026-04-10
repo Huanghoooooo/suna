@@ -147,9 +147,25 @@ projectsRouter.get('/:id/sessions', async (c) => {
     if (ocRes.ok) {
       const ocData = await ocRes.json() as any
       const allSessions = Array.isArray(ocData) ? ocData : (ocData.data ?? [])
-      const matched = allSessions.filter((s: any) => sessionIds.has(s.id) && !s.parentID)
+      // Include all project sessions (parents + children)
+      const matched = allSessions
+        .filter((s: any) => sessionIds.has(s.id))
         .sort((a: any, b: any) => (b.time?.updated ?? 0) - (a.time?.updated ?? 0))
-      return c.json(matched)
+
+      // Enrich with task info — which task owns which session
+      const tasksBySession = new Map<string, { id: string; title: string; status: string }>()
+      try {
+        const tasks = db.prepare(
+          'SELECT id, title, status, owner_session_id FROM tasks WHERE project_id=$pid AND owner_session_id IS NOT NULL'
+        ).all({ $pid: p.id }) as Array<{ id: string; title: string; status: string; owner_session_id: string }>
+        for (const t of tasks) tasksBySession.set(t.owner_session_id, { id: t.id, title: t.title, status: t.status })
+      } catch {}
+
+      const enriched = matched.map((s: any) => ({
+        ...s,
+        task: tasksBySession.get(s.id) || null,
+      }))
+      return c.json(enriched)
     }
   } catch {}
 

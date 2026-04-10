@@ -65,12 +65,15 @@ export function startRalph(
 	messageCountAtStart = 0,
 	maxIterations = 50,
 	completionPromise = "DONE",
+	verificationCondition: string | null = null,
 ): RalphState {
 	const state: RalphState = {
 		...createInitialRalphState(),
 		active: true,
 		sessionId,
 		taskPrompt,
+		verificationCondition,
+		verificationAttempted: false,
 		messageCountAtStart,
 		maxIterations,
 		completionPromise,
@@ -110,6 +113,8 @@ export function advanceRalph(state: RalphState, phase: RalphPhase): RalphState {
 		currentPhase: phase,
 		lastInjectedAt: Date.now(),
 		consecutiveFailures: 0,
+		// Mark verification as attempted when entering verification phase
+		verificationAttempted: phase === "verifying" ? true : state.verificationAttempted,
 	}
 	persistRalphState(updated)
 	return updated

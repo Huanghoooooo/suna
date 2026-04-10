@@ -129,7 +129,7 @@ import { useOnboardingModeStore } from '@/stores/onboarding-mode-store';
 import { useOpenCodeSessionStatusStore } from '@/stores/opencode-session-status-store';
 import { useSyncStore } from '@/stores/opencode-sync-store';
 import { useServerStore } from '@/stores/server-store';
-import { openTabAndNavigate } from '@/stores/tab-store';
+import { openTabAndNavigate, useTabStore } from '@/stores/tab-store';
 // Shared UI primitives (framework-agnostic, reusable on mobile)
 import {
   type AgentPart,
@@ -340,25 +340,19 @@ function SystemMessageIndicator({
 }) {
   if (messages.length === 0) return null;
 
+  // Combine all messages into a single line: "Autowork · iteration 3/50"
+  const parts = messages.map((msg) =>
+    msg.detail ? `${msg.label} · ${msg.detail}` : msg.label,
+  );
+  const text = parts.join('  ·  ');
+
   return (
-    <div className="flex flex-wrap items-center gap-1.5 py-1">
-      {messages.map((msg, i) => (
-        <div
-          key={`${msg.type}-${i}`}
-          className={cn(
-            'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full',
-            'text-[10px] text-muted-foreground/40',
-            'border border-border/20',
-            'select-none',
-          )}
-        >
-          <span className="size-1 rounded-full bg-muted-foreground/20 flex-shrink-0" />
-          <span className="font-medium">{msg.label}</span>
-          {msg.detail && (
-            <span className="text-muted-foreground/30">{msg.detail}</span>
-          )}
-        </div>
-      ))}
+    <div className="flex items-center gap-2 -my-1">
+      <div className="flex-1 h-px bg-border/30" />
+      <span className="text-[10px] text-muted-foreground/30 select-none whitespace-nowrap">
+        {text}
+      </span>
+      <div className="flex-1 h-px bg-border/30" />
     </div>
   );
 }
@@ -3471,6 +3465,8 @@ export function SessionChat({
   const onboardingSessionId = useOnboardingModeStore((s) => s.sessionId);
   const disableToolNavigation =
     onboardingActive && onboardingSessionId === sessionId;
+  const activeTabId = useTabStore((s) => s.activeTabId);
+  const isActiveSessionTab = activeTabId === sessionId;
 
   // ---- Context modal ----
   const [contextModalOpen, setContextModalOpen] = useState(false);
@@ -4350,7 +4346,7 @@ export function SessionChat({
   // session-specific status endpoint to only check this session. Reduced
   // from 15s to 30s interval since SSE is the primary status mechanism.
   useEffect(() => {
-    if (!isServerBusy) return;
+    if (!isActiveSessionTab || !isServerBusy) return;
 
     const check = async () => {
       try {
@@ -4388,7 +4384,7 @@ export function SessionChat({
       clearTimeout(initialTimer);
       clearInterval(interval);
     };
-  }, [isServerBusy, sessionId]);
+  }, [isActiveSessionTab, isServerBusy, sessionId]);
 
   // SSE is the source of truth for in-progress assistant text.
   // Avoid periodic /messages recovery polling to prevent large snapshot
@@ -4456,6 +4452,8 @@ export function SessionChat({
   // messages from the server to recover the missing response.
   const prevBusyForRecoveryRef = useRef(isServerBusy);
   useEffect(() => {
+    if (!isActiveSessionTab) return;
+
     const wasBusy = prevBusyForRecoveryRef.current;
     prevBusyForRecoveryRef.current = isServerBusy;
 
@@ -4477,7 +4475,7 @@ export function SessionChat({
         }
       })
       .catch(() => {});
-  }, [isServerBusy, messages, sessionId]);
+  }, [isActiveSessionTab, isServerBusy, messages, sessionId]);
 
   // Clear pending user message when we can confirm the message is in cache
   // (by ID), or when new messages arrive (fallback for command sends).
@@ -4714,7 +4712,7 @@ export function SessionChat({
   // Keep polling while the tool is running because the first list() call can
   // race with backend request creation and return an empty list.
   useEffect(() => {
-    if (!hasRunningQuestionTool || pendingQuestions.length > 0) return;
+    if (!isActiveSessionTab || !hasRunningQuestionTool || pendingQuestions.length > 0) return;
 
     const client = getClient();
     let cancelled = false;
@@ -4749,6 +4747,7 @@ export function SessionChat({
       clearInterval(timer);
     };
   }, [
+    isActiveSessionTab,
     hasRunningQuestionTool,
     pendingQuestions.length,
     addQuestion,

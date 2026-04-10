@@ -143,7 +143,7 @@ export function agentTools(client: any, db: Database, mgr: ProjectManager) {
 			args: {
 				description: tool.schema.string().describe("Short (3-5 word) task description"),
 				prompt: tool.schema.string().describe("Detailed task instructions for the worker. Include ALL context — the worker knows nothing about your conversation."),
-				agent_type: tool.schema.string().describe('Agent type — use "worker"'),
+				agent_type: tool.schema.string().describe('Agent type — use "worker" for task execution, "orchestrator" for autonomous CEO orchestration'),
 				system_prompt: tool.schema.string().optional().describe("Mission-specific system prompt. Defines WHO this worker is. Frames all decisions. E.g. 'You are building an academic AGI presentation. Rigorous academic tone, real citations.'"),
 				command: tool.schema.string().optional().describe('Slash command to prepend (e.g. "/ralph" for complex tasks)'),
 				async: tool.schema.boolean().optional().describe("If true, spawn in background and return immediately. Result injected back when done. Default: false (blocking)."),

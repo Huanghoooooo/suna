@@ -6,7 +6,6 @@
  */
 
 import {
-  CircleDashed,
   Circle,
   CircleDot,
   CircleDotDashed,
@@ -31,39 +30,30 @@ export interface StatusMeta {
 }
 
 export const STATUS_META: Record<KortixTaskStatus, StatusMeta> = {
-  backlog: {
-    icon: CircleDashed,
-    color: 'text-muted-foreground/60',
-    bg: 'bg-muted/30',
-    border: 'border-border',
-    label: 'Backlog',
-    order: 0,
-  },
   todo: {
     icon: Circle,
-    color: 'text-muted-foreground/80',
-    bg: 'bg-muted/40',
+    color: 'text-muted-foreground/70',
+    bg: 'bg-muted/30',
     border: 'border-border',
-    label: 'Todo',
-    order: 1,
-    active: true,
+    label: 'Planned',
+    order: 0,
   },
   in_progress: {
     icon: CircleDot,
     color: 'text-blue-400',
     bg: 'bg-blue-500/10',
     border: 'border-blue-500/30',
-    label: 'In Progress',
-    order: 2,
+    label: 'Running',
+    order: 1,
     active: true,
   },
-  in_review: {
+  input_needed: {
     icon: CircleDotDashed,
     color: 'text-violet-400',
     bg: 'bg-violet-500/10',
     border: 'border-violet-500/30',
-    label: 'In Review',
-    order: 3,
+    label: 'Input Needed',
+    order: 2,
     active: true,
   },
   completed: {
@@ -72,7 +62,7 @@ export const STATUS_META: Record<KortixTaskStatus, StatusMeta> = {
     bg: 'bg-emerald-500/10',
     border: 'border-emerald-500/30',
     label: 'Completed',
-    order: 4,
+    order: 3,
     terminal: true,
   },
   cancelled: {
@@ -81,75 +71,41 @@ export const STATUS_META: Record<KortixTaskStatus, StatusMeta> = {
     bg: 'bg-muted/20',
     border: 'border-border',
     label: 'Cancelled',
-    order: 5,
+    order: 4,
     terminal: true,
   },
 };
 
-/** Statuses that appear as kanban columns, in left→right order. */
-export const KANBAN_COLUMNS: KortixTaskStatus[] = [
-  'backlog',
-  'todo',
-  'in_progress',
-  'in_review',
-  'completed',
-];
-
 /**
- * Valid next statuses for each status. Enforces the lifecycle:
- *   backlog → todo → [START] → in_progress → in_review → [APPROVE] → completed
- * in_progress is only reachable via START action.
- * completed is only reachable via APPROVE action from in_review.
- * cancelled is always reachable.
+ * Pipeline: todo → [START] → in_progress → input_needed → [APPROVE] → completed
  */
 export const VALID_TRANSITIONS: Record<KortixTaskStatus, KortixTaskStatus[]> = {
-  backlog: ['todo', 'cancelled'],
-  todo: ['backlog', 'cancelled'],                    // START → in_progress (separate action)
-  in_progress: ['in_review', 'todo', 'cancelled'],   // agent moves to review when done
-  in_review: ['todo', 'cancelled'],                   // APPROVE → completed (separate action)
-  completed: [],                                      // terminal
-  cancelled: ['backlog', 'todo'],                     // can be reopened
+  todo: ['cancelled'],                                // START → in_progress (separate action)
+  in_progress: ['input_needed', 'todo', 'cancelled'], // worker delivers → input_needed
+  input_needed: ['todo', 'cancelled'],                // APPROVE → completed (separate action)
+  completed: [],                                         // terminal
+  cancelled: ['todo'],                                // can be reopened
 };
 
-/** All statuses, full ordering for filters/menus. */
+/** All statuses in pipeline order. */
 export const ALL_STATUSES: KortixTaskStatus[] = [
-  'backlog',
   'todo',
   'in_progress',
-  'in_review',
+  'input_needed',
   'completed',
   'cancelled',
 ];
 
-/**
- * Legacy status names that may still exist on rows from the old schema.
- * Map them onto the canonical task model so the UI never crashes on old data.
- */
-const LEGACY_STATUS_MAP: Record<string, KortixTaskStatus> = {
-  pending: 'todo',
-  open: 'todo',
-  blocked: 'todo',
-  info_needed: 'todo',
-  failed: 'cancelled',
-  done: 'completed',
-  closed: 'completed',
-  archived: 'cancelled',
-};
-
-/** Defensive lookup — never returns undefined. Maps legacy / unknown values. */
 export function getStatusMeta(status: string | null | undefined): StatusMeta {
   if (!status) return STATUS_META.todo;
   if (status in STATUS_META) return STATUS_META[status as KortixTaskStatus];
-  const mapped = LEGACY_STATUS_MAP[status];
-  if (mapped) return STATUS_META[mapped];
   return STATUS_META.todo;
 }
 
-/** Resolves any (possibly legacy) status string to the canonical enum. */
 export function normalizeStatus(status: string | null | undefined): KortixTaskStatus {
   if (!status) return 'todo';
   if (status in STATUS_META) return status as KortixTaskStatus;
-  return LEGACY_STATUS_MAP[status] || 'todo';
+  return 'todo';
 }
 
 

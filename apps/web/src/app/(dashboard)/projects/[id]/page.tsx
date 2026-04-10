@@ -15,7 +15,7 @@
  * is instant, no skeleton flash.
  */
 
-import { use, useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Fragment, use, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { FolderGit2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -55,13 +55,10 @@ import {
   type ProjectTab,
 } from '@/components/kortix/project-header';
 import { ProjectOverview } from '@/components/kortix/project-overview';
-import {
-  TasksTab,
-  type TaskView,
-  type SortKey,
-} from '@/components/kortix/tasks-tab';
+import { TasksTab } from '@/components/kortix/tasks-tab';
 import { TaskDetailView } from '@/components/kortix/task-detail-view';
 import { NewTaskDialog } from '@/components/kortix/new-task-dialog';
+import { useIsRouteActive } from '@/hooks/utils/use-is-route-active';
 
 export default function ProjectPage({ params }: { params?: Promise<{ id: string }> }) {
   const { id: raw } = params ? use(params) : { id: '' };
@@ -69,20 +66,36 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
   const projectFilesStoreRef = useRef(createFilesStore());
   const projectFilesStore = projectFilesStoreRef.current;
 
+  // ── Tabs ────────────────────────────────────────────────────
+  const [tab, setTabState] = useState<ProjectTab>('overview');
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const isProjectRouteActive = useIsRouteActive(`/projects/${encodeURIComponent(pid)}`);
+  const shouldLoadProjectSessions = isProjectRouteActive && (tab === 'overview' || tab === 'sessions');
+  const shouldLoadProjectTasks = isProjectRouteActive && (tab === 'overview' || tab === 'tasks');
+  const shouldLoadProjectAgents = isProjectRouteActive && tab === 'overview';
+
   // ── Data ────────────────────────────────────────────────────
   const { data: project, isLoading } = useKortixProject(pid);
-  const { data: sessions } = useKortixProjectSessions(pid);
-  const { data: tasks } = useKortixTasks(project?.id);
-  const { data: agents } = useKortixAgents(project?.id);
+  const { data: sessions } = useKortixProjectSessions(pid, {
+    enabled: shouldLoadProjectSessions,
+  });
+  const { data: tasks } = useKortixTasks(project?.id, undefined, {
+    enabled: shouldLoadProjectTasks,
+    pollingEnabled: shouldLoadProjectTasks,
+  });
+  const { data: agents } = useKortixAgents(project?.id, {
+    enabled: shouldLoadProjectAgents,
+    pollingEnabled: shouldLoadProjectAgents,
+  });
   const updateProject = useUpdateProject();
   const updateTask = useUpdateKortixTask();
   const startTask = useStartKortixTask();
   const approveTask = useApproveKortixTask();
   const deleteTask = useDeleteKortixTask();
 
-  const sessionList = sessions ?? [];
-  const taskList: KortixTask[] = tasks ?? [];
-  const agentList = agents ?? [];
+  const sessionList = useMemo(() => sessions ?? [], [sessions]);
+  const taskList = useMemo<KortixTask[]>(() => tasks ?? [], [tasks]);
+  const agentList = useMemo(() => agents ?? [], [agents]);
 
   // ── File explorer scoping ───────────────────────────────────
   useEffect(() => {
@@ -97,16 +110,11 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
     };
   }, [project?.path, projectFilesStore]);
 
-  // ── Tabs ────────────────────────────────────────────────────
-  const [tab, setTabState] = useState<ProjectTab>('overview');
-  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const setTab = useCallback((next: ProjectTab) => {
     setTabState(next);
-    setOpenTaskId(null);
   }, []);
   const openTask = useCallback((task: KortixTask) => {
     setOpenTaskId(task.id);
-    setTabState('tasks');
   }, []);
   const closeTask = useCallback(() => setOpenTaskId(null), []);
 
@@ -118,10 +126,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
   }, [tab, project?.path, projectFilesStore]);
 
   // ── Tasks view state ────────────────────────────────────────
-  const [view, setView] = useState<TaskView>('board');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<Set<KortixTaskStatus>>(new Set());
-  const [sortKey, setSortKey] = useState<SortKey>('updated');
   const searchRef = useRef<HTMLInputElement>(null);
 
   // ── New task dialog ─────────────────────────────────────────
@@ -134,23 +139,14 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
 
   // ── Filtered tasks ──────────────────────────────────────────
   const filteredTasks = useMemo(() => {
-    let out = taskList;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      out = out.filter(
-        (t) =>
-          t.title.toLowerCase().includes(q) ||
-          (t.description || '').toLowerCase().includes(q),
-      );
-    }
-    if (statusFilter.size) out = out.filter((t) => statusFilter.has(t.status));
-    return [...out].sort((a, b) => {
-      if (sortKey === 'title') return a.title.localeCompare(b.title);
-      if (sortKey === 'created')
-        return +new Date(b.created_at) - +new Date(a.created_at);
-      return +new Date(b.updated_at) - +new Date(a.updated_at);
-    });
-  }, [taskList, search, statusFilter, sortKey]);
+    if (!search.trim()) return taskList;
+    const q = search.toLowerCase();
+    return taskList.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        (t.description || '').toLowerCase().includes(q),
+    );
+  }, [taskList, search]);
 
   // ── Keyboard shortcuts (tasks tab only) ─────────────────────
   useEffect(() => {
@@ -201,7 +197,6 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
     );
 
   const hasFiles = project.path && project.path !== '/';
-  const hasFilters = !!search || statusFilter.size > 0;
 
   return (
     <div className="flex-1 bg-background flex flex-col overflow-hidden">
@@ -214,7 +209,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
 
       {/* ── Pre-mounted tab bodies ─────────────────────────── */}
       <div className="flex-1 min-h-0 relative">
-        <TabPanel active={tab === 'overview' && !openTaskId}>
+        <TabPanel active={tab === 'overview'}>
           <ProjectOverview
             project={project}
             tasks={taskList}
@@ -226,42 +221,20 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
           />
         </TabPanel>
 
-        <TabPanel active={tab === 'tasks' && !openTaskId}>
+        <TabPanel active={tab === 'tasks'}>
           <TasksTab
             tasks={taskList}
             filteredTasks={filteredTasks}
-            view={view}
-            setView={setView}
             search={search}
             setSearch={setSearch}
             searchRef={searchRef}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
-            sortKey={sortKey}
-            setSortKey={setSortKey}
             onUpdateStatus={(id, s) => updateTask.mutate({ id, status: s })}
             onStartTask={(id) => startTask.mutate({ id })}
             onApproveTask={(id) => approveTask.mutate(id)}
             onOpenTask={openTask}
             onNewTask={openNewTask}
             onDeleteTask={(id) => deleteTask.mutate(id)}
-            hasFilters={hasFilters}
-            clearFilters={() => {
-              setSearch('');
-              setStatusFilter(new Set());
-            }}
           />
-        </TabPanel>
-
-        <TabPanel active={tab === 'tasks' && !!openTaskId}>
-          {openTaskId && (
-            <TaskDetailView
-              taskId={openTaskId}
-              onClose={closeTask}
-              embedded
-              projectName={project.name}
-            />
-          )}
         </TabPanel>
 
         <TabPanel active={tab === 'files'}>
@@ -287,7 +260,16 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
         onOpenChange={setNewTaskOpen}
         projectId={project.id}
         projectName={project.name}
+        projectPath={project.path}
         defaultStatus={newTaskDefault}
+      />
+
+      {/* Task detail modal */}
+      <TaskDetailView
+        taskId={openTaskId}
+        onClose={closeTask}
+        projectName={project.name}
+        pollingEnabled={isProjectRouteActive && !!openTaskId}
       />
     </div>
   );
@@ -315,6 +297,27 @@ function SessionsList({ sessions }: { sessions: any[] }) {
   if (sessions.length === 0)
     return <EmptyState text="No sessions linked" sub="Sessions appear here when you select this project" />;
 
+  // Separate parent and child sessions
+  const parents = sessions.filter((s) => !s.parentID);
+  const children = sessions.filter((s) => !!s.parentID);
+  const childrenByParent = new Map<string, any[]>();
+  for (const c of children) {
+    const list = childrenByParent.get(c.parentID) || [];
+    list.push(c);
+    childrenByParent.set(c.parentID, list);
+  }
+  // Orphaned children (parent not in our list)
+  const parentIds = new Set(parents.map((p) => p.id));
+  const orphans = children.filter((c) => !parentIds.has(c.parentID));
+
+  const openSession = (s: any) =>
+    openTabAndNavigate({
+      id: s.id,
+      title: s.title || 'Session',
+      type: 'session',
+      href: `/sessions/${s.id}`,
+    });
+
   return (
     <div className="flex-1 overflow-y-auto bg-background">
       <div className="container mx-auto max-w-7xl px-3 sm:px-4 py-4">
@@ -326,21 +329,62 @@ function SessionsList({ sessions }: { sessions: any[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sessions.map((s: any) => (
+            {parents.map((s: any) => {
+              const kids = childrenByParent.get(s.id) || [];
+              return (
+                <Fragment key={s.id}>
+                  <TableRow
+                    onClick={() => openSession(s)}
+                    className="cursor-pointer group"
+                  >
+                    <TableCell className="text-[13px] text-foreground/85 truncate max-w-0 group-hover:text-foreground">
+                      {s.title || 'Untitled session'}
+                    </TableCell>
+                    <TableCell className="text-[11px] text-muted-foreground/35 tabular-nums text-right">
+                      {relativeTime(s.time?.updated)}
+                    </TableCell>
+                  </TableRow>
+                  {kids.map((child: any) => (
+                    <TableRow
+                      key={child.id}
+                      onClick={() => openSession(child)}
+                      className="cursor-pointer group"
+                    >
+                      <TableCell className="text-[13px] truncate max-w-0 pl-8">
+                        <span className="text-muted-foreground/30 mr-2">└</span>
+                        <span className="text-foreground/70 group-hover:text-foreground">
+                          {child.task ? child.task.title : (child.title || 'Worker session')}
+                        </span>
+                        {child.task && (
+                          <span className="ml-2 text-[10px] text-muted-foreground/40 font-mono">
+                            {child.task.status}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-[11px] text-muted-foreground/35 tabular-nums text-right">
+                        {relativeTime(child.time?.updated)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </Fragment>
+              );
+            })}
+            {orphans.map((s: any) => (
               <TableRow
                 key={s.id}
-                onClick={() =>
-                  openTabAndNavigate({
-                    id: s.id,
-                    title: s.title || 'Session',
-                    type: 'session',
-                    href: `/sessions/${s.id}`,
-                  })
-                }
+                onClick={() => openSession(s)}
                 className="cursor-pointer group"
               >
-                <TableCell className="text-[13px] text-foreground/85 truncate max-w-0 group-hover:text-foreground">
-                  {s.title || 'Untitled session'}
+                <TableCell className="text-[13px] truncate max-w-0 pl-8">
+                  <span className="text-muted-foreground/30 mr-2">└</span>
+                  <span className="text-foreground/70 group-hover:text-foreground">
+                    {s.task ? s.task.title : (s.title || 'Worker session')}
+                  </span>
+                  {s.task && (
+                    <span className="ml-2 text-[10px] text-muted-foreground/40 font-mono">
+                      {s.task.status}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="text-[11px] text-muted-foreground/35 tabular-nums text-right">
                   {relativeTime(s.time?.updated)}

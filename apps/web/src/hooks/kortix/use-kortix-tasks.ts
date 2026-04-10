@@ -9,10 +9,9 @@ import { authenticatedFetch } from '@/lib/auth-token';
 // ---------------------------------------------------------------------------
 
 export type KortixTaskStatus =
-  | 'backlog'
   | 'todo'
   | 'in_progress'
-  | 'in_review'
+  | 'input_needed'
   | 'completed'
   | 'cancelled';
 
@@ -35,14 +34,9 @@ export interface KortixTask {
   updated_at: string;
 }
 
-export interface KortixTaskComment {
-  id: string;
-  task_id: string;
-  project_id: string;
-  author_session_id: string | null;
-  author_role: string;
-  body: string;
-  created_at: string;
+interface KortixTaskQueryOptions {
+  enabled?: boolean;
+  pollingEnabled?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -53,7 +47,6 @@ const taskKeys = {
   all: ['kortix', 'tasks'] as const,
   byProject: (projectId: string) => ['kortix', 'tasks', projectId] as const,
   single: (id: string) => ['kortix', 'tasks', 'detail', id] as const,
-  comments: (id: string) => ['kortix', 'tasks', 'comments', id] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -67,30 +60,13 @@ async function kortixTaskFetch<T>(serverUrl: string, path: string, init?: Reques
   return res.json();
 }
 
-/**
- * Normalize raw task rows from the API so legacy / unknown enum values
- * never reach the UI. Mirror of `normalizeStatus` in lib/kortix/task-meta.ts
- * — duplicated here to avoid import cycles.
- */
-const LEGACY_STATUS_MAP: Record<string, KortixTaskStatus> = {
-  pending: 'todo',
-  open: 'todo',
-  blocked: 'todo',
-  info_needed: 'todo',
-  failed: 'cancelled',
-  done: 'completed',
-  closed: 'completed',
-  archived: 'cancelled',
-};
 const VALID_STATUSES: KortixTaskStatus[] = [
-  'backlog', 'todo', 'in_progress', 'in_review',
+  'todo', 'in_progress', 'input_needed',
   'completed', 'cancelled',
 ];
 
 function normalizeTask(raw: any): KortixTask {
-  const status = VALID_STATUSES.includes(raw?.status)
-    ? raw.status
-    : LEGACY_STATUS_MAP[raw?.status] || 'todo';
+  const status = VALID_STATUSES.includes(raw?.status) ? raw.status : 'todo';
   return {
     id: raw.id,
     project_id: raw.project_id,
@@ -115,7 +91,11 @@ function normalizeTask(raw: any): KortixTask {
 // Tasks
 // ---------------------------------------------------------------------------
 
-export function useKortixTasks(projectId?: string, status?: string) {
+export function useKortixTasks(
+  projectId?: string,
+  status?: string,
+  options: KortixTaskQueryOptions = {},
+) {
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
   const params = new URLSearchParams();
   if (projectId) params.set('project_id', projectId);
@@ -127,13 +107,14 @@ export function useKortixTasks(projectId?: string, status?: string) {
       const rows = await kortixTaskFetch<any[]>(serverUrl, qs);
       return Array.isArray(rows) ? rows.map(normalizeTask) : [];
     },
-    enabled: !!projectId,
-    refetchInterval: 3000,
+    enabled: !!projectId && (options.enabled ?? true),
+    refetchInterval: options.pollingEnabled === false ? false : 3000,
+    refetchIntervalInBackground: false,
     placeholderData: keepPreviousData,
   });
 }
 
-export function useKortixTask(id: string) {
+export function useKortixTask(id: string, options: KortixTaskQueryOptions = {}) {
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
   return useQuery({
     queryKey: taskKeys.single(id),
@@ -141,8 +122,9 @@ export function useKortixTask(id: string) {
       const raw = await kortixTaskFetch<any>(serverUrl, `/${encodeURIComponent(id)}`);
       return normalizeTask(raw);
     },
-    enabled: !!id,
-    refetchInterval: 3000,
+    enabled: !!id && (options.enabled ?? true),
+    refetchInterval: options.pollingEnabled === false ? false : 3000,
+    refetchIntervalInBackground: false,
     placeholderData: keepPreviousData,
   });
 }
@@ -225,55 +207,6 @@ export function useDeleteKortixTask() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: taskKeys.all });
-    },
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Comments
-// ---------------------------------------------------------------------------
-
-export function useKortixTaskComments(taskId?: string) {
-  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
-  return useQuery({
-    queryKey: taskKeys.comments(taskId || ''),
-    queryFn: () =>
-      kortixTaskFetch<KortixTaskComment[]>(serverUrl, `/${encodeURIComponent(taskId!)}/comments`),
-    enabled: !!taskId,
-    refetchInterval: 3000,
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useAddKortixTaskComment() {
-  const qc = useQueryClient();
-  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
-  return useMutation({
-    mutationFn: ({ task_id, body, author_role }: { task_id: string; body: string; author_role?: string }) =>
-      kortixTaskFetch<KortixTaskComment>(serverUrl, `/${encodeURIComponent(task_id)}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body, author_role: author_role || 'user' }),
-      }),
-    onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: taskKeys.comments(vars.task_id) });
-      qc.invalidateQueries({ queryKey: taskKeys.all });
-    },
-  });
-}
-
-export function useDeleteKortixTaskComment() {
-  const qc = useQueryClient();
-  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
-  return useMutation({
-    mutationFn: ({ task_id, comment_id }: { task_id: string; comment_id: string }) =>
-      kortixTaskFetch<{ deleted: boolean }>(
-        serverUrl,
-        `/${encodeURIComponent(task_id)}/comments/${encodeURIComponent(comment_id)}`,
-        { method: 'DELETE' },
-      ),
-    onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: taskKeys.comments(vars.task_id) });
     },
   });
 }

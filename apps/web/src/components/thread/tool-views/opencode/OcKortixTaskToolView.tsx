@@ -1,49 +1,48 @@
 'use client';
 
 /**
- * Renderer for Kortix task tools:
- * task_create, task_list, task_get, task_start, task_update,
- * task_comment, task_question, task_deliver, task_done, task_delete
+ * Renderer for the unified agent_task system + legacy agent_spawn/message/stop/status.
  */
 
 import React from 'react';
 import {
   CheckCircle2,
   AlertCircle,
+  Cpu,
   ListTodo,
   Play,
-  MessageSquare,
-  HelpCircle,
-  Package,
-  Trash2,
   CircleDot,
   Pencil,
+  XCircle,
+  MessageSquare,
 } from 'lucide-react';
 import type { ToolViewProps } from '../types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { ToolViewIconTitle } from '../shared/ToolViewIconTitle';
 import { ToolViewFooter } from '../shared/ToolViewFooter';
 import { LoadingState } from '../shared/LoadingState';
 import { UnifiedMarkdown } from '@/components/markdown/unified-markdown';
 
 /** Map tool function name → display config */
-const TOOL_CONFIG: Record<string, { icon: typeof ListTodo; label: string; verb: string }> = {
-  task_create:   { icon: ListTodo,       label: 'Create Task',     verb: 'Creating task' },
-  task_list:     { icon: ListTodo,       label: 'List Tasks',      verb: 'Listing tasks' },
-  task_get:      { icon: CircleDot,      label: 'Get Task',        verb: 'Reading task' },
-  task_start:    { icon: Play,           label: 'Start Task',      verb: 'Starting task' },
-  task_update:   { icon: Pencil,         label: 'Update Task',     verb: 'Updating task' },
-  task_comment:  { icon: MessageSquare,  label: 'Task Comment',    verb: 'Commenting' },
-  task_question: { icon: HelpCircle,     label: 'Task Question',   verb: 'Asking question' },
-  task_deliver:  { icon: Package,        label: 'Deliver Task',    verb: 'Delivering result' },
-  task_done:     { icon: CheckCircle2,   label: 'Task Done',       verb: 'Completing task' },
-  task_delete:   { icon: Trash2,         label: 'Delete Task',     verb: 'Deleting task' },
+const TOOL_CONFIG: Record<string, { icon: typeof Cpu; label: string; verb: string }> = {
+  // New unified system
+  agent_task:        { icon: Cpu,            label: 'Agent Task',      verb: 'Spawning worker' },
+  agent_task_update: { icon: Pencil,         label: 'Task Update',     verb: 'Updating task' },
+  agent_task_list:   { icon: ListTodo,       label: 'Task List',       verb: 'Listing tasks' },
+  agent_task_get:    { icon: CircleDot,      label: 'Task Details',    verb: 'Reading task' },
+  // Legacy agent tools (still appear in old sessions)
+  agent_spawn:       { icon: Cpu,            label: 'Agent Spawn',     verb: 'Spawning worker' },
+  agent_message:     { icon: MessageSquare,  label: 'Agent Message',   verb: 'Messaging worker' },
+  agent_stop:        { icon: XCircle,        label: 'Agent Stop',      verb: 'Stopping worker' },
+  agent_status:      { icon: ListTodo,       label: 'Agent Status',    verb: 'Checking workers' },
+  // Legacy task tools
+  task:              { icon: Cpu,            label: 'Sub-Agent Task',  verb: 'Running task' },
 };
 
 function getToolName(toolCall: any): string {
   const name = toolCall?.function_name || '';
-  // Strip oc- prefix and normalize underscores/dashes
   return name.replace(/^oc-/, '').replace(/-/g, '_');
 }
 
@@ -56,7 +55,7 @@ export function OcKortixTaskToolView({
   isStreaming = false,
 }: ToolViewProps) {
   const toolName = getToolName(toolCall);
-  const config = TOOL_CONFIG[toolName] || { icon: ListTodo, label: 'Task', verb: 'Processing' };
+  const config = TOOL_CONFIG[toolName] || { icon: Cpu, label: 'Agent Task', verb: 'Processing' };
   const Icon = config.icon;
 
   const args = toolCall?.arguments || {};
@@ -65,10 +64,20 @@ export function OcKortixTaskToolView({
   const output = typeof rawOutput === 'string' ? rawOutput : String(rawOutput);
   const isError = toolResult?.success === false || !!toolResult?.error;
 
-  // Extract key args for subtitle
-  const taskId = (args.id as string) || '';
-  const title = (args.title as string) || '';
-  const subtitle = title || taskId || '';
+  // Extract display info from args
+  const title = (args.title as string) || (args.description as string) || '';
+  const taskId = (args.id as string) || (args.agent_id as string) || '';
+  const action = (args.action as string) || '';
+  const message = (args.message as string) || (args.prompt as string) || '';
+
+  // Build subtitle
+  let subtitle = title || taskId || '';
+  if (action && taskId) {
+    subtitle = `${action} → ${taskId}`;
+  }
+  if (!subtitle && message) {
+    subtitle = message.slice(0, 80);
+  }
 
   if (isStreaming && !toolResult) {
     return <LoadingState title={config.verb} subtitle={subtitle} />;
@@ -97,17 +106,23 @@ export function OcKortixTaskToolView({
           )}
         </div>
       </CardHeader>
+
       <CardContent className="p-0 h-full flex-1 overflow-hidden">
-        {output ? (
-          <div className="px-4 py-3 text-sm overflow-auto max-h-[300px]">
-            <UnifiedMarkdown content={output} />
+        <ScrollArea className="h-full w-full">
+          <div className="p-3">
+            {output ? (
+              <UnifiedMarkdown content={output} isStreaming={false} />
+            ) : message ? (
+              <div className="text-sm text-muted-foreground">{message.slice(0, 300)}</div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                {config.verb}...
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="px-4 py-6 text-sm text-muted-foreground">
-            No output
-          </div>
-        )}
+        </ScrollArea>
       </CardContent>
+
       <ToolViewFooter
         assistantTimestamp={assistantTimestamp}
         toolTimestamp={toolTimestamp}

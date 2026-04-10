@@ -57,6 +57,10 @@ export const kortixKeys = {
   project: (id: string) => ['kortix', 'projects', id] as const,
 };
 
+interface KortixProjectQueryOptions {
+  enabled?: boolean;
+}
+
 // ── Hooks ────────────────────────────────────────────────────────────────────
 
 export function useKortixProjects() {
@@ -96,14 +100,17 @@ export function useKortixProject(id: string) {
  * Fetch sessions linked to a specific project.
  * Returns OpenCode session objects enriched with title, time, etc.
  */
-export function useKortixProjectSessions(projectId: string) {
+export function useKortixProjectSessions(
+  projectId: string,
+  options: KortixProjectQueryOptions = {},
+) {
   const { user, isLoading: isAuthLoading } = useAuth();
   const serverVersion = useServerStore((s) => s.serverVersion);
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
   return useQuery<any[]>({
     queryKey: ['kortix', 'projects', projectId, 'sessions', user?.id ?? 'anonymous', serverUrl, serverVersion],
     queryFn: () => kortixFetch<any[]>(serverUrl, `/${encodeURIComponent(projectId)}/sessions`),
-    enabled: !isAuthLoading && !!user && !!serverUrl && !!projectId,
+    enabled: !isAuthLoading && !!user && !!serverUrl && !!projectId && (options.enabled ?? true),
     staleTime: 15_000,
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: true,

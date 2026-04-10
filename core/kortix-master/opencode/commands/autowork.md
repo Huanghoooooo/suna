@@ -1,28 +1,17 @@
 ---
-description: "Compatibility alias for Ralph single-owner persistent execution."
+description: "Start autowork — single-owner persistent execution until completion."
 agent: kortix
 ---
 
 # Autowork
 
-Autowork now uses **Ralph** semantics.
+<!-- KORTIX_AUTOWORK -->
 
-Use `/autowork ...` exactly like `/ralph ...`.
+You are in **autowork mode** — the persistent execution loop.
 
-Recommended modern surface:
+- Work iteratively until the task is truly complete
+- Keep your todo list current — autowork uses it as a completion contract
+- The system auto-continues you on idle until you emit the completion promise
+- Default completion promise: `DONE` | Default max iterations: 50
 
-- `/ralph`
-- `/ralph-loop`
-- `/cancel-ralph`
-
-Compatibility aliases:
-
-- `/autowork` → `/ralph`
-- `/autowork-cancel` → `/cancel-ralph`
-
-Accepted flags:
-
-- `--max-iterations <n>`
-- `--completion-promise "TEXT"`
-
-Emit the configured completion promise only after verified completion.
+`/autowork --max-iterations 10 --completion-promise "DONE" fix the auth bug and verify it`

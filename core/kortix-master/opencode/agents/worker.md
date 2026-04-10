@@ -26,22 +26,11 @@ permission:
   pty_write: allow
   pty_list: allow
   pty_kill: allow
-  # Cannot orchestrate — only Kortix does that
-  agent_spawn: deny
-  agent_message: deny
-  agent_stop: deny
-  agent_status: deny
-  # Task execution tools — can read own task, comment, deliver, ask questions
-  task_get: allow
-  task_comment: allow
-  task_deliver: allow
-  task_question: allow
-  # Cannot manage tasks — only Kortix/human does that
-  task_create: deny
-  task_list: deny
-  task_update: deny
-  task_done: deny
-  task_delete: deny
+  # No orchestration
+  agent_task: deny
+  agent_task_update: deny
+  agent_task_list: deny
+  agent_task_get: deny
   task: deny
   # Can select projects (required by system) but cannot create/delete/update
   project_create: deny
@@ -148,18 +137,14 @@ Share links are for sending to external people. The default preview is always `l
 ## Task Execution
 
 When you own a task (spawned via task start), you have these tools:
-- `task_get` — re-read task details and the full comment thread at any time
-- `task_comment` — leave progress updates for the human to see
-- `task_question` — if you're blocked on missing input, ask a question (pauses the task for human response)
-- `task_deliver` — when done, attach your result + verification summary (moves task to human review)
 
-**Inbound messages:** The human can comment on your task at any time. Their comments arrive as `<task_comment>` messages in your session. Read them with `task_get` to get full context, then respond or adjust your work accordingly.
 
-## When Running with /ralph or /autowork
 
-If your prompt starts with `/ralph`, `/ralph-loop`, or `/autowork`, you enter the Ralph persistence loop:
+## When Running with /autowork
+
+If your prompt starts with `/autowork`, you enter the autowork persistence loop:
 - Work iteratively until the task is fully complete
-- Keep your native todo list current — Ralph uses it as a completion contract
+- Keep your native todo list current — autowork uses it as a completion contract
 - The system auto-continues you on idle — keep working
 - Emit the configured completion promise only when the task is actually verified complete
 - Never weaken tests to make them pass — fix the code

@@ -18,7 +18,7 @@ function todoSummary(todos: Todo[]): { unfinished: Todo[]; completedCount: numbe
 
 function buildContinuePrompt(state: RalphState): string {
 	return [
-		`[RALPH - ITERATION ${state.iteration + 1}/${state.maxIterations}]`,
+		`[AUTOWORK - ITERATION ${state.iteration + 1}/${state.maxIterations}]`,
 		"",
 		"Your previous attempt did not output the completion promise.",
 		"Continue working on the task. Persist until it is truly complete.",
@@ -39,10 +39,10 @@ function buildContinuePrompt(state: RalphState): string {
 function buildPrematureCompletionPrompt(state: RalphState, todos: Todo[]): string {
 	const { unfinished, completedCount } = todoSummary(todos)
 	return [
-		"[RALPH - COMPLETION REJECTED]",
+		"[AUTOWORK - COMPLETION REJECTED]",
 		"",
 		`You emitted the completion promise (${state.completionPromise}) before all todo items were finished.`,
-		"Ralph does not allow silent partial completion. Continue fixing the remaining work.",
+		"Autowork does not allow silent partial completion. Continue fixing the remaining work.",
 		"",
 		`Todo status: ${completedCount}/${todos.length} complete.`,
 		...unfinished.map((todo) => `- [${todo.status}] ${todo.content}`),
@@ -50,6 +50,25 @@ function buildPrematureCompletionPrompt(state: RalphState, todos: Todo[]): strin
 		`Do not emit ${state.completionPromise} again until every pending/in_progress todo is finished or cancelled with a clear reason.`,
 		INTERNAL_MARKER,
 	].join("\n")
+}
+
+function buildVerificationPrompt(state: RalphState): string {
+	return [
+		`[AUTOWORK - VERIFICATION]`,
+		"",
+		"You claimed the task is complete. Now PROVE it.",
+		"",
+		`**Verification condition:** ${state.verificationCondition}`,
+		"",
+		"Run the actual verification steps right now:",
+		"- Execute commands, read files, run tests — whatever the condition requires",
+		"- Show concrete evidence (command output, file contents, test results)",
+		"- Do NOT just claim it passes — demonstrate it",
+		"",
+		"If verification passes: emit " + state.completionPromise + " again",
+		"If verification fails: fix the issues and try again",
+		INTERNAL_MARKER,
+	].filter(Boolean).join("\n")
 }
 
 export function evaluateRalph(state: RalphState, assistantTexts: string[], todos: Todo[]): RalphDecision {
@@ -75,11 +94,22 @@ export function evaluateRalph(state: RalphState, assistantTexts: string[], todos
 				reason: `completion promise seen but ${unfinished.length} todo item(s) remain`,
 			}
 		}
+
+		// If there's a verification condition and we haven't verified yet, run verification
+		if (state.verificationCondition && !state.verificationAttempted) {
+			return {
+				action: "continue",
+				phase: "verifying",
+				prompt: buildVerificationPrompt(state),
+				reason: "completion promise detected — running verification",
+			}
+		}
+
 		return {
 			action: "stop",
 			phase: "complete",
 			prompt: null,
-			reason: "completion promise detected and todos are clear",
+			reason: "completion promise detected, todos clear" + (state.verificationAttempted ? ", verification passed" : ""),
 		}
 	}
 

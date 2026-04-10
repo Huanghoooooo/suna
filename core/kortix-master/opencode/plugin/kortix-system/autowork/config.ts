@@ -7,12 +7,15 @@ export type RalphPhase = "starting" | "executing" | "verifying" | "fixing" | "co
 export interface RalphOptions {
 	maxIterations: number
 	completionPromise: string
+	verificationCondition: string | null
 }
 
 export interface RalphState {
 	active: boolean
 	sessionId: string | null
 	taskPrompt: string | null
+	verificationCondition: string | null
+	verificationAttempted: boolean
 	iteration: number
 	maxIterations: number
 	completionPromise: string
@@ -30,6 +33,7 @@ export interface RalphState {
 export const RALPH_DEFAULTS: RalphOptions = {
 	maxIterations: 50,
 	completionPromise: "DONE",
+	verificationCondition: null,
 }
 
 export const RALPH_THRESHOLDS = {
@@ -44,6 +48,8 @@ export function createInitialRalphState(): RalphState {
 		active: false,
 		sessionId: null,
 		taskPrompt: null,
+		verificationCondition: null,
+		verificationAttempted: false,
 		iteration: 0,
 		maxIterations: RALPH_DEFAULTS.maxIterations,
 		completionPromise: RALPH_DEFAULTS.completionPromise,
@@ -84,6 +90,14 @@ export function parseRalphArgs(raw: string): { options: RalphOptions; task: stri
 			const value = tokens[i + 1]
 			if (value) {
 				options.completionPromise = value
+				i += 1
+				continue
+			}
+		}
+		if (token === "--verification") {
+			const value = tokens[i + 1]
+			if (value) {
+				options.verificationCondition = value
 				i += 1
 				continue
 			}

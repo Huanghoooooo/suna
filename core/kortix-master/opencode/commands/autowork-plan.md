@@ -32,6 +32,6 @@ Your final response must include:
 
 - the paths you wrote
  - the recommended execution mode:
-   - `/ralph` for single-owner execution
-   - `/ralph` with `agent_spawn` for parallel work
+   - `/autowork` for single-owner execution
+   - `/autowork` with `agent_task` for parallel work
 - the key risks or open questions, if any

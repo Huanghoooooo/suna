@@ -512,6 +512,7 @@ interface WsProxyData {
   bufferBytes: number
   connectTimer: ReturnType<typeof setTimeout> | null
   idleTimer: ReturnType<typeof setTimeout> | null
+  upstreamHeaders?: Record<string, string>
   closed: boolean
 }
 
@@ -526,6 +527,17 @@ function resetIdleTimer(ws: { data: WsProxyData; close: (code?: number, reason?:
     console.warn(`[Kortix Master] WS idle timeout for port ${ws.data.targetPort}`)
     try { ws.close(1000, 'idle timeout') } catch {}
   }, WS_IDLE_TIMEOUT_MS)
+}
+
+function buildWsUpstreamHeaders(req: Request): Record<string, string> | undefined {
+  const headers: Record<string, string> = {}
+  const origin = req.headers.get('origin')
+  const userAgent = req.headers.get('user-agent')
+
+  if (origin) headers.Origin = origin
+  if (userAgent) headers['User-Agent'] = userAgent
+
+  return Object.keys(headers).length > 0 ? headers : undefined
 }
 
 /**
@@ -594,6 +606,7 @@ export default {
             bufferBytes: 0,
             connectTimer: null,
             idleTimer: null,
+            upstreamHeaders: buildWsUpstreamHeaders(req),
             closed: false,
           } satisfies WsProxyData,
         })
@@ -611,6 +624,7 @@ export default {
             bufferBytes: 0,
             connectTimer: null,
             idleTimer: null,
+            upstreamHeaders: buildWsUpstreamHeaders(req),
             closed: false,
           } satisfies WsProxyData,
         })
@@ -630,8 +644,8 @@ export default {
      */
     open(ws: { data: WsProxyData; send: (data: any) => void; close: (code?: number, reason?: string) => void }) {
       activeConnections++
-      const { targetPort, targetPath } = ws.data
-      const upstreamUrl = `ws://localhost:${targetPort}${targetPath}`
+      const { targetPort, targetPath, upstreamHeaders } = ws.data
+      const upstreamUrl = `ws://127.0.0.1:${targetPort}${targetPath}`
 
       // Start idle timer
       resetIdleTimer(ws)
@@ -646,7 +660,9 @@ export default {
       }, WS_CONNECT_TIMEOUT_MS)
 
       try {
-        const upstream = new WebSocket(upstreamUrl)
+        const upstream = upstreamHeaders
+          ? new WebSocket(upstreamUrl, { headers: upstreamHeaders } as any)
+          : new WebSocket(upstreamUrl)
         ws.data.upstream = upstream
 
         upstream.addEventListener('open', () => {

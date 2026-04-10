@@ -47,16 +47,6 @@ export interface TaskRow {
 	updated_at: string
 }
 
-export interface TaskCommentRow {
-	id: string
-	task_id: string
-	project_id: string
-	author_session_id: string | null
-	author_role: string
-	body: string
-	created_at: string
-}
-
 let ralphActiveSessions: Set<string>
 try {
 	const mod = require("./ralph/ralph")
@@ -69,9 +59,6 @@ function genTaskId(): string {
 	return `task-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 }
 
-function genCommentId(): string {
-	return `c-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
-}
 
 function terminalTaskStatuses(): TaskTerminalStatus[] {
 	return ["completed", "cancelled"]
@@ -99,10 +86,6 @@ function nowIso(): string {
 	return new Date().toISOString()
 }
 
-function parseRole(ctx: ToolContext, currentTask: TaskRow | null): string {
-	if (ctx?.sessionID && currentTask?.owner_session_id === ctx.sessionID) return "owner"
-	return "user"
-}
 
 export function ensureTasksTable(db: Database): void {
 	ensureSchema(db, "tasks", [
@@ -125,41 +108,6 @@ export function ensureTasksTable(db: Database): void {
 		{ name: "updated_at", type: "TEXT", notNull: true, defaultValue: null, primaryKey: false },
 	])
 
-	ensureSchema(db, "task_comments", [
-		{ name: "id", type: "TEXT", notNull: true, defaultValue: null, primaryKey: true },
-		{ name: "task_id", type: "TEXT", notNull: true, defaultValue: null, primaryKey: false },
-		{ name: "project_id", type: "TEXT", notNull: true, defaultValue: null, primaryKey: false },
-		{ name: "author_session_id", type: "TEXT", notNull: false, defaultValue: null, primaryKey: false },
-		{ name: "author_role", type: "TEXT", notNull: true, defaultValue: "'user'", primaryKey: false },
-		{ name: "body", type: "TEXT", notNull: true, defaultValue: "''", primaryKey: false },
-		{ name: "created_at", type: "TEXT", notNull: true, defaultValue: null, primaryKey: false },
-	])
-}
-
-function listTaskComments(db: Database, taskId: string): TaskCommentRow[] {
-	return db.prepare("SELECT * FROM task_comments WHERE task_id=$tid ORDER BY created_at ASC LIMIT 100")
-		.all({ $tid: taskId }) as TaskCommentRow[]
-}
-
-function addTaskComment(
-	db: Database,
-	task: TaskRow,
-	body: string,
-	authorSessionId: string | null,
-	authorRole: string,
-): string {
-	const id = genCommentId()
-	db.prepare(`INSERT INTO task_comments (id, task_id, project_id, author_session_id, author_role, body, created_at)
-		VALUES ($id, $taskId, $projectId, $sid, $role, $body, $now)`).run({
-		$id: id,
-		$taskId: task.id,
-		$projectId: task.project_id,
-		$sid: authorSessionId,
-		$role: authorRole,
-		$body: body,
-		$now: nowIso(),
-	})
-	return id
 }
 
 function getTaskForSession(db: Database, sessionId: string, projectId: string | null): TaskRow | null {
@@ -203,13 +151,12 @@ async function startTaskViaRest(taskId: string): Promise<{ ok: boolean; message:
 	}
 }
 
-function formatTask(task: TaskRow, comments: TaskCommentRow[]): string {
+function formatTask(task: TaskRow): string {
 	const lines = [
 		`## ${task.title}`,
 		"",
 		`**ID:** ${task.id}`,
 		`**Status:** ${task.status}`,
-		`**Priority:** ${task.priority}`,
 		`**Owner Session:** ${task.owner_session_id || "—"}`,
 		`**Description:** ${task.description || "—"}`,
 		`**Verification Condition:** ${task.verification_condition || "—"}`,
@@ -217,9 +164,6 @@ function formatTask(task: TaskRow, comments: TaskCommentRow[]): string {
 	if (task.blocking_question) lines.push(`**Blocking Question:** ${task.blocking_question}`)
 	if (task.result) lines.push(`**Result:** ${task.result}`)
 	if (task.verification_summary) lines.push(`**Verification Summary:** ${task.verification_summary}`)
-	lines.push("", "### Comments")
-	if (!comments.length) lines.push("No comments yet.")
-	else lines.push(...comments.map((c) => `- ${c.created_at} [${c.author_role}] ${c.body}`))
 	return lines.join("\n")
 }
 
@@ -256,8 +200,7 @@ export function taskTools(db: Database, mgr: ProjectManager, _client?: any) {
 					$now: now,
 				})
 				const task = db.prepare("SELECT * FROM tasks WHERE id=$id").get({ $id: id }) as TaskRow
-				addTaskComment(db, task, `Task created.`, ctx.sessionID || null, "user")
-				return `Task **${id}** created: ${args.title}`
+		return `Task **${id}** created: ${args.title}`
 			},
 		}),
 
@@ -290,24 +233,7 @@ export function taskTools(db: Database, mgr: ProjectManager, _client?: any) {
 				if (!pid) return "Error: no project selected."
 				const task = resolveTask(db, pid, args.id, ctx.sessionID)
 				if (!task) return args.id ? `Task not found: ${args.id}` : "No task is bound to this session."
-				return formatTask(task, listTaskComments(db, task.id))
-			},
-		}),
-
-		task_comment: tool({
-			description: "Add a comment to a task. If id is omitted, comments on the task currently owned by this session.",
-			args: {
-				id: tool.schema.string().optional().describe("Task ID. Optional for owner session."),
-				comment: tool.schema.string().describe("Comment body"),
-			},
-			async execute(args: { id?: string; comment: string }, ctx: ToolContext): Promise<string> {
-				const pid = getProjectId(ctx)
-				if (!pid) return "Error: no project selected."
-				const task = resolveTask(db, pid, args.id, ctx.sessionID)
-				if (!task) return args.id ? `Task not found: ${args.id}` : "No task is bound to this session."
-				const commentId = addTaskComment(db, task, args.comment, ctx.sessionID || null, parseRole(ctx, task))
-				db.prepare("UPDATE tasks SET updated_at=$now WHERE id=$id").run({ $now: nowIso(), $id: task.id })
-				return `Comment **${commentId}** added to task **${task.id}**.`
+				return formatTask(task)
 			},
 		}),
 
@@ -322,8 +248,7 @@ export function taskTools(db: Database, mgr: ProjectManager, _client?: any) {
 				if (!pid) return "Error: no project selected."
 				const task = resolveTask(db, pid, args.id, ctx.sessionID)
 				if (!task) return args.id ? `Task not found: ${args.id}` : "No task is bound to this session."
-				addTaskComment(db, task, `Blocked — question: ${args.question}`, ctx.sessionID || null, parseRole(ctx, task))
-				db.prepare("UPDATE tasks SET status='in_review', blocking_question=$q, updated_at=$now WHERE id=$id")
+		db.prepare("UPDATE tasks SET status='in_review', blocking_question=$q, updated_at=$now WHERE id=$id")
 					.run({ $q: args.question, $now: nowIso(), $id: task.id })
 				return `Task **${task.id}** paused with blocking question. Moved to in_review for human input.`
 			},
@@ -341,8 +266,7 @@ export function taskTools(db: Database, mgr: ProjectManager, _client?: any) {
 				if (!pid) return "Error: no project selected."
 				const task = resolveTask(db, pid, args.id, ctx.sessionID)
 				if (!task) return args.id ? `Task not found: ${args.id}` : "No task is bound to this session."
-				addTaskComment(db, task, `Delivered result.\nResult: ${args.result}\nVerification: ${args.verification_summary}`, ctx.sessionID || null, parseRole(ctx, task))
-				db.prepare(`UPDATE tasks
+		db.prepare(`UPDATE tasks
 					SET status='in_review', result=$result, verification_summary=$verification, blocking_question=NULL, updated_at=$now
 					WHERE id=$id`).run({
 					$result: args.result,
@@ -424,8 +348,7 @@ export function taskTools(db: Database, mgr: ProjectManager, _client?: any) {
 				if (!pid) return "Error: no project selected."
 				const task = resolveTask(db, pid, args.id, ctx.sessionID)
 				if (!task) return `Task not found: ${args.id}`
-				addTaskComment(db, task, `Marked as done.${args.result ? ` Result: ${args.result}` : ""}`, ctx.sessionID || null, parseRole(ctx, task))
-				db.prepare("UPDATE tasks SET status='in_review', result=$r, updated_at=$now WHERE id=$id")
+		db.prepare("UPDATE tasks SET status='in_review', result=$r, updated_at=$now WHERE id=$id")
 					.run({ $r: args.result || task.result, $now: nowIso(), $id: task.id })
 				return `Task **${task.id}** moved to **in_review** for human approval.`
 			},
@@ -439,7 +362,6 @@ export function taskTools(db: Database, mgr: ProjectManager, _client?: any) {
 				if (!pid) return "Error: no project selected."
 				const task = resolveTask(db, pid, args.id, ctx.sessionID)
 				if (!task) return `Task not found: ${args.id}`
-				db.prepare("DELETE FROM task_comments WHERE task_id=$id").run({ $id: task.id })
 				db.prepare("DELETE FROM tasks WHERE id=$id").run({ $id: task.id })
 				return `Task **${task.id}** deleted: ${task.title}`
 			},
@@ -466,7 +388,6 @@ export async function handleTaskSessionEvent(sessionId: string, eventType: strin
 				.pop()?.text || lastText
 		} catch {}
 
-		addTaskComment(db, refreshed, `Owner session became idle before task reached a terminal status.\nLast output: ${lastText.slice(0, 1500)}`, sessionId, "system")
 		db.prepare("UPDATE tasks SET status='cancelled', result=$r, updated_at=$now, completed_at=COALESCE(completed_at, $now) WHERE id=$id")
 			.run({ $r: lastText.slice(0, 8000), $now: nowIso(), $id: refreshed.id })
 		return
@@ -475,7 +396,6 @@ export async function handleTaskSessionEvent(sessionId: string, eventType: strin
 	if (eventType === "session.error" || eventType === "session.aborted") {
 		const refreshed = db.prepare("SELECT * FROM tasks WHERE id=$id").get({ $id: task.id }) as TaskRow | null
 		if (!refreshed || isTerminalTaskStatus(refreshed.status)) return
-		addTaskComment(db, refreshed, `Owner session ${eventType}.`, sessionId, "system")
 		db.prepare("UPDATE tasks SET status='cancelled', updated_at=$now, completed_at=COALESCE(completed_at, $now) WHERE id=$id")
 			.run({ $now: nowIso(), $id: refreshed.id })
 	}
