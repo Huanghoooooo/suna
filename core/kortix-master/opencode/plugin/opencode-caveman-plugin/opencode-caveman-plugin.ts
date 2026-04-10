@@ -3,8 +3,6 @@ import { compressFile } from "./compress"
 import { parseNatural } from "./parse"
 import { clearMode, clearSession, getMode, isMode, MODES, setMode, type Mode } from "./state"
 
-const usage = `Usage: /caveman [${MODES.join("|")}|off] [optional request]`
-
 const prompts: Record<Mode, string> = {
 	lite: [
 		"CAVEMAN LITE ACTIVE.",
@@ -48,23 +46,6 @@ const guard = [
 	"Code blocks, commands, paths, URLs, quoted errors, and commit hashes stay exact.",
 ].join("\n")
 
-const commit = [
-	"Write terse conventional commit messages.",
-	"Format: <type>(<scope>): <imperative summary>.",
-	"Prefer why over what.",
-	"Subject <= 50 chars when possible, hard cap 72.",
-	"Body only when why, breaking change, migration, or issue link matters.",
-	"Output ready-to-paste commit message only.",
-].join("\n")
-
-const review = [
-	"Write terse code review comments.",
-	"Format: file:L42: <problem>. <fix>.",
-	"Use severity only when useful: 🔴 bug, 🟡 risk, 🔵 nit, ❓ q.",
-	"One line per finding. No praise, no throat-clearing.",
-	"Output ready-to-paste review comments only.",
-].join("\n")
-
 function confirm(mode: Mode) {
 	return `Caveman mode set to ${mode}. Confirm briefly.`
 }
@@ -73,16 +54,9 @@ function disabled() {
 	return "Caveman mode disabled. Reply normal. Confirm briefly."
 }
 
-function buildSpecial(kind: "commit" | "review", args: string) {
-	const prompt = kind === "commit" ? commit : review
-	const tail = args.trim()
-	if (tail) return `${prompt}\n\nUser request:\n${tail}`
-	return `${prompt}\n\nIf user gave no extra context, ask for the minimum missing context in one short sentence.`
-}
-
 function buildCompressPrompt(args: string) {
 	const path = args.trim()
-	if (!path) return "Usage: /caveman-compress <filepath>"
+	if (!path) return "Use caveman_compress with file_path. Then report backup path and savings briefly."
 	return [
 		`Use caveman_compress on ${path}.`,
 		"Then report backup path and savings in <=4 bullets.",
@@ -133,28 +107,6 @@ const CavemanPlugin: Plugin = async () => {
 					return JSON.stringify(result, null, 2)
 				},
 			}),
-		},
-
-		"command.execute.before": async (input: { command: string; sessionID: string; arguments: string }, output: { parts: Array<any> }) => {
-			if (input.command === "caveman") {
-				const next = maybeRewrite(`/caveman ${input.arguments || ""}`.trim(), input.sessionID)
-				output.parts = [{ type: "text" as const, text: next || usage }]
-				return
-			}
-
-			if (input.command === "caveman-commit") {
-				output.parts = [{ type: "text" as const, text: buildSpecial("commit", input.arguments || "") }]
-				return
-			}
-
-			if (input.command === "caveman-review") {
-				output.parts = [{ type: "text" as const, text: buildSpecial("review", input.arguments || "") }]
-				return
-			}
-
-			if (input.command === "caveman-compress") {
-				output.parts = [{ type: "text" as const, text: buildCompressPrompt(input.arguments || "") }]
-			}
 		},
 
 		"chat.message": async (input: { sessionID: string }, output: { parts: Array<any> }) => {
