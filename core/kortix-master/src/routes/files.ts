@@ -57,6 +57,62 @@ function validatePath(c: any, raw: string): string | null {
   }
 }
 
+// ─── Upload naming: collision-free writes ────────────────────────────────────
+
+/** Short high-entropy suffix (~12 chars) for disambiguating filenames. */
+function uniqueSuffix(): string {
+  const ts = Date.now().toString(36)
+  const rnd = Math.random().toString(36).slice(2, 8)
+  return `${ts}-${rnd}`
+}
+
+/**
+ * Insert a unique suffix before the file extension.
+ *   foo.txt    → foo-<suffix>.txt
+ *   README     → README-<suffix>
+ *   .env       → .env-<suffix>
+ *   foo.tar.gz → foo.tar-<suffix>.gz   (only the final extension is preserved)
+ */
+function withSuffix(dest: string, suffix: string): string {
+  const dir = path.dirname(dest)
+  const ext = path.extname(dest)
+  const base = path.basename(dest, ext)
+  const prefix = dir === '.' || dir === '' ? '' : `${dir}/`
+  return `${prefix}${base}-${suffix}${ext}`
+}
+
+/**
+ * Atomically write `buffer` to `dest`, never overwriting an existing file.
+ *
+ * Uses the POSIX `wx` flag (O_CREAT | O_EXCL) so concurrent uploads cannot
+ * race past an exists-check and clobber each other. On collision the
+ * filename is suffixed with a short unique token and the write is retried.
+ *
+ * Returns the path the file was actually written to (may differ from
+ * `dest` if a collision forced a rename).
+ */
+async function writeUploadUnique(dest: string, buffer: ArrayBuffer): Promise<string> {
+  const data = Buffer.from(buffer)
+  await fs.mkdir(path.dirname(resolvePath(dest)), { recursive: true })
+
+  let attempt = dest
+  for (let i = 0; i < 6; i++) {
+    try {
+      await fs.writeFile(resolvePath(attempt), data, { flag: 'wx' })
+      return attempt
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
+      attempt = withSuffix(dest, uniqueSuffix())
+    }
+  }
+
+  // Extremely unlikely fallthrough — a full UUID makes further collision
+  // effectively impossible.
+  attempt = withSuffix(dest, crypto.randomUUID())
+  await fs.writeFile(resolvePath(attempt), data, { flag: 'wx' })
+  return attempt
+}
+
 function kind(code: string): 'added' | 'deleted' | 'modified' {
   if (code === '??') return 'added'
   if (code.includes('U')) return 'modified'
@@ -359,11 +415,12 @@ filesRouter.post('/upload',
           : key === 'file' || key === 'file[]'
             ? file.name
             : key
-        const resolved = resolvePath(dest)
         const buffer = await file.arrayBuffer()
-        await fs.mkdir(path.dirname(resolved), { recursive: true })
-        await Bun.write(resolved, buffer)
-        results.push({ path: dest, size: buffer.byteLength })
+        // Collision-free write: if `dest` already exists, the filename is
+        // automatically suffixed with a unique token and the actual path
+        // the bytes landed at is returned to the client.
+        const actualPath = await writeUploadUnique(dest, buffer)
+        results.push({ path: actualPath, size: buffer.byteLength })
       }
     }
 

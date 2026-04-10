@@ -2758,12 +2758,16 @@ function SessionTurn({
         isTextPart(p) &&
         !(p as TextPart).synthetic &&
         !(p as any).ignored &&
-        (!!stripSystemPtyText((p as TextPart).text || '') ||
-          (p as TextPart).text?.includes('<pty_exited>') ||
-          (p as TextPart).text?.includes('<agent_completed>') ||
-          (p as TextPart).text?.includes('<agent_task_completed>') ||
-          (p as TextPart).text?.includes('<agent_task_failed>') ||
-          (p as TextPart).text?.includes('<agent_failed>') ||
+          (!!stripSystemPtyText((p as TextPart).text || '') ||
+            (p as TextPart).text?.includes('<pty_exited>') ||
+            (p as TextPart).text?.includes('<agent_completed>') ||
+            (p as TextPart).text?.includes('<task_delivered>') ||
+            (p as TextPart).text?.includes('<task_blocker>') ||
+            (p as TextPart).text?.includes('<task_run_failed>') ||
+            (p as TextPart).text?.includes('<task_event_mirror>') ||
+            (p as TextPart).text?.includes('<agent_task_completed>') ||
+            (p as TextPart).text?.includes('<agent_task_failed>') ||
+            (p as TextPart).text?.includes('<agent_failed>') ||
           (p as TextPart).text?.includes('<agent_stopped>')),
     );
     if (hasVisibleText) return true;
@@ -3820,14 +3824,14 @@ export function SessionChat({
           });
         }
 
-        // Upload local files
+        // Upload local files. The server (/file/upload) guarantees
+        // collision-free destinations — if two files share a name it
+        // auto-suffixes and returns the actual written path.
         if (localFiles.length > 0) {
-          const uploadBatchTs = Date.now();
           const uploadResults = await Promise.all(
-            localFiles.map(async (af, index) => {
+            localFiles.map(async (af) => {
               const safeName = af.file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-              const uniqueName = `${uploadBatchTs}-${index}-${safeName}`;
-              const uploadBlob = new File([af.file], uniqueName, {
+              const uploadBlob = new File([af.file], safeName, {
                 type: af.file.type,
               });
               const results = await uploadFile(
@@ -4996,16 +5000,18 @@ export function SessionChat({
         (file): file is Extract<AttachedFile, { kind: 'local' }> =>
           file.kind === 'local',
       );
-      const uploadBatchTs = Date.now();
-      const uploadPlans = localFiles.map((af, index) => {
+      // The server (/file/upload) assigns the final, collision-free path.
+      // We pass the sanitized name for the upload and use it in the
+      // optimistic text as a placeholder — the real path returned by the
+      // server replaces it when the message is actually sent.
+      const uploadPlans = localFiles.map((af) => {
         const safeName = af.file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const uniqueName = `${uploadBatchTs}-${index}-${safeName}`;
         return {
           file: af.file,
           filename: af.file.name,
           mime: af.file.type || 'application/octet-stream',
-          uniqueName,
-          optimisticPath: `/workspace/uploads/${uniqueName}`,
+          safeName,
+          optimisticPath: `/workspace/uploads/${safeName}`,
         };
       });
 
@@ -5098,7 +5104,7 @@ export function SessionChat({
       if (uploadPlans.length > 0) {
         const uploadResults = await Promise.all(
           uploadPlans.map(async (plan) => {
-            const uploadBlob = new File([plan.file], plan.uniqueName, {
+            const uploadBlob = new File([plan.file], plan.safeName, {
               type: plan.file.type,
             });
             const results = await uploadFile(uploadBlob, '/workspace/uploads');

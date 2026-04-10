@@ -165,13 +165,26 @@ async function uploadAndExtractOnNewSandbox(
     throw new Error(`Archive upload failed (${uploadRes.status}): ${uploadBody.slice(0, 300)}`);
   }
 
-  console.log(`[file-transfer] Archive uploaded, extracting on new sandbox...`);
+  // The upload endpoint guarantees collision-free writes and returns the
+  // actual path the archive was stored at. Parse it so extraction targets
+  // the right file even if `/tmp/legacy-uploads.tar.gz` already existed.
+  let archivePath = ARCHIVE_PATH;
+  try {
+    const parsed = JSON.parse(uploadBody) as Array<{ path: string; size: number }>;
+    if (Array.isArray(parsed) && parsed[0]?.path) {
+      archivePath = parsed[0].path;
+    }
+  } catch {
+    console.warn(`[file-transfer] Could not parse upload response; falling back to ${ARCHIVE_PATH}`);
+  }
+
+  console.log(`[file-transfer] Archive uploaded to ${archivePath}, extracting on new sandbox...`);
 
   const execRes = await fetch(`${baseUrl}/kortix/core/exec`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      cmd: `mkdir -p ${destPath} && tar xzf ${ARCHIVE_PATH} --strip-components=1 -C ${destPath} && rm -f ${ARCHIVE_PATH}`,
+      cmd: `mkdir -p ${destPath} && tar xzf ${archivePath} --strip-components=1 -C ${destPath} && rm -f ${archivePath}`,
     }),
     signal: AbortSignal.timeout(60_000),
   });
