@@ -47,6 +47,7 @@ import {
 
 import { FileItem } from '@/components/files/FileItem';
 import { FileViewer } from '@/components/files/FileViewer';
+import { SelectableMarkdownText } from '@/components/ui/selectable-markdown';
 import { useOpenCodeFiles } from '@/lib/files/hooks';
 import type { SandboxFile } from '@/api/types';
 
@@ -764,15 +765,45 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
                 );
               })()}
 
-              {/* Description */}
+              {/* Description — rendered as markdown (ported from web ca81efc) */}
               {!!selectedTask.description && (
                 <View style={{ marginBottom: 16 }}>
                   <RNText style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: mutedStrong, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                     Description
                   </RNText>
-                  <RNText style={{ fontSize: 14, fontFamily: 'Roobert', color: isDark ? '#a1a1aa' : '#52525b', lineHeight: 20 }}>
+                  <SelectableMarkdownText isDark={isDark}>
                     {selectedTask.description}
+                  </SelectableMarkdownText>
+                </View>
+              )}
+
+              {/* Result — rendered as markdown, shown prominently in an emerald card */}
+              {!!selectedTask.result && (
+                <View
+                  style={{
+                    marginBottom: 16,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: isDark ? 'rgba(16,185,129,0.25)' : 'rgba(16,185,129,0.2)',
+                    backgroundColor: isDark ? 'rgba(16,185,129,0.04)' : 'rgba(16,185,129,0.03)',
+                    padding: 14,
+                  }}
+                >
+                  <RNText
+                    style={{
+                      fontSize: 11,
+                      fontFamily: 'Roobert-Medium',
+                      color: isDark ? '#34d399' : '#059669',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                      marginBottom: 8,
+                    }}
+                  >
+                    Result
                   </RNText>
+                  <SelectableMarkdownText isDark={isDark}>
+                    {selectedTask.result}
+                  </SelectableMarkdownText>
                 </View>
               )}
 
