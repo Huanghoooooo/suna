@@ -343,7 +343,7 @@
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  --card: oklch(0.99 0 0); /* Slightly off-white for light mode card contrast */
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -425,7 +425,7 @@
 .theme-graphite {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  --card: oklch(0.99 0 0); /* Slightly off-white for light mode card contrast */
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -496,7 +496,7 @@
 .theme-teal {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  --card: oklch(0.99 0 0); /* Slightly off-white for light mode card contrast */
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -567,7 +567,7 @@
 .theme-amber {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  --card: oklch(0.99 0 0); /* Slightly off-white for light mode card contrast */
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -638,7 +638,7 @@
 .theme-rose {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  --card: oklch(0.99 0 0); /* Slightly off-white for light mode card contrast */
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -709,7 +709,7 @@
 .theme-violet {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  --card: oklch(0.99 0 0); /* Slightly off-white for light mode card contrast */
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -780,7 +780,7 @@
 .theme-emerald {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  --card: oklch(0.99 0 0); /* Slightly off-white for light mode card contrast */
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -852,7 +852,7 @@
 .theme-neon {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  --card: oklch(0.99 0 0); /* Slightly off-white for light mode card contrast */
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -1354,10 +1354,10 @@
 
 @keyframes shimmer-text {
   0% {
-    background-position: 100% 50%;
+    background-position: -200% center;
   }
   100% {
-    background-position: -100% 50%;
+    background-position: 200% center;
   }
 }
 
@@ -1439,7 +1439,7 @@
 }
 
 @keyframes blur-fade-in {
-  0% {
+  from {
     opacity: 0;
     filter: blur(8px);
     transform: translateY(2px);
@@ -1449,7 +1449,7 @@
     filter: blur(3px);
     transform: translateY(1px);
   }
-  100% {
+  to {
     opacity: 1;
     filter: blur(0);
     transform: translateY(0);
