@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { SelectableMarkdownText } from '@/components/ui/selectable-markdown';
 import { SandboxPreviewCard, detectLocalhostUrls } from '@/components/chat/SandboxPreviewCard';
-import { ReasoningSection } from '@/components/chat';
+import { ReasoningSection, GroupedReasoningCard } from '@/components/chat';
 import ReAnimated, {
   useSharedValue,
   useAnimatedStyle,
@@ -3129,53 +3129,81 @@ export function SessionTurn({
       {/* Assistant response — interleaved text + tool calls */}
       {(turn.assistantMessages.length > 0 || working) && (
         <View className="px-4">
-          {visibleParts.map(({ part }) => {
-            if (isToolPart(part)) {
-              const tp = part as ToolPart;
-              // Use rich card for "show" / "show-user" tools
-              if (tp.tool === 'show' || tp.tool === 'show-user') {
-                return <ShowToolCard key={tp.id} tool={tp} isDark={isDark} />;
+          {(() => {
+            // Group consecutive reasoning parts into a single GroupedReasoningCard.
+            // Ported from web 38e2d41 to reduce clutter on turns with many reasoning blocks.
+            type RenderItem =
+              | { type: 'part'; part: Part; key: string }
+              | { type: 'reasoning-group'; parts: ReasoningPart[]; key: string };
+
+            const items: RenderItem[] = [];
+            let pendingReasoning: ReasoningPart[] = [];
+
+            const flushReasoning = () => {
+              if (pendingReasoning.length > 0) {
+                items.push({
+                  type: 'reasoning-group',
+                  parts: pendingReasoning,
+                  key: `reasoning-group-${(pendingReasoning[0] as any).id ?? items.length}`,
+                });
+                pendingReasoning = [];
               }
-              return <ToolCard key={tp.id} tool={tp} isDark={isDark} />;
+            };
+
+            for (const { part } of visibleParts) {
+              if (isReasoningPart(part) && (part as ReasoningPart).text?.trim()) {
+                pendingReasoning.push(part as ReasoningPart);
+              } else {
+                flushReasoning();
+                items.push({ type: 'part', part, key: part.id });
+              }
             }
-            if (isTextPart(part)) {
-              const tp = part as TextPart;
-              if (!tp.text?.trim()) return null;
-              const detectedUrls = detectLocalhostUrls(tp.text);
-              return (
-                <View key={tp.id} className="mb-2">
-                  <SelectableMarkdownText isDark={isDark}>
-                    {tp.text}
-                  </SelectableMarkdownText>
-                  {detectedUrls.map((detected) => (
-                    <SandboxPreviewCard
-                      key={`preview-${detected.port}`}
-                      port={detected.port}
-                      path={detected.path}
-                      title={`localhost:${detected.port}${detected.path}`}
-                      description="Tap to open in browser"
-                    />
-                  ))}
-                </View>
-              );
-            }
-            if (isReasoningPart(part)) {
-              const rp = part as ReasoningPart;
-              if (!rp.text?.trim()) return null;
-              return (
-                <ReasoningSection
-                  key={rp.id}
-                  content={rp.text}
-                  isStreaming={working}
-                  isReasoningActive={working}
-                  isReasoningComplete={!working}
-                  isPersistedContent
-                  variant="compact"
-                />
-              );
-            }
-            return null;
-          })}
+            flushReasoning();
+
+            return items.map((item) => {
+              if (item.type === 'reasoning-group') {
+                return (
+                  <GroupedReasoningCard
+                    key={item.key}
+                    parts={item.parts}
+                    isStreaming={working}
+                  />
+                );
+              }
+
+              const { part } = item;
+
+              if (isToolPart(part)) {
+                const tp = part as ToolPart;
+                if (tp.tool === 'show' || tp.tool === 'show-user') {
+                  return <ShowToolCard key={tp.id} tool={tp} isDark={isDark} />;
+                }
+                return <ToolCard key={tp.id} tool={tp} isDark={isDark} />;
+              }
+              if (isTextPart(part)) {
+                const tp = part as TextPart;
+                if (!tp.text?.trim()) return null;
+                const detectedUrls = detectLocalhostUrls(tp.text);
+                return (
+                  <View key={tp.id} className="mb-2">
+                    <SelectableMarkdownText isDark={isDark}>
+                      {tp.text}
+                    </SelectableMarkdownText>
+                    {detectedUrls.map((detected) => (
+                      <SandboxPreviewCard
+                        key={`preview-${detected.port}`}
+                        port={detected.port}
+                        path={detected.path}
+                        title={`localhost:${detected.port}${detected.path}`}
+                        description="Tap to open in browser"
+                      />
+                    ))}
+                  </View>
+                );
+              }
+              return null;
+            });
+          })()}
 
           {/* Retry banner (shown when retrying, before the working dot) */}
           {working && retryInfo && retryMessage && (
