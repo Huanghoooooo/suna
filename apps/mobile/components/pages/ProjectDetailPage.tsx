@@ -12,8 +12,11 @@ import {
   Alert,
   ActivityIndicator,
   Keyboard,
+  Platform,
   Text as RNText,
 } from 'react-native';
+
+const monoFont = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
 import { Text } from '@/components/ui/text';
 import { Icon } from '@/components/ui/icon';
 import { useColorScheme } from 'nativewind';
@@ -62,6 +65,8 @@ import {
   useDeleteProject,
   useUpdateKortixTask,
   useDeleteKortixTask,
+  useStartKortixTask,
+  useApproveKortixTask,
   type KortixTask,
   type KortixAgent,
   type KortixTaskStatus,
@@ -84,22 +89,18 @@ function ago(t?: string | number) {
 
 type Tab = 'files' | 'sessions' | 'tasks' | 'agents' | 'about';
 
-const STATUS_CONFIG: Record<string, { icon: typeof Circle; color: string }> = {
-  pending: { icon: Circle, color: '#71717a' },
-  in_progress: { icon: Loader2, color: '#60a5fa' },
-  running: { icon: Loader2, color: '#60a5fa' },
-  done: { icon: CheckCircle2, color: '#22c55e' },
-  completed: { icon: CheckCircle2, color: '#22c55e' },
-  blocked: { icon: AlertTriangle, color: '#f59e0b' },
-  failed: { icon: AlertTriangle, color: '#ef4444' },
-  cancelled: { icon: Ban, color: '#71717a' },
-  stopped: { icon: Ban, color: '#71717a' },
-};
-
-const PRIORITY_COLORS: Record<string, { bg: string; fg: string }> = {
-  high: { bg: 'rgba(239,68,68,0.1)', fg: '#ef4444' },
-  medium: { bg: 'rgba(245,158,11,0.1)', fg: '#f59e0b' },
-  low: { bg: 'rgba(96,165,250,0.1)', fg: '#60a5fa' },
+// Task status config — aligned with web 26cf37f unified agent_task system.
+// Pipeline: todo → [START] → in_progress → input_needed → [APPROVE] → completed
+const STATUS_CONFIG: Record<string, { icon: typeof Circle; color: string; label: string }> = {
+  todo: { icon: Circle, color: '#71717a', label: 'Planned' },
+  in_progress: { icon: Loader2, color: '#60a5fa', label: 'Running' },
+  input_needed: { icon: AlertTriangle, color: '#a78bfa', label: 'Input Needed' },
+  completed: { icon: CheckCircle2, color: '#22c55e', label: 'Completed' },
+  cancelled: { icon: Ban, color: '#71717a', label: 'Cancelled' },
+  // Agent statuses (separate enum, but reused for visual parity)
+  running: { icon: Loader2, color: '#60a5fa', label: 'Running' },
+  failed: { icon: AlertTriangle, color: '#ef4444', label: 'Failed' },
+  stopped: { icon: Ban, color: '#71717a', label: 'Stopped' },
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -128,6 +129,8 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
   const deleteProject = useDeleteProject(sandboxUrl);
   const updateTask = useUpdateKortixTask(sandboxUrl);
   const deleteTask = useDeleteKortixTask(sandboxUrl);
+  const startTask = useStartKortixTask(sandboxUrl);
+  const approveTask = useApproveKortixTask(sandboxUrl);
 
   // Store project name in tab state for TabsOverview title
   useEffect(() => {
@@ -158,10 +161,11 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
   const agentList = agents ?? [];
 
   const taskStats = useMemo(() => {
-    const done = taskList.filter(t => t.status === 'done').length;
-    const inProgress = taskList.filter(t => t.status === 'in_progress').length;
-    const pending = taskList.filter(t => t.status === 'pending').length;
-    return { done, inProgress, pending, total: taskList.length };
+    const done = taskList.filter((t) => t.status === 'completed').length;
+    const inProgress = taskList.filter((t) => t.status === 'in_progress').length;
+    const inputNeeded = taskList.filter((t) => t.status === 'input_needed').length;
+    const todo = taskList.filter((t) => t.status === 'todo').length;
+    return { done, inProgress, inputNeeded, todo, total: taskList.length };
   }, [taskList]);
 
   // Files tab state
@@ -500,10 +504,9 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
 
               <View style={{ borderRadius: 12, borderWidth: 1, borderColor: border, backgroundColor: cardBg, overflow: 'hidden' }}>
                 {taskList.map((t: KortixTask, i: number) => {
-                  const sc = STATUS_CONFIG[t.status] || STATUS_CONFIG.pending;
+                  const sc = STATUS_CONFIG[t.status] || STATUS_CONFIG.todo;
                   const StatusIcon = sc.icon;
-                  const isDone = t.status === 'done' || t.status === 'cancelled';
-                  const pc = PRIORITY_COLORS[t.priority];
+                  const isTerminal = t.status === 'completed' || t.status === 'cancelled';
                   return (
                     <TouchableOpacity
                       key={t.id}
@@ -520,7 +523,7 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
                         gap: 10,
                         borderBottomWidth: i < taskList.length - 1 ? 1 : 0,
                         borderBottomColor: border,
-                        opacity: isDone ? 0.5 : 1,
+                        opacity: isTerminal ? 0.55 : 1,
                       }}
                     >
                       <StatusIcon size={14} color={sc.color} />
@@ -531,16 +534,11 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
                           fontSize: 14,
                           fontFamily: 'Roobert',
                           color: fg,
-                          textDecorationLine: isDone ? 'line-through' : 'none',
+                          textDecorationLine: isTerminal ? 'line-through' : 'none',
                         }}
                       >
                         {t.title}
                       </RNText>
-                      {pc && t.priority !== 'medium' && (
-                        <View style={{ backgroundColor: pc.bg, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                          <RNText style={{ fontSize: 10, fontFamily: 'Roobert-Medium', color: pc.fg }}>{t.priority}</RNText>
-                        </View>
-                      )}
                       <RNText style={{ fontSize: 11, fontFamily: 'Roobert', color: isDark ? '#3f3f46' : '#a1a1aa' }}>
                         {ago(t.updated_at)}
                       </RNText>
@@ -704,170 +702,350 @@ export function ProjectDetailPage({ projectId, onBack, onOpenDrawer, onOpenRight
             paddingBottom: sheetPadding,
           }}
         >
-          {selectedTask && (
-            <>
-              {/* Header: title + delete */}
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14, gap: 12 }}>
-                <RNText
-                  style={{
-                    flex: 1,
-                    fontSize: 17,
-                    fontFamily: 'Roobert-Medium',
-                    color: fg,
-                    lineHeight: 22,
-                    textDecorationLine: (selectedTask.status === 'done' || selectedTask.status === 'cancelled') ? 'line-through' : 'none',
-                  }}
-                >
-                  {selectedTask.title}
-                </RNText>
-                <TouchableOpacity
-                  onPress={() => {
-                    Alert.alert(
-                      'Delete task',
-                      `Delete "${selectedTask.title}"? This cannot be undone.`,
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: 'Delete',
-                          style: 'destructive',
-                          onPress: () => {
-                            deleteTask.mutate(selectedTask.id, {
-                              onSuccess: () => {
-                                taskSheetRef.current?.dismiss();
-                              },
-                            });
-                          },
-                        },
-                      ],
-                    );
-                  }}
-                  hitSlop={10}
-                  style={{ padding: 4 }}
-                >
-                  <Trash2 size={18} color={isDark ? '#52525b' : '#a1a1aa'} />
-                </TouchableOpacity>
-              </View>
+          {selectedTask && (() => {
+            const currentStatus = STATUS_CONFIG[selectedTask.status] || STATUS_CONFIG.todo;
+            const CurrentIcon = currentStatus.icon;
+            const isTerminal = selectedTask.status === 'completed' || selectedTask.status === 'cancelled';
+            const canStart = selectedTask.status === 'todo';
+            const canApprove = selectedTask.status === 'input_needed';
+            const isBusy = updateTask.isPending || startTask.isPending || approveTask.isPending;
 
-              {/* Priority */}
-              {selectedTask.priority && (() => {
-                const pc = PRIORITY_COLORS[selectedTask.priority];
-                return (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                    <RNText style={{ fontSize: 12, fontFamily: 'Roobert', color: mutedStrong }}>
-                      Priority
-                    </RNText>
-                    <View style={{ backgroundColor: pc?.bg || cardBg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                      <RNText style={{ fontSize: 11, fontFamily: 'Roobert-Medium', color: pc?.fg || mutedStrong, textTransform: 'capitalize' }}>
-                        {selectedTask.priority}
-                      </RNText>
-                    </View>
-                  </View>
-                );
-              })()}
-
-              {/* Description — rendered as markdown (ported from web ca81efc) */}
-              {!!selectedTask.description && (
-                <View style={{ marginBottom: 16 }}>
-                  <RNText style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: mutedStrong, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Description
-                  </RNText>
-                  <SelectableMarkdownText isDark={isDark}>
-                    {selectedTask.description}
-                  </SelectableMarkdownText>
-                </View>
-              )}
-
-              {/* Result — rendered as markdown, shown prominently in an emerald card */}
-              {!!selectedTask.result && (
-                <View
-                  style={{
-                    marginBottom: 16,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: isDark ? 'rgba(16,185,129,0.25)' : 'rgba(16,185,129,0.2)',
-                    backgroundColor: isDark ? 'rgba(16,185,129,0.04)' : 'rgba(16,185,129,0.03)',
-                    padding: 14,
-                  }}
-                >
+            return (
+              <>
+                {/* Header: title + delete */}
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, gap: 12 }}>
                   <RNText
                     style={{
-                      fontSize: 11,
+                      flex: 1,
+                      fontSize: 17,
                       fontFamily: 'Roobert-Medium',
-                      color: isDark ? '#34d399' : '#059669',
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.5,
-                      marginBottom: 8,
+                      color: fg,
+                      lineHeight: 22,
+                      textDecorationLine: isTerminal ? 'line-through' : 'none',
                     }}
                   >
-                    Result
+                    {selectedTask.title}
                   </RNText>
-                  <SelectableMarkdownText isDark={isDark}>
-                    {selectedTask.result}
-                  </SelectableMarkdownText>
-                </View>
-              )}
-
-              {/* Status options */}
-              <RNText style={{ fontSize: 12, fontFamily: 'Roobert-Medium', color: mutedStrong, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Status
-              </RNText>
-              <View style={{ gap: 6, marginBottom: 16 }}>
-                {(['pending', 'in_progress', 'done', 'blocked', 'cancelled'] as KortixTaskStatus[]).map((s) => {
-                  const sc = STATUS_CONFIG[s];
-                  const SIcon = sc.icon;
-                  const isCurrent = selectedTask.status === s;
-                  const label = s === 'in_progress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1);
-                  return (
-                    <TouchableOpacity
-                      key={s}
-                      onPress={() => {
-                        if (isCurrent) return;
-                        updateTask.mutate(
-                          { id: selectedTask.id, status: s },
+                  <TouchableOpacity
+                    onPress={() => {
+                      Alert.alert(
+                        'Delete task',
+                        `Delete "${selectedTask.title}"? This cannot be undone.`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
                           {
-                            onSuccess: (updated: KortixTask) => {
-                              setSelectedTask(updated);
+                            text: 'Delete',
+                            style: 'destructive',
+                            onPress: () => {
+                              deleteTask.mutate(selectedTask.id, {
+                                onSuccess: () => {
+                                  taskSheetRef.current?.dismiss();
+                                },
+                              });
                             },
                           },
-                        );
-                      }}
-                      activeOpacity={0.7}
-                      disabled={updateTask.isPending}
+                        ],
+                      );
+                    }}
+                    hitSlop={10}
+                    style={{ padding: 4 }}
+                  >
+                    <Trash2 size={18} color={isDark ? '#52525b' : '#a1a1aa'} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Status pill + owner agent */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: currentStatus.color,
+                      backgroundColor: `${currentStatus.color}15`,
+                    }}
+                  >
+                    <CurrentIcon size={12} color={currentStatus.color} />
+                    <RNText style={{ fontSize: 11, fontFamily: 'Roobert-Medium', color: currentStatus.color }}>
+                      {currentStatus.label}
+                    </RNText>
+                  </View>
+                  {!!selectedTask.owner_agent && (
+                    <RNText style={{ fontSize: 11, fontFamily: 'Roobert', color: mutedStrong }}>
+                      · {selectedTask.owner_agent}
+                    </RNText>
+                  )}
+                </View>
+
+                {/* Action buttons: Start / Approve */}
+                {(canStart || canApprove) && (
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                    {canStart && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (isBusy) return;
+                          startTask.mutate(
+                            { id: selectedTask.id },
+                            { onSuccess: (updated: KortixTask) => setSelectedTask(updated) },
+                          );
+                        }}
+                        activeOpacity={0.7}
+                        disabled={isBusy}
+                        style={{
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          paddingVertical: 11,
+                          borderRadius: 10,
+                          backgroundColor: fg,
+                          opacity: isBusy ? 0.5 : 1,
+                        }}
+                      >
+                        <Ionicons name="play" size={13} color={bg} />
+                        <RNText style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: bg }}>
+                          {startTask.isPending ? 'Starting…' : 'Start task'}
+                        </RNText>
+                      </TouchableOpacity>
+                    )}
+                    {canApprove && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (isBusy) return;
+                          approveTask.mutate(selectedTask.id, {
+                            onSuccess: (updated: KortixTask) => setSelectedTask(updated),
+                          });
+                        }}
+                        activeOpacity={0.7}
+                        disabled={isBusy}
+                        style={{
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          paddingVertical: 11,
+                          borderRadius: 10,
+                          backgroundColor: '#22c55e',
+                          opacity: isBusy ? 0.5 : 1,
+                        }}
+                      >
+                        <CheckCircle2 size={14} color="#FFFFFF" />
+                        <RNText style={{ fontSize: 13, fontFamily: 'Roobert-Medium', color: '#FFFFFF' }}>
+                          {approveTask.isPending ? 'Approving…' : 'Approve'}
+                        </RNText>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+                {/* Worker session link */}
+                {!!selectedTask.owner_session_id && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      taskSheetRef.current?.dismiss();
+                      handleSessionPress(selectedTask.owner_session_id!);
+                    }}
+                    activeOpacity={0.7}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 10,
+                      paddingHorizontal: 12,
+                      paddingVertical: 11,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: border,
+                      backgroundColor: cardBg,
+                      marginBottom: 16,
+                    }}
+                  >
+                    <Ionicons name="open-outline" size={14} color={mutedStrong} />
+                    <RNText style={{ flex: 1, fontSize: 13, fontFamily: 'Roobert', color: fg }}>
+                      Open worker session
+                    </RNText>
+                    <RNText style={{ fontSize: 10, fontFamily: monoFont, color: isDark ? '#3f3f46' : '#a1a1aa' }}>
+                      {selectedTask.owner_session_id.slice(-8)}
+                    </RNText>
+                  </TouchableOpacity>
+                )}
+
+                {/* Description — rendered as markdown (ported from web ca81efc) */}
+                {!!selectedTask.description && (
+                  <View style={{ marginBottom: 16 }}>
+                    <RNText style={{ fontSize: 11, fontFamily: 'Roobert-Medium', color: mutedStrong, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      Description
+                    </RNText>
+                    <SelectableMarkdownText isDark={isDark}>
+                      {selectedTask.description}
+                    </SelectableMarkdownText>
+                  </View>
+                )}
+
+                {/* Verification condition — read-only, shown if set */}
+                {!!selectedTask.verification_condition && (
+                  <View style={{ marginBottom: 16 }}>
+                    <RNText style={{ fontSize: 11, fontFamily: 'Roobert-Medium', color: mutedStrong, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      Verification condition
+                    </RNText>
+                    <SelectableMarkdownText isDark={isDark}>
+                      {selectedTask.verification_condition}
+                    </SelectableMarkdownText>
+                  </View>
+                )}
+
+                {/* Blocking question — amber card when task needs input */}
+                {!!selectedTask.blocking_question && (
+                  <View
+                    style={{
+                      marginBottom: 16,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: isDark ? 'rgba(245,158,11,0.3)' : 'rgba(245,158,11,0.25)',
+                      backgroundColor: isDark ? 'rgba(245,158,11,0.06)' : 'rgba(245,158,11,0.04)',
+                      padding: 14,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <AlertTriangle size={12} color={isDark ? '#fbbf24' : '#d97706'} />
+                      <RNText
+                        style={{
+                          fontSize: 11,
+                          fontFamily: 'Roobert-Medium',
+                          color: isDark ? '#fbbf24' : '#d97706',
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                        }}
+                      >
+                        Input needed
+                      </RNText>
+                    </View>
+                    <SelectableMarkdownText isDark={isDark}>
+                      {selectedTask.blocking_question}
+                    </SelectableMarkdownText>
+                  </View>
+                )}
+
+                {/* Result — rendered as markdown, shown prominently in an emerald card */}
+                {!!selectedTask.result && (
+                  <View
+                    style={{
+                      marginBottom: 16,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: isDark ? 'rgba(16,185,129,0.25)' : 'rgba(16,185,129,0.2)',
+                      backgroundColor: isDark ? 'rgba(16,185,129,0.04)' : 'rgba(16,185,129,0.03)',
+                      padding: 14,
+                    }}
+                  >
+                    <RNText
                       style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 10,
-                        paddingHorizontal: 12,
-                        paddingVertical: 11,
-                        borderRadius: 10,
-                        borderWidth: 1,
-                        borderColor: isCurrent ? sc.color : border,
-                        backgroundColor: isCurrent ? `${sc.color}15` : cardBg,
+                        fontSize: 11,
+                        fontFamily: 'Roobert-Medium',
+                        color: isDark ? '#34d399' : '#059669',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5,
+                        marginBottom: 8,
                       }}
                     >
-                      <SIcon size={15} color={sc.color} />
-                      <RNText style={{ flex: 1, fontSize: 14, fontFamily: isCurrent ? 'Roobert-Medium' : 'Roobert', color: fg }}>
-                        {label}
-                      </RNText>
-                      {isCurrent && <CheckCircle2 size={14} color={sc.color} />}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* Meta */}
-              <View style={{ flexDirection: 'row', gap: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: border }}>
-                <RNText style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>
-                  Created {ago(selectedTask.created_at)}
-                </RNText>
-                {selectedTask.updated_at !== selectedTask.created_at && (
-                  <RNText style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>
-                    Updated {ago(selectedTask.updated_at)}
-                  </RNText>
+                      Result
+                    </RNText>
+                    <SelectableMarkdownText isDark={isDark}>
+                      {selectedTask.result}
+                    </SelectableMarkdownText>
+                    {!!selectedTask.verification_summary && (
+                      <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.15)' }}>
+                        <RNText
+                          style={{
+                            fontSize: 10,
+                            fontFamily: 'Roobert-Medium',
+                            color: isDark ? 'rgba(52,211,153,0.7)' : 'rgba(5,150,105,0.7)',
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.5,
+                            marginBottom: 4,
+                          }}
+                        >
+                          Verification
+                        </RNText>
+                        <SelectableMarkdownText isDark={isDark}>
+                          {selectedTask.verification_summary}
+                        </SelectableMarkdownText>
+                      </View>
+                    )}
+                  </View>
                 )}
-              </View>
-            </>
-          )}
+
+                {/* Status selector — unified agent_task statuses */}
+                <RNText style={{ fontSize: 11, fontFamily: 'Roobert-Medium', color: mutedStrong, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Change status
+                </RNText>
+                <View style={{ gap: 6, marginBottom: 16 }}>
+                  {(['todo', 'in_progress', 'input_needed', 'completed', 'cancelled'] as KortixTaskStatus[]).map((s) => {
+                    const sc = STATUS_CONFIG[s];
+                    const SIcon = sc.icon;
+                    const isCurrent = selectedTask.status === s;
+                    return (
+                      <TouchableOpacity
+                        key={s}
+                        onPress={() => {
+                          if (isCurrent || isBusy) return;
+                          updateTask.mutate(
+                            { id: selectedTask.id, status: s },
+                            {
+                              onSuccess: (updated: KortixTask) => {
+                                setSelectedTask(updated);
+                              },
+                            },
+                          );
+                        }}
+                        activeOpacity={0.7}
+                        disabled={isBusy}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 10,
+                          paddingHorizontal: 12,
+                          paddingVertical: 11,
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: isCurrent ? sc.color : border,
+                          backgroundColor: isCurrent ? `${sc.color}15` : cardBg,
+                        }}
+                      >
+                        <SIcon size={15} color={sc.color} />
+                        <RNText style={{ flex: 1, fontSize: 14, fontFamily: isCurrent ? 'Roobert-Medium' : 'Roobert', color: fg }}>
+                          {sc.label}
+                        </RNText>
+                        {isCurrent && <CheckCircle2 size={14} color={sc.color} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Meta */}
+                <View style={{ flexDirection: 'row', gap: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: border, flexWrap: 'wrap' }}>
+                  <RNText style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>
+                    Created {ago(selectedTask.created_at)}
+                  </RNText>
+                  {!!selectedTask.started_at && (
+                    <RNText style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>
+                      Started {ago(selectedTask.started_at)}
+                    </RNText>
+                  )}
+                  {!!selectedTask.completed_at && (
+                    <RNText style={{ fontSize: 11, fontFamily: 'Roobert', color: muted }}>
+                      Completed {ago(selectedTask.completed_at)}
+                    </RNText>
+                  )}
+                </View>
+              </>
+            );
+          })()}
         </BottomSheetView>
       </BottomSheetModal>
 
