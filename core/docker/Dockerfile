@@ -263,7 +263,7 @@ RUN chmod +x /ephemeral/tests/*.sh 2>/dev/null || true
 # ── Copy source packages to build staging area ──────────────────────────────
 # All sandbox packages are now consolidated inside core/kortix-master/
 #   kortix-master/opencode/   — OpenCode config dir (agents, skills, plugins, tools)
-#   kortix-master/channels/   — Channel CLIs (ktelegram, kslack, kchannel)
+#   kortix-master/channels/   — CLIs: ktelegram, kslack, kchannel, kconnectors, kpipedream
 #   kortix-master/triggers/   — Cron + webhook triggers
 COPY core/kortix-master  /opt/build/kortix-master
 COPY core/s6-services/svc-agent-browser-viewer/index.html /opt/build/browser-viewer/index.html
@@ -279,6 +279,9 @@ RUN set -eo pipefail && echo "[docker] Building sandbox runtime v${SANDBOX_VERSI
     test -d /ephemeral/kortix-master/node_modules && \
     chmod +x /ephemeral/kortix-master/scripts/*.sh 2>/dev/null || true && \
     echo "[docker] kortix-master: bun install OK (includes triggers, channel CLIs, opencode)" && \
+    \
+    # ── 1b. Install Kortix CLI wrappers into /usr/local/bin ── \
+    /ephemeral/kortix-master/scripts/install-channel-clis.sh && \
     \
     # ── 2. skills shipped in-tree under skills/KORTIX-system/ (recursive discovery) ── \
     echo "[docker] skills: agent-tunnel, agent-browser, presentations in /ephemeral/kortix-master/opencode/skills/KORTIX-system/" && \
