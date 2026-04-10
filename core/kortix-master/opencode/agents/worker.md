@@ -16,6 +16,8 @@ permission:
   scrape_webpage: allow
   webfetch: allow
   show: allow
+  todoread: allow
+  todowrite: allow
   question: deny
   'context7_resolve-library-id': allow
   context7_query-docs: allow
@@ -24,19 +26,12 @@ permission:
   pty_write: allow
   pty_list: allow
   pty_kill: allow
-  # Cannot orchestrate — only Kortix does that
-  agent_spawn: deny
-  agent_message: deny
-  agent_stop: deny
-  agent_status: deny
-  task_create: deny
-  task_list: deny
-  task_update: deny
-  task_done: deny
-  task_delete: deny
+  # No orchestration
+  agent_task: deny
+  agent_task_update: deny
+  agent_task_list: deny
+  agent_task_get: deny
   task: deny
-  todoread: deny
-  todowrite: deny
   # Can select projects (required by system) but cannot create/delete/update
   project_create: deny
   project_delete: deny
@@ -139,11 +134,17 @@ Share links are for sending to external people. The default preview is always `l
 - **Random ports** — NEVER use 3000, 8080, 5000, 4000 or any common port. Generate a random port: `shuf -i 10000-59999 -n 1`. Common ports are always taken.
 - **Diagnose before retrying** — if something fails, read the error and fix the cause. Don't retry the same thing blindly.
 
+## Task Execution
+
+When you own a task (spawned via task start), you have these tools:
+
+
+
 ## When Running with /autowork
 
-If your prompt starts with `/autowork`, you enter the autonomous execution loop:
+If your prompt starts with `/autowork`, you enter the autowork persistence loop:
 - Work iteratively until the task is fully complete
+- Keep your native todo list current — autowork uses it as a completion contract
 - The system auto-continues you on idle — keep working
-- When done: emit `<promise>DONE</promise>`
-- Then verify adversarially and emit `<promise>VERIFIED</promise>`
+- Emit the configured completion promise only when the task is actually verified complete
 - Never weaken tests to make them pass — fix the code

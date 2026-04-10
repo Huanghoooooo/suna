@@ -31,7 +31,7 @@ Create project-local planning artifacts under `.kortix/docs/`:
 Your final response must include:
 
 - the paths you wrote
-- the recommended execution mode:
-  - `/autowork` for single-owner execution
-  - `/autowork` with `agent_spawn` for parallel work
+ - the recommended execution mode:
+   - `/autowork` for single-owner execution
+   - `/autowork` with `agent_task` for parallel work
 - the key risks or open questions, if any

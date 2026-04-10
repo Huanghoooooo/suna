@@ -80,6 +80,7 @@ const SUBDOMAIN_URL_REGEX =
  * by the sandbox infrastructure (VNC, OpenCode Web, presentation viewer, etc.)
  */
 const EXCLUDED_PORTS = new Set([
+  22, // SSH daemon — never preview/probe as HTTP
   4096, // OpenCode API (proxied by Kortix Master)
   parseInt(SANDBOX_PORTS.KORTIX_MASTER, 10), // Kortix Master itself
 ]);

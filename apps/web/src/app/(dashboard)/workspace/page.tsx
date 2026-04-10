@@ -174,7 +174,6 @@ function DetailSheet({
     rows.push({ label: 'ID', value: p.id, mono: true });
     if (p.path) rows.push({ label: 'Path', value: p.path, mono: true });
     if (p.description) rows.push({ label: 'Description', value: p.description });
-    if (p.taskCount) rows.push({ label: 'Tasks', value: `${p.tasksDone}/${p.taskCount} done` });
   }
   if (item?.kind === 'tool' && item.raw) {
     const t = item.raw as { toolId: string; server?: string };
@@ -436,14 +435,12 @@ export default function WorkspacePage() {
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
       for (const p of sorted) {
-        const taskLabel = (p.taskCount ?? 0) > 0 ? `${p.tasksDone}/${p.taskCount} tasks` : undefined;
         items.push({
           id: `project:${p.id}`,
           name: p.name,
           description: p.path && p.path !== '/' ? p.path : undefined,
           kind: 'project',
           scope: 'project',
-          meta: taskLabel,
           raw: p as any,
         });
       }

@@ -288,7 +288,7 @@ function TreeNode({
       <span className={cn(
         'truncate flex-1',
         gitStatus && gitStatusTextColor[gitStatus],
-        !gitStatus && node.name.startsWith('.') && 'opacity-50',
+        !gitStatus && node.name.startsWith('.') && node.name !== '.kortix' && node.name !== '.opencode' && 'opacity-50',
       )}>
         {node.name}
       </span>

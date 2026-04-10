@@ -25,6 +25,75 @@ export interface ReloadResult {
   errors: string[]
 }
 
+export function getSafeFullReloadFallback(options?: {
+  envMode?: string
+  uid?: number
+}): string | null {
+  const envMode = (options?.envMode || process.env.ENV_MODE || 'local').toLowerCase()
+  const uid = options?.uid ?? (typeof process.getuid === 'function' ? process.getuid() : undefined)
+
+  if (envMode === 'local' && uid !== 0) {
+    return 'Full restart is not supported from the local sandbox app process; performed a safe OpenCode dispose instead to avoid a kortix-master restart loop'
+  }
+
+  return null
+}
+
+interface S6RunResult {
+  ok: boolean
+  exitCode: number
+  command: string
+  stderr: string
+}
+
+function decodeOutput(bytes?: Uint8Array | null): string {
+  if (!bytes || bytes.length === 0) return ''
+  return Buffer.from(bytes).toString('utf8').trim()
+}
+
+function runS6Svc(args: string[]): S6RunResult {
+  const candidates: string[][] = [
+    ['sudo', '-n', 's6-svc', ...args],
+    ['s6-svc', ...args],
+  ]
+
+  let last: S6RunResult = {
+    ok: false,
+    exitCode: -1,
+    command: candidates[0].join(' '),
+    stderr: 's6-svc unavailable',
+  }
+
+  for (const cmd of candidates) {
+    try {
+      const proc = Bun.spawnSync(cmd, {
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      })
+      const stderr = decodeOutput(proc.stderr)
+      const exitCode = proc.exitCode ?? -1
+      const result: S6RunResult = {
+        ok: exitCode === 0,
+        exitCode,
+        command: cmd.join(' '),
+        stderr,
+      }
+      if (result.ok) return result
+      last = result
+    } catch (err) {
+      last = {
+        ok: false,
+        exitCode: -1,
+        command: cmd.join(' '),
+        stderr: err instanceof Error ? err.message : String(err),
+      }
+    }
+  }
+
+  return last
+}
+
 /**
  * Dispose the OpenCode instance — hot-reload config from disk.
  * Reloads: agents, skills, commands, opencode.jsonc, MCP connections.
@@ -51,17 +120,19 @@ async function disposeOpenCode(result: ReloadResult): Promise<boolean> {
  * Returns immediately — s6 handles the lifecycle.
  */
 function restartS6(svcName: string, result: ReloadResult): void {
-  try {
-    const proc = Bun.spawnSync(['s6-svc', '-r', `/run/service/${svcName}`])
-    if (proc.exitCode === 0) {
-      result.steps.push(`Restarted ${svcName}`)
-    } else {
-      // exit 111 = supervisor not running (service doesn't exist in this environment)
-      result.steps.push(`${svcName}: skipped (exit ${proc.exitCode})`)
-    }
-  } catch {
-    result.steps.push(`${svcName}: s6-svc not available (local dev?)`)
+  const res = runS6Svc(['-r', `/run/service/${svcName}`])
+  if (res.ok) {
+    result.steps.push(`Restarted ${svcName}`)
+    return
   }
+
+  // exit 111 = supervisor not running (service doesn't exist in this environment)
+  if (res.exitCode === 111) {
+    result.steps.push(`${svcName}: skipped (exit 111)`)
+    return
+  }
+
+  result.errors.push(`${svcName} restart failed via '${res.command}': ${res.stderr || `exit ${res.exitCode}`}`)
 }
 
 export async function initiateRuntimeReload(mode: ReloadMode): Promise<ReloadResult> {
@@ -80,6 +151,15 @@ export async function initiateRuntimeReload(mode: ReloadMode): Promise<ReloadRes
     return result
   }
 
+  const safeFallbackReason = getSafeFullReloadFallback()
+  if (safeFallbackReason) {
+    const ok = await disposeOpenCode(result)
+    result.success = ok
+    result.steps.push(safeFallbackReason)
+    if (!ok) result.errors.push('Safe fallback reload failed')
+    return result
+  }
+
   // ── full: kill and restart every code-holding process ──
   // s6-svc -r = SIGTERM → wait for exit → restart fresh (clean module cache)
   result.steps.push('Full restart: restarting all code-holding services via s6')
@@ -94,13 +174,19 @@ export async function initiateRuntimeReload(mode: ReloadMode): Promise<ReloadRes
   // Self-restart — deferred so HTTP response goes out first
   setTimeout(() => {
     console.log('[runtime-reload] Full restart: killing kortix-master — s6 will respawn')
-    try {
-      Bun.spawn(['s6-svc', '-r', '/run/service/svc-kortix-master'], {
-        stdout: 'inherit', stderr: 'inherit',
-      })
-    } catch {}
-    // Fallback hard exit if s6 didn't kill us
-    setTimeout(() => process.exit(0), 3000)
+
+    const restart = runS6Svc(['-r', '/run/service/svc-kortix-master'])
+    if (!restart.ok) {
+      console.warn(`[runtime-reload] Failed to restart svc-kortix-master via '${restart.command}': ${restart.stderr || `exit ${restart.exitCode}`}`)
+      // Fallback hard exit so s6 still respawns us even if the privileged helper
+      // is unavailable in this environment.
+      setTimeout(() => process.exit(0), 3000)
+      return
+    }
+
+    // Safety valve: if s6 accepted the restart but for some reason this process
+    // was not terminated, exit anyway so the supervisor can bring up a clean copy.
+    setTimeout(() => process.exit(0), 5000)
   }, 300)
 
   return result

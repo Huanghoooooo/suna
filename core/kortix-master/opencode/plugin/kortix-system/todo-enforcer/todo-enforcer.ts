@@ -137,10 +137,16 @@ class SessionStateMap<T> {
 // ─── Autowork detection ───────────────────────────────────────────────────────
 
 /**
- * Track which sessions have an active autowork loop.
- * The autowork plugin sets this; we check it to defer.
+ * Track which sessions have an active Ralph loop.
+ * The Ralph plugin sets this; we check it to defer.
  */
-const autoworkActiveSessions = new Set<string>()
+let autoworkActiveSessions: Set<string>
+try {
+	const mod = require("../ralph/ralph")
+	autoworkActiveSessions = mod.ralphActiveSessions ?? new Set<string>()
+} catch {
+	autoworkActiveSessions = new Set<string>()
+}
 
 // ─── Plugin ───────────────────────────────────────────────────────────────────
 
@@ -281,5 +287,5 @@ const KortixTodoEnforcingPlugin: Plugin = async ({ client }) => {
 
 export default KortixTodoEnforcingPlugin
 
-/** Allow autowork plugin to signal session state */
+/** Allow other plugins to observe active Ralph sessions */
 export { autoworkActiveSessions }

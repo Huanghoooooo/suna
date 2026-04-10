@@ -22,6 +22,7 @@ import { trackSendAuthLink } from '@/lib/analytics/gtm';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WallpaperBackground } from '@/components/ui/wallpaper-background';
 import { cn } from '@/lib/utils';
+import { AuthBrowserNoiseGuard } from '@/components/auth/auth-browser-noise-guard';
 
 // Lazy load heavy components
 const GoogleSignIn = lazy(() => import('@/components/GoogleSignIn'));
@@ -972,13 +973,19 @@ export default function Login() {
   if (isSelfHosted()) {
     return (
       <Suspense fallback={<div className="fixed inset-0 bg-background flex items-center justify-center"><KortixLoader size="medium" /></div>}>
-        <SelfHostedLoginContent />
+        <>
+          <AuthBrowserNoiseGuard />
+          <SelfHostedLoginContent />
+        </>
       </Suspense>
     );
   }
   return (
     <Suspense fallback={<div className="fixed inset-0 bg-background flex items-center justify-center"><KortixLoader size="medium" /></div>}>
-      <LoginContent />
+      <>
+        <AuthBrowserNoiseGuard />
+        <LoginContent />
+      </>
     </Suspense>
   );
 }

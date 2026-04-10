@@ -17,7 +17,15 @@ interface KortixAgent {
   updated_at: string;
 }
 
-export function useKortixAgents(projectId?: string) {
+interface KortixAgentQueryOptions {
+  enabled?: boolean;
+  pollingEnabled?: boolean;
+}
+
+export function useKortixAgents(
+  projectId?: string,
+  options: KortixAgentQueryOptions = {},
+) {
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
   const params = new URLSearchParams();
   if (projectId) params.set('project_id', projectId);
@@ -30,8 +38,9 @@ export function useKortixAgents(projectId?: string) {
       if (!res.ok) return [];
       return res.json() as Promise<KortixAgent[]>;
     },
-    enabled: !!projectId,
-    refetchInterval: 5000,
+    enabled: !!projectId && (options.enabled ?? true),
+    refetchInterval: options.pollingEnabled === false ? false : 5000,
+    refetchIntervalInBackground: false,
   });
 }
 

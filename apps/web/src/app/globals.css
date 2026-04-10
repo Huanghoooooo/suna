@@ -980,6 +980,16 @@
 
 /* Legacy chat-markdown styles removed - use UnifiedMarkdown component instead */
 
+/* Fix Shiki code block rendering: the global * { border-border } rule gives every
+   .line span a solid border-style. Combined with display:contents on Shiki wrappers,
+   browsers can render thin artifact lines between code lines in large blocks. */
+.kortix-markdown pre .line,
+.kortix-markdown pre code span {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 .bg-pattern-grid {
   background-image: 
     linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px),

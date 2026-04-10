@@ -4,31 +4,41 @@
  * Project page — Vercel-grade.
  *
  * Thin orchestrator. All real UI lives in extracted components:
- *   • <ProjectHeader>     — identity, meta, tabs, contextual CTA
- *   • <IssuesTab>          — kanban / list with toolbar
- *   • <ProjectOverview>    — description + details
- *   • <FileExplorerPage>   — files
- *   • <SessionsTab>        — inline sessions list
- *   • <IssueDetailView>    — in-tab issue detail (no new tabs)
+ *   • <ProjectHeader>     — identity, meta, tabs, new task CTA
+ *   • <TasksTab>          — kanban / list with toolbar
+ *   • <ProjectOverview>   — context + history
+ *   • <FileExplorerPage>  — files
+ *   • <SessionsTab>       — inline sessions list
+ *   • <TaskDetailView>    — in-tab task detail (no new tabs)
  *
  * All four tabs are PRE-MOUNTED and CSS-hidden when inactive — switching
  * is instant, no skeleton flash.
  */
 
-import { use, useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { FolderGit2, Plus, ExternalLink, MessageSquare } from 'lucide-react';
+import { Fragment, use, useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { FolderGit2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   useKortixProject,
   useKortixProjectSessions,
-  useDeleteProject,
   useUpdateProject,
 } from '@/hooks/kortix/use-kortix-projects';
 import {
   useKortixTasks,
   useUpdateKortixTask,
+  useStartKortixTask,
+  useApproveKortixTask,
+  useDeleteKortixTask,
   type KortixTask,
   type KortixTaskStatus,
 } from '@/hooks/kortix/use-kortix-tasks';
@@ -45,15 +55,10 @@ import {
   type ProjectTab,
 } from '@/components/kortix/project-header';
 import { ProjectOverview } from '@/components/kortix/project-overview';
-import {
-  IssuesTab,
-  QUICK_FILTER_STATUSES,
-  type IssueView,
-  type SortKey,
-  type QuickFilter,
-} from '@/components/kortix/issues-tab';
-import { IssueDetailView } from '@/components/kortix/issue-detail-view';
-import { NewIssueDialog } from '@/components/kortix/new-issue-dialog';
+import { TasksTab } from '@/components/kortix/tasks-tab';
+import { TaskDetailView } from '@/components/kortix/task-detail-view';
+import { NewTaskDialog } from '@/components/kortix/new-task-dialog';
+import { useIsRouteActive } from '@/hooks/utils/use-is-route-active';
 
 export default function ProjectPage({ params }: { params?: Promise<{ id: string }> }) {
   const { id: raw } = params ? use(params) : { id: '' };
@@ -61,18 +66,36 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
   const projectFilesStoreRef = useRef(createFilesStore());
   const projectFilesStore = projectFilesStoreRef.current;
 
+  // ── Tabs ────────────────────────────────────────────────────
+  const [tab, setTabState] = useState<ProjectTab>('overview');
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const isProjectRouteActive = useIsRouteActive(`/projects/${encodeURIComponent(pid)}`);
+  const shouldLoadProjectSessions = isProjectRouteActive && (tab === 'overview' || tab === 'sessions');
+  const shouldLoadProjectTasks = isProjectRouteActive && (tab === 'overview' || tab === 'tasks');
+  const shouldLoadProjectAgents = isProjectRouteActive && tab === 'overview';
+
   // ── Data ────────────────────────────────────────────────────
   const { data: project, isLoading } = useKortixProject(pid);
-  const { data: sessions } = useKortixProjectSessions(pid);
-  const { data: tasks } = useKortixTasks(project?.id);
-  const { data: agents } = useKortixAgents(project?.id);
-  const deleteProject = useDeleteProject();
+  const { data: sessions } = useKortixProjectSessions(pid, {
+    enabled: shouldLoadProjectSessions,
+  });
+  const { data: tasks } = useKortixTasks(project?.id, undefined, {
+    enabled: shouldLoadProjectTasks,
+    pollingEnabled: shouldLoadProjectTasks,
+  });
+  const { data: agents } = useKortixAgents(project?.id, {
+    enabled: shouldLoadProjectAgents,
+    pollingEnabled: shouldLoadProjectAgents,
+  });
   const updateProject = useUpdateProject();
   const updateTask = useUpdateKortixTask();
+  const startTask = useStartKortixTask();
+  const approveTask = useApproveKortixTask();
+  const deleteTask = useDeleteKortixTask();
 
-  const sessionList = sessions ?? [];
-  const taskList: KortixTask[] = tasks ?? [];
-  const agentList = agents ?? [];
+  const sessionList = useMemo(() => sessions ?? [], [sessions]);
+  const taskList = useMemo<KortixTask[]>(() => tasks ?? [], [tasks]);
+  const agentList = useMemo(() => agents ?? [], [agents]);
 
   // ── File explorer scoping ───────────────────────────────────
   useEffect(() => {
@@ -87,18 +110,13 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
     };
   }, [project?.path, projectFilesStore]);
 
-  // ── Tabs ────────────────────────────────────────────────────
-  const [tab, setTabState] = useState<ProjectTab>('overview');
-  const [openIssueId, setOpenIssueId] = useState<string | null>(null);
   const setTab = useCallback((next: ProjectTab) => {
     setTabState(next);
-    setOpenIssueId(null);
   }, []);
-  const openIssue = useCallback((task: KortixTask) => {
-    setOpenIssueId(task.id);
-    setTabState('issues');
+  const openTask = useCallback((task: KortixTask) => {
+    setOpenTaskId(task.id);
   }, []);
-  const closeIssue = useCallback(() => setOpenIssueId(null), []);
+  const closeTask = useCallback(() => setOpenTaskId(null), []);
 
   // Re-navigate file explorer when files tab activated
   useEffect(() => {
@@ -107,63 +125,47 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
     }
   }, [tab, project?.path, projectFilesStore]);
 
-  // ── Issues view state ───────────────────────────────────────
-  const [view, setView] = useState<IssueView>('board');
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
+  // ── Tasks view state ────────────────────────────────────────
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<Set<KortixTaskStatus>>(new Set());
-  const [sortKey, setSortKey] = useState<SortKey>('updated');
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // ── New issue dialog ────────────────────────────────────────
-  const [newIssueOpen, setNewIssueOpen] = useState(false);
-  const [newIssueDefault, setNewIssueDefault] = useState<KortixTaskStatus | undefined>();
-  const openNewIssue = useCallback((status?: KortixTaskStatus) => {
-    setNewIssueDefault(status);
-    setNewIssueOpen(true);
+  // ── New task dialog ─────────────────────────────────────────
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [newTaskDefault, setNewTaskDefault] = useState<KortixTaskStatus | undefined>();
+  const openNewTask = useCallback((status?: KortixTaskStatus) => {
+    setNewTaskDefault(status);
+    setNewTaskOpen(true);
   }, []);
 
   // ── Filtered tasks ──────────────────────────────────────────
   const filteredTasks = useMemo(() => {
-    let out = taskList;
-    const quickStatuses = QUICK_FILTER_STATUSES[quickFilter];
-    if (quickStatuses) out = out.filter((t) => quickStatuses.includes(t.status));
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      out = out.filter(
-        (t) =>
-          t.title.toLowerCase().includes(q) ||
-          (t.description || '').toLowerCase().includes(q),
-      );
-    }
-    if (statusFilter.size) out = out.filter((t) => statusFilter.has(t.status));
-    return [...out].sort((a, b) => {
-      if (sortKey === 'title') return a.title.localeCompare(b.title);
-      if (sortKey === 'created')
-        return +new Date(b.created_at) - +new Date(a.created_at);
-      return +new Date(b.updated_at) - +new Date(a.updated_at);
-    });
-  }, [taskList, quickFilter, search, statusFilter, sortKey]);
+    if (!search.trim()) return taskList;
+    const q = search.toLowerCase();
+    return taskList.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        (t.description || '').toLowerCase().includes(q),
+    );
+  }, [taskList, search]);
 
-  // ── Keyboard shortcuts (issues tab only) ────────────────────
+  // ── Keyboard shortcuts (tasks tab only) ─────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const inField =
         document.activeElement?.tagName === 'INPUT' ||
         document.activeElement?.tagName === 'TEXTAREA';
-      if (e.key === '/' && tab === 'issues' && !inField) {
+      if (e.key === '/' && tab === 'tasks' && !inField) {
         e.preventDefault();
         searchRef.current?.focus();
       }
       if (
         (e.key === 'c' || e.key === 'C') &&
-        tab === 'issues' &&
         !inField &&
         !e.metaKey &&
         !e.ctrlKey
       ) {
         e.preventDefault();
-        setNewIssueOpen(true);
+        setNewTaskOpen(true);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -195,79 +197,19 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
     );
 
   const hasFiles = project.path && project.path !== '/';
-  const hasFilters = !!search || statusFilter.size > 0;
-  const activeOwnerCount = taskList.filter((t) => !!t.owner_session_id).length;
-
-  // ── Per-tab CTA ─────────────────────────────────────────────
-  const tabCTA: Record<ProjectTab, React.ReactNode> = {
-    issues: (
-      <Button
-        size="sm"
-        className="h-8 px-3.5 text-[13px] gap-1.5 font-medium"
-        onClick={() => openNewIssue()}
-        title="New issue (C)"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        New issue
-      </Button>
-    ),
-    files: hasFiles ? (
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-8 px-3 text-[13px] gap-1.5"
-        onClick={() =>
-          openTabAndNavigate({
-            id: `file:${project.path}`,
-            title: project.name,
-            type: 'file',
-            href: `/files/${encodeURIComponent(project.path)}`,
-          })
-        }
-      >
-        <ExternalLink className="h-3.5 w-3.5" />
-        Open in editor
-      </Button>
-    ) : null,
-    overview: null,
-    sessions: null,
-  };
 
   return (
     <div className="flex-1 bg-background flex flex-col overflow-hidden">
-      {/* Header is hidden when an issue is open (issue detail has its own breadcrumb) */}
-      {!openIssueId && (
-        <ProjectHeader
-          project={project}
-          tab={tab}
-          onTabChange={setTab}
-          taskCount={taskList.length}
-          sessionCount={sessionList.length}
-          activeOwnerCount={activeOwnerCount}
-          onDelete={() => {
-            if (
-              !confirm(
-                `Delete project "${project.name}" from registry? Files on disk will NOT be deleted.`,
-              )
-            )
-              return;
-            deleteProject.mutate(project.id, {
-              onSuccess: () =>
-                openTabAndNavigate({
-                  id: 'page:/workspace',
-                  title: 'Workspace',
-                  type: 'page',
-                  href: '/workspace',
-                }),
-            });
-          }}
-          cta={tabCTA[tab]}
-        />
-      )}
+      <ProjectHeader
+        project={project}
+        tab={tab}
+        onTabChange={setTab}
+        onNewTask={() => openNewTask()}
+      />
 
       {/* ── Pre-mounted tab bodies ─────────────────────────── */}
       <div className="flex-1 min-h-0 relative">
-        <TabPanel active={tab === 'overview' && !openIssueId}>
+        <TabPanel active={tab === 'overview'}>
           <ProjectOverview
             project={project}
             tasks={taskList}
@@ -275,45 +217,24 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
             agents={agentList}
             onUpdateProject={(data) => updateProject.mutate({ id: project.id, ...data })}
             isUpdating={updateProject.isPending}
-            onJumpToIssues={() => setTab('issues')}
+            onJumpToTasks={() => setTab('tasks')}
           />
         </TabPanel>
 
-        <TabPanel active={tab === 'issues' && !openIssueId}>
-          <IssuesTab
+        <TabPanel active={tab === 'tasks'}>
+          <TasksTab
             tasks={taskList}
             filteredTasks={filteredTasks}
-            view={view}
-            setView={setView}
-            quickFilter={quickFilter}
-            setQuickFilter={setQuickFilter}
             search={search}
             setSearch={setSearch}
             searchRef={searchRef}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
-            sortKey={sortKey}
-            setSortKey={setSortKey}
             onUpdateStatus={(id, s) => updateTask.mutate({ id, status: s })}
-            onOpenIssue={openIssue}
-            onNewIssue={openNewIssue}
-            hasFilters={hasFilters}
-            clearFilters={() => {
-              setSearch('');
-              setStatusFilter(new Set());
-            }}
+            onStartTask={(id) => startTask.mutate({ id })}
+            onApproveTask={(id) => approveTask.mutate(id)}
+            onOpenTask={openTask}
+            onNewTask={openNewTask}
+            onDeleteTask={(id) => deleteTask.mutate(id)}
           />
-        </TabPanel>
-
-        <TabPanel active={tab === 'issues' && !!openIssueId}>
-          {openIssueId && (
-            <IssueDetailView
-              taskId={openIssueId}
-              onClose={closeIssue}
-              embedded
-              projectName={project.name}
-            />
-          )}
         </TabPanel>
 
         <TabPanel active={tab === 'files'}>
@@ -333,13 +254,22 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
         </TabPanel>
       </div>
 
-      {/* New issue dialog — always mounted */}
-      <NewIssueDialog
-        open={newIssueOpen}
-        onOpenChange={setNewIssueOpen}
+      {/* New task dialog — always mounted */}
+      <NewTaskDialog
+        open={newTaskOpen}
+        onOpenChange={setNewTaskOpen}
         projectId={project.id}
         projectName={project.name}
-        defaultStatus={newIssueDefault}
+        projectPath={project.path}
+        defaultStatus={newTaskDefault}
+      />
+
+      {/* Task detail modal */}
+      <TaskDetailView
+        taskId={openTaskId}
+        onClose={closeTask}
+        projectName={project.name}
+        pollingEnabled={isProjectRouteActive && !!openTaskId}
       />
     </div>
   );
@@ -367,34 +297,102 @@ function SessionsList({ sessions }: { sessions: any[] }) {
   if (sessions.length === 0)
     return <EmptyState text="No sessions linked" sub="Sessions appear here when you select this project" />;
 
+  // Separate parent and child sessions
+  const parents = sessions.filter((s) => !s.parentID);
+  const children = sessions.filter((s) => !!s.parentID);
+  const childrenByParent = new Map<string, any[]>();
+  for (const c of children) {
+    const list = childrenByParent.get(c.parentID) || [];
+    list.push(c);
+    childrenByParent.set(c.parentID, list);
+  }
+  // Orphaned children (parent not in our list)
+  const parentIds = new Set(parents.map((p) => p.id));
+  const orphans = children.filter((c) => !parentIds.has(c.parentID));
+
+  const openSession = (s: any) =>
+    openTabAndNavigate({
+      id: s.id,
+      title: s.title || 'Session',
+      type: 'session',
+      href: `/sessions/${s.id}`,
+    });
+
   return (
     <div className="flex-1 overflow-y-auto bg-background">
-      <div className="max-w-[1100px] mx-auto px-6 lg:px-10 py-8">
-        <ul className="divide-y divide-border border-y border-border">
-          {sessions.map((s: any) => (
-            <li key={s.id}>
-              <button
-                onClick={() =>
-                  openTabAndNavigate({
-                    id: s.id,
-                    title: s.title || 'Session',
-                    type: 'session',
-                    href: `/sessions/${s.id}`,
-                  })
-                }
-                className="flex items-center w-full h-12 gap-3 hover:bg-muted/20 transition-colors cursor-pointer text-left px-2 -mx-2 rounded-md"
+      <div className="container mx-auto max-w-7xl px-3 sm:px-4 py-4">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Session</TableHead>
+              <TableHead className="w-[90px] text-right">Updated</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {parents.map((s: any) => {
+              const kids = childrenByParent.get(s.id) || [];
+              return (
+                <Fragment key={s.id}>
+                  <TableRow
+                    onClick={() => openSession(s)}
+                    className="cursor-pointer group"
+                  >
+                    <TableCell className="text-[13px] text-foreground/85 truncate max-w-0 group-hover:text-foreground">
+                      {s.title || 'Untitled session'}
+                    </TableCell>
+                    <TableCell className="text-[11px] text-muted-foreground/35 tabular-nums text-right">
+                      {relativeTime(s.time?.updated)}
+                    </TableCell>
+                  </TableRow>
+                  {kids.map((child: any) => (
+                    <TableRow
+                      key={child.id}
+                      onClick={() => openSession(child)}
+                      className="cursor-pointer group"
+                    >
+                      <TableCell className="text-[13px] truncate max-w-0 pl-8">
+                        <span className="text-muted-foreground/30 mr-2">└</span>
+                        <span className="text-foreground/70 group-hover:text-foreground">
+                          {child.task ? child.task.title : (child.title || 'Worker session')}
+                        </span>
+                        {child.task && (
+                          <span className="ml-2 text-[10px] text-muted-foreground/40 font-mono">
+                            {child.task.status}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-[11px] text-muted-foreground/35 tabular-nums text-right">
+                        {relativeTime(child.time?.updated)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </Fragment>
+              );
+            })}
+            {orphans.map((s: any) => (
+              <TableRow
+                key={s.id}
+                onClick={() => openSession(s)}
+                className="cursor-pointer group"
               >
-                <MessageSquare className="h-4 w-4 text-muted-foreground/30 shrink-0" />
-                <span className="text-[13px] text-foreground/85 truncate flex-1">
-                  {s.title || 'Untitled session'}
-                </span>
-                <span className="text-[11px] text-muted-foreground/40 tabular-nums shrink-0">
+                <TableCell className="text-[13px] truncate max-w-0 pl-8">
+                  <span className="text-muted-foreground/30 mr-2">└</span>
+                  <span className="text-foreground/70 group-hover:text-foreground">
+                    {s.task ? s.task.title : (s.title || 'Worker session')}
+                  </span>
+                  {s.task && (
+                    <span className="ml-2 text-[10px] text-muted-foreground/40 font-mono">
+                      {s.task.status}
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell className="text-[11px] text-muted-foreground/35 tabular-nums text-right">
                   {relativeTime(s.time?.updated)}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

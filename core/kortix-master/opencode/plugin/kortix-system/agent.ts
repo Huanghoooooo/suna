@@ -20,8 +20,8 @@ import { ensureSchema } from "./lib/schema"
 
 let autoworkActiveSessions: Set<string>
 try {
-	const mod = require("./autowork/autowork")
-	autoworkActiveSessions = mod.autoworkActiveSessions ?? new Set<string>()
+	const mod = require("./ralph/ralph")
+	autoworkActiveSessions = mod.ralphActiveSessions ?? new Set<string>()
 } catch {
 	autoworkActiveSessions = new Set<string>()
 }
@@ -136,16 +136,16 @@ export function agentTools(client: any, db: Database, mgr: ProjectManager) {
 				"",
 				"Include ALL context in the prompt — the worker knows nothing about your conversation.",
 				"Tell it what skill to load, what to build, how to verify.",
-				"Add command: '/autowork' for complex tasks that need the plan/implement/verify loop.",
+				"Add command: '/ralph' for complex tasks that need the persistent single-owner plan/implement/verify loop.",
 				"Launch multiple workers in one message for parallel independent tasks.",
 				"The worker's output is NOT visible to the user — you must summarize and relay results.",
 			].join("\n"),
 			args: {
 				description: tool.schema.string().describe("Short (3-5 word) task description"),
 				prompt: tool.schema.string().describe("Detailed task instructions for the worker. Include ALL context — the worker knows nothing about your conversation."),
-				agent_type: tool.schema.string().describe('Agent type — use "worker"'),
+				agent_type: tool.schema.string().describe('Agent type — use "worker" for task execution, "orchestrator" for autonomous CEO orchestration'),
 				system_prompt: tool.schema.string().optional().describe("Mission-specific system prompt. Defines WHO this worker is. Frames all decisions. E.g. 'You are building an academic AGI presentation. Rigorous academic tone, real citations.'"),
-				command: tool.schema.string().optional().describe('Slash command to prepend (e.g. "/autowork" for complex tasks)'),
+				command: tool.schema.string().optional().describe('Slash command to prepend (e.g. "/ralph" for complex tasks)'),
 				async: tool.schema.boolean().optional().describe("If true, spawn in background and return immediately. Result injected back when done. Default: false (blocking)."),
 			},
 			async execute(args: {

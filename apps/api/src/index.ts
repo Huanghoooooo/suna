@@ -15,9 +15,10 @@ import { BillingError } from './errors';
 // ─── Sub-Service Imports ──────────────────────────────────────────────────── 
 
 import { router } from './router';
-import { billingApp } from './billing';
+import { billingApp, accountDeletionApp } from './billing';
 import { platformApp } from './platform';
-import { sandboxProxyApp, resolveProvider } from './sandbox-proxy';
+import { sandboxProxyApp, resolveProvider, invalidateProviderCache } from './sandbox-proxy';
+import { isProxyTokenStale, refreshSandboxProxyToken } from './platform/providers/justavps';
 import { getSandboxBaseUrl, proxyToSandbox } from './sandbox-proxy/routes/local-preview';
 import { validateSecretKey } from './repositories/api-keys';
 import { isKortixToken } from './shared/crypto';
@@ -316,6 +317,7 @@ app.get('/v1/user-roles', supabaseAuth, async (c: any) => {
 
 app.route('/v1/router', router);        // /v1/router/chat/completions, /v1/router/models, /v1/router/web-search, /v1/router/tavily/*, etc.
 app.route('/v1/billing', billingApp);   // /v1/billing/account-state, /v1/billing/webhooks/*, /v1/billing/setup/*
+app.route('/v1/account', accountDeletionApp); // account deletion status/request/cancel/immediate
 app.route('/v1/platform', platformApp); // /v1/platform/providers, /v1/platform/sandbox/*, /v1/platform/sandbox/version
 if (config.KORTIX_DEPLOYMENTS_ENABLED) {
   const { deploymentsApp } = await import('./deployments');
@@ -1228,18 +1230,55 @@ export default {
           if (sandbox?.provider === 'justavps') {
             const meta = (sandbox.metadata || {}) as Record<string, unknown>;
             const slug = meta.justavpsSlug as string || '';
-            const proxyToken = meta.justavpsProxyToken as string || '';
+            let proxyToken = meta.justavpsProxyToken as string || '';
             const svcKey = (sandbox.config as Record<string, unknown>)?.serviceKey as string || '';
             const proxyDomain = config.JUSTAVPS_PROXY_DOMAIN;
             const cfProxyUrl = `https://${port}--${slug}.${proxyDomain}`;
+
+            // Proactive refresh: if the stored token is missing or near expiry,
+            // rotate before sending the request. Dedup'd across concurrent
+            // requests for the same sandbox.
+            if (isProxyTokenStale(meta)) {
+              const refreshed = await refreshSandboxProxyToken(sandboxId, meta);
+              if (refreshed) {
+                proxyToken = refreshed.token;
+                invalidateProviderCache(sandboxId);
+              }
+            }
+
             const extra: Record<string, string> = {};
             if (proxyToken) {
               extra['X-Proxy-Token'] = proxyToken;
             }
-            return await proxyToSandbox(
+
+            const firstResponse = await proxyToSandbox(
               sandboxId, 8000, req.method, url.pathname, url.search,
               req.headers, body, false, origin, cfProxyUrl, svcKey, extra,
             );
+
+            // Rescue path: if the CF Worker rejected the token (401/403), the
+            // stored token was stale in a way proactive refresh didn't catch —
+            // for example, the sandbox was offline longer than TTL + buffer,
+            // or the DB copy diverged from CF KV. Mint fresh and retry once.
+            if (
+              (firstResponse.status === 401 || firstResponse.status === 403) &&
+              proxyToken
+            ) {
+              console.warn(
+                `[subdomain-proxy] CF Worker returned ${firstResponse.status} for ${sandboxId}; refreshing proxy token and retrying once`,
+              );
+              const refreshed = await refreshSandboxProxyToken(sandboxId, meta);
+              if (refreshed && refreshed.token !== proxyToken) {
+                invalidateProviderCache(sandboxId);
+                return await proxyToSandbox(
+                  sandboxId, 8000, req.method, url.pathname, url.search,
+                  req.headers, body, false, origin, cfProxyUrl, svcKey,
+                  { 'X-Proxy-Token': refreshed.token },
+                );
+              }
+            }
+
+            return firstResponse;
           }
         }
 

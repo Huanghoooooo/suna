@@ -7,7 +7,7 @@
  * dashboard/OpenCode APIs.
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useServerStore } from '@/stores/server-store';
 import { authenticatedFetch } from '@/lib/auth-token';
 import { useAuth } from '@/components/AuthProvider';
@@ -57,6 +57,10 @@ export const kortixKeys = {
   project: (id: string) => ['kortix', 'projects', id] as const,
 };
 
+interface KortixProjectQueryOptions {
+  enabled?: boolean;
+}
+
 // ── Hooks ────────────────────────────────────────────────────────────────────
 
 export function useKortixProjects() {
@@ -86,6 +90,9 @@ export function useKortixProject(id: string) {
     staleTime: 15_000,
     gcTime: 5 * 60 * 1000,
     retry: 2,
+    // Keep previous data while a new query (e.g. from a serverVersion bump
+    // when another tab closes) is loading. Prevents the skeleton flash.
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -93,18 +100,22 @@ export function useKortixProject(id: string) {
  * Fetch sessions linked to a specific project.
  * Returns OpenCode session objects enriched with title, time, etc.
  */
-export function useKortixProjectSessions(projectId: string) {
+export function useKortixProjectSessions(
+  projectId: string,
+  options: KortixProjectQueryOptions = {},
+) {
   const { user, isLoading: isAuthLoading } = useAuth();
   const serverVersion = useServerStore((s) => s.serverVersion);
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
   return useQuery<any[]>({
     queryKey: ['kortix', 'projects', projectId, 'sessions', user?.id ?? 'anonymous', serverUrl, serverVersion],
     queryFn: () => kortixFetch<any[]>(serverUrl, `/${encodeURIComponent(projectId)}/sessions`),
-    enabled: !isAuthLoading && !!user && !!serverUrl && !!projectId,
+    enabled: !isAuthLoading && !!user && !!serverUrl && !!projectId && (options.enabled ?? true),
     staleTime: 15_000,
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: true,
     retry: 2,
+    placeholderData: keepPreviousData,
   });
 }
 
