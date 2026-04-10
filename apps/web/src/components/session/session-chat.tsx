@@ -4662,7 +4662,11 @@ export function SessionChat({
   }, []);
   const questionHydrationInFlightRef = useRef(false);
   const lastQuestionHydrationAtRef = useRef(0);
-  const hasAnyMessages = !!messages && messages.length > 0;
+  const turns = useMemo(
+    () => (messages ? groupMessagesIntoTurns(messages) : []),
+    [messages],
+  );
+  const hasAnyMessages = turns.length > 0;
   const hasChatContent =
     hasAnyMessages || (!!optimisticPrompt && !hasAnyMessages);
   const WELCOME_FADE_MS = 900;
@@ -4835,12 +4839,6 @@ export function SessionChat({
       }
     },
     [removeQuestion, abortSession, sessionId, suppressQuestionFor],
-  );
-
-  // ---- Group messages into turns ----
-  const turns = useMemo(
-    () => (messages ? groupMessagesIntoTurns(messages) : []),
-    [messages],
   );
   const hasCompactionTurn = useMemo(
     () =>
@@ -5518,7 +5516,7 @@ export function SessionChat({
           {shouldShowWelcomeOverlay && (
             <div
               className={cn(
-                'absolute inset-0 -z-10 pointer-events-none transition-opacity ease-out',
+                'absolute inset-0 z-0 pointer-events-none transition-opacity ease-out',
                 hasChatContent ? 'opacity-0' : 'opacity-100',
               )}
               style={{ transitionDuration: `${WELCOME_FADE_MS}ms` }}
@@ -5528,7 +5526,10 @@ export function SessionChat({
           )}
           <div
             ref={scrollContainerCallbackRef}
-            className="relative flex-1 overflow-y-auto scrollbar-hide px-4 py-4 bg-background h-full [scroll-behavior:auto] z-0"
+            className={cn(
+              'relative flex-1 overflow-y-auto scrollbar-hide px-4 py-4 h-full [scroll-behavior:auto] z-10',
+              shouldShowWelcomeOverlay ? 'bg-transparent' : 'bg-background',
+            )}
             onMouseUp={handleChatMouseUp}
             onMouseDown={handleChatMouseDown}
             onScroll={handleChatScroll}

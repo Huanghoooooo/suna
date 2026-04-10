@@ -62,6 +62,9 @@ export function ProjectHeader({ project, tab, onTabChange, onNewTask, onOpenThre
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">New task</span>
+                <kbd className="hidden sm:inline-flex items-center justify-center min-w-[18px] h-4 px-1 rounded border border-white/20 bg-white/10 text-[10px] font-mono font-medium leading-none text-white/90">
+                  C
+                </kbd>
               </Button>
             )}
           </div>

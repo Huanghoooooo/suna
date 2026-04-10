@@ -174,9 +174,13 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
   // ── Keyboard shortcuts (tasks tab only) ─────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (!isProjectRouteActive || newTaskOpen || e.repeat) return;
+
       const inField =
         document.activeElement?.tagName === 'INPUT' ||
-        document.activeElement?.tagName === 'TEXTAREA';
+        document.activeElement?.tagName === 'TEXTAREA' ||
+        (document.activeElement as HTMLElement | null)?.isContentEditable;
+
       if (e.key === '/' && tab === 'tasks' && !inField) {
         e.preventDefault();
         searchRef.current?.focus();
@@ -193,7 +197,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [tab]);
+  }, [tab, isProjectRouteActive, newTaskOpen]);
 
   // ── Loading / 404 ───────────────────────────────────────────
   if (isLoading && !project) return <ProjectSkeleton />;
