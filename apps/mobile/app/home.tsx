@@ -188,12 +188,24 @@ function AnimatedChevron({ expanded, color, size = 16 }: { expanded: boolean; co
 function SessionListItem({
   item,
   isActive,
+  isChild = false,
+  childCount = 0,
+  isExpanded = false,
+  onToggleExpand,
   onPress,
   onArchive,
   onDelete,
 }: {
   item: Session;
   isActive: boolean;
+  /** True when this row is rendered nested under a parent */
+  isChild?: boolean;
+  /** Total number of direct children — shows a persistent toggle pill */
+  childCount?: number;
+  /** Whether this row's children are currently expanded */
+  isExpanded?: boolean;
+  /** Toggle expand/collapse for this row's children */
+  onToggleExpand?: () => void;
   onPress: (s: Session) => void;
   onArchive?: (id: string) => void;
   onDelete?: (id: string) => void;
@@ -229,6 +241,35 @@ function SessionListItem({
         >
           {item.title || 'New Session'}
         </Text>
+
+        {/* Child toggle pill — matches web f1aea74: persistent badge that stays
+            visible so expanded sub-session lists can be collapsed again */}
+        {childCount > 0 && onToggleExpand && (
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              onToggleExpand();
+            }}
+            hitSlop={6}
+            activeOpacity={0.6}
+            accessibilityLabel={isExpanded ? 'Collapse sub-sessions' : 'Expand sub-sessions'}
+            className={`ml-2 rounded-full px-2 py-0.5 ${
+              isExpanded
+                ? isDark ? 'bg-white/10' : 'bg-black/10'
+                : isDark ? 'bg-white/[0.04]' : 'bg-black/[0.04]'
+            }`}
+          >
+            <Text
+              className={`text-[10px] ${
+                isExpanded ? 'text-foreground' : 'text-muted-foreground'
+              }`}
+              style={{ fontVariant: ['tabular-nums'] }}
+            >
+              {childCount}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {isActive && (
           <View className="flex-row items-center ml-2">
             <TouchableOpacity
@@ -251,6 +292,125 @@ function SessionListItem({
         )}
       </View>
     </TouchableOpacity>
+  );
+}
+
+/**
+ * Build a map from parent session ID → array of child session IDs.
+ * Ported from web's childMapByParent() in ui/turns.ts.
+ */
+function buildChildMap(sessions: Session[]): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const session of sessions) {
+    if (!session.parentID) continue;
+    const existing = map.get(session.parentID);
+    if (existing) {
+      existing.push(session.id);
+    } else {
+      map.set(session.parentID, [session.id]);
+    }
+  }
+  return map;
+}
+
+/**
+ * SessionGroup — renders a session row + its expanded children (recursive for nested trees).
+ */
+function SessionGroup({
+  session,
+  allSessions,
+  childMap,
+  expandedNodes,
+  onToggleExpand,
+  activeSessionId,
+  onPress,
+  onArchive,
+  onDelete,
+}: {
+  session: Session;
+  allSessions: Session[];
+  childMap: Map<string, string[]>;
+  expandedNodes: Record<string, boolean>;
+  onToggleExpand: (sessionId: string) => void;
+  activeSessionId: string | null;
+  onPress: (s: Session) => void;
+  onArchive?: (id: string) => void;
+  onDelete?: (id: string) => void;
+}) {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const childIds = childMap.get(session.id);
+  const hasChildren = !!childIds && childIds.length > 0;
+  const isExpanded = expandedNodes[session.id] ?? false;
+
+  const childSessions = useMemo(() => {
+    if (!childIds) return [];
+    return childIds
+      .map((id) => allSessions.find((s) => s.id === id))
+      .filter((s): s is Session => !!s)
+      .sort((a, b) => (a.time?.created ?? 0) - (b.time?.created ?? 0));
+  }, [childIds, allSessions]);
+
+  return (
+    <View>
+      <SessionListItem
+        item={session}
+        isActive={session.id === activeSessionId}
+        isChild={false}
+        childCount={hasChildren ? childSessions.length : 0}
+        isExpanded={isExpanded}
+        onToggleExpand={hasChildren ? () => onToggleExpand(session.id) : undefined}
+        onPress={onPress}
+        onArchive={onArchive}
+        onDelete={onDelete}
+      />
+
+      {/* Expanded children — indented with a subtle left border */}
+      {hasChildren && isExpanded && (
+        <View
+          className="ml-4 pl-2"
+          style={{
+            borderLeftWidth: 1,
+            borderLeftColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+          }}
+        >
+          {childSessions.map((child) => {
+            const grandchildIds = childMap.get(child.id);
+            const hasGrandchildren = !!grandchildIds && grandchildIds.length > 0;
+
+            // Recurse for grandchildren
+            if (hasGrandchildren) {
+              return (
+                <SessionGroup
+                  key={child.id}
+                  session={child}
+                  allSessions={allSessions}
+                  childMap={childMap}
+                  expandedNodes={expandedNodes}
+                  onToggleExpand={onToggleExpand}
+                  activeSessionId={activeSessionId}
+                  onPress={onPress}
+                  onArchive={onArchive}
+                  onDelete={onDelete}
+                />
+              );
+            }
+
+            return (
+              <SessionListItem
+                key={child.id}
+                item={child}
+                isActive={child.id === activeSessionId}
+                isChild
+                onPress={onPress}
+                onArchive={onArchive}
+                onDelete={onDelete}
+              />
+            );
+          })}
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -528,6 +688,20 @@ export default function HomeScreen() {
   const [sessionsExpanded, setSessionsExpanded] = useState(true);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
   const [projectsExpanded, setProjectsExpanded] = useState(false);
+  const [expandedSessionNodes, setExpandedSessionNodes] = useState<Record<string, boolean>>({});
+
+  const toggleSessionExpand = useCallback((sessionId: string) => {
+    setExpandedSessionNodes((prev) => ({ ...prev, [sessionId]: !prev[sessionId] }));
+  }, []);
+
+  // Build parent→children map and derive the list of top-level (root) sessions.
+  // Child sessions render nested under their parents when the parent is expanded.
+  const { childMap, rootSessions } = useMemo(() => {
+    const map = buildChildMap(activeSessions);
+    const sessionIds = new Set(activeSessions.map((s) => s.id));
+    const roots = activeSessions.filter((s) => !s.parentID || !sessionIds.has(s.parentID));
+    return { childMap: map, rootSessions: roots };
+  }, [activeSessions]);
 
   // Agent/model/variant for dashboard input
   const { data: agents = [] } = useOpenCodeAgents(sandboxUrl);
@@ -937,17 +1111,21 @@ export default function HomeScreen() {
                 </>
               )}
 
-              {/* Active sessions */}
-              {activeSessions.length === 0 ? (
+              {/* Active sessions — parent/child tree (matches web f1aea74) */}
+              {rootSessions.length === 0 ? (
                 <View className="items-center py-8">
                   <Text className="text-sm text-muted-foreground">No sessions yet</Text>
                 </View>
               ) : (
-                activeSessions.map((item) => (
-                  <SessionListItem
+                rootSessions.map((item) => (
+                  <SessionGroup
                     key={item.id}
-                    item={item}
-                    isActive={item.id === activeSessionId}
+                    session={item}
+                    allSessions={activeSessions}
+                    childMap={childMap}
+                    expandedNodes={expandedSessionNodes}
+                    onToggleExpand={toggleSessionExpand}
+                    activeSessionId={activeSessionId}
                     onPress={handleSessionPress}
                     onArchive={handleArchive}
                     onDelete={handleDelete}
@@ -995,6 +1173,10 @@ export default function HomeScreen() {
     isDark,
     insets,
     activeSessions,
+    rootSessions,
+    childMap,
+    expandedSessionNodes,
+    toggleSessionExpand,
     archivedSessions,
     sessionsLoading,
     sessionsExpanded,
