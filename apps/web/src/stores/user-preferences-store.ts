@@ -67,7 +67,7 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
       preferences: {
         keyboard: getDefaultKeyboardPreferences(),
         themeId: 'graphite',
-        wallpaperId: 'brandmark',
+        wallpaperId: 'aurora',
       },
 
       setKeyboardPreferences: (prefs) => {
@@ -105,7 +105,7 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
           preferences: {
             keyboard: getDefaultKeyboardPreferences(),
             themeId: 'graphite',
-            wallpaperId: 'brandmark',
+            wallpaperId: 'aurora',
           },
         });
       },

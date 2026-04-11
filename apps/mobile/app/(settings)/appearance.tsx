@@ -50,9 +50,9 @@ const APPEARANCE_THEMES: AppearanceTheme[] = [
 ];
 
 const WALLPAPERS: WallpaperOption[] = [
-  { id: 'brandmark', name: 'Brandmark', badge: 'Default' },
+  { id: 'brandmark', name: 'Brandmark' },
   { id: 'symbol', name: 'Symbol' },
-  { id: 'aurora', name: 'Aurora' },
+  { id: 'aurora', name: 'Aurora', badge: 'Default' },
 ];
 
 export default function AppearanceScreen() {

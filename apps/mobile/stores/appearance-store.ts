@@ -22,7 +22,7 @@ interface AppearanceState {
 }
 
 export const DEFAULT_APPEARANCE_THEME: AppearanceThemeId = 'graphite';
-export const DEFAULT_WALLPAPER: WallpaperId = 'brandmark';
+export const DEFAULT_WALLPAPER: WallpaperId = 'aurora';
 
 export const useAppearanceStore = create<AppearanceState>()(
   persist(
