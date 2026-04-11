@@ -170,10 +170,10 @@ export async function pullImage(endpoint: ResolvedEndpoint, image: string): Prom
 export async function checkpointSqlite(endpoint: ResolvedEndpoint, containerName: string): Promise<StepResult> {
   return execOnHost(
     endpoint,
-    `docker exec ${containerName} python3 -c "import sqlite3,glob
-for db in glob.glob('/workspace/.local/share/opencode/*.db'):
- c=sqlite3.connect(db);c.execute('PRAGMA wal_checkpoint(TRUNCATE)');c.close()" 2>/dev/null || true`,
-    10,
+    `docker exec ${containerName} sh -lc 'if command -v kortix-opencode-state >/dev/null 2>&1; then kortix-opencode-state sync --archive pre-update; else python3 -c "import sqlite3,glob
+for db in glob.glob(\"/workspace/.local/share/opencode/*.db\"):
+ c=sqlite3.connect(db); c.execute(\"PRAGMA wal_checkpoint(TRUNCATE)\"); c.close()"; fi'`,
+    60,
   );
 }
 

@@ -37,9 +37,9 @@ export const config = {
   KORTIX_DEPLOYMENTS_ENABLED: process.env.KORTIX_DEPLOYMENTS_ENABLED === 'true',
 
   // Secret storage
-  SECRET_FILE_PATH: process.env.SECRET_FILE_PATH || '/workspace/.secrets/.secrets.json',
-  SALT_FILE_PATH: process.env.SALT_FILE_PATH || '/workspace/.secrets/.salt',
-  ENCRYPTION_KEY_PATH: process.env.ENCRYPTION_KEY_PATH || '/workspace/.secrets/.encryption-key',
+  SECRET_FILE_PATH: process.env.SECRET_FILE_PATH || `${process.env.KORTIX_PERSISTENT_ROOT || '/persistent'}/secrets/.secrets.json`,
+  SALT_FILE_PATH: process.env.SALT_FILE_PATH || `${process.env.KORTIX_PERSISTENT_ROOT || '/persistent'}/secrets/.salt`,
+  ENCRYPTION_KEY_PATH: process.env.ENCRYPTION_KEY_PATH || `${process.env.KORTIX_PERSISTENT_ROOT || '/persistent'}/secrets/.encryption-key`,
 
   // Sandbox metadata
   SANDBOX_ID: process.env.SANDBOX_ID || '',
