@@ -16,8 +16,8 @@ import { Database } from "bun:sqlite"
 import type { Plugin } from "@opencode-ai/plugin"
 
 import { initProjectsDb, ProjectManager, projectTools, projectGateHook, projectStatusTransform } from "./projects"
-import { agentTaskTools, ensureAgentTasksTable, handleAgentTaskSessionEvent, getTaskSystemPrompt } from "./agent-tasks"
-import { reconcileAllRunningTasks } from "../../../src/services/task-service"
+import { agentTaskTools, handleAgentTaskSessionEvent } from "./agent-tasks"
+import { ensureTasksTable, reconcileAllRunningTasks } from "../../../src/services/task-service"
 import { resolveKortixWorkspaceRoot, ensureKortixDir } from "./lib/paths"
 import { getBusySessionIds } from "../../../src/services/runtime-reload"
 
@@ -83,7 +83,7 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 	const workspaceRoot = resolveKortixWorkspaceRoot(import.meta.dir)
 	const kortixDir = ensureKortixDir(import.meta.dir)
 	const db = initProjectsDb(path.join(kortixDir, "kortix.db"))
-	ensureAgentTasksTable(db)
+	ensureTasksTable(db)
 	const mgr = new ProjectManager(client, workspaceRoot, db)
 	let currentSessionId: string | null = null
 
@@ -136,18 +136,10 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 		// Project status + active tasks injection
 		"experimental.chat.messages.transform": projectStatusTransform(mgr, () => currentSessionId),
 
-		// System prompt transform — chains auth + agent mission prompt
+		// System prompt transform — forwards to auth (anthropic prefix)
 		"experimental.chat.system.transform": async (input: any, output: { system: string[] }) => {
-			// Run auth transform first (anthropic prefix)
 			if (auth?.["experimental.chat.system.transform"]) {
 				await auth["experimental.chat.system.transform"](input, output)
-			}
-			// Inject agent mission-specific system prompt if this is a worker session
-			if (currentSessionId) {
-				const missionPrompt = getTaskSystemPrompt(currentSessionId)
-				if (missionPrompt) {
-					output.system.push(`\n## Mission\n${missionPrompt}`)
-				}
 			}
 		},
 
@@ -185,7 +177,7 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 				payload.event.type === "session.error" ||
 				payload.event.type === "session.aborted"
 			)) {
-				handleAgentTaskSessionEvent(sid, payload.event.type, client, db).catch(() => {})
+				handleAgentTaskSessionEvent(sid, payload.event.type, client, db, mgr).catch(() => {})
 			}
 		},
 

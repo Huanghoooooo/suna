@@ -38,7 +38,6 @@ export interface TaskRunRow {
   task_id: string
   project_id: string
   parent_session_id: string | null
-  manager_session_id: string | null
   owner_session_id: string | null
   owner_agent: string | null
   status: TaskRunStatus
@@ -171,7 +170,6 @@ export function ensureTasksTable(db: Database): void {
       task_id TEXT NOT NULL,
       project_id TEXT NOT NULL,
       parent_session_id TEXT,
-      manager_session_id TEXT,
       owner_session_id TEXT,
       owner_agent TEXT,
       status TEXT NOT NULL,
@@ -277,11 +275,6 @@ export async function getTaskResolvedForProject(db: Database, client: OpenCodeCl
   return reconcileTaskIfIdle(db, client, task)
 }
 
-export function listTaskRuns(db: Database, taskId: string): TaskRunRow[] {
-  ensureTasksTable(db)
-  return db.prepare('SELECT * FROM task_runs WHERE task_id=$id ORDER BY created_at DESC LIMIT 100').all({ $id: taskId }) as TaskRunRow[]
-}
-
 export function listTaskEvents(db: Database, taskId: string): TaskEventRow[] {
   ensureTasksTable(db)
   return db.prepare('SELECT * FROM task_events WHERE task_id=$id ORDER BY created_at DESC LIMIT 200').all({ $id: taskId }) as TaskEventRow[]
@@ -346,7 +339,6 @@ function updateTaskRun(db: Database, runId: string | null, patch: Partial<TaskRu
   const next = { ...run, ...patch, updated_at: now }
   db.prepare(`UPDATE task_runs SET
       parent_session_id=$parentSessionId,
-      manager_session_id=$managerSessionId,
       owner_session_id=$ownerSessionId,
       owner_agent=$ownerAgent,
       status=$status,
@@ -357,7 +349,6 @@ function updateTaskRun(db: Database, runId: string | null, patch: Partial<TaskRu
       updated_at=$updatedAt
     WHERE id=$id`).run({
     $parentSessionId: next.parent_session_id,
-    $managerSessionId: next.manager_session_id,
     $ownerSessionId: next.owner_session_id,
     $ownerAgent: next.owner_agent,
     $status: next.status,
@@ -699,6 +690,7 @@ export function buildOwnerPrompt(project: ProjectRow, task: TaskRow): string {
     '- When the work is complete, call task_deliver with result and verification_summary before stopping.',
     '- If you need to revisit the task details, use the task block above in this prompt as the source of truth.',
     '- After task_deliver succeeds, emit exactly TASK_COMPLETE.',
+    '- Durable project docs (.kortix/CONTEXT.md) are maintained automatically by the hidden project-maintainer after each task event; you do not need to update them yourself.',
   ].join('\n')
 }
 
@@ -745,15 +737,14 @@ export async function startTask(options: StartTaskOptions): Promise<TaskRow> {
   if (!project) throw new Error('Project not found')
 
   const now = nowIso()
-  const managerSessionId = (db.prepare('SELECT manager_session_id FROM projects WHERE id=$id').get({ $id: task.project_id }) as { manager_session_id?: string | null } | null)?.manager_session_id || null
 
   const runId = genTaskRunId()
   db.prepare(`INSERT INTO task_runs (
-      id, task_id, project_id, parent_session_id, manager_session_id,
+      id, task_id, project_id, parent_session_id,
       owner_session_id, owner_agent, status, result, verification_summary,
       created_at, started_at, completed_at, updated_at
     ) VALUES (
-      $id, $taskId, $projectId, $parentSessionId, $managerSessionId,
+      $id, $taskId, $projectId, $parentSessionId,
       NULL, $ownerAgent, 'running', NULL, NULL,
       $now, $now, NULL, $now
     )`).run({
@@ -761,7 +752,6 @@ export async function startTask(options: StartTaskOptions): Promise<TaskRow> {
     $taskId: task.id,
     $projectId: task.project_id,
     $parentSessionId: parentSessionId,
-    $managerSessionId: managerSessionId,
     $ownerAgent: workerAgent,
     $now: now,
   })
@@ -786,7 +776,6 @@ export async function startTask(options: StartTaskOptions): Promise<TaskRow> {
         owner_session_id: task.owner_session_id,
         owner_agent: workerAgent,
         parent_session_id: parentSessionId,
-        manager_session_id: managerSessionId,
         started_at: now,
         status: 'running',
       })
@@ -829,7 +818,6 @@ export async function startTask(options: StartTaskOptions): Promise<TaskRow> {
     owner_session_id: ownerSessionId,
     owner_agent: workerAgent,
     parent_session_id: parentSessionId,
-    manager_session_id: managerSessionId,
     started_at: now,
     status: 'running',
   })

@@ -51,6 +51,7 @@ import type {
   PromptPart,
 } from '@/hooks/opencode/use-opencode-sessions';
 import { useOpenCodeSessions, useOpenCodeSessionTodo } from '@/hooks/opencode/use-opencode-sessions';
+import { useKortixProjects } from '@/hooks/kortix/use-kortix-projects';
 import { searchWorkspaceFiles } from '@/features/files';
 import { getFileIcon } from '@/features/files/components/file-icon';
 import type { Session } from '@/hooks/opencode/use-opencode-sessions';
@@ -992,7 +993,7 @@ function SlashCommandPopover({
 
   return (
     <div
-      className="fixed z-[99999] bg-popover border border-border/60 rounded-lg shadow-lg overflow-hidden"
+      className="fixed z-[99999] bg-popover border border-border/60 rounded-lg overflow-hidden"
       style={{ bottom: window.innerHeight - r.top + 4, left: r.left, width: Math.min(r.width, 480) }}
     >
       <div ref={scrollRef} className="max-h-64 overflow-y-auto py-1">
@@ -1024,16 +1025,22 @@ function SlashCommandPopover({
 // ============================================================================
 
 export interface MentionItem {
-  kind: 'file' | 'agent' | 'session';
+  kind: 'file' | 'agent' | 'session' | 'project';
   label: string;
   value?: string;
   description?: string;
+  /** Project-only: absolute workspace path (e.g. `/workspace/foo`). */
+  path?: string;
 }
 
 export interface TrackedMention {
-  kind: 'file' | 'agent' | 'session';
+  kind: 'file' | 'agent' | 'session' | 'project';
   label: string;
-  value?: string; // session ID for session mentions
+  value?: string; // session ID for session mentions, project ID for project mentions
+  /** Project-only: absolute workspace path. */
+  path?: string;
+  /** Project-only: short description, passed through to the <project_ref>. */
+  description?: string;
 }
 
 function MentionPopover({
@@ -1065,6 +1072,7 @@ function MentionPopover({
   const r = el.getBoundingClientRect();
 
   const agents = items.filter((i) => i.kind === 'agent');
+  const projects = items.filter((i) => i.kind === 'project');
   const sessions = items.filter((i) => i.kind === 'session');
   const files = items.filter((i) => i.kind === 'file');
 
@@ -1072,7 +1080,7 @@ function MentionPopover({
 
   return (
     <div
-      className="fixed z-[99999] bg-popover border border-border/60 rounded-lg shadow-lg overflow-hidden"
+      className="fixed z-[99999] bg-popover border border-border/60 rounded-lg overflow-hidden"
       style={{ bottom: window.innerHeight - r.top + 4, left: r.left, width: Math.min(r.width, 480) }}
     >
       <div ref={listRef} className="max-h-72 overflow-y-auto py-1">
@@ -1094,6 +1102,35 @@ function MentionPopover({
                   <span className="size-4 rounded flex items-center justify-center bg-foreground/10 text-foreground/60 text-[10px] font-semibold shrink-0">@</span>
                   <span className="truncate font-medium capitalize">{item.label}</span>
                   {item.description && <span className="text-muted-foreground/40 truncate text-[10px]">{item.description}</span>}
+                </button>
+              );
+            })}
+          </>
+        )}
+        {projects.length > 0 && (
+          <>
+            <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider">Projects</div>
+            {projects.map((item) => {
+              const idx = globalIndex++;
+              return (
+                <button
+                  key={`project-${item.value}`}
+                  data-mention-index={idx}
+                  onMouseDown={(e) => { e.preventDefault(); onSelect(item); }}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors cursor-pointer',
+                    idx === selectedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted',
+                  )}
+                >
+                  <Folder className="size-4 text-foreground/50 shrink-0" />
+                  <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
+                    <span className="truncate text-sm font-medium">{item.label}</span>
+                    {item.path && (
+                      <span className="text-[10px] text-muted-foreground/35 font-mono truncate flex-shrink min-w-0">
+                        {item.path}
+                      </span>
+                    )}
+                  </div>
                 </button>
               );
             })}
@@ -1499,6 +1536,7 @@ export function SessionChatInput({
 
   // Sessions for @ mention search
   const { data: allSessions } = useOpenCodeSessions();
+  const { data: kortixProjects } = useKortixProjects();
 
   useEffect(() => {
     if (text.trim().length > 0) return;
@@ -1712,6 +1750,22 @@ export function SessionChatInput({
       .filter((a) => (a.name || '').toLowerCase().includes(q))
       .map((a) => ({ kind: 'agent' as const, label: a.name || '', value: a.name || '' }));
 
+    // Project items: filter by name, path, or description. Sort by recency.
+    const projectItems: MentionItem[] = (kortixProjects ?? [])
+      .filter((p) => {
+        const hay = [p.name, p.path, p.description].join(' ').toLowerCase();
+        return !q || hay.includes(q);
+      })
+      .sort((a, b) => (b.time?.updated ?? 0) - (a.time?.updated ?? 0))
+      .slice(0, 5)
+      .map((p) => ({
+        kind: 'project' as const,
+        label: p.name,
+        value: p.id,
+        path: p.path,
+        description: p.description,
+      }));
+
     // Session items: filter by title, session ID, or changed file paths, exclude current/child/archived
     const sessionItems: MentionItem[] = (allSessions ?? [])
       .filter((s: Session) => {
@@ -1744,8 +1798,8 @@ export function SessionChatInput({
       label: f,
       value: f,
     }));
-    return [...agentItems, ...sessionItems, ...fileItems];
-  }, [mentionQuery, agents, allSessions, sessionId, fileResults]);
+    return [...agentItems, ...projectItems, ...sessionItems, ...fileItems];
+  }, [mentionQuery, agents, kortixProjects, allSessions, sessionId, fileResults]);
 
   // Clamp mention index when items change to prevent out-of-bounds selection
   useEffect(() => {
@@ -1869,7 +1923,17 @@ export function SessionChatInput({
     const inserted = `@${item.label} `;
     const newText = before + inserted + after;
     setText(newText);
-    setMentions((prev) => [...prev, { kind: item.kind, label: item.label, ...(item.kind === 'session' ? { value: item.value } : {}) }]);
+    setMentions((prev) => [
+      ...prev,
+      {
+        kind: item.kind,
+        label: item.label,
+        ...(item.kind === 'session' ? { value: item.value } : {}),
+        ...(item.kind === 'project'
+          ? { value: item.value, path: item.path, description: item.description }
+          : {}),
+      },
+    ]);
     setMentionQuery(null);
     setMentionIndex(0);
     setFileResults([]);
@@ -2026,8 +2090,9 @@ export function SessionChatInput({
   // Build highlighted segments for the overlay behind the textarea
   const highlightSegments = useMemo(() => {
     if (mentions.length === 0 || !text) return null;
+    type SegKind = 'file' | 'agent' | 'session' | 'project';
     // Collect all mention ranges sorted by position
-    const ranges: { start: number; end: number; kind: 'file' | 'agent' | 'session' }[] = [];
+    const ranges: { start: number; end: number; kind: SegKind }[] = [];
     for (const m of mentions) {
       const needle = `@${m.label}`;
       const idx = text.indexOf(needle);
@@ -2038,7 +2103,7 @@ export function SessionChatInput({
     if (ranges.length === 0) return null;
     ranges.sort((a, b) => a.start - b.start || b.end - a.end);
 
-    const segs: { text: string; kind?: 'file' | 'agent' | 'session' }[] = [];
+    const segs: { text: string; kind?: SegKind }[] = [];
     let last = 0;
     for (const r of ranges) {
       if (r.start < last) continue;
@@ -2229,7 +2294,7 @@ export function SessionChatInput({
                     <span
                       key={i}
                       className={cn(
-                        (seg.kind === 'file' || seg.kind === 'agent' || seg.kind === 'session') && 'border-b border-foreground/40 font-medium text-foreground/80',
+                        (seg.kind === 'file' || seg.kind === 'agent' || seg.kind === 'session' || seg.kind === 'project') && 'border-b border-foreground/40 font-medium text-foreground/80',
                       )}
                     >
                       {seg.text}

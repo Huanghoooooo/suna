@@ -130,6 +130,18 @@ import { useOpenCodeSessionStatusStore } from '@/stores/opencode-session-status-
 import { useSyncStore } from '@/stores/opencode-sync-store';
 import { useServerStore } from '@/stores/server-store';
 import { openTabAndNavigate, useTabStore } from '@/stores/tab-store';
+import { useSelectedProjectStore } from '@/stores/selected-project-store';
+import { useKortixProjects } from '@/hooks/kortix/use-kortix-projects';
+import {
+  appendProjectRefs,
+  buildProjectRefsBlock,
+  buildFileRefsBlock,
+  buildAgentRefsBlock,
+  type ProjectRefLike,
+  type FileRefLike,
+  type AgentRefLike,
+} from '@/lib/project-preamble';
+import { ProjectSelector } from '@/components/dashboard/project-selector';
 // Shared UI primitives (framework-agnostic, reusable on mobile)
 import {
   type AgentPart,
@@ -437,29 +449,36 @@ function AnsweredQuestionCard({
 function HighlightMentions({
   text,
   agentNames,
+  projectNames,
   onFileClick,
+  onProjectClick,
 }: {
   text: string;
   agentNames?: string[];
+  projectNames?: string[];
   onFileClick?: (path: string) => void;
+  onProjectClick?: (name: string) => void;
 }) {
-  // Strip session ref XML before processing mentions
-  const { cleanText, sessions } = useMemo(
-    () => parseSessionReferences(text),
-    [text],
-  );
+  // Strip every ref block (project/file/agent/session) before processing
+  // inline @ mentions so the visible text never shows raw XML.
+  const { cleanText, sessions, projects } = useMemo(() => {
+    const a = parseProjectReferences(text);
+    const b = parseFileMentionReferences(a.cleanText);
+    const c = parseAgentMentionReferences(b.cleanText);
+    const d = parseSessionReferences(c.cleanText);
+    return {
+      cleanText: d.cleanText,
+      sessions: d.sessions,
+      projects: a.projects,
+    };
+  }, [text]);
 
   const segments = useMemo(() => {
+    type MentionType = 'file' | 'agent' | 'session' | 'project';
     if (!cleanText)
-      return [
-        {
-          text: cleanText,
-          type: undefined as 'file' | 'agent' | 'session' | undefined,
-        },
-      ];
+      return [{ text: cleanText, type: undefined as MentionType | undefined }];
 
     // Detect session @mentions first (titles can contain spaces)
-    type MentionType = 'file' | 'agent' | 'session';
     const sessionDetected: { start: number; end: number; type: MentionType }[] =
       [];
     for (const s of sessions) {
@@ -475,6 +494,11 @@ function HighlightMentions({
     }
 
     const agentSet = new Set(agentNames || []);
+    // Known project names: parsed refs + anything the caller passes in.
+    const projectSet = new Set<string>([
+      ...projects.map((p) => p.name),
+      ...(projectNames || []),
+    ]);
     const mentionRegex = /@(\S+)/g;
     const detected: { start: number; end: number; type: MentionType }[] = [
       ...sessionDetected,
@@ -489,9 +513,11 @@ function HighlightMentions({
       // Treat @ses_<id> tokens as session mentions
       const type: MentionType = name.startsWith('ses_')
         ? 'session'
-        : agentSet.has(name)
-          ? 'agent'
-          : 'file';
+        : projectSet.has(name)
+          ? 'project'
+          : agentSet.has(name)
+            ? 'agent'
+            : 'file';
       detected.push({
         start: mStart,
         end: match.index + match[0].length,
@@ -516,7 +542,14 @@ function HighlightMentions({
     if (lastIndex < cleanText.length)
       result.push({ text: cleanText.slice(lastIndex) });
     return result;
-  }, [cleanText, agentNames, sessions]);
+  }, [cleanText, agentNames, projectNames, sessions, projects]);
+
+  // Uniform monochrome mention style — Kortix brand is strictly neutral, so
+  // every mention kind (file / agent / session / project) renders identically
+  // as an underlined foreground chip. Kind is distinguished by click target.
+  const mentionClass =
+    'font-medium text-foreground underline decoration-foreground/30 underline-offset-[3px] hover:decoration-foreground/70 cursor-pointer';
+  const mentionClassStatic = 'font-medium text-foreground';
 
   return (
     <>
@@ -524,7 +557,7 @@ function HighlightMentions({
         seg.type === 'file' && onFileClick ? (
           <span
             key={i}
-            className="text-blue-500 font-medium cursor-pointer hover:underline"
+            className={mentionClass}
             onClick={(e) => {
               e.stopPropagation();
               onFileClick(seg.text.replace(/^@/, ''));
@@ -535,7 +568,7 @@ function HighlightMentions({
         ) : seg.type === 'session' ? (
           <span
             key={i}
-            className="text-emerald-500 font-medium cursor-pointer hover:underline"
+            className={mentionClass}
             onClick={(e) => {
               e.stopPropagation();
               const raw = seg.text.replace(/^@/, '');
@@ -564,12 +597,35 @@ function HighlightMentions({
           >
             {seg.text}
           </span>
+        ) : seg.type === 'project' ? (
+          <span
+            key={i}
+            className={mentionClass}
+            onClick={(e) => {
+              e.stopPropagation();
+              const raw = seg.text.replace(/^@/, '');
+              const ref = projects.find((p) => p.name === raw);
+              if (onProjectClick) {
+                onProjectClick(raw);
+                return;
+              }
+              if (ref?.id) {
+                openTabAndNavigate({
+                  id: `project:${ref.id}`,
+                  title: ref.name,
+                  type: 'project',
+                  href: `/projects/${encodeURIComponent(ref.id)}`,
+                });
+              }
+            }}
+          >
+            {seg.text}
+          </span>
         ) : (
           <span
             key={i}
             className={cn(
-              seg.type === 'file' && 'text-blue-500 font-medium',
-              seg.type === 'agent' && 'text-purple-500 font-medium',
+              (seg.type === 'file' || seg.type === 'agent') && mentionClassStatic,
             )}
           >
             {seg.text}
@@ -636,6 +692,120 @@ function parseSessionReferences(text: string): {
     )
     .trim();
   return { cleanText: cleaned, sessions };
+}
+
+// ============================================================================
+// Parse <project_ref> XML references from project mentions / selector
+// ============================================================================
+
+export interface ParsedProjectRef {
+  id?: string;
+  name: string;
+  path?: string;
+  description?: string;
+}
+
+function unescapeAttr(v: string): string {
+  return v.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+}
+
+function parseProjectReferences(text: string): {
+  cleanText: string;
+  projects: ParsedProjectRef[];
+} {
+  const projects: ParsedProjectRef[] = [];
+  // Non-greedy [\s\S] so attribute values can contain slashes, quotes,
+  // newlines, em-dashes, etc. — the broken `[^/]*` version stopped at the
+  // first `/` inside `path="/workspace/..."`.
+  let cleaned = text.replace(
+    /<project_ref\b([\s\S]*?)\/>/g,
+    (_, attrs: string) => {
+      const pick = (key: string): string | undefined => {
+        const m = attrs.match(new RegExp(`${key}="([^"]*?)"`));
+        return m ? unescapeAttr(m[1]) : undefined;
+      };
+      const name = pick('name');
+      if (name) {
+        projects.push({
+          id: pick('id'),
+          name,
+          path: pick('path'),
+          description: pick('description'),
+        });
+      }
+      return '';
+    },
+  );
+  // Strip the instruction header (description uses [^)]* which is safe
+  // because the header never contains a literal `)` before its closing one).
+  cleaned = cleaned
+    .replace(/\n*Referenced projects \([^)]*\):\n?/g, '')
+    .trim();
+  return { cleanText: cleaned, projects };
+}
+
+// ============================================================================
+// Parse <file_ref> + <agent_ref> XML tags from @ mentions in chat input
+// ============================================================================
+//
+// Uploaded files still use the existing <file path="..." mime="..." ...>
+// tag (parseFileReferences). These new tags only cover @-mention-style refs
+// to existing workspace files and agents, so the agent sees structured
+// metadata and the renderer strips them out of the visible text.
+
+export interface ParsedFileMentionRef {
+  path: string;
+  name: string;
+}
+export interface ParsedAgentMentionRef {
+  name: string;
+}
+
+function parseFileMentionReferences(text: string): {
+  cleanText: string;
+  files: ParsedFileMentionRef[];
+} {
+  const files: ParsedFileMentionRef[] = [];
+  let cleaned = text.replace(
+    /<file_ref\b([\s\S]*?)\/>/g,
+    (_, attrs: string) => {
+      const pick = (key: string): string | undefined => {
+        const m = attrs.match(new RegExp(`${key}="([^"]*?)"`));
+        return m ? unescapeAttr(m[1]) : undefined;
+      };
+      const path = pick('path');
+      const name = pick('name') ?? path;
+      if (path) files.push({ path, name: name || path });
+      return '';
+    },
+  );
+  cleaned = cleaned
+    .replace(/\n*Referenced files \([^)]*\):\n?/g, '')
+    .trim();
+  return { cleanText: cleaned, files };
+}
+
+function parseAgentMentionReferences(text: string): {
+  cleanText: string;
+  agents: ParsedAgentMentionRef[];
+} {
+  const agents: ParsedAgentMentionRef[] = [];
+  let cleaned = text.replace(
+    /<agent_ref\b([\s\S]*?)\/>/g,
+    (_, attrs: string) => {
+      const pick = (key: string): string | undefined => {
+        const m = attrs.match(new RegExp(`${key}="([^"]*?)"`));
+        return m ? unescapeAttr(m[1]) : undefined;
+      };
+      const name = pick('name');
+      if (name) agents.push({ name });
+      return '';
+    },
+  );
+  cleaned = cleaned
+    .replace(/\n*Referenced agents \([^)]*\):\n?/g, '')
+    .trim();
+  return { cleanText: cleaned, agents };
 }
 
 // ============================================================================
@@ -1539,10 +1709,27 @@ function UserMessageRow({
     () => parseFileReferences(textAfterReply),
     [textAfterReply],
   );
-  const { cleanText: text, sessions: sessionRefs } = useMemo(
-    () => parseSessionReferences(textAfterFiles),
+  const { cleanText: textAfterProjects, projects: projectRefs } = useMemo(
+    () => parseProjectReferences(textAfterFiles),
     [textAfterFiles],
   );
+  const { cleanText: textAfterFileMentions, files: fileMentionRefs } = useMemo(
+    () => parseFileMentionReferences(textAfterProjects),
+    [textAfterProjects],
+  );
+  const { cleanText: textAfterAgentMentions, agents: agentMentionRefs } = useMemo(
+    () => parseAgentMentionReferences(textAfterFileMentions),
+    [textAfterFileMentions],
+  );
+  const { cleanText: text, sessions: sessionRefs } = useMemo(
+    () => parseSessionReferences(textAfterAgentMentions),
+    [textAfterAgentMentions],
+  );
+  // Silence unused-variable warnings — these parsed refs are currently only
+  // consumed as stripping side-effects; inline @ highlighting still uses
+  // server source parts + the existing projectRefs list.
+  void fileMentionRefs;
+  void agentMentionRefs;
 
   // Resolve effective command info: use runtime-tracked info or fall back to template matching
   const effectiveCommandInfo = useMemo(
@@ -1651,7 +1838,7 @@ function UserMessageRow({
   // Build highlighted text segments
   const segments = useMemo(() => {
     if (!text) return [];
-    type SegType = 'file' | 'agent' | 'session';
+    type SegType = 'file' | 'agent' | 'session' | 'project';
 
     // Detect session @mentions first (titles can contain spaces, so indexOf is used)
     const sessionDetected: { start: number; end: number; type: SegType }[] = [];
@@ -1663,6 +1850,20 @@ function UserMessageRow({
           start: idx,
           end: idx + needle.length,
           type: 'session',
+        });
+      }
+    }
+
+    // Detect project @mentions (names can contain spaces).
+    const projectDetected: { start: number; end: number; type: SegType }[] = [];
+    for (const p of projectRefs) {
+      const needle = `@${p.name}`;
+      const idx = text.indexOf(needle);
+      if (idx !== -1) {
+        projectDetected.push({
+          start: idx,
+          end: idx + needle.length,
+          type: 'project',
         });
       }
     }
@@ -1690,8 +1891,8 @@ function UserMessageRow({
         !sessionDetected.some((s) => r.start >= s.start && r.start < s.end),
     );
 
-    // Merge session + server refs
-    const allRefs = [...sessionDetected, ...serverRefs];
+    // Merge session + project + server refs
+    const allRefs = [...sessionDetected, ...projectDetected, ...serverRefs];
 
     if (allRefs.length > 0) {
       allRefs.sort((a, b) => a.start - b.start || b.end - a.end);
@@ -1710,6 +1911,7 @@ function UserMessageRow({
 
     // Fallback: detect @mentions from text using regex
     const agentSet = new Set(agentNames || []);
+    const projectNameSet = new Set(projectRefs.map((p) => p.name));
     const mentionRegex = /@(\S+)/g;
     const detected: { start: number; end: number; type: SegType }[] = [];
     let match: RegExpExecArray | null;
@@ -1719,9 +1921,11 @@ function UserMessageRow({
       // Treat @ses_<id> tokens as session mentions
       const type: SegType = token.startsWith('ses_')
         ? 'session'
-        : agentSet.has(token)
-          ? 'agent'
-          : 'file';
+        : projectNameSet.has(token)
+          ? 'project'
+          : agentSet.has(token)
+            ? 'agent'
+            : 'file';
       detected.push({
         start: mStart,
         end: match.index + match[0].length,
@@ -1743,7 +1947,7 @@ function UserMessageRow({
     }
     if (lastIndex < text.length) result.push({ text: text.slice(lastIndex) });
     return result;
-  }, [text, filesWithSource, agentParts, agentNames, sessionRefs]);
+  }, [text, filesWithSource, agentParts, agentNames, sessionRefs, projectRefs]);
 
   // If the message is purely DCP notifications (no real user content), render only the cards
   const hasUserContent = !!(
@@ -1751,6 +1955,7 @@ function UserMessageRow({
     replyContext ||
     uploadedFiles.length > 0 ||
     sessionRefs.length > 0 ||
+    projectRefs.length > 0 ||
     ptyNotifications.length > 0 ||
     agentCompletedNotifications.length > 0 ||
     attachments.length > 0
@@ -1956,6 +2161,40 @@ function UserMessageRow({
           </div>
         )}
 
+        {/* Project references — compact neutral chips, one per referenced project */}
+        {projectRefs.length > 0 && (
+          <div className="flex gap-1.5 mx-3 mt-3 mb-0 flex-wrap">
+            {projectRefs.map((p, i) => (
+              <button
+                key={`${p.id || p.name}-${i}`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (p.id) {
+                    openTabAndNavigate({
+                      id: `project:${p.id}`,
+                      title: p.name,
+                      type: 'project',
+                      href: `/projects/${encodeURIComponent(p.id)}`,
+                    });
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted/60 border border-border/60 hover:bg-muted hover:border-border transition-colors cursor-pointer"
+                title={p.path}
+              >
+                <span className="text-[11px] font-medium text-foreground">
+                  {p.name}
+                </span>
+                {p.path && (
+                  <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[240px]">
+                    {p.path}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Reply context banner */}
         {replyContext && (
           <div className="flex items-center gap-2 mx-3 mt-3 mb-0 px-3 py-1.5 rounded-xl bg-primary/5 border border-primary/10">
@@ -1979,11 +2218,13 @@ function UserMessageRow({
               )}
             >
               {segments.length > 0 ? (
-                segments.map((seg, i) =>
-                  seg.type === 'file' ? (
+                segments.map((seg, i) => {
+                  const mentionClass =
+                    'font-medium text-foreground underline decoration-foreground/30 underline-offset-[3px] hover:decoration-foreground/70 cursor-pointer';
+                  return seg.type === 'file' ? (
                     <span
                       key={i}
-                      className="text-blue-500 font-medium cursor-pointer hover:underline"
+                      className={mentionClass}
                       onClick={(e) => {
                         e.stopPropagation();
                         openFileInComputer(seg.text.replace(/^@/, ''));
@@ -1994,7 +2235,7 @@ function UserMessageRow({
                   ) : seg.type === 'session' ? (
                     <span
                       key={i}
-                      className="text-emerald-500 font-medium cursor-pointer hover:underline"
+                      className={mentionClass}
                       onClick={(e) => {
                         e.stopPropagation();
                         const raw = seg.text.replace(/^@/, '');
@@ -2023,17 +2264,37 @@ function UserMessageRow({
                     >
                       {seg.text}
                     </span>
+                  ) : seg.type === 'project' ? (
+                    <span
+                      key={i}
+                      className={mentionClass}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const raw = seg.text.replace(/^@/, '');
+                        const ref = projectRefs.find((p) => p.name === raw);
+                        if (ref?.id) {
+                          openTabAndNavigate({
+                            id: `project:${ref.id}`,
+                            title: ref.name,
+                            type: 'project',
+                            href: `/projects/${encodeURIComponent(ref.id)}`,
+                          });
+                        }
+                      }}
+                    >
+                      {seg.text}
+                    </span>
                   ) : (
                     <span
                       key={i}
                       className={cn(
-                        seg.type === 'agent' && 'text-purple-500 font-medium',
+                        seg.type === 'agent' && 'font-medium text-foreground',
                       )}
                     >
                       {seg.text}
                     </span>
-                  ),
-                )
+                  );
+                })
               ) : (
                 <span>{text}</span>
               )}
@@ -3578,6 +3839,22 @@ export function SessionChat({
   // ---- Unified model/agent/variant state (1:1 port of SolidJS local.tsx) ----
   const local = useOpenCodeLocal({ agents, providers, config, sessionId });
 
+  // ---- Project selection (shared with dashboard via persisted store) ----
+  // Drives the ProjectSelector on the empty-state session view and injects
+  // a project preamble into the first message sent in this session.
+  const selectedProjectId = useSelectedProjectStore((s) => s.projectId);
+  const setSelectedProjectId = useSelectedProjectStore((s) => s.setProjectId);
+  const { data: kortixProjects } = useKortixProjects();
+  const selectedProject = useMemo(
+    () => kortixProjects?.find((p) => p.id === selectedProjectId) ?? null,
+    [kortixProjects, selectedProjectId],
+  );
+  useEffect(() => {
+    if (selectedProjectId && kortixProjects && !selectedProject) {
+      setSelectedProjectId(null);
+    }
+  }, [selectedProjectId, kortixProjects, selectedProject, setSelectedProjectId]);
+
   const pendingPromptHandled = useRef(false);
 
   // ---- Polling fallback & optimistic send ----
@@ -4980,6 +5257,48 @@ export function SessionChat({
         setReplyTo(null);
       }
 
+      // Structured @-mention refs — emitted as <project_ref /> / <file_ref />
+      // / <agent_ref /> blocks appended to the outgoing text. Same shape as
+      // the existing <session_ref /> handling, so the agent gets uniform
+      // metadata and the frontend can strip them back out on render.
+      const isFirstMessage = !messages || messages.length === 0;
+      const projectMentionRefs: ProjectRefLike[] = (mentions ?? [])
+        .filter((m) => m.kind === 'project' && m.label)
+        .map((m) => ({
+          id: m.value,
+          name: m.label,
+          path: m.path,
+          description: m.description,
+        }));
+      const pickedProjectRef: ProjectRefLike | null =
+        isFirstMessage && selectedProject
+          ? {
+              id: selectedProject.id,
+              name: selectedProject.name,
+              path: selectedProject.path,
+              description: selectedProject.description,
+            }
+          : null;
+      // De-dupe: if the picked project is also @-mentioned, keep only one.
+      const mergedProjectRefs: ProjectRefLike[] = pickedProjectRef
+        ? [
+            pickedProjectRef,
+            ...projectMentionRefs.filter(
+              (p) => p.id !== pickedProjectRef.id && p.name !== pickedProjectRef.name,
+            ),
+          ]
+        : projectMentionRefs;
+
+      // File and agent refs from tracked @ mentions. File uploads still use
+      // the separate <file path="..." mime="..." ...>…</file> block below —
+      // these are only for plain @ references to existing files/agents.
+      const fileMentionRefs: FileRefLike[] = (mentions ?? [])
+        .filter((m) => m.kind === 'file' && m.label)
+        .map((m) => ({ path: m.label, name: m.label }));
+      const agentMentionRefs: AgentRefLike[] = (mentions ?? [])
+        .filter((m) => m.kind === 'agent' && m.label)
+        .map((m) => ({ name: m.label }));
+
       // Play send sound
       playSound('send');
       const messageID = ascendingId('msg');
@@ -5063,6 +5382,17 @@ export function SessionChat({
           .map((m) => `<session_ref id="${m.value}" title="${m.label}" />`)
           .join('\n');
         optimisticText = `${optimisticText}\n\nReferenced sessions (use the session_context tool to fetch details when needed):\n${refs}`;
+      }
+      if (mergedProjectRefs.length > 0) {
+        optimisticText = appendProjectRefs(optimisticText, mergedProjectRefs);
+      }
+      if (fileMentionRefs.length > 0) {
+        const block = buildFileRefsBlock(fileMentionRefs);
+        if (block) optimisticText = `${optimisticText}\n\n${block}`;
+      }
+      if (agentMentionRefs.length > 0) {
+        const block = buildAgentRefsBlock(agentMentionRefs);
+        if (block) optimisticText = `${optimisticText}\n\n${block}`;
       }
 
       // Optimistic: show message immediately in sync store + set busy
@@ -5166,6 +5496,18 @@ export function SessionChat({
           .join('\n');
         textPrompt.text = `${textPrompt.text}\n\nReferenced sessions (use the session_context tool to fetch details when needed):\n${refs}`;
       }
+      if (mergedProjectRefs.length > 0) {
+        const block = buildProjectRefsBlock(mergedProjectRefs);
+        if (block) textPrompt.text = `${textPrompt.text}\n\n${block}`;
+      }
+      if (fileMentionRefs.length > 0) {
+        const block = buildFileRefsBlock(fileMentionRefs);
+        if (block) textPrompt.text = `${textPrompt.text}\n\n${block}`;
+      }
+      if (agentMentionRefs.length > 0) {
+        const block = buildAgentRefsBlock(agentMentionRefs);
+        if (block) textPrompt.text = `${textPrompt.text}\n\n${block}`;
+      }
 
       // Fire-and-forget via session.prompt (matching OpenCode app's approach).
       // SSE events drive all incremental UI updates via sync store.
@@ -5238,6 +5580,8 @@ export function SessionChat({
       removeOptimisticUserMessage,
       scrollToBottom,
       replyTo,
+      messages,
+      selectedProject,
     ],
   );
 
@@ -5550,8 +5894,16 @@ export function SessionChat({
                             cleanText: afterReply,
                             replyContext: optReply,
                           } = parseReplyContext(optimisticPrompt || '');
-                          const { cleanText, files } =
+                          const { cleanText: afterFiles, files } =
                             parseFileReferences(afterReply);
+                          const { cleanText: afterProjects, projects: optProjects } =
+                            parseProjectReferences(afterFiles);
+                          const { cleanText: afterFileMentions } =
+                            parseFileMentionReferences(afterProjects);
+                          const { cleanText: afterAgentMentions } =
+                            parseAgentMentionReferences(afterFileMentions);
+                          const { cleanText } =
+                            parseSessionReferences(afterAgentMentions);
                           return (
                             <>
                               {optReply && (
@@ -5582,11 +5934,44 @@ export function SessionChat({
                                   ))}
                                 </div>
                               )}
+                              {optProjects.length > 0 && (
+                                <div className="flex gap-1.5 mx-3 mt-3 mb-0 flex-wrap">
+                                  {optProjects.map((p, i) => (
+                                    <button
+                                      key={`${p.id || p.name}-${i}`}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (p.id) {
+                                          openTabAndNavigate({
+                                            id: `project:${p.id}`,
+                                            title: p.name,
+                                            type: 'project',
+                                            href: `/projects/${encodeURIComponent(p.id)}`,
+                                          });
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted/60 border border-border/60 hover:bg-muted hover:border-border transition-colors cursor-pointer"
+                                      title={p.path}
+                                    >
+                                      <span className="text-[11px] font-medium text-foreground">
+                                        {p.name}
+                                      </span>
+                                      {p.path && (
+                                        <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[240px]">
+                                          {p.path}
+                                        </span>
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                               {cleanText && (
                                 <p className="text-sm leading-relaxed whitespace-pre-wrap px-4 py-3">
                                   <HighlightMentions
                                     text={cleanText}
                                     agentNames={agentNames}
+                                    projectNames={optProjects.map((p) => p.name)}
                                     onFileClick={openFileInComputer}
                                   />
                                 </p>
@@ -5768,6 +6153,17 @@ export function SessionChat({
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Project selector — only on the empty state, above the chat input.
+          Same component the dashboard uses, so the picked project is shared
+          via the selected-project store. The preamble is injected on first
+          send inside handleSend. */}
+      {!readOnly && !hasChatContent && (
+        <ProjectSelector
+          selectedProjectId={selectedProjectId}
+          onSelect={setSelectedProjectId}
+        />
       )}
 
       {/* Input — hidden in read-only mode (sub-session modal) */}

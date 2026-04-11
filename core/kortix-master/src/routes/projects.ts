@@ -11,21 +11,17 @@ import { Hono } from 'hono'
 import { Database } from 'bun:sqlite'
 import { existsSync, mkdirSync, unlinkSync, statSync } from 'fs'
 import { dirname, join } from 'path'
-import { createOpencodeClient } from '@opencode-ai/sdk/client'
-import { config } from '../config'
-import { ensureProjectManagerSession } from '../services/project-thread-service'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface ProjectRow {
   id: string; name: string; path: string; description: string
-  created_at: string; opencode_id: string | null; manager_session_id?: string | null
+  created_at: string; opencode_id: string | null
 }
 
 // ── DB singleton ─────────────────────────────────────────────────────────────
 
 let _db: Database | null = null
-let _ocClient: ReturnType<typeof createOpencodeClient> | null = null
 
 function getDb(): Database {
   if (_db) return _db
@@ -64,20 +60,11 @@ function getDb(): Database {
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL UNIQUE,
       description TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
-      opencode_id TEXT, manager_session_id TEXT
+      opencode_id TEXT, maintainer_session_id TEXT
     );
   `)
 
   return _db
-}
-
-function getOpenCodeClient() {
-  if (!_ocClient) {
-    _ocClient = createOpencodeClient({
-      baseUrl: `http://${config.OPENCODE_HOST}:${config.OPENCODE_PORT}`,
-    })
-  }
-  return _ocClient
 }
 
 // ── Router ───────────────────────────────────────────────────────────────────
@@ -227,25 +214,6 @@ projectsRouter.patch('/:id', async (c) => {
     db.prepare('UPDATE projects SET description=$d WHERE id=$id').run({ $d: body.description, $id: id })
   }
   return c.json(db.prepare('SELECT * FROM projects WHERE id=$id').get({ $id: id }))
-})
-
-// POST /:id/manager-session — create/reuse canonical project thread
-projectsRouter.post('/:id/manager-session', async (c) => {
-  try {
-    const db = getDb()
-    const id = decodeURIComponent(c.req.param('id'))
-    const p = (
-      db.prepare('SELECT * FROM projects WHERE id=$v').get({ $v: id })
-      || db.prepare('SELECT * FROM projects WHERE opencode_id=$v').get({ $v: id })
-      || db.prepare('SELECT * FROM projects WHERE LOWER(name)=LOWER($v)').get({ $v: id })
-    ) as ProjectRow | null
-    if (!p) return c.json({ error: 'Project not found' }, 404)
-
-    await ensureProjectManagerSession(db, getOpenCodeClient(), p.id)
-    return c.json(db.prepare('SELECT * FROM projects WHERE id=$id').get({ $id: p.id }))
-  } catch (e) {
-    return c.json({ error: String(e) }, 500)
-  }
 })
 
 // POST /:id/link-session — bind any existing session to this project

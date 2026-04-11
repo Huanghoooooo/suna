@@ -53,23 +53,6 @@ export interface KortixTaskEvent {
   created_at: string;
 }
 
-export interface KortixTaskRun {
-  id: string;
-  task_id: string;
-  project_id: string;
-  parent_session_id: string | null;
-  manager_session_id: string | null;
-  owner_session_id: string | null;
-  owner_agent: string | null;
-  status: 'running' | 'input_needed' | 'awaiting_review' | 'completed' | 'cancelled' | 'failed';
-  result: string | null;
-  verification_summary: string | null;
-  created_at: string;
-  started_at: string | null;
-  completed_at: string | null;
-  updated_at: string;
-}
-
 export interface KortixTaskLiveStatus {
   task_id: string;
   status: KortixTaskStatus;
@@ -93,7 +76,6 @@ const taskKeys = {
   byProject: (projectId: string) => ['kortix', 'tasks', projectId] as const,
   single: (id: string) => ['kortix', 'tasks', 'detail', id] as const,
   events: (id: string) => ['kortix', 'tasks', 'events', id] as const,
-  runs: (id: string) => ['kortix', 'tasks', 'runs', id] as const,
   status: (id: string) => ['kortix', 'tasks', 'status', id] as const,
 };
 
@@ -192,21 +174,6 @@ export function useKortixTaskEvents(id: string, options: KortixTaskQueryOptions 
   });
 }
 
-export function useKortixTaskRuns(id: string, options: KortixTaskQueryOptions = {}) {
-  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
-  return useQuery({
-    queryKey: taskKeys.runs(id),
-    queryFn: async () => {
-      const rows = await kortixTaskFetch<KortixTaskRun[]>(serverUrl, `/${encodeURIComponent(id)}/runs`);
-      return Array.isArray(rows) ? rows : [];
-    },
-    enabled: !!id && (options.enabled ?? true),
-    refetchInterval: options.pollingEnabled === false ? false : 3000,
-    refetchIntervalInBackground: false,
-    placeholderData: keepPreviousData,
-  });
-}
-
 export function useKortixTaskStatus(id: string, options: KortixTaskQueryOptions = {}) {
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
   return useQuery({
@@ -263,11 +230,10 @@ export function useStartKortixTask() {
   const qc = useQueryClient();
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
   return useMutation({
-    mutationFn: ({ id, session_id, agent }: { id: string; session_id?: string; agent?: string }) =>
+    mutationFn: ({ id }: { id: string }) =>
       kortixTaskFetch<KortixTask>(serverUrl, `/${encodeURIComponent(id)}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id, agent }),
       }),
     onSuccess: (task) => {
       qc.invalidateQueries({ queryKey: taskKeys.all });

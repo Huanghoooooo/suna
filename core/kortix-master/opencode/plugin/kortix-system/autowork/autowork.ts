@@ -1,18 +1,22 @@
 /**
- * Autowork plugin — single-owner persistent execution loop.
+ * Autowork plugin — single-owner persistent execution loop enforcer.
  *
- * `/autowork` is the command.
+ * `/autowork [--max-iterations N] <task>` activates the loop on a session.
+ * Every `session.idle` the plugin scans the worker's assistant text for a
+ * `<kortix_autowork_complete>` tag. If present and valid → stop. If missing
+ * or malformed → inject a continuation (or a rejection if malformed).
+ *
+ * The continuation prompt re-anchors the original user request via
+ * `<kortix_autowork_request>` so the worker cannot drift across long loops.
  */
 
 import type { Plugin } from "@opencode-ai/plugin"
-import type { Todo } from "@opencode-ai/sdk"
 import {
-	CODE_BLOCK_PATTERN,
-	INLINE_CODE_PATTERN,
-	INTERNAL_MARKER,
 	AUTOWORK_THRESHOLDS,
-	parseAutoworkArgs,
+	COMPLETION_TAG,
+	SYSTEM_WRAPPER_TAG,
 	createInitialAutoworkState,
+	parseAutoworkArgs,
 } from "./config"
 import {
 	advanceAutowork,
@@ -30,10 +34,6 @@ import { checkAutoworkSafetyGates, evaluateAutowork } from "./engine"
 
 export const autoworkActiveSessions = new Set<string>()
 
-function wrapSystemPrompt(text: string, type: string): string {
-	return `<kortix_system type="${type}" source="kortix-autowork">\n${text}\n</kortix_system>`
-}
-
 function extractMessageText(input: any): string {
 	const parts = input?.parts ?? []
 	let text = ""
@@ -45,23 +45,21 @@ function extractMessageText(input: any): string {
 	return text
 }
 
-function cleanText(text: string): string {
-	return text
-		.replace(CODE_BLOCK_PATTERN, "")
-		.replace(INLINE_CODE_PATTERN, "")
-		.replace(/<!--[\s\S]*?-->/g, "")
-		.trim()
-}
-
+/**
+ * Detect plugin-injected messages so they never re-trigger the loop.
+ * The wrapper tag `<kortix_autowork_system>` surrounds every injected prompt,
+ * and `<kortix_autowork_complete>` is the worker's completion signal — both
+ * are internal and should not be interpreted as user input.
+ */
 function isInternalMessage(text: string): boolean {
-	return text.includes(INTERNAL_MARKER) || text.includes("[AUTOWORK -") || text.includes("<kortix_system")
+	return text.includes(`<${SYSTEM_WRAPPER_TAG}`) || text.includes(`<${COMPLETION_TAG}`)
 }
 
 function extractRenderedCommandArgs(text: string): string {
 	const quotedBlocks = [...text.matchAll(/"([\s\S]*?)"/g)]
 	for (let i = quotedBlocks.length - 1; i >= 0; i--) {
 		const candidate = quotedBlocks[i]?.[1]?.trim()
-		if (candidate && (candidate.includes("--completion-promise") || candidate.includes("--max-iterations") || candidate.length > 0)) {
+		if (candidate && (candidate.includes("--max-iterations") || candidate.length > 0)) {
 			return candidate
 		}
 	}
@@ -176,7 +174,7 @@ const AutoworkPlugin: Plugin = async ({ client }) => {
 			if (!command || !sessionId) return
 			if (["autowork", "autowork-cancel"].includes(command)) {
 				pendingCommand.set(sessionId, { command, args })
-				log("info", `[autowork][${sid(sessionId)}] command.execute.before: ${command} \"${args.slice(0, 80)}\"`)
+				log("info", `[autowork][${sid(sessionId)}] command.execute.before: ${command} "${args.slice(0, 80)}"`)
 			}
 		},
 
@@ -189,7 +187,7 @@ const AutoworkPlugin: Plugin = async ({ client }) => {
 				if (!messageText || isInternalMessage(messageText)) return
 
 				let state = states.get(sessionId)
-				const clean = cleanText(messageText)
+				const clean = messageText.trim()
 				const pending = pendingCommand.get(sessionId)
 
 				const cancelMatch = pending?.command === "autowork-cancel"
@@ -232,16 +230,16 @@ const AutoworkPlugin: Plugin = async ({ client }) => {
 						} catch {
 							// ignore
 						}
-						state = startAutowork(task, sessionId, msgCount, options.maxIterations, options.completionPromise, options.verificationCondition)
+						state = startAutowork(task, sessionId, msgCount, options.maxIterations)
 						states.set(sessionId, state)
 						autoworkActiveSessions.add(sessionId)
-						log("info", `[autowork][${sid(sessionId)}] Activated: \"${task.slice(0, 80)}\"`)
+						log("info", `[autowork][${sid(sessionId)}] Activated: "${task.slice(0, 80)}"`)
 					}
 					return
 				}
 
 				if (state.active) {
-					state = appendTaskContext(state, `[User message at iteration ${state.iteration}]: ${messageText.slice(0, 500)}`)
+					state = appendTaskContext(state, `[User message at iteration ${state.iteration}]: ${messageText.slice(0, 2000)}`)
 					states.set(sessionId, state)
 					log("info", `[autowork][${sid(sessionId)}] User message absorbed`)
 				}
@@ -305,13 +303,8 @@ const AutoworkPlugin: Plugin = async ({ client }) => {
 					return
 				}
 
-				const [messagesRes, todoRes] = await Promise.all([
-					client.session.messages({ path: { id: sessionId } }).catch(() => ({ data: [] as any[] })),
-					client.session.todo({ path: { id: sessionId } }).catch(() => ({ data: [] as Todo[] })),
-				])
-
+				const messagesRes = await client.session.messages({ path: { id: sessionId } }).catch(() => ({ data: [] as any[] }))
 				const messages = (messagesRes.data ?? []) as any[]
-				const todos = (todoRes.data ?? []) as Todo[]
 
 				if (hasPendingQuestion(messages)) {
 					log("info", `[autowork][${sid(sessionId)}] Skipped: pending question`)
@@ -319,22 +312,22 @@ const AutoworkPlugin: Plugin = async ({ client }) => {
 				}
 
 				const assistantTexts = extractAssistantTexts(messages, state.messageCountAtStart)
-				const decision = evaluateAutowork(state, assistantTexts, todos)
+				const decision = evaluateAutowork(state, assistantTexts)
 				log("info", `[autowork][${sid(sessionId)}] ${decision.action} — ${decision.reason}`)
 
 				if (decision.action === "stop") {
-					state = stopAutowork(state, decision.phase === "failed" ? "failed" : decision.phase === "cancelled" ? "cancelled" : "complete")
+					state = stopAutowork(state, decision.stopReason ?? "complete")
 					states.set(sessionId, state)
 					autoworkActiveSessions.delete(sessionId)
 					return
 				}
 
 				if (decision.prompt) {
-					state = advanceAutowork(state, decision.phase)
+					state = advanceAutowork(state)
 					states.set(sessionId, state)
 					await client.session.promptAsync({
 						path: { id: sessionId },
-						body: { parts: [{ type: "text", text: wrapSystemPrompt(decision.prompt, "autowork-continue") }] },
+						body: { parts: [{ type: "text", text: decision.prompt }] },
 					}).catch((error: unknown) => {
 						log("warn", `[autowork][${sid(sessionId)}] promptAsync failed: ${error}`)
 						state = recordAutoworkFailure(state)

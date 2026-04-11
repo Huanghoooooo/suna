@@ -164,16 +164,11 @@ export function ProjectDetailPage({
 
   const sessionList = useMemo(() => {
     const rows = sessions ?? [];
-    if (!project?.manager_session_id) return rows;
-    return [...rows].sort((a: any, b: any) => {
-      if (a.id === project.manager_session_id) return -1;
-      if (b.id === project.manager_session_id) return 1;
-      return (
-        (b.time?.updated ? +new Date(b.time.updated) : 0) -
-        (a.time?.updated ? +new Date(a.time.updated) : 0)
-      );
-    });
-  }, [sessions, project?.manager_session_id]);
+    return [...rows].sort((a: any, b: any) => (
+      (b.time?.updated ? +new Date(b.time.updated) : 0) -
+      (a.time?.updated ? +new Date(a.time.updated) : 0)
+    ));
+  }, [sessions]);
   const taskList = tasks ?? [];
 
   const taskStats = useMemo(() => {
@@ -562,20 +557,6 @@ export function ProjectDetailPage({
                     style={{ flex: 1, fontSize: 14, fontFamily: 'Roobert', color: fg }}>
                     {s.title || 'Untitled'}
                   </RNText>
-                  {project?.manager_session_id === s.id && (
-                    <View
-                      style={{
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                        borderRadius: 4,
-                        paddingHorizontal: 5,
-                        paddingVertical: 1,
-                      }}>
-                      <RNText
-                        style={{ fontSize: 10, fontFamily: 'Roobert-Medium', color: mutedStrong }}>
-                        Project orchestrator
-                      </RNText>
-                    </View>
-                  )}
                   <RNText
                     style={{
                       fontSize: 11,

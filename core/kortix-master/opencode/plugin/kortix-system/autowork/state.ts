@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { ensureKortixDir } from "../lib/paths"
-import { createInitialAutoworkState, type AutoworkPhase, type AutoworkState } from "./config"
+import { AUTOWORK_DEFAULTS, createInitialAutoworkState, type AutoworkState } from "./config"
+import type { AutoworkStopReason } from "./engine"
 
 const KORTIX_DIR = ensureKortixDir(import.meta.dir)
 const STATE_DIR = `${KORTIX_DIR}/autowork-states`
@@ -24,9 +25,10 @@ export function loadAutoworkState(sessionId: string): AutoworkState | null {
 	try {
 		const path = statePath(sessionId)
 		if (!existsSync(path)) return null
-		const parsed = JSON.parse(readFileSync(path, "utf-8")) as AutoworkState
+		const parsed = JSON.parse(readFileSync(path, "utf-8")) as Partial<AutoworkState>
 		if (typeof parsed.active !== "boolean") return null
-		return parsed
+		// Merge with defaults so old-schema state files still load cleanly.
+		return { ...createInitialAutoworkState(), ...parsed } as AutoworkState
 	} catch {
 		return null
 	}
@@ -38,8 +40,10 @@ export function loadAllAutoworkStates(): Map<string, AutoworkState> {
 		if (!existsSync(STATE_DIR)) return states
 		for (const file of readdirSync(STATE_DIR).filter((entry) => entry.endsWith(".json"))) {
 			try {
-				const parsed = JSON.parse(readFileSync(join(STATE_DIR, file), "utf-8")) as AutoworkState
-				if (parsed.sessionId && typeof parsed.active === "boolean") states.set(parsed.sessionId, parsed)
+				const parsed = JSON.parse(readFileSync(join(STATE_DIR, file), "utf-8")) as Partial<AutoworkState>
+				if (parsed.sessionId && typeof parsed.active === "boolean") {
+					states.set(parsed.sessionId, { ...createInitialAutoworkState(), ...parsed } as AutoworkState)
+				}
 			} catch {
 				// ignore broken state file
 			}
@@ -63,21 +67,15 @@ export function startAutowork(
 	taskPrompt: string,
 	sessionId: string,
 	messageCountAtStart = 0,
-	maxIterations = 50,
-	completionPromise = "DONE",
-	verificationCondition: string | null = null,
+	maxIterations: number = AUTOWORK_DEFAULTS.maxIterations,
 ): AutoworkState {
 	const state: AutoworkState = {
 		...createInitialAutoworkState(),
 		active: true,
 		sessionId,
 		taskPrompt,
-		verificationCondition,
-		verificationAttempted: false,
 		messageCountAtStart,
 		maxIterations,
-		completionPromise,
-		currentPhase: "starting",
 		startedAt: Date.now(),
 		stopped: false,
 	}
@@ -85,12 +83,12 @@ export function startAutowork(
 	return state
 }
 
-export function stopAutowork(state: AutoworkState, phase: Extract<AutoworkPhase, "complete" | "failed" | "cancelled">): AutoworkState {
+export function stopAutowork(state: AutoworkState, stopReason: AutoworkStopReason): AutoworkState {
 	const updated: AutoworkState = {
 		...state,
 		active: false,
 		stopped: true,
-		currentPhase: phase,
+		stopReason,
 		completedAt: Date.now(),
 	}
 	persistAutoworkState(updated)
@@ -98,7 +96,7 @@ export function stopAutowork(state: AutoworkState, phase: Extract<AutoworkPhase,
 }
 
 export function appendTaskContext(state: AutoworkState, text: string): AutoworkState {
-	const updated = {
+	const updated: AutoworkState = {
 		...state,
 		taskPrompt: state.taskPrompt ? `${state.taskPrompt}\n\n${text}` : text,
 	}
@@ -106,15 +104,12 @@ export function appendTaskContext(state: AutoworkState, text: string): AutoworkS
 	return updated
 }
 
-export function advanceAutowork(state: AutoworkState, phase: AutoworkPhase): AutoworkState {
+export function advanceAutowork(state: AutoworkState): AutoworkState {
 	const updated: AutoworkState = {
 		...state,
 		iteration: state.iteration + 1,
-		currentPhase: phase,
 		lastInjectedAt: Date.now(),
 		consecutiveFailures: 0,
-		// Mark verification as attempted when entering verification phase
-		verificationAttempted: phase === "verifying" ? true : state.verificationAttempted,
 	}
 	persistAutoworkState(updated)
 	return updated

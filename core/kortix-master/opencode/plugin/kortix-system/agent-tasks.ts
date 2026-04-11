@@ -17,23 +17,20 @@
 
 import { Database } from "bun:sqlite"
 import { tool, type ToolContext } from "@opencode-ai/plugin"
-import type { ProjectManager } from "./projects"
+import { PROJECT_MAINTAINER_AGENT, type ProjectManager } from "./projects"
 import {
 	addTaskEvidence,
 	blockTask,
 	cancelTask,
 	createTask,
 	deliverTask,
-	ensureTasksTable,
 	getTaskByOwnerSession,
 	getTaskByIdForProject,
 	getTaskResolvedForProject,
 	getTaskLiveStatus,
-	listTasks,
 	listTasksResolved,
 	progressTask,
 	patchTask,
-	reconcileAllRunningTasks,
 	recordTaskEvent,
 	startTask,
 	type OpenCodeClientLike,
@@ -53,59 +50,60 @@ try {
 	autoworkActiveSessions = new Set<string>()
 }
 
-export const activeTaskSessions = new Set<string>()
-
-const taskSystemPrompts = new Map<string, string>()
-
-export function getTaskSystemPrompt(sessionId: string): string | undefined {
-	return taskSystemPrompts.get(sessionId)
-}
+const activeTaskSessions = new Set<string>()
 
 function isTerminal(status: TaskStatus): boolean {
 	return status === "completed" || status === "cancelled"
 }
 
-// ── DB Schema ────────────────────────────────────────────────────────────────
-
-export function ensureAgentTasksTable(db: Database): void {
-	ensureTasksTable(db)
-}
-
 async function notifyTaskLifecycle(
 	client: any,
 	db: Database,
+	mgr: ProjectManager,
 	task: TaskRow,
 	type: TaskEventType,
 	message: string,
 	bodyLines: string[],
 ): Promise<void> {
-	const manager = db.prepare("SELECT manager_session_id FROM projects WHERE id=$id").get({ $id: task.project_id }) as { manager_session_id?: string | null } | null
-	const primaryTarget = task.parent_session_id || manager?.manager_session_id || null
-	if (primaryTarget) {
+	const eventText = bodyLines.join("\n")
+
+	// 1. Notify the creator session (whoever ran task_create) if it exists.
+	if (task.parent_session_id) {
 		try {
 			await client.session.promptAsync({
-				path: { id: primaryTarget },
-				body: { parts: [{ type: "text", text: bodyLines.join("\n") }] },
+				path: { id: task.parent_session_id },
+				body: { parts: [{ type: "text", text: eventText }] },
 			})
 		} catch {
 			// non-fatal notification path
 		}
 	}
 
-	if (task.parent_session_id && manager?.manager_session_id && task.parent_session_id !== manager.manager_session_id) {
-		try {
+	// 2. Fan out to the hidden project-maintainer so it can keep CONTEXT.md current.
+	try {
+		const maintainerId = await mgr.ensureMaintainerSession(task.project_id)
+		if (maintainerId && maintainerId !== task.parent_session_id) {
+			const maintainerBody = [
+				"<project_maintainer_event>",
+				`Project: ${task.project_id}`,
+				`Task: ${task.id}`,
+				`Title: ${task.title}`,
+				`Status: ${task.status}`,
+				`Event: ${type}`,
+				message ? `Message: ${message}` : null,
+				"",
+				eventText,
+				"</project_maintainer_event>",
+				"",
+				"Update .kortix/CONTEXT.md to reflect this event, then call project_context_sync and stop.",
+			].filter((line): line is string => line !== null).join("\n")
 			await client.session.promptAsync({
-				path: { id: manager.manager_session_id },
-				body: { parts: [{ type: "text", text: [
-					"<task_event_mirror>",
-					`Task: ${task.id}`,
-					`Event: ${type}`,
-					`Message: ${message}`,
-					`Primary parent session: ${task.parent_session_id}`,
-					"</task_event_mirror>",
-				].join("\n") }] },
+				path: { id: maintainerId },
+				body: { agent: PROJECT_MAINTAINER_AGENT, parts: [{ type: "text", text: maintainerBody }] },
 			})
-		} catch {}
+		}
+	} catch {
+		// non-fatal — maintainer fanout never blocks task lifecycle
 	}
 }
 
@@ -125,7 +123,6 @@ export function agentTaskTools(db: Database, mgr: ProjectManager, client: any) {
 	async function createTaskExecute(args: { title: string; description?: string; verification_condition?: string; autostart?: boolean; status?: string }, ctx: ToolContext): Promise<string> {
 		const pid = getProjectId(ctx)
 		if (!pid) return "Error: no project selected."
-		if (ctx.sessionID) mgr.ensureManagerSession(ctx.sessionID, pid)
 
 		const shouldStart = args.autostart !== false
 		const created = createTask(db, {
@@ -165,7 +162,6 @@ export function agentTaskTools(db: Database, mgr: ProjectManager, client: any) {
 				case "start": {
 				if (task.status === "in_progress") return "Task is already running."
 				if (isTerminal(task.status)) return `Cannot start a ${task.status} task.`
-				if (ctx.sessionID) mgr.ensureManagerSession(ctx.sessionID, pid)
 				try {
 					const started = await startTask({
 						db,
@@ -353,7 +349,7 @@ export function agentTaskTools(db: Database, mgr: ProjectManager, client: any) {
 				const task = getCurrentTaskForWorker(db, ctx)
 				if (!task) return "Error: no active worker-owned task for this session."
 				const blocked = blockTask(db, { taskId: task.id, sessionId: ctx.sessionID, message: args.question })
-				await notifyTaskLifecycle(client, db, blocked, "blocker", args.question, [
+				await notifyTaskLifecycle(client, db, mgr, blocked, "blocker", args.question, [
 					"<task_blocker>",
 					`Task: ${blocked.id}`,
 					`Title: ${blocked.title}`,
@@ -425,7 +421,7 @@ export function agentTaskTools(db: Database, mgr: ProjectManager, client: any) {
 					verificationSummary: args.verification_summary,
 					message: args.summary,
 				})
-				await notifyTaskLifecycle(client, db, delivered, "delivered", args.summary || "Task delivered for review", [
+				await notifyTaskLifecycle(client, db, mgr, delivered, "delivered", args.summary || "Task delivered for review", [
 					"<task_delivered>",
 					`Task: ${delivered.id}`,
 					`Title: ${delivered.title}`,
@@ -501,6 +497,7 @@ export async function handleAgentTaskSessionEvent(
 	eventType: string,
 	client: any,
 	db: Database,
+	mgr: ProjectManager,
 ): Promise<void> {
 	if (!activeTaskSessions.has(sessionId)) return
 
@@ -540,7 +537,7 @@ export async function handleAgentTaskSessionEvent(
 		db.prepare("UPDATE tasks SET status='cancelled', result=$r, completed_at=COALESCE(completed_at, $now), updated_at=$now WHERE id=$id")
 			.run({ $r: `Worker session ended without task_deliver. Last output:\n\n${result.slice(0, 8000)}`, $now: now, $id: task.id })
 
-		await notifyTaskLifecycle(client, db, {
+		await notifyTaskLifecycle(client, db, mgr, {
 			...task,
 			status: "cancelled",
 			result: `Worker session ended without task_deliver. Last output:\n\n${result.slice(0, 8000)}`,
@@ -582,7 +579,7 @@ export async function handleAgentTaskSessionEvent(
 		db.prepare("UPDATE tasks SET status='cancelled', result=$r, completed_at=COALESCE(completed_at, $now), updated_at=$now WHERE id=$id")
 			.run({ $r: errorMsg.slice(0, 8000), $now: now, $id: task.id })
 
-		await notifyTaskLifecycle(client, db, {
+		await notifyTaskLifecycle(client, db, mgr, {
 			...task,
 			status: "cancelled",
 			result: errorMsg.slice(0, 8000),

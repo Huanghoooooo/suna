@@ -17,8 +17,12 @@ import { ensureSchema } from "./lib/schema"
 
 export interface ProjectRow {
 	id: string; name: string; path: string; description: string
-	created_at: string; opencode_id: string | null; manager_session_id?: string | null
+	created_at: string; opencode_id: string | null
+	/** Hidden project-maintainer session id. Auto-created on first task lifecycle event. */
+	maintainer_session_id?: string | null
 }
+
+export const PROJECT_MAINTAINER_AGENT = "project-maintainer"
 
 const TASK_SUMMARY_START = "<!-- KORTIX:TASK-SUMMARY:START -->"
 const TASK_SUMMARY_END = "<!-- KORTIX:TASK-SUMMARY:END -->"
@@ -141,7 +145,7 @@ export function initProjectsDb(dbPath: string): Database {
 		{ name: "description", type: "TEXT", notNull: true,  defaultValue: "''",   primaryKey: false },
 		{ name: "created_at",  type: "TEXT", notNull: true,  defaultValue: null,   primaryKey: false },
 		{ name: "opencode_id", type: "TEXT", notNull: false, defaultValue: null,   primaryKey: false },
-		{ name: "manager_session_id", type: "TEXT", notNull: false, defaultValue: null,   primaryKey: false },
+		{ name: "maintainer_session_id", type: "TEXT", notNull: false, defaultValue: null,   primaryKey: false },
 	])
 
 	ensureSchema(db, "session_projects", [
@@ -193,18 +197,37 @@ export class ProjectManager {
 		if (project) this.sessionProjectCache.set(sessionId, project)
 	}
 
-	getManagerSessionId(projectId: string): string | null {
-		const row = this.db.prepare("SELECT manager_session_id FROM projects WHERE id = $id").get({ $id: projectId }) as { manager_session_id?: string | null } | null
-		return row?.manager_session_id || null
+	getMaintainerSessionId(projectId: string): string | null {
+		const row = this.db.prepare("SELECT maintainer_session_id FROM projects WHERE id = $id").get({ $id: projectId }) as { maintainer_session_id?: string | null } | null
+		return row?.maintainer_session_id || null
 	}
 
-	ensureManagerSession(sessionId: string, projectId: string): void {
-		const current = this.getManagerSessionId(projectId)
-		if (current) return
-		this.db.prepare("UPDATE projects SET manager_session_id=$sid WHERE id=$id AND (manager_session_id IS NULL OR manager_session_id='')")
-			.run({ $sid: sessionId, $id: projectId })
+	/**
+	 * Ensure a hidden project-maintainer session exists for this project, creating
+	 * one lazily on first invocation. Stored in the `maintainer_session_id` column.
+	 * Returns the session id on success, or null if creation failed.
+	 */
+	async ensureMaintainerSession(projectId: string): Promise<string | null> {
+		const existing = this.getMaintainerSessionId(projectId)
+		if (existing) return existing
+
 		const project = this.db.prepare("SELECT * FROM projects WHERE id = $id").get({ $id: projectId }) as ProjectRow | null
-		if (project) this.sessionProjectCache.set(sessionId, project)
+		if (!project) return null
+
+		try {
+			const result = await this.client.session.create({
+				body: { title: `${project.name} maintainer` },
+			})
+			const sessionId = result?.data?.id as string | undefined
+			if (!sessionId) return null
+
+			this.db.prepare("UPDATE projects SET maintainer_session_id=$sid WHERE id=$id")
+				.run({ $sid: sessionId, $id: projectId })
+			this.setSessionProject(sessionId, projectId)
+			return sessionId
+		} catch {
+			return null
+		}
 	}
 
 	async createProject(name: string, desc: string, customPath: string): Promise<ProjectRow> {
@@ -346,7 +369,6 @@ export function projectTools(mgr: ProjectManager, db: Database) {
 				const p = mgr.getProject(args.project)
 				if (!p) return `Project "${args.project}" not found. Use project_list or project_create.`
 				mgr.setSessionProject(toolCtx.sessionID, p.id)
-				mgr.ensureManagerSession(toolCtx.sessionID, p.id)
 				return `Project **${p.name}** selected for this session.\nPath: \`${p.path}\`\nYou can now use file, bash, and edit tools.`
 			},
 		}),
@@ -386,20 +408,6 @@ export function projectGateHook(mgr: ProjectManager) {
 
 export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId: () => string | null) {
 	return async (_input: any, output: { messages: any[] }) => {
-		const activeAgent = (() => {
-			for (let i = output.messages.length - 1; i >= 0; i--) {
-				const agent = output.messages[i]?.info?.agent
-				if (agent) return agent
-			}
-			return null
-		})()
-		const isWorkerSession = (() => {
-			for (const m of output.messages) {
-				const agent = m?.info?.agent
-				if (agent === "worker") return true
-			}
-			return false
-		})()
 		try {
 			let sid = getCurrentSessionId()
 			if (!sid) {
@@ -413,34 +421,7 @@ export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId:
 			try {
 				const project = mgr.getSessionProject(sid)
 				if (project) {
-					const isManagerSession = project.manager_session_id === sid
-					if (isWorkerSession) {
-						statusXml = `<project_status selected="${project.name}" path="${project.path}" manager_session_id="${project.manager_session_id || ""}" />`
-					} else if (isManagerSession || activeAgent === "orchestrator") {
-						statusXml = [
-							`<project_status selected="${project.name}" path="${project.path}" manager_session_id="${project.manager_session_id || ""}" mode="project-orchestrator" />`,
-							`<system-reminder>`,
-							`Project orchestrator workflow:`,
-							`1. This session is the canonical project manager / CEO / memory brain for the project.`,
-							`2. Use task_create/task_update/task_list/task_get/task_status as the canonical orchestration surface.`,
-							`3. All task events should flow back here for review, planning, reprioritization, and next-step decisions.`,
-							`4. Worker delivery goes to awaiting_review for HUMAN review; the orchestrator should not complete tasks by approval.`,
-							`5. Keep project documentation and .kortix/CONTEXT.md updated as durable memory; keep it minimal, high-signal, and reference-heavy.`,
-							`6. Use project_context_sync after major task-state changes to refresh the generated task snapshot section.`,
-							`7. Prefer orchestrating and documenting over deep implementation unless direct work is clearly best.`,
-							`</system-reminder>`,
-						].join("\n")
-					} else {
-						statusXml = [
-							`<project_status selected="${project.name}" path="${project.path}" manager_session_id="${project.manager_session_id || ""}" mode="regular-project-session" />`,
-							`<system-reminder>`,
-							`Regular project session workflow:`,
-							`1. This is NOT the canonical project-manager session. Use it for direct work or focused ad hoc work.`,
-							`2. If the work should become ongoing project orchestration, use the project orchestrator session.`,
-							`3. Use canonical task_* tools if you need delegated execution.`,
-							`</system-reminder>`,
-						].join("\n")
-					}
+					statusXml = `<project_status selected="${project.name}" path="${project.path}" />`
 				} else {
 					let projectList = ""
 					try {

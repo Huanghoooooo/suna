@@ -1,18 +1,10 @@
 'use client';
 
 /**
- * Project page — Vercel-grade.
+ * Project page.
  *
- * Thin orchestrator. All real UI lives in extracted components:
- *   • <ProjectHeader>     — identity, meta, tabs, new task CTA
- *   • <TasksTab>          — kanban / list with toolbar
- *   • <ProjectOverview>   — context + history
- *   • <FileExplorerPage>  — files
- *   • <SessionsTab>       — inline sessions list
- *   • <TaskDetailView>    — in-tab task detail (no new tabs)
- *
- * All four tabs are PRE-MOUNTED and CSS-hidden when inactive — switching
- * is instant, no skeleton flash.
+ * Tabs: Overview, Tasks, Files, Sessions — pre-mounted, CSS-hidden when inactive.
+ * All real UI lives in extracted components.
  */
 
 import { Fragment, use, useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -31,12 +23,9 @@ import {
 import {
   useKortixProject,
   useKortixProjectSessions,
-  useEnsureKortixManagerSession,
-  useUpdateProject,
 } from '@/hooks/kortix/use-kortix-projects';
 import {
   useKortixTasks,
-  useUpdateKortixTask,
   useStartKortixTask,
   useApproveKortixTask,
   useDeleteKortixTask,
@@ -54,12 +43,11 @@ import {
   ProjectHeader,
   type ProjectTab,
 } from '@/components/kortix/project-header';
-import { ProjectOverview } from '@/components/kortix/project-overview';
+import { ProjectAbout } from '@/components/kortix/project-about';
 import { TasksTab } from '@/components/kortix/tasks-tab';
 import { TaskDetailView } from '@/components/kortix/task-detail-view';
 import { NewTaskDialog } from '@/components/kortix/new-task-dialog';
 import { useIsRouteActive } from '@/hooks/utils/use-is-route-active';
-import { SessionChat } from '@/components/session/session-chat';
 
 export default function ProjectPage({ params }: { params?: Promise<{ id: string }> }) {
   const { id: raw } = params ? use(params) : { id: '' };
@@ -68,11 +56,11 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
   const projectFilesStore = projectFilesStoreRef.current;
 
   // ── Tabs ────────────────────────────────────────────────────
-  const [tab, setTabState] = useState<ProjectTab>('overview');
+  const [tab, setTabState] = useState<ProjectTab>('about');
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const isProjectRouteActive = useIsRouteActive(`/projects/${encodeURIComponent(pid)}`);
-  const shouldLoadProjectSessions = isProjectRouteActive && (tab === 'overview' || tab === 'sessions');
-  const shouldLoadProjectTasks = isProjectRouteActive && (tab === 'overview' || tab === 'tasks');
+  const shouldLoadProjectSessions = isProjectRouteActive && tab === 'sessions';
+  const shouldLoadProjectTasks = isProjectRouteActive && tab === 'tasks';
 
   // ── Data ────────────────────────────────────────────────────
   const { data: project, isLoading } = useKortixProject(pid);
@@ -83,22 +71,12 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
     enabled: shouldLoadProjectTasks,
     pollingEnabled: shouldLoadProjectTasks,
   });
-  const ensureManagerSession = useEnsureKortixManagerSession();
-  const updateProject = useUpdateProject();
-  const updateTask = useUpdateKortixTask();
   const startTask = useStartKortixTask();
   const approveTask = useApproveKortixTask();
   const deleteTask = useDeleteKortixTask();
 
   const sessionList = useMemo(() => sessions ?? [], [sessions]);
   const taskList = useMemo<KortixTask[]>(() => tasks ?? [], [tasks]);
-  const ensureProjectManager = ensureManagerSession.mutate;
-  const ensuringProjectManager = ensureManagerSession.isPending;
-
-  useEffect(() => {
-    if (!project?.id || project.manager_session_id || ensuringProjectManager) return;
-    ensureProjectManager(project.id);
-  }, [project?.id, project?.manager_session_id, ensuringProjectManager, ensureProjectManager]);
 
   // ── File explorer scoping ───────────────────────────────────
   useEffect(() => {
@@ -120,26 +98,6 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
     setOpenTaskId(task.id);
   }, []);
   const closeTask = useCallback(() => setOpenTaskId(null), []);
-  const openProjectThread = useCallback(() => {
-    if (!project?.id) return;
-    const open = (sessionId: string) => openTabAndNavigate({
-      id: sessionId,
-      title: `${project.name} orchestrator`,
-      type: 'session',
-      href: `/sessions/${sessionId}`,
-    });
-
-    if (project.manager_session_id) {
-      open(project.manager_session_id);
-      return;
-    }
-
-    ensureProjectManager(project.id, {
-      onSuccess: (nextProject) => {
-        if (nextProject.manager_session_id) open(nextProject.manager_session_id);
-      },
-    });
-  }, [project?.id, project?.manager_session_id, project?.name, ensureProjectManager]);
 
   // Re-navigate file explorer when files tab activated
   useEffect(() => {
@@ -232,28 +190,12 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
         tab={tab}
         onTabChange={setTab}
         onNewTask={() => openNewTask()}
-        onOpenThread={openProjectThread}
       />
 
       {/* ── Pre-mounted tab bodies ─────────────────────────── */}
       <div className="flex-1 min-h-0 relative">
-        <TabPanel active={tab === 'orchestrator'}>
-          {project.manager_session_id ? (
-            <SessionChat sessionId={project.manager_session_id} hideHeader />
-          ) : (
-            <EmptyState text="Bootstrapping project orchestrator" sub="Kortix is preparing the canonical project orchestrator session." />
-          )}
-        </TabPanel>
-
-        <TabPanel active={tab === 'overview'}>
-          <ProjectOverview
-            project={project}
-            tasks={taskList}
-            sessions={sessionList}
-            onUpdateProject={(data) => updateProject.mutate({ id: project.id, ...data })}
-            isUpdating={updateProject.isPending}
-            onJumpToTasks={() => setTab('tasks')}
-          />
+        <TabPanel active={tab === 'about'}>
+          <ProjectAbout project={project} />
         </TabPanel>
 
         <TabPanel active={tab === 'tasks'}>
@@ -263,8 +205,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
             search={search}
             setSearch={setSearch}
             searchRef={searchRef}
-            onUpdateStatus={(id, s) => updateTask.mutate({ id, status: s })}
-            onStartTask={(id) => startTask.mutate({ id, session_id: project.manager_session_id || undefined })}
+            onStartTask={(id) => startTask.mutate({ id })}
             onApproveTask={(id) => approveTask.mutate(id)}
             onOpenTask={openTask}
             onNewTask={openNewTask}
@@ -285,7 +226,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
         </TabPanel>
 
         <TabPanel active={tab === 'sessions'}>
-          <SessionsList sessions={sessionList} managerSessionId={project.manager_session_id || null} />
+          <SessionsList sessions={sessionList} />
         </TabPanel>
       </div>
 
@@ -296,7 +237,6 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
         projectId={project.id}
         projectName={project.name}
         projectPath={project.path}
-        managerSessionId={project.manager_session_id || undefined}
         defaultStatus={newTaskDefault}
       />
 
@@ -329,18 +269,14 @@ function TabPanel({
   );
 }
 
-function SessionsList({ sessions, managerSessionId }: { sessions: any[]; managerSessionId: string | null }) {
+function SessionsList({ sessions }: { sessions: any[] }) {
   if (sessions.length === 0)
     return <EmptyState text="No sessions linked" sub="Sessions appear here when you select this project" />;
 
   // Separate parent and child sessions
   const parents = sessions
     .filter((s) => !s.parentID)
-    .sort((a, b) => {
-      if (a.id === managerSessionId) return -1;
-      if (b.id === managerSessionId) return 1;
-      return (b.time?.updated ?? 0) - (a.time?.updated ?? 0);
-    });
+    .sort((a, b) => (b.time?.updated ?? 0) - (a.time?.updated ?? 0));
   const children = sessions.filter((s) => !!s.parentID);
   const childrenByParent = new Map<string, any[]>();
   for (const c of children) {
@@ -381,9 +317,6 @@ function SessionsList({ sessions, managerSessionId }: { sessions: any[]; manager
                   >
                     <TableCell className="text-[13px] text-foreground/85 truncate max-w-0 group-hover:text-foreground">
                       {s.title || 'Untitled session'}
-                      {s.id === managerSessionId && (
-                        <span className="ml-2 text-[10px] uppercase tracking-[0.08em] text-muted-foreground/45">Project orchestrator</span>
-                      )}
                     </TableCell>
                     <TableCell className="text-[11px] text-muted-foreground/35 tabular-nums text-right">
                       {relativeTime(s.time?.updated)}

@@ -1,121 +1,158 @@
-import type { Todo } from "@opencode-ai/sdk"
-import { completionReached, INTERNAL_MARKER, type AutoworkPhase, type AutoworkState } from "./config"
+/**
+ * Autowork engine — pure loop enforcer.
+ *
+ * Per iteration the engine does exactly one thing:
+ * 1. Scan recent assistant text for a well-formed <kortix_autowork_complete> tag.
+ * 2. If present and valid → STOP "complete".
+ * 3. If present but malformed → continue with a structured rejection prompt.
+ * 4. If absent → continue with the standard continuation prompt.
+ *
+ * No verification phase, no todo-list dependency, no premature-completion gate.
+ * The completion tag IS the structured contract, and re-injecting the original
+ * request on every turn is the anti-drift mechanism.
+ */
+
+import {
+	COMPLETION_TAG,
+	REQUEST_TAG,
+	SYSTEM_WRAPPER_TAG,
+	parseCompletionTag,
+	validateCompletion,
+	type AutoworkState,
+} from "./config"
 
 export type AutoworkAction = "continue" | "stop"
 
+export type AutoworkStopReason = "complete" | "failed" | "cancelled"
+
 export interface AutoworkDecision {
 	action: AutoworkAction
-	phase: AutoworkPhase
 	prompt: string | null
 	reason: string
+	stopReason?: AutoworkStopReason
 }
 
-function todoSummary(todos: Todo[]): { unfinished: Todo[]; completedCount: number } {
-	const unfinished = todos.filter((todo) => todo.status === "pending" || todo.status === "in_progress")
-	const completedCount = todos.filter((todo) => todo.status === "completed" || todo.status === "cancelled").length
-	return { unfinished, completedCount }
+function wrapSystem(body: string, attrs: Record<string, string>): string {
+	const attrString = Object.entries(attrs)
+		.map(([k, v]) => `${k}="${v}"`)
+		.join(" ")
+	return `<${SYSTEM_WRAPPER_TAG}${attrString ? " " + attrString : ""}>\n${body}\n</${SYSTEM_WRAPPER_TAG}>`
 }
 
-function buildContinuePrompt(state: AutoworkState): string {
+function requestBlock(state: AutoworkState): string {
+	const request = state.taskPrompt?.trim() || "(no task prompt recorded)"
+	return `<${REQUEST_TAG}>\n${request}\n</${REQUEST_TAG}>`
+}
+
+function completionTemplate(): string {
 	return [
-		`[AUTOWORK - ITERATION ${state.iteration + 1}/${state.maxIterations}]`,
-		"",
-		"Your previous attempt did not output the completion promise.",
-		"Continue working on the task. Persist until it is truly complete.",
-		"",
-		"Rules:",
-		"- Keep your todo list current as the contract for remaining work.",
-		"- Gather fresh verification evidence before claiming completion.",
-		"- Do not stop at partial completion.",
-		"- If blocked by missing info, say exactly what is blocked and why.",
-		"",
-		state.taskPrompt ? `Original task: ${state.taskPrompt}` : null,
-		"",
-		`When the task is fully complete and verified, emit exactly: ${state.completionPromise}`,
-		INTERNAL_MARKER,
-	].filter(Boolean).join("\n")
-}
-
-function buildPrematureCompletionPrompt(state: AutoworkState, todos: Todo[]): string {
-	const { unfinished, completedCount } = todoSummary(todos)
-	return [
-		"[AUTOWORK - COMPLETION REJECTED]",
-		"",
-		`You emitted the completion promise (${state.completionPromise}) before all todo items were finished.`,
-		"Autowork does not allow silent partial completion. Continue fixing the remaining work.",
-		"",
-		`Todo status: ${completedCount}/${todos.length} complete.`,
-		...unfinished.map((todo) => `- [${todo.status}] ${todo.content}`),
-		"",
-		`Do not emit ${state.completionPromise} again until every pending/in_progress todo is finished or cancelled with a clear reason.`,
-		INTERNAL_MARKER,
+		`<${COMPLETION_TAG}>`,
+		`  <verification>`,
+		`    [Concrete evidence — the exact commands you ran, their exit codes, the outputs that prove the task works. Not "should work." Reproducible.]`,
+		`  </verification>`,
+		`  <requirements_check>`,
+		`    - [x] "exact user requirement 1" — how it was satisfied + proof (file path / command output / test id)`,
+		`    - [x] "exact user requirement 2" — how it was satisfied + proof`,
+		`  </requirements_check>`,
+		`</${COMPLETION_TAG}>`,
 	].join("\n")
 }
 
-function buildVerificationPrompt(state: AutoworkState): string {
-	return [
-		`[AUTOWORK - VERIFICATION]`,
+function buildContinuePrompt(state: AutoworkState): string {
+	const body = [
+		`You are in the Kortix autowork loop. Iteration ${state.iteration + 1}/${state.maxIterations}.`,
 		"",
-		"You claimed the task is complete. Now PROVE it.",
+		"Keep working on the task until it is truly complete, deterministically verified, and every single requirement from the user has been satisfied with concrete proof.",
 		"",
-		`**Verification condition:** ${state.verificationCondition}`,
+		"**The user's full request (re-anchored every iteration):**",
+		requestBlock(state),
 		"",
-		"Run the actual verification steps right now:",
-		"- Execute commands, read files, run tests — whatever the condition requires",
-		"- Show concrete evidence (command output, file contents, test results)",
-		"- Do NOT just claim it passes — demonstrate it",
+		"Rules:",
+		"- Do real work this turn. No restatement, no planning-in-place, no hedging. Move the work forward.",
+		"- Read files before editing. Run tests before claiming success.",
+		"- If an approach fails, diagnose the root cause and try a focused fix.",
+		"- If you are blocked on missing external input, state exactly what is blocked and why — then stop.",
 		"",
-		"If verification passes: emit " + state.completionPromise + " again",
-		"If verification fails: fix the issues and try again",
-		INTERNAL_MARKER,
-	].filter(Boolean).join("\n")
+		`When — and only when — the task is 100% done, deterministically verified, and every user requirement is satisfied, emit the completion contract on its own in your next message:`,
+		"",
+		completionTemplate(),
+		"",
+		"The autowork plugin parses this tag strictly. Both children are required. Every `requirements_check` item must be `- [x]` with concrete evidence. Malformed, empty, or unchecked → the plugin rejects it and the loop continues.",
+	].join("\n")
+	return wrapSystem(body, {
+		phase: "continue",
+		iteration: `${state.iteration + 1}/${state.maxIterations}`,
+	})
 }
 
-export function evaluateAutowork(state: AutoworkState, assistantTexts: string[], todos: Todo[]): AutoworkDecision {
-	if (!state.active) return { action: "stop", phase: state.currentPhase, prompt: null, reason: "inactive" }
+function buildRejectionPrompt(state: AutoworkState, reason: string, details: string): string {
+	const body = [
+		`Your <${COMPLETION_TAG}> tag was **REJECTED**.`,
+		"",
+		`**Reason:** ${reason}`,
+		"",
+		`**Details:**`,
+		details,
+		"",
+		"Keep working. Do not emit the completion tag again until:",
+		"- `<verification>` contains the actual commands you ran and their real output (not descriptions).",
+		"- `<requirements_check>` lists EVERY user requirement as `- [x] \"requirement\" — evidence` with concrete proof.",
+		"",
+		"**The user's full request (re-anchored):**",
+		requestBlock(state),
+		"",
+		"When you are ready to try again, emit:",
+		"",
+		completionTemplate(),
+	].join("\n")
+	return wrapSystem(body, {
+		phase: "rejected",
+		iteration: `${state.iteration + 1}/${state.maxIterations}`,
+	})
+}
+
+export function evaluateAutowork(state: AutoworkState, assistantTexts: string[]): AutoworkDecision {
+	if (!state.active) {
+		return { action: "stop", prompt: null, reason: "inactive", stopReason: "cancelled" }
+	}
 	if (state.iteration >= state.maxIterations) {
 		return {
 			action: "stop",
-			phase: "failed",
 			prompt: null,
 			reason: `max iterations reached (${state.maxIterations})`,
+			stopReason: "failed",
 		}
 	}
 
-	const completionSeen = assistantTexts.some((text) => completionReached(text, state.completionPromise))
-	const { unfinished } = todoSummary(todos)
+	// Scan assistant texts newest-first for a completion tag.
+	let parsed = null
+	for (let i = assistantTexts.length - 1; i >= 0; i--) {
+		const candidate = parseCompletionTag(assistantTexts[i] ?? "")
+		if (candidate) {
+			parsed = candidate
+			break
+		}
+	}
 
-	if (completionSeen) {
-		if (unfinished.length > 0) {
+	if (parsed) {
+		const validation = validateCompletion(parsed)
+		if (validation.ok) {
 			return {
-				action: "continue",
-				phase: "fixing",
-				prompt: buildPrematureCompletionPrompt(state, todos),
-				reason: `completion promise seen but ${unfinished.length} todo item(s) remain`,
+				action: "stop",
+				prompt: null,
+				reason: "completion tag validated",
+				stopReason: "complete",
 			}
 		}
-
-		// If there's a verification condition and we haven't verified yet, run verification
-		if (state.verificationCondition && !state.verificationAttempted) {
-			return {
-				action: "continue",
-				phase: "verifying",
-				prompt: buildVerificationPrompt(state),
-				reason: "completion promise detected — running verification",
-			}
-		}
-
 		return {
-			action: "stop",
-			phase: "complete",
-			prompt: null,
-			reason: "completion promise detected, todos clear" + (state.verificationAttempted ? ", verification passed" : ""),
+			action: "continue",
+			prompt: buildRejectionPrompt(state, validation.reason, validation.details),
+			reason: `completion rejected: ${validation.reason}`,
 		}
 	}
 
 	return {
 		action: "continue",
-		phase: state.currentPhase === "starting" ? "executing" : state.currentPhase === "fixing" ? "fixing" : "executing",
 		prompt: buildContinuePrompt(state),
 		reason: `iteration ${state.iteration + 1}/${state.maxIterations}`,
 	}
@@ -128,23 +165,31 @@ export function checkAutoworkSafetyGates(
 	failureResetWindowMs: number,
 	baseCooldownMs: number,
 ): string | null {
-	if (state.stopped) return "continuation stopped by user — use /autowork to restart"
+	if (state.stopped) return "continuation stopped — use /autowork to restart"
 	if (state.lastAbortAt > 0) {
 		const timeSinceAbort = Date.now() - state.lastAbortAt
-		if (timeSinceAbort < abortGracePeriodMs) return `abort grace period: ${Math.round((abortGracePeriodMs - timeSinceAbort) / 1000)}s remaining`
+		if (timeSinceAbort < abortGracePeriodMs) {
+			return `abort grace period: ${Math.round((abortGracePeriodMs - timeSinceAbort) / 1000)}s remaining`
+		}
 	}
 	if (state.consecutiveFailures >= maxConsecutiveFailures) {
-		if (state.lastFailureAt > 0 && Date.now() - state.lastFailureAt >= failureResetWindowMs) return "__reset_failures__"
+		if (state.lastFailureAt > 0 && Date.now() - state.lastFailureAt >= failureResetWindowMs) {
+			return "__reset_failures__"
+		}
 		return `max consecutive failures (${state.consecutiveFailures}) — pausing for ${Math.round(failureResetWindowMs / 60000)} min`
 	}
 	if (state.lastInjectedAt > 0 && state.consecutiveFailures > 0) {
 		const effectiveCooldown = baseCooldownMs * Math.pow(2, Math.min(state.consecutiveFailures, 5))
 		const elapsed = Date.now() - state.lastInjectedAt
-		if (elapsed < effectiveCooldown) return `backoff cooldown: ${Math.round((effectiveCooldown - elapsed) / 1000)}s remaining (failure ${state.consecutiveFailures})`
+		if (elapsed < effectiveCooldown) {
+			return `backoff cooldown: ${Math.round((effectiveCooldown - elapsed) / 1000)}s remaining (failure ${state.consecutiveFailures})`
+		}
 	}
 	if (state.lastInjectedAt > 0 && state.consecutiveFailures === 0) {
 		const elapsed = Date.now() - state.lastInjectedAt
-		if (elapsed < baseCooldownMs) return `minimum cooldown: ${Math.round((baseCooldownMs - elapsed) / 1000)}s remaining`
+		if (elapsed < baseCooldownMs) {
+			return `minimum cooldown: ${Math.round((baseCooldownMs - elapsed) / 1000)}s remaining`
+		}
 	}
 	return null
 }

@@ -1,22 +1,39 @@
 'use client';
 
 /**
- * Tasks tab — search + board. No filters, no sort, no view toggle.
+ * Tasks tab — search + view toggle (kanban / list).
+ *
+ * View selection persists to localStorage.
  */
 
+import { useEffect, useState } from 'react';
 import {
   Search,
   Plus,
   X,
+  LayoutList,
+  Columns3,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconInbox } from '@/components/ui/kortix-icons';
 import { Button } from '@/components/ui/button';
-import { TaskBoard } from '@/components/kortix/task-board';
+import { TaskKanban } from '@/components/kortix/task-kanban';
+import { TaskList } from '@/components/kortix/task-list';
 import type {
   KortixTask,
   KortixTaskStatus,
 } from '@/hooks/kortix/use-kortix-tasks';
+
+type TasksView = 'list' | 'kanban';
+
+const VIEW_STORAGE_KEY = 'kortix:tasks-view';
+
+function readStoredView(): TasksView {
+  if (typeof window === 'undefined') return 'kanban';
+  const v = window.localStorage.getItem(VIEW_STORAGE_KEY);
+  return v === 'list' ? 'list' : 'kanban';
+}
 
 interface TasksTabProps {
   tasks: KortixTask[];
@@ -24,7 +41,6 @@ interface TasksTabProps {
   search: string;
   setSearch: (v: string) => void;
   searchRef: React.RefObject<HTMLInputElement | null>;
-  onUpdateStatus: (id: string, s: KortixTaskStatus) => void;
   onStartTask: (id: string) => void;
   onApproveTask: (id: string) => void;
   onOpenTask: (task: KortixTask) => void;
@@ -38,16 +54,27 @@ export function TasksTab({
   search,
   setSearch,
   searchRef,
-  onUpdateStatus,
   onStartTask,
   onApproveTask,
   onOpenTask,
   onNewTask,
   onDeleteTask,
 }: TasksTabProps) {
+  const [view, setView] = useState<TasksView>('kanban');
+
+  // Hydrate from localStorage after mount so SSR/CSR match.
+  useEffect(() => {
+    setView(readStoredView());
+  }, []);
+
+  const selectView = (next: TasksView) => {
+    setView(next);
+    try { window.localStorage.setItem(VIEW_STORAGE_KEY, next); } catch {}
+  };
+
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-      {/* ─── Toolbar — just search ────────────────────────── */}
+      {/* ─── Toolbar — search + view toggle ────────────────────── */}
       <div className="shrink-0 bg-background border-b border-border/50">
         <div className="container mx-auto max-w-7xl px-3 sm:px-4 h-11 flex items-center gap-2">
           <div className="relative">
@@ -69,11 +96,27 @@ export function TasksTab({
               </button>
             )}
           </div>
+
+          {/* View toggle */}
+          <div className="ml-auto inline-flex items-center rounded-full border border-border/50 p-0.5 bg-background">
+            <ViewToggleButton
+              active={view === 'list'}
+              onClick={() => selectView('list')}
+              label="List"
+              icon={<LayoutList className="h-3 w-3" />}
+            />
+            <ViewToggleButton
+              active={view === 'kanban'}
+              onClick={() => selectView('kanban')}
+              label="Kanban"
+              icon={<Columns3 className="h-3 w-3" />}
+            />
+          </div>
         </div>
       </div>
 
       {/* ─── Body ─────────────────────────────────────────── */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {tasks.length === 0 ? (
           <EmptyState
             icon={IconInbox}
@@ -106,10 +149,18 @@ export function TasksTab({
               ) : undefined
             }
           />
-        ) : (
-          <TaskBoard
+        ) : view === 'kanban' ? (
+          <TaskKanban
             tasks={filteredTasks}
-            onUpdateStatus={onUpdateStatus}
+            onStartTask={onStartTask}
+            onApproveTask={onApproveTask}
+            onOpenTask={onOpenTask}
+            onNewTask={onNewTask}
+            onDeleteTask={onDeleteTask}
+          />
+        ) : (
+          <TaskList
+            tasks={filteredTasks}
             onStartTask={onStartTask}
             onApproveTask={onApproveTask}
             onOpenTask={onOpenTask}
@@ -119,5 +170,34 @@ export function TasksTab({
         )}
       </div>
     </div>
+  );
+}
+
+function ViewToggleButton({
+  active,
+  onClick,
+  label,
+  icon,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer',
+        active
+          ? 'bg-muted text-foreground'
+          : 'text-muted-foreground/60 hover:text-foreground',
+      )}
+      aria-pressed={active}
+      title={`${label} view`}
+    >
+      {icon}
+      <span className="hidden sm:inline">{label}</span>
+    </button>
   );
 }

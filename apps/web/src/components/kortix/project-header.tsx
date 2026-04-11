@@ -1,64 +1,79 @@
 'use client';
 
 /**
- * Project header — two-row layout, responsive.
+ * Project header — single compact row, underline tabs.
+ *
+ *   [ project name ]            About   Tasks   Files   Sessions            [ + New task ]
+ *    ↑ left (1fr)                ↑ center (Radix Tabs, underline active)      ↑ right (1fr)
  */
 
+import * as TabsPrimitive from '@radix-ui/react-tabs';
+import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, Plus } from 'lucide-react';
 
-export type ProjectTab = 'overview' | 'orchestrator' | 'tasks' | 'files' | 'sessions';
+export type ProjectTab = 'about' | 'tasks' | 'files' | 'sessions';
 
 export interface ProjectHeaderProps {
   project: any;
   tab: ProjectTab;
   onTabChange: (tab: ProjectTab) => void;
   onNewTask?: () => void;
-  onOpenThread?: () => void;
 }
 
-const TAB_DEFS: Array<{ id: ProjectTab; label: string }> = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'orchestrator', label: 'Orchestrator' },
+const TABS: Array<{ id: ProjectTab; label: string }> = [
+  { id: 'about', label: 'About' },
   { id: 'tasks', label: 'Tasks' },
   { id: 'files', label: 'Files' },
   { id: 'sessions', label: 'Sessions' },
 ];
 
-export function ProjectHeader({ project, tab, onTabChange, onNewTask, onOpenThread }: ProjectHeaderProps) {
+export function ProjectHeader({ project, tab, onTabChange, onNewTask }: ProjectHeaderProps) {
   return (
-    <div className="shrink-0 bg-background border-b border-border/60">
-      <div className="container mx-auto max-w-7xl px-3 sm:px-4">
-        {/* Row 1: Name + action */}
-        <div className="flex items-center justify-between h-11 pt-1 gap-3">
-          <h1
-            className="text-[15px] font-semibold text-foreground truncate min-w-0"
-            title={project.name}
-          >
-            {project.name}
-          </h1>
+    <header className="shrink-0 border-b border-border/60 bg-background">
+      <div className="container mx-auto max-w-7xl h-11 px-3 sm:px-4">
+        <TabsPrimitive.Root
+          value={tab}
+          onValueChange={(v) => onTabChange(v as ProjectTab)}
+          className="h-full flex items-center gap-4"
+        >
+          {/* ── Left: project name ─────────────────────────── */}
+          <div className="flex-1 min-w-0 flex items-center">
+            <h1
+              className="text-[14px] font-semibold tracking-tight text-foreground truncate"
+              title={project.name}
+            >
+              {project.name}
+            </h1>
+          </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {onOpenThread && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 sm:px-3 text-[12px] gap-1.5"
-                onClick={onOpenThread}
-                title="Open project orchestrator"
+          {/* ── Center: underline tabs ─────────────────────── */}
+          <TabsPrimitive.List className="flex items-center h-full gap-5 shrink-0">
+            {TABS.map((t) => (
+              <TabsPrimitive.Trigger
+                key={t.id}
+                value={t.id}
+                className={cn(
+                  'relative h-full inline-flex items-center text-[13px] font-medium tracking-tight cursor-pointer transition-colors outline-none',
+                  'text-muted-foreground/60 hover:text-foreground',
+                  'data-[state=active]:text-foreground',
+                  'after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:bg-foreground after:rounded-full',
+                  'after:opacity-0 data-[state=active]:after:opacity-100 after:transition-opacity',
+                )}
               >
-                <MessageSquare className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Open orchestrator</span>
-              </Button>
-            )}
+                {t.label}
+              </TabsPrimitive.Trigger>
+            ))}
+          </TabsPrimitive.List>
 
+          {/* ── Right: new task action ─────────────────────── */}
+          <div className="flex-1 flex items-center justify-end">
             {onNewTask && (
               <Button
                 size="sm"
-                className="h-7 px-2 sm:px-3 text-[12px] gap-1.5 shrink-0"
                 onClick={onNewTask}
                 title="New task (C)"
+                className="h-7 px-2.5 text-[12px] gap-1.5"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">New task</span>
@@ -68,34 +83,8 @@ export function ProjectHeader({ project, tab, onTabChange, onNewTask, onOpenThre
               </Button>
             )}
           </div>
-        </div>
-
-        {/* Row 2: Tab bar — scrollable on mobile */}
-        <nav className="flex items-center gap-1 -mb-px overflow-x-auto scrollbar-none" role="tablist">
-          {TAB_DEFS.map((t) => {
-            const isActive = tab === t.id;
-            return (
-              <button
-                key={t.id}
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => onTabChange(t.id)}
-                className={cn(
-                  'relative h-9 px-3 text-[13px] font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0',
-                  isActive
-                    ? 'text-foreground'
-                    : 'text-muted-foreground/60 hover:text-foreground',
-                )}
-              >
-                {t.label}
-                {isActive && (
-                  <span className="absolute inset-x-0 bottom-0 h-[2px] bg-foreground rounded-full" />
-                )}
-              </button>
-            );
-          })}
-        </nav>
+        </TabsPrimitive.Root>
       </div>
-    </div>
+    </header>
   );
 }

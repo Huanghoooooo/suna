@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { COMPLETION_TAG } from "./config"
 
 const tempRoots: string[] = []
 const originalStorageBase = process.env.OPENCODE_STORAGE_BASE
@@ -24,13 +25,28 @@ function assistant(text: string) {
 	return { info: { role: "assistant" }, parts: [{ type: "text", text }] }
 }
 
+function validCompletion(): string {
+	return [
+		"All done. Here is the completion contract:",
+		"",
+		`<${COMPLETION_TAG}>`,
+		"  <verification>",
+		"    $ bun test tests/auth.test.ts",
+		"    [exit 0] 12 passed",
+		"  </verification>",
+		"  <requirements_check>",
+		'    - [x] "fix the bug" — patched src/auth.ts:47, regression test added',
+		"  </requirements_check>",
+		`</${COMPLETION_TAG}>`,
+	].join("\n")
+}
+
 describe("Autowork plugin integration", () => {
-	test("continues on idle and stops after completion promise with clear todos", async () => {
+	test("continues on idle and stops on a valid completion tag", async () => {
 		process.env.OPENCODE_STORAGE_BASE = makeStorage()
 
 		const prompts: Array<{ sessionId: string; text: string }> = []
 		const messages = new Map<string, any[]>()
-		const todos = new Map<string, any[]>()
 
 		const pluginMod = await import(`./autowork.ts?autowork-test=${Date.now()}`)
 		const stateMod = await import(`./state.ts?autowork-test=${Date.now()}`)
@@ -40,7 +56,6 @@ describe("Autowork plugin integration", () => {
 			app: { log: async () => {} },
 			session: {
 				messages: async ({ path }: any) => ({ data: messages.get(path.id) ?? [] }),
-				todo: async ({ path }: any) => ({ data: todos.get(path.id) ?? [] }),
 				promptAsync: async ({ path, body }: any) => {
 					prompts.push({ sessionId: path.id, text: body.parts[0].text })
 				},
@@ -51,45 +66,44 @@ describe("Autowork plugin integration", () => {
 		const sessionId = "ses_autowork_1"
 
 		messages.set(sessionId, [])
-		todos.set(sessionId, [{ status: "in_progress", content: "fix bug", priority: "high" }])
 
 		await plugin["chat.message"](
 			{ sessionID: sessionId },
-			{ parts: [{ type: "text", text: `/autowork --completion-promise "DONE" fix the bug` }] },
+			{ parts: [{ type: "text", text: "/autowork fix the bug" }] },
 		)
 
-		messages.set(sessionId, [assistant("Investigating root cause")])
+		// First idle — worker hasn't emitted anything useful yet, continue.
+		messages.set(sessionId, [assistant("Investigating root cause of the bug")])
 		await plugin.event({ event: { type: "session.idle", properties: { sessionID: sessionId } } })
 
 		expect(prompts.length).toBe(1)
-		expect(prompts[0]?.text).toContain("[AUTOWORK - ITERATION")
+		expect(prompts[0]?.text).toContain("Iteration 1/50")
+		expect(prompts[0]?.text).toContain("fix the bug") // re-anchored original task
 
-		messages.set(sessionId, [assistant("Verified implementation\nDONE")])
-		todos.set(sessionId, [{ status: "completed", content: "fix bug", priority: "high" }])
+		// Second idle after worker emits a valid completion tag → stop.
+		messages.set(sessionId, [assistant(validCompletion())])
 		await new Promise((resolve) => setTimeout(resolve, 3100))
 		await plugin.event({ event: { type: "session.idle", properties: { sessionID: sessionId } } })
 
 		expect(pluginMod.autoworkActiveSessions.has(sessionId)).toBe(false)
 		const persisted = stateMod.loadAutoworkState(sessionId)
 		expect(persisted?.active).toBe(false)
-		expect(persisted?.currentPhase).toBe("complete")
+		expect(persisted?.stopReason).toBe("complete")
 	})
 
-	test("falls back to slash command text when command args are empty", async () => {
+	test("rejects completion with unchecked requirement item", async () => {
 		process.env.OPENCODE_STORAGE_BASE = makeStorage()
 
 		const prompts: Array<{ sessionId: string; text: string }> = []
 		const messages = new Map<string, any[]>()
-		const todos = new Map<string, any[]>()
 
-		const pluginMod = await import(`./autowork.ts?autowork-empty-args=${Date.now()}`)
+		const pluginMod = await import(`./autowork.ts?autowork-reject=${Date.now()}`)
 		const pluginFactory = pluginMod.default
 
 		const client = {
 			app: { log: async () => {} },
 			session: {
 				messages: async ({ path }: any) => ({ data: messages.get(path.id) ?? [] }),
-				todo: async ({ path }: any) => ({ data: todos.get(path.id) ?? [] }),
 				promptAsync: async ({ path, body }: any) => {
 					prompts.push({ sessionId: path.id, text: body.parts[0].text })
 				},
@@ -97,39 +111,46 @@ describe("Autowork plugin integration", () => {
 		} as any
 
 		const plugin = await pluginFactory({ client })
-		const sessionId = "ses_autowork_empty_args"
-		messages.set(sessionId, [])
-		todos.set(sessionId, [])
+		const sessionId = "ses_autowork_reject"
 
-		await plugin["command.execute.before"]({ sessionID: sessionId, command: "autowork", arguments: "" })
+		messages.set(sessionId, [])
 		await plugin["chat.message"](
 			{ sessionID: sessionId },
-			{ parts: [{ type: "text", text: "/autowork --completion-promise RALPH_DONE --max-iterations 4 build feature" }] },
+			{ parts: [{ type: "text", text: "/autowork build feature" }] },
 		)
 
-		messages.set(sessionId, [assistant("Still working")])
+		const halfDone = [
+			`<${COMPLETION_TAG}>`,
+			"  <verification>ran tests — partial</verification>",
+			"  <requirements_check>",
+			'    - [x] "build the endpoint" — done',
+			'    - [ ] "write tests" — still todo',
+			"  </requirements_check>",
+			`</${COMPLETION_TAG}>`,
+		].join("\n")
+
+		messages.set(sessionId, [assistant(halfDone)])
 		await plugin.event({ event: { type: "session.idle", properties: { sessionID: sessionId } } })
 
 		expect(prompts.length).toBe(1)
-		expect(prompts[0]?.text).toContain("emit exactly: RALPH_DONE")
-		expect(prompts[0]?.text).toContain("ITERATION 1/4")
+		expect(prompts[0]?.text).toContain("REJECTED")
+		expect(prompts[0]?.text).toContain("unchecked requirement item")
+		expect(pluginMod.autoworkActiveSessions.has(sessionId)).toBe(true)
 	})
 
-	test("extracts args from rendered command body when slash command is expanded", async () => {
+	test("re-anchors user follow-up messages in the next continuation", async () => {
 		process.env.OPENCODE_STORAGE_BASE = makeStorage()
 
 		const prompts: Array<{ sessionId: string; text: string }> = []
 		const messages = new Map<string, any[]>()
-		const todos = new Map<string, any[]>()
 
-		const pluginMod = await import(`./autowork.ts?autowork-rendered-args=${Date.now()}`)
+		const pluginMod = await import(`./autowork.ts?autowork-followup=${Date.now()}`)
 		const pluginFactory = pluginMod.default
 
 		const client = {
 			app: { log: async () => {} },
 			session: {
 				messages: async ({ path }: any) => ({ data: messages.get(path.id) ?? [] }),
-				todo: async ({ path }: any) => ({ data: todos.get(path.id) ?? [] }),
 				promptAsync: async ({ path, body }: any) => {
 					prompts.push({ sessionId: path.id, text: body.parts[0].text })
 				},
@@ -137,21 +158,74 @@ describe("Autowork plugin integration", () => {
 		} as any
 
 		const plugin = await pluginFactory({ client })
-		const sessionId = "ses_autowork_rendered_args"
-		messages.set(sessionId, [])
-		todos.set(sessionId, [])
+		const sessionId = "ses_autowork_followup"
 
-		await plugin["command.execute.before"]({ sessionID: sessionId, command: "autowork", arguments: "" })
+		messages.set(sessionId, [])
 		await plugin["chat.message"](
 			{ sessionID: sessionId },
-			{ parts: [{ type: "text", text: '# Autowork\n\nRules...\n\n"build feature --completion-promise RALPH_DONE --max-iterations 4"' }] },
+			{ parts: [{ type: "text", text: "/autowork add auth middleware" }] },
 		)
 
-		messages.set(sessionId, [assistant("Still working")])
+		// User sends a follow-up mid-loop with additional requirements.
+		await plugin["chat.message"](
+			{ sessionID: sessionId },
+			{ parts: [{ type: "text", text: "Also make sure it handles expired tokens with a 401." }] },
+		)
+
+		messages.set(sessionId, [assistant("Working on it.")])
 		await plugin.event({ event: { type: "session.idle", properties: { sessionID: sessionId } } })
 
 		expect(prompts.length).toBe(1)
-		expect(prompts[0]?.text).toContain("emit exactly: RALPH_DONE")
-		expect(prompts[0]?.text).toContain("ITERATION 1/4")
+		// Both the original task and the follow-up must appear in the re-anchored request block.
+		expect(prompts[0]?.text).toContain("add auth middleware")
+		expect(prompts[0]?.text).toContain("expired tokens with a 401")
+	})
+
+	test("max iterations stops the loop with failed reason", async () => {
+		process.env.OPENCODE_STORAGE_BASE = makeStorage()
+
+		const prompts: Array<{ sessionId: string; text: string }> = []
+		const messages = new Map<string, any[]>()
+
+		const pluginMod = await import(`./autowork.ts?autowork-maxiter=${Date.now()}`)
+		const stateMod = await import(`./state.ts?autowork-maxiter=${Date.now()}`)
+		const pluginFactory = pluginMod.default
+
+		const client = {
+			app: { log: async () => {} },
+			session: {
+				messages: async ({ path }: any) => ({ data: messages.get(path.id) ?? [] }),
+				promptAsync: async ({ path, body }: any) => {
+					prompts.push({ sessionId: path.id, text: body.parts[0].text })
+				},
+			},
+		} as any
+
+		const plugin = await pluginFactory({ client })
+		const sessionId = "ses_autowork_maxiter"
+
+		messages.set(sessionId, [])
+		await plugin["chat.message"](
+			{ sessionID: sessionId },
+			{ parts: [{ type: "text", text: "/autowork --max-iterations 1 fix it" }] },
+		)
+
+		messages.set(sessionId, [assistant("iteration 1 work")])
+		await plugin.event({ event: { type: "session.idle", properties: { sessionID: sessionId } } })
+		expect(prompts.length).toBe(1)
+
+		// Second idle should hit max iterations and stop.
+		messages.set(sessionId, [assistant("iteration 1 work"), assistant("iteration 2 work")])
+		await new Promise((resolve) => setTimeout(resolve, 3500))
+		await plugin.event({ event: { type: "session.idle", properties: { sessionID: sessionId } } })
+
+		// The plugin should have stopped with "failed" reason — verify via the
+		// in-memory active set first (which the plugin always mutates), then via
+		// the persisted state file.
+		expect(pluginMod.autoworkActiveSessions.has(sessionId)).toBe(false)
+		const persisted = stateMod.loadAutoworkState(sessionId)
+		expect(persisted).not.toBeNull()
+		expect(persisted?.active).toBe(false)
+		expect(persisted?.stopReason).toBe("failed")
 	})
 })

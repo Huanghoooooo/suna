@@ -18,7 +18,6 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 import { config } from '../config'
 import { createOpencodeClient } from '@opencode-ai/sdk/client'
-import { ensureProjectManagerSession } from '../services/project-thread-service'
 import {
   approveTask,
   createTask,
@@ -27,7 +26,6 @@ import {
   getTaskById,
   getTaskResolved,
   getTaskLiveStatus,
-  listTaskRuns,
   listTasksResolved,
   listTaskEvents,
   patchTask,
@@ -128,21 +126,6 @@ tasksRouter.get('/:id/events', async (c) => {
 })
 
 // ---------------------------------------------------------------------------
-// GET /kortix/tasks/:id/runs
-// ---------------------------------------------------------------------------
-tasksRouter.get('/:id/runs', async (c) => {
-  try {
-    const db = getDb()
-    ensureTasksTable(db)
-    const task = getTaskById(db, c.req.param('id'))
-    if (!task) return c.json({ error: 'Not found' }, 404)
-    return c.json(listTaskRuns(db, task.id))
-  } catch (e) {
-    return c.json({ error: String(e) }, 500)
-  }
-})
-
-// ---------------------------------------------------------------------------
 // POST /kortix/tasks  — create a new task
 // ---------------------------------------------------------------------------
 tasksRouter.post('/', async (c) => {
@@ -170,15 +153,14 @@ tasksRouter.post('/', async (c) => {
 tasksRouter.post('/:id/start', async (c) => {
   try {
     const db = getDb()
-    const body = await c.req.json<{ session_id?: string }>().catch(() => ({}))
+    const body = await c.req.json<{ session_id?: string }>().catch(() => ({} as { session_id?: string }))
     const existing = getTaskById(db, c.req.param('id'))
     if (!existing) return c.json({ error: 'Not found' }, 404)
-    const ensuredParentSessionId = body.session_id || (await ensureProjectManagerSession(db, getOpenCodeClient(), existing.project_id)).managerSessionId
     return c.json(await startTask({
       db,
       client: getOpenCodeClient() as OpenCodeClientLike,
       taskId: c.req.param('id'),
-      parentSessionId: ensuredParentSessionId,
+      parentSessionId: body.session_id || null,
       workerAgent: 'worker',
     }))
   } catch (e) {

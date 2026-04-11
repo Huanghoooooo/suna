@@ -39,7 +39,6 @@ export function NewTaskDialog({
   projectId,
   projectName,
   projectPath,
-  managerSessionId,
   defaultStatus,
 }: {
   open: boolean;
@@ -47,7 +46,6 @@ export function NewTaskDialog({
   projectId: string;
   projectName?: string;
   projectPath?: string;
-  managerSessionId?: string;
   defaultStatus?: KortixTaskStatus;
 }) {
   const [title, setTitle] = useState('');
@@ -142,7 +140,7 @@ export function NewTaskDialog({
         onSuccess: (task) => {
           const taskId = (task as any)?.id;
           if (autoRun && taskId) {
-            start.mutate({ id: taskId, session_id: managerSessionId }, {
+            start.mutate({ id: taskId }, {
               onSuccess: () => toast('Task started', { description: t }),
               onError: () => toast('Task created but failed to start', { description: t }),
             });

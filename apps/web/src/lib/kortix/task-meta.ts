@@ -84,18 +84,6 @@ export const STATUS_META: Record<KortixTaskStatus, StatusMeta> = {
   },
 };
 
-/**
- * Pipeline: todo → [START] → in_progress → awaiting_review/input_needed; only human review approves awaiting_review → completed
- */
-export const VALID_TRANSITIONS: Record<KortixTaskStatus, KortixTaskStatus[]> = {
-  todo: ['cancelled'],                                // START → in_progress (separate action)
-  in_progress: ['input_needed', 'awaiting_review', 'todo', 'cancelled'],
-  input_needed: ['todo', 'cancelled'],                // blocked / waiting for human input, not approval-to-complete
-  awaiting_review: ['todo', 'cancelled'],
-  completed: [],                                         // terminal
-  cancelled: ['todo'],                                // can be reopened
-};
-
 /** All statuses in pipeline order. */
 export const ALL_STATUSES: KortixTaskStatus[] = [
   'todo',
@@ -105,19 +93,6 @@ export const ALL_STATUSES: KortixTaskStatus[] = [
   'completed',
   'cancelled',
 ];
-
-export function getStatusMeta(status: string | null | undefined): StatusMeta {
-  if (!status) return STATUS_META.todo;
-  if (status in STATUS_META) return STATUS_META[status as KortixTaskStatus];
-  return STATUS_META.todo;
-}
-
-export function normalizeStatus(status: string | null | undefined): KortixTaskStatus {
-  if (!status) return 'todo';
-  if (status in STATUS_META) return status as KortixTaskStatus;
-  return 'todo';
-}
-
 
 /** Linear-style short ID — KTX-XXXX from the trailing chars of the task id. */
 export function shortTaskId(id: string): string {

@@ -20,6 +20,10 @@ import { usePendingFilesStore } from '@/stores/pending-files-store';
 import { WallpaperBackground } from '@/components/ui/wallpaper-background';
 import { useOpenCodeLocal, formatModelString } from '@/hooks/opencode/use-opencode-local';
 import { useOpenCodeConfig } from '@/hooks/opencode/use-opencode-config';
+import { ProjectSelector } from '@/components/dashboard/project-selector';
+import { useSelectedProjectStore } from '@/stores/selected-project-store';
+import { useKortixProjects } from '@/hooks/kortix/use-kortix-projects';
+import { appendProjectRef } from '@/lib/project-preamble';
 import { Menu } from 'lucide-react';
 import type { Command } from '@/hooks/opencode/use-opencode-sessions';
 import { playSound } from '@/lib/sounds';
@@ -49,6 +53,21 @@ export function DashboardContent() {
   // Unified model/agent/variant state
   const local = useOpenCodeLocal({ agents, providers, config });
 
+  // Project selection — persisted across reloads
+  const selectedProjectId = useSelectedProjectStore((s) => s.projectId);
+  const setSelectedProjectId = useSelectedProjectStore((s) => s.setProjectId);
+  const { data: kortixProjects } = useKortixProjects();
+  const selectedProject = React.useMemo(
+    () => kortixProjects?.find((p) => p.id === selectedProjectId) ?? null,
+    [kortixProjects, selectedProjectId],
+  );
+  // If the persisted project id no longer exists, clear it transparently
+  React.useEffect(() => {
+    if (selectedProjectId && kortixProjects && !selectedProject) {
+      setSelectedProjectId(null);
+    }
+  }, [selectedProjectId, kortixProjects, selectedProject, setSelectedProjectId]);
+
   const handleSend = useCallback(
     async (text: string, files?: AttachedFile[]) => {
       if ((!text.trim() && (!files || files.length === 0)) || isSubmitting) return;
@@ -70,11 +89,17 @@ export function DashboardContent() {
         await fadeDelay;
         createdSessionId = session.id;
 
+        // Inject the selected project as a <project_ref /> block at the
+        // end of the message so the agent knows which Kortix project it's
+        // working in. Same XML shape as @-mentioned projects and
+        // <session_ref /> — the renderer strips and re-renders them.
+        const finalText = appendProjectRef(text, selectedProject);
+
         // Store the prompt text BEFORE navigating so the session page can
         // read it immediately when its useEffect fires. Placing this after
         // openTabAndNavigate caused a race where sessionStorage was empty
         // when the session page's pending-prompt useEffect ran.
-        sessionStorage.setItem(`opencode_pending_prompt:${session.id}`, text);
+        sessionStorage.setItem(`opencode_pending_prompt:${session.id}`, finalText);
         if (files && files.length > 0) {
           usePendingFilesStore.getState().setPendingFiles(files);
         }
@@ -108,7 +133,7 @@ export function DashboardContent() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isSubmitting, createSession, sendMessage, local.agent.current, local.model.currentKey, local.model.variant.current],
+    [isSubmitting, createSession, sendMessage, local.agent.current, local.model.currentKey, local.model.variant.current, selectedProject],
   );
 
   const handleCommand = useCallback(
@@ -174,6 +199,12 @@ export function DashboardContent() {
           </div>
         </div>
       </div>
+
+      {/* Project selector — sits above the chat input, pill style */}
+      <ProjectSelector
+        selectedProjectId={selectedProjectId}
+        onSelect={setSelectedProjectId}
+      />
 
       {/* Chat Input — pinned to bottom */}
       <SessionChatInput

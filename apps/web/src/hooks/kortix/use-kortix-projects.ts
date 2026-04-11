@@ -21,7 +21,6 @@ export interface KortixProject {
   description: string;
   created_at: string;
   opencode_id: string | null;
-  manager_session_id?: string | null;
   sessionCount?: number;
   // Extended properties from OpenCode Project (optional for compatibility)
   worktree?: string;
@@ -133,23 +132,6 @@ export function useKortixProjectSessions(
   });
 }
 
-export function useUpdateProject() {
-  const qc = useQueryClient();
-  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
-  return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string }) =>
-      kortixFetch<KortixProject>(serverUrl, `/${encodeURIComponent(id)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      }),
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: kortixKeys.project(vars.id) });
-      qc.invalidateQueries({ queryKey: kortixKeys.projects() });
-    },
-  });
-}
-
 export function useDeleteProject() {
   const qc = useQueryClient();
   const serverUrl = useServerStore((s) => s.getActiveServerUrl());
@@ -164,56 +146,3 @@ export function useDeleteProject() {
   });
 }
 
-export function useEnsureKortixManagerSession() {
-  const qc = useQueryClient();
-  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
-  return useMutation({
-    mutationFn: (id: string) =>
-      kortixFetch<KortixProject>(serverUrl, `/${encodeURIComponent(id)}/manager-session`, {
-        method: 'POST',
-      }),
-    onSuccess: (_, id) => {
-      qc.invalidateQueries({ queryKey: kortixKeys.project(id) });
-      qc.invalidateQueries({ queryKey: kortixKeys.projects() });
-      qc.invalidateQueries({ queryKey: ['kortix', 'projects', id, 'sessions'] });
-    },
-  });
-}
-
-export function useLinkKortixSessionToProject() {
-  const qc = useQueryClient();
-  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
-  return useMutation({
-    mutationFn: ({ projectId, sessionId }: { projectId: string; sessionId: string }) =>
-      kortixFetch<{ ok: boolean; project_id: string; session_id: string }>(
-        serverUrl,
-        `/${encodeURIComponent(projectId)}/link-session`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: sessionId }),
-        },
-      ),
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: kortixKeys.project(vars.projectId) });
-      qc.invalidateQueries({ queryKey: kortixKeys.projects() });
-      qc.invalidateQueries({ queryKey: ['kortix', 'projects', vars.projectId, 'sessions'] });
-      qc.invalidateQueries({ queryKey: ['kortix', 'projects', 'by-session', vars.sessionId] });
-    },
-  });
-}
-
-export function useUnlinkKortixSessionFromProject() {
-  const qc = useQueryClient();
-  const serverUrl = useServerStore((s) => s.getActiveServerUrl());
-  return useMutation({
-    mutationFn: (sessionId: string) =>
-      kortixFetch<{ ok: boolean; session_id: string }>(serverUrl, `/by-session/${encodeURIComponent(sessionId)}`, {
-        method: 'DELETE',
-      }),
-    onSuccess: (_, sessionId) => {
-      qc.invalidateQueries({ queryKey: ['kortix', 'projects'] });
-      qc.invalidateQueries({ queryKey: ['kortix', 'projects', 'by-session', sessionId] });
-    },
-  });
-}
