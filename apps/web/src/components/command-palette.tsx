@@ -368,7 +368,7 @@ export function CommandPalette() {
     return match ? match[1] : null;
   }, [pathname]);
   const { toggleSidebar, open: sidebarOpen } = useSidebar();
-  const { proxyUrl: buildProxyUrl, serverUrl, subdomainOpts } = useSandboxProxy();
+  const { proxyUrl: buildProxyUrl, subdomainOpts } = useSandboxProxy();
   const createSession = useCreateOpenCodeSession();
   const createPty = useCreatePty();
   const { theme, setTheme } = useTheme();
@@ -811,7 +811,7 @@ export function CommandPalette() {
     } else {
       // External URL — proxy through backend web proxy
       const extUrl = detectedUrl.url;
-      const proxyUrl = buildWebProxyUrl(extUrl, serverUrl, subdomainOpts) || extUrl;
+      const proxyUrl = buildWebProxyUrl(extUrl, subdomainOpts) || extUrl;
       let displayHost: string;
       try { displayHost = new URL(extUrl).hostname; } catch { displayHost = extUrl; }
 
@@ -829,7 +829,7 @@ export function CommandPalette() {
       });
     }
     close();
-  }, [detectedUrl, buildProxyUrl, serverUrl, subdomainOpts, close]);
+  }, [detectedUrl, buildProxyUrl, subdomainOpts, close]);
 
   const handleToggleSidebar = useCallback(() => {
     toggleSidebar();
