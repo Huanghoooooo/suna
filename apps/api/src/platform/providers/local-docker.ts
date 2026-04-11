@@ -34,6 +34,10 @@ const PORT_MAP: Record<string, string> = {
 
 const BASE_URL = `http://localhost:${PORT_MAP['8000']}`;
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `"'"'`)}'`;
+}
+
 const EXPOSED_PORTS: Record<string, {}> = Object.fromEntries(
   Object.keys(PORT_MAP).map((p) => [`${p}/tcp`, {}]),
 );
@@ -664,13 +668,13 @@ export class LocalDockerProvider implements SandboxProvider {
     }
 
     const writes = Object.entries(stale)
-      .map(([key, val]) => `printf '%s' '${val}' > /run/s6/container_environment/${key}`)
+      .map(([key, val]) => `printf '%s' ${shellQuote(val)} > /run/s6/container_environment/${key}`)
       .join(' && ');
     // No restart — getEnv() reads from s6 env dir live.
 
     const cmd =
-      `docker exec ${CONTAINER_NAME} bash -c ` +
-      `"mkdir -p /run/s6/container_environment && ${writes}"`;
+      `docker exec ${shellQuote(CONTAINER_NAME)} bash -c ` +
+      `${shellQuote(`mkdir -p /run/s6/container_environment && ${writes}`)}`;
 
     execSync(cmd, { timeout: 15_000, stdio: 'pipe', env });
     console.log(`[LOCAL-DOCKER] Core env vars synced via fallback (docker exec): ${Object.keys(stale).join(', ')}`);
