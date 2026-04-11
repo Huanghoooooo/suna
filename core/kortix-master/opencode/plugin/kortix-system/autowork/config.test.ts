@@ -77,7 +77,7 @@ Here is my completion:
 		expect(parsed!.requirementItems[1]?.checked).toBe(false)
 	})
 
-	test("returns null when <verification> child is missing", () => {
+	test("returns parsed (with empty verification) when <verification> child is missing so validator can reject with reason", () => {
 		const text = `
 <${COMPLETION_TAG}>
   <requirements_check>
@@ -85,16 +85,23 @@ Here is my completion:
   </requirements_check>
 </${COMPLETION_TAG}>
 `.trim()
-		expect(parseCompletionTag(text)).toBeNull()
+		const parsed = parseCompletionTag(text)
+		expect(parsed).not.toBeNull()
+		expect(parsed!.verification).toBe("")
+		expect(validateCompletion(parsed!).ok).toBe(false)
 	})
 
-	test("returns null when <requirements_check> child is missing", () => {
+	test("returns parsed (with empty requirements_check) when child is missing so validator can reject with reason", () => {
 		const text = `
 <${COMPLETION_TAG}>
   <verification>tests pass</verification>
 </${COMPLETION_TAG}>
 `.trim()
-		expect(parseCompletionTag(text)).toBeNull()
+		const parsed = parseCompletionTag(text)
+		expect(parsed).not.toBeNull()
+		expect(parsed!.requirementsCheck).toBe("")
+		expect(parsed!.requirementItems.length).toBe(0)
+		expect(validateCompletion(parsed!).ok).toBe(false)
 	})
 
 	test("picks the LAST tag if multiple are present", () => {

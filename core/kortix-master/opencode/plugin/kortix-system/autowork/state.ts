@@ -4,17 +4,19 @@ import { ensureKortixDir } from "../lib/paths"
 import { AUTOWORK_DEFAULTS, createInitialAutoworkState, type AutoworkState } from "./config"
 import type { AutoworkStopReason } from "./engine"
 
-const KORTIX_DIR = ensureKortixDir(import.meta.dir)
-const STATE_DIR = `${KORTIX_DIR}/autowork-states`
+function stateDir(): string {
+	return `${ensureKortixDir(import.meta.dir)}/autowork-states`
+}
 
 function statePath(sessionId: string): string {
-	return join(STATE_DIR, `${sessionId}.json`)
+	return join(stateDir(), `${sessionId}.json`)
 }
 
 export function persistAutoworkState(state: AutoworkState): void {
 	try {
 		if (!state.sessionId) return
-		if (!existsSync(STATE_DIR)) mkdirSync(STATE_DIR, { recursive: true })
+		const dir = stateDir()
+		if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
 		writeFileSync(statePath(state.sessionId), JSON.stringify(state, null, 2), "utf-8")
 	} catch {
 		// non-fatal
@@ -37,10 +39,11 @@ export function loadAutoworkState(sessionId: string): AutoworkState | null {
 export function loadAllAutoworkStates(): Map<string, AutoworkState> {
 	const states = new Map<string, AutoworkState>()
 	try {
-		if (!existsSync(STATE_DIR)) return states
-		for (const file of readdirSync(STATE_DIR).filter((entry) => entry.endsWith(".json"))) {
+		const dir = stateDir()
+		if (!existsSync(dir)) return states
+		for (const file of readdirSync(dir).filter((entry) => entry.endsWith(".json"))) {
 			try {
-				const parsed = JSON.parse(readFileSync(join(STATE_DIR, file), "utf-8")) as Partial<AutoworkState>
+				const parsed = JSON.parse(readFileSync(join(dir, file), "utf-8")) as Partial<AutoworkState>
 				if (parsed.sessionId && typeof parsed.active === "boolean") {
 					states.set(parsed.sessionId, { ...createInitialAutoworkState(), ...parsed } as AutoworkState)
 				}

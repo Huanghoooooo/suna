@@ -127,11 +127,14 @@ export interface ParsedCompletion {
 }
 
 /**
- * Strict parser for the completion tag. Returns null if the tag is missing
- * or malformed, a parsed block otherwise (with verification + requirements_check
- * children and the itemized checklist).
+ * Parser for the completion tag.
  *
- * Only matches the LAST occurrence of the tag in the text — the most recent
+ * - Returns `null` if the outer `<kortix_autowork_complete>` tag is absent.
+ * - Returns a `ParsedCompletion` if the outer tag is present, even if the
+ *   children are missing or empty — downstream `validateCompletion` turns that
+ *   into a structured rejection so the worker learns exactly what's missing.
+ *
+ * Only matches the LAST occurrence of the outer tag — the most recent
  * declaration wins.
  */
 export function parseCompletionTag(text: string): ParsedCompletion | null {
@@ -145,10 +148,8 @@ export function parseCompletionTag(text: string): ParsedCompletion | null {
 	if (matches.length === 0) return null
 	const body = matches[matches.length - 1]?.[1] ?? ""
 
-	const verification = extractInner(body, "verification")
-	const requirementsCheck = extractInner(body, "requirements_check")
-	if (verification === null || requirementsCheck === null) return null
-
+	const verification = extractInner(body, "verification") ?? ""
+	const requirementsCheck = extractInner(body, "requirements_check") ?? ""
 	const requirementItems = parseRequirementItems(requirementsCheck)
 
 	return {
