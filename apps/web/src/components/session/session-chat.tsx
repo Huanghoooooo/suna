@@ -120,7 +120,12 @@ import { ChatMinimap } from '@/components/session/chat-minimap';
 import { useMessageJumpStore } from '@/stores/message-jump-store';
 import { toast as sonnerToast } from 'sonner';
 import { useKortixComputerStore } from '@/stores/kortix-computer-store';
-import { useMessageQueueStore } from '@/stores/message-queue-store';
+import {
+  useMessageQueueStore,
+  selectSessionItems,
+  type QueuedMessage,
+} from '@/stores/message-queue-store';
+import { useMessageQueueDrain } from '@/hooks/opencode/use-message-queue-drain';
 import { usePendingFilesStore } from '@/stores/pending-files-store';
 import { useOpenCodePendingStore } from '@/stores/opencode-pending-store';
 import { useOpenCodeCompactionStore } from '@/stores/opencode-compaction-store';
@@ -4406,153 +4411,168 @@ export function SessionChat({
   ]);
 
   // ---- Message Queue ----
-  // Hydrate queue state on first mount (local client storage).
-  const queueHydrated = useMessageQueueStore((s) => s.hydrated);
-  useEffect(() => {
-    if (!queueHydrated) {
-      useMessageQueueStore.getState().hydrateFromBackend();
-    }
-  }, [queueHydrated]);
-
-  // Select the full array (stable ref) and derive the filtered list via useMemo
-  // to avoid the "getSnapshot should be cached" infinite-loop error that occurs
-  // when .filter() creates a new array reference on every selector call.
-  const allQueuedMessages = useMessageQueueStore((s) => s.messages);
-  const queuedMessages = useMemo(
-    () => allQueuedMessages.filter((m) => m.sessionId === sessionId),
-    [allQueuedMessages, sessionId],
-  );
-  const queueDequeue = useMessageQueueStore((s) => s.dequeue);
+  // Mirrors OpenCode's `followup` queue (research/opencode/packages/app/src/
+  // pages/session.tsx, lines 540-2018):
+  //   - per-session items + paused + failed flags in the store
+  //   - one reactive drain effect (use-message-queue-drain) — no setTimeout,
+  //     no requestAnimationFrame, no double locks
+  //   - failed items stay at the head and don't auto-retry
+  //   - paused is set on session abort and cleared on enqueue / send-now
+  const queuedMessages = useMessageQueueStore(selectSessionItems(sessionId));
   const queueRemove = useMessageQueueStore((s) => s.remove);
   const queueMoveUp = useMessageQueueStore((s) => s.moveUp);
   const queueMoveDown = useMessageQueueStore((s) => s.moveDown);
   const queueClearSession = useMessageQueueStore((s) => s.clearSession);
+  const queueSetPaused = useMessageQueueStore((s) => s.setPaused);
+  const queueSetFailed = useMessageQueueStore((s) => s.setFailed);
   const [queueExpanded, setQueueExpanded] = useState(false);
 
-  // Guard against double-drain: tracks whether a drain is already in progress
-  const drainScheduledRef = useRef(false);
-  const queueInFlightRef = useRef<{ queueId: string; sentAt: number } | null>(
-    null,
-  );
   const hasActiveQuestionForQueue = useOpenCodePendingStore((s) =>
     Object.values(s.questions).some((q) => q.sessionID === sessionId),
   );
 
-  // Drain helper: dequeue the next message and send it.
-  // Shared by primary + fallback drains to avoid duplication.
-  const drainNextWhenSettled = useCallback(() => {
-    if (drainScheduledRef.current) return;
-    if (queueInFlightRef.current) return;
-    // Wait for the UI-level busy debounce to finish so the completed
-    // assistant turn is actually rendered before sending the next queued item.
-    if (isBusy) return;
-    if (isServerBusy || hasIncompleteAssistant) return;
-    if (hasPendingUserReply) return;
-    if (pendingSendInFlight) return;
-    if (hasActiveQuestionForQueue) return;
-    const sessionQueue = useMessageQueueStore
-      .getState()
-      .messages.filter((m) => m.sessionId === sessionId);
-    if (sessionQueue.length === 0) return;
-    drainScheduledRef.current = true;
-    setTimeout(() => {
-      drainScheduledRef.current = false;
-      if (
-        queueInFlightRef.current ||
-        isBusy ||
-        isServerBusy ||
-        hasIncompleteAssistant ||
-        hasPendingUserReply ||
-        pendingSendInFlight ||
-        hasActiveQuestionForQueue
-      )
-        return;
-      queueInFlightRef.current = { queueId: '__scheduling__', sentAt: 0 };
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const next = queueDequeue(sessionId);
-          if (next) {
-            queueInFlightRef.current = { queueId: next.id, sentAt: Date.now() };
-            void handleSend(next.text, next.files).catch(() => {
-              queueInFlightRef.current = null;
-            });
+  // Composite gate. The drain only fires when ALL of these are clear:
+  //
+  //   - isBusy: the debounced UI busy state (2s tail after server idles)
+  //   - isServerBusy: server-reported status === 'busy' | 'retry'
+  //   - hasIncompleteAssistant: latest assistant message hasn't completed
+  //   - hasPendingUserReply: there's a user message with no assistant reply yet
+  //   - pendingSendInFlight: a previous handleSend hasn't been server-acked
+  //   - hasActiveQuestionForQueue: a structured question is awaiting answer
+  //
+  // While ANY of these are true, queued messages accumulate in the local
+  // store and the queue UI shows them. When ALL clear (the assistant turn
+  // is genuinely complete), the drain fires ONCE and sends every queued
+  // item concurrently via Promise.allSettled — the OpenCode server's
+  // runner (research/opencode/packages/opencode/src/effect/runner.ts:111)
+  // serializes the prompt_async calls per-session so they execute in
+  // arrival order, but we don't have to wait for the assistant response
+  // between client-side sends.
+  const canDrain =
+    !isBusy &&
+    !isServerBusy &&
+    !hasIncompleteAssistant &&
+    !hasPendingUserReply &&
+    !pendingSendInFlight &&
+    !hasActiveQuestionForQueue;
+
+  // handleSend is defined later in the component, but we need a stable
+  // reference for the drain hook. Use a ref so the hook always sees the
+  // current closure without re-firing on every render.
+  const handleSendRef = useRef<typeof handleSend>();
+
+  useMessageQueueDrain({
+    sessionId,
+    canDrain,
+    sendFn: useCallback(
+      async (msgs: QueuedMessage[]) => {
+        // Defensive filter: drop any items the user removed (or send-now'd)
+        // between the drain snapshot and now. Without this, a send-now click
+        // mid-drain would cause the same message to be sent twice.
+        const liveIds = new Set(
+          (useMessageQueueStore.getState().items[sessionId] ?? []).map(
+            (m) => m.id,
+          ),
+        );
+        const toSend = msgs.filter((m) => liveIds.has(m.id));
+        if (toSend.length === 0) return;
+
+        // Fire all queued messages CONCURRENTLY in one synchronous burst.
+        // Each handleSend runs its sync prefix (build optimistic message →
+        // addOptimisticUserMessage → setStatus busy) up to its first await
+        // (file upload OR promptAsync). Because all N sync prefixes run
+        // back-to-back in the same JS tick BEFORE any await yields, React
+        // batches the N optimistic-add store mutations into a single
+        // re-render — the user sees all N user messages appear at once,
+        // not staggered.
+        //
+        // After the .map returns N pending promises, Promise.allSettled
+        // waits for all of them. Each handleSend's `await promptAsync` is
+        // an HTTP call to /session/.../prompt_async which the server
+        // accepts (204) and queues internally via its per-session Runner
+        // deferred chain (research/opencode/packages/opencode/src/effect/
+        // runner.ts:111). The server processes them in arrival order.
+        const results = await Promise.allSettled(
+          toSend.map((msg) =>
+            // Cast: AttachedFile and QueuedFile share the same shape but live
+            // in different module hierarchies; runtime values are interchangeable.
+            handleSendRef.current!(
+              msg.text,
+              msg.files as AttachedFile[] | undefined,
+              undefined,
+              {
+                agent: msg.agent ?? undefined,
+                model: msg.model ?? undefined,
+                variant: msg.variant ?? undefined,
+              },
+            ),
+          ),
+        );
+
+        // Per-item state reconciliation. Successful items are removed from
+        // the queue; failed items stay put. We mark `failed` to the first
+        // remaining failed item's id so the drain effect doesn't retry-loop
+        // (the gate `failed === items[0].id` blocks the next cycle until
+        // the user manually intervenes via send-now or remove).
+        const store = useMessageQueueStore.getState();
+        let anyFailed = false;
+        results.forEach((result, idx) => {
+          const msg = toSend[idx];
+          if (result.status === 'fulfilled') {
+            store.remove(sessionId, msg.id);
           } else {
-            queueInFlightRef.current = null;
+            anyFailed = true;
+            console.error('[message-queue] item send failed', {
+              sessionId,
+              messageId: msg.id,
+              err: result.reason,
+            });
           }
         });
-      });
-    }, 350);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleSend is defined later in the component; accessed via closure at call-time only
-  }, [
-    sessionId,
-    queueDequeue,
-    isBusy,
-    isServerBusy,
-    hasIncompleteAssistant,
-    hasPendingUserReply,
-    pendingSendInFlight,
-    hasActiveQuestionForQueue,
-  ]);
 
-  // Release queue lock only after the queued message lifecycle is fully settled.
-  useEffect(() => {
-    const inFlight = queueInFlightRef.current;
-    if (!inFlight) return;
-    if (
-      isBusy ||
-      isServerBusy ||
-      hasIncompleteAssistant ||
-      hasPendingUserReply ||
-      pendingSendInFlight ||
-      hasActiveQuestionForQueue
-    )
-      return;
-    queueInFlightRef.current = null;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => drainNextWhenSettled());
-    });
-  }, [
-    messages,
-    isBusy,
-    isServerBusy,
-    hasIncompleteAssistant,
-    hasPendingUserReply,
-    pendingSendInFlight,
-    hasActiveQuestionForQueue,
-    drainNextWhenSettled,
-  ]);
+        if (anyFailed) {
+          const remaining =
+            useMessageQueueStore.getState().items[sessionId] ?? [];
+          if (remaining.length > 0) {
+            store.setFailed(sessionId, remaining[0].id);
+          }
+        }
+      },
+      [sessionId],
+    ),
+  });
 
-  // Fallback drain: when isBusy becomes false and there are queued messages,
-  // drain the queue. This covers cases where the SSE missed the busy event
-  // entirely (e.g. status went undefined → idle, so isServerBusy was never
-  // true and the primary drain above never fires).
-  useEffect(() => {
-    if (isBusy || drainScheduledRef.current) return;
-    const sessionQueue = useMessageQueueStore
-      .getState()
-      .messages.filter((m) => m.sessionId === sessionId);
-    if (sessionQueue.length === 0) return;
-    drainNextWhenSettled();
-  }, [isBusy, queuedMessages.length, sessionId, drainNextWhenSettled]);
-
-  // "Send now" handler: abort current session + send the queued message
+  // Send-now handler. Matches OpenCode (session.tsx:2016-2018, sendFollowup
+  // with `manual: true`): just send the queued item now, regardless of pause.
+  // Does NOT abort the current turn — the OpenCode server's runner will
+  // serialize concurrent prompt_async calls via its deferred chain (see
+  // research/opencode/packages/opencode/src/effect/runner.ts:111).
   const handleQueueSendNow = useCallback(
     (messageId: string) => {
       const msg = useMessageQueueStore
         .getState()
-        .messages.find((m) => m.id === messageId);
+        .items[sessionId]?.find((m) => m.id === messageId);
       if (!msg) return;
-      queueInFlightRef.current = null;
-      queueRemove(messageId);
-      // Abort the current session first
-      abortSession.mutate(sessionId);
-      // Send after a brief delay to let abort take effect
-      setTimeout(() => {
-        handleSend(msg.text, msg.files);
-      }, 150);
+      // Clearing pause + failed lets the drain effect re-pick this up if the
+      // synchronous send below races. setFailed is also called to clear any
+      // prior failure on this id.
+      queueSetPaused(sessionId, false);
+      queueSetFailed(sessionId, undefined);
+      queueRemove(sessionId, messageId);
+      void handleSendRef.current!(
+        msg.text,
+        msg.files as AttachedFile[] | undefined,
+        undefined,
+        {
+          agent: msg.agent ?? undefined,
+          model: msg.model ?? undefined,
+          variant: msg.variant ?? undefined,
+        },
+      ).catch(() => {
+        // handleSend already cleaned up the optimistic UI; nothing more to do.
+      });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleSend is defined later in the component; accessed via closure at call-time only
-    [sessionId, abortSession, queueRemove],
+    [sessionId, queueSetPaused, queueSetFailed, queueRemove],
   );
 
   // Stop polling when session goes idle (via SSE or polling fallback).
@@ -5247,6 +5267,17 @@ export function SessionChat({
       rawText: string,
       files?: AttachedFile[],
       mentions?: TrackedMention[],
+      /**
+       * Optional per-call overrides — used by the message queue drain so a
+       * queued message uses the agent/model/variant captured at enqueue time
+       * rather than whatever is currently active in the local store
+       * (matches OpenCode FollowupDraft semantics).
+       */
+      overrides?: {
+        agent?: string | null;
+        model?: { providerID: string; modelID: string } | null;
+        variant?: string | null;
+      },
     ) => {
       setCommandError(null);
 
@@ -5408,10 +5439,24 @@ export function SessionChat({
       setTimeout(() => scrollToBottom(), 100);
 
       const options: Record<string, unknown> = {};
-      if (local.agent.current) options.agent = local.agent.current.name;
-      if (local.model.currentKey) options.model = local.model.currentKey;
-      if (local.model.variant.current)
+      const overrideAgent = overrides?.agent;
+      const overrideModel = overrides?.model;
+      const overrideVariant = overrides?.variant;
+      if (overrideAgent !== undefined) {
+        if (overrideAgent) options.agent = overrideAgent;
+      } else if (local.agent.current) {
+        options.agent = local.agent.current.name;
+      }
+      if (overrideModel !== undefined) {
+        if (overrideModel) options.model = overrideModel;
+      } else if (local.model.currentKey) {
+        options.model = local.model.currentKey;
+      }
+      if (overrideVariant !== undefined) {
+        if (overrideVariant) options.variant = overrideVariant;
+      } else if (local.model.variant.current) {
         options.variant = local.model.variant.current;
+      }
 
       // Build parts: text first, then upload attached files to /workspace/uploads/
       // and send as XML text references (agent reads from disk on demand, not loaded into context)
@@ -5509,11 +5554,11 @@ export function SessionChat({
         if (block) textPrompt.text = `${textPrompt.text}\n\n${block}`;
       }
 
-      // Fire-and-forget via session.prompt (matching OpenCode app's approach).
-      // SSE events drive all incremental UI updates via sync store.
-      // prompt() blocks until the full response is ready, but since we don't
-      // await the result, it effectively runs in the background. This is exactly
-      // how OpenCode's web app sends messages.
+      // Send via session.promptAsync. The server returns 204 immediately and
+      // streams the response over SSE — we await the ACK so callers (queue
+      // drain, input box) can handle send failures, but the actual response
+      // body still arrives via the sync store.
+      //
       // Don't send part IDs or messageID — let the server generate them with
       // its own clock. Client-generated IDs can sort before server IDs due to
       // clock skew (browser vs Docker container), causing the server's loop to
@@ -5551,22 +5596,34 @@ export function SessionChat({
             removeOptimisticUserMessage(messageID);
           });
       };
-      void client.session
-        .promptAsync({
+
+      let res: any;
+      try {
+        res = await client.session.promptAsync({
           sessionID: sessionId,
           parts: mappedParts,
           ...(sendOpts?.agent ? { agent: sendOpts.agent } : {}),
           ...(sendOpts?.model ? { model: sendOpts.model } : {}),
           ...(sendOpts?.variant ? { variant: sendOpts.variant } : {}),
-        } as any)
-        .then((res: any) => {
-          // The SDK resolves (not rejects) on HTTP errors, returning
-          // { error: ... } instead of throwing. Without this check the
-          // catch handler never fires and the UI stays stuck on "busy"
-          // with the optimistic user bubble forever.
-          if (res?.error) handleSendError();
-        })
-        .catch(handleSendError);
+        } as any);
+      } catch (err) {
+        // Network / thrown SDK error — clean up and propagate so the queue
+        // drain can mark the item as failed and the input can restore text.
+        handleSendError();
+        throw err;
+      }
+
+      // The SDK resolves (not rejects) on HTTP errors, returning
+      // { error: ... } instead of throwing. Treat this as a failure so the
+      // UI doesn't stay stuck on "busy" with the optimistic user bubble.
+      if (res?.error) {
+        handleSendError();
+        const message =
+          (typeof res.error?.data?.message === 'string' && res.error.data.message) ||
+          (typeof res.error === 'string' && res.error) ||
+          'Failed to send message';
+        throw new Error(message);
+      }
 
       return messageID;
     },
@@ -5584,6 +5641,10 @@ export function SessionChat({
       selectedProject,
     ],
   );
+
+  // Wire the queue drain to the latest handleSend without triggering the
+  // drain effect on every handleSend identity change.
+  handleSendRef.current = handleSend;
 
   const handleStop = useCallback(() => {
     // Guard against rapid clicks — ignore if an abort is already in flight
@@ -5621,8 +5682,12 @@ export function SessionChat({
       }
     }
 
+    // Pause queue auto-drain on abort. Matches OpenCode (session.tsx:2011-2015,
+    // `onAbort: setFollowup("paused", id, true)`). Enqueueing a new message or
+    // clicking "send now" on a queued item will clear the pause.
+    queueSetPaused(sessionId, true);
     abortSession.mutate(sessionId);
-  }, [sessionId, abortSession]);
+  }, [sessionId, abortSession, queueSetPaused]);
 
   // ---- Triple-ESC to stop ----
   // ESC 1 → show hint (2 more). ESC 2 → show hint (1 more). ESC 3 → stop.
@@ -6329,7 +6394,7 @@ export function SessionChat({
                                 {idx > 0 && (
                                   <Button
                                     type="button"
-                                    onClick={() => queueMoveUp(qm.id)}
+                                    onClick={() => queueMoveUp(sessionId, qm.id)}
                                     variant="ghost"
                                     size="icon-xs"
                                   >
@@ -6339,7 +6404,7 @@ export function SessionChat({
                                 {idx < queuedMessages.length - 1 && (
                                   <Button
                                     type="button"
-                                    onClick={() => queueMoveDown(qm.id)}
+                                    onClick={() => queueMoveDown(sessionId, qm.id)}
                                     variant="ghost"
                                     size="icon-xs"
                                   >
@@ -6348,7 +6413,7 @@ export function SessionChat({
                                 )}
                                 <Button
                                   type="button"
-                                  onClick={() => queueRemove(qm.id)}
+                                  onClick={() => queueRemove(sessionId, qm.id)}
                                   variant="ghost"
                                   size="icon-xs"
                                   className="hover:text-destructive hover:bg-destructive/10"

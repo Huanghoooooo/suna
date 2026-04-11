@@ -1892,9 +1892,18 @@ export function SessionChatInput({
       textareaRef.current.style.height = 'auto';
     }
 
-    // If busy, queue the message instead of sending immediately
+    // If busy, queue the message instead of sending immediately.
+    // Capture the active agent/model/variant at enqueue time so the message
+    // drains under the same settings the user picked when typing it
+    // (matches OpenCode FollowupDraft semantics).
     if (isBusy && sessionId) {
-      enqueue(sessionId, trimmed, filesToSend);
+      enqueue(sessionId, {
+        text: trimmed,
+        files: filesToSend,
+        agent: selectedAgent ?? null,
+        model: selectedModel ?? null,
+        variant: selectedVariant ?? null,
+      });
       return;
     }
 
@@ -1904,7 +1913,7 @@ export function SessionChatInput({
       // Restore the text so the user can retry
       setText(trimmed);
     }
-  }, [text, isBusy, disabled, onSend, onCommand, stagedCommand, attachedFiles, mentions, sessionId, enqueue, lockForQuestion, onCustomAnswer, onQuestionAction]);
+  }, [text, isBusy, disabled, onSend, onCommand, stagedCommand, attachedFiles, mentions, sessionId, enqueue, selectedAgent, selectedModel, selectedVariant, lockForQuestion, onCustomAnswer, onQuestionAction]);
 
   const handleSelectCommand = (cmd: Command) => {
     // Stage the command — show an args input instead of executing immediately
