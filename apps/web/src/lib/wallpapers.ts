@@ -21,7 +21,7 @@ export const DEFAULT_WALLPAPER_ID = 'brandmark';
 export const WALLPAPERS: Wallpaper[] = [
   {
     id: 'brandmark',
-    name: 'Kortix',
+    name: 'Brandmark',
     type: 'svg',
     svgUrl: '/kortix-brandmark-bg.svg',
     thumbnailUrl: '/kortix-brandmark-bg.svg',

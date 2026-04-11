@@ -50,7 +50,7 @@ const APPEARANCE_THEMES: AppearanceTheme[] = [
 ];
 
 const WALLPAPERS: WallpaperOption[] = [
-  { id: 'brandmark', name: 'Kortix', badge: 'Default' },
+  { id: 'brandmark', name: 'Brandmark', badge: 'Default' },
   { id: 'symbol', name: 'Symbol' },
   { id: 'aurora', name: 'Aurora' },
 ];

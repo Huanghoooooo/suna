@@ -6,10 +6,18 @@ import { useUserPreferencesStore } from '@/stores/user-preferences-store';
 import { getWallpaperById, DEFAULT_WALLPAPER_ID } from '@/lib/wallpapers';
 import { AnimatedBg } from '@/components/ui/animated-bg';
 
-export const WallpaperBackground = memo(function WallpaperBackground() {
-  const wallpaperId = useUserPreferencesStore(
+interface WallpaperBackgroundProps {
+  /** Override the active wallpaper (e.g. for preview thumbnails). When omitted, reads from the user preferences store. */
+  wallpaperId?: string;
+}
+
+export const WallpaperBackground = memo(function WallpaperBackground({
+  wallpaperId: wallpaperIdProp,
+}: WallpaperBackgroundProps = {}) {
+  const storeWallpaperId = useUserPreferencesStore(
     (s) => s.preferences.wallpaperId ?? DEFAULT_WALLPAPER_ID
   );
+  const wallpaperId = wallpaperIdProp ?? storeWallpaperId;
   const wallpaper = getWallpaperById(wallpaperId);
 
   // ── Variant 1: Brandmark ──────────────────────────────────────────────
@@ -24,7 +32,10 @@ export const WallpaperBackground = memo(function WallpaperBackground() {
         <img
           src={wallpaper.svgUrl}
           alt=""
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[140vw] min-w-[700px] h-auto sm:w-[160vw] sm:min-w-[1000px] md:min-w-[1200px] lg:w-[162vw] lg:min-w-[1620px] object-contain select-none invert dark:invert-0"
+          // Sized relative to the wallpaper container (not the viewport), so this
+          // looks identical whether rendered full-bleed on a real page or scaled
+          // inside an appearance-tab preview thumbnail.
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] sm:w-[160%] lg:w-[162%] h-auto object-contain select-none invert dark:invert-0"
           draggable={false}
         />
       </div>
@@ -43,7 +54,7 @@ export const WallpaperBackground = memo(function WallpaperBackground() {
         <img
           src={wallpaper.symbolUrl}
           alt=""
-          className="w-[100px] sm:w-[130px] md:w-[160px] h-auto object-contain select-none opacity-[0.045] dark:opacity-[0.055] dark:invert translate-y-[10%]"
+          className="w-[80px] sm:w-[105px] md:w-[130px] h-auto object-contain select-none opacity-100 dark:invert translate-y-[10%]"
           draggable={false}
         />
       </div>

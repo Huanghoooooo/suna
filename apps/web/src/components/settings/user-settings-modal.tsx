@@ -259,10 +259,12 @@ export function UserSettingsModal({
                                                         key={tab.id}
                                                         onClick={() => handleTabClick(tab.id)}
                                                         disabled={tab.disabled}
-                                                        variant={isActive ? "secondary" : "ghost"}
+                                                        variant="ghost"
                                                         className={cn(
                                                             "w-full flex items-center gap-3 justify-start",
-                                                            !isActive && "text-muted-foreground hover:text-foreground"
+                                                            isActive
+                                                                ? "bg-accent text-foreground hover:bg-accent"
+                                                                : "text-muted-foreground hover:text-foreground"
                                                         )}
                                                     >
                                                         <Icon className="h-4 w-4 flex-shrink-0" />

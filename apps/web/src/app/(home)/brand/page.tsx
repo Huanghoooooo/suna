@@ -162,20 +162,31 @@ const BRAND_COLORS = [
   { name: 'Off-White', hex: '#F5F5F5', oklch: 'oklch(0.965 0 0)', light: true },
 ] as const;
 
-const ACCENT_COLORS = [
-  { name: 'Teal', hex: '#22808D', light: false },
-  { name: 'Amber', hex: '#D4A017', light: true },
-  { name: 'Rose', hex: '#D14D72', light: false },
-  { name: 'Violet', hex: '#7C5CFC', light: false },
-  { name: 'Emerald', hex: '#2D9F6F', light: false },
-  { name: 'Neon', hex: '#E8E000', light: true },
-] as const;
-
-const SEMANTIC_COLORS = [
-  { name: 'Success', hex: '#2D9F6F', token: '--success', className: 'bg-emerald-600 dark:bg-emerald-500' },
-  { name: 'Warning', hex: '#D4A017', token: '--warning', className: 'bg-amber-500 dark:bg-amber-400' },
-  { name: 'Info', hex: '#3B82F6', token: '--info', className: 'bg-blue-600 dark:bg-blue-500' },
-  { name: 'Destructive', hex: '#DC2626', token: '--destructive', className: 'bg-red-600 dark:bg-red-500' },
+/**
+ * Core theme palette — mirrors exactly the CSS custom properties defined in
+ * `:root` (light) and `.dark` in apps/web/src/app/globals.css.
+ * This is the single source of truth displayed on the /brand page.
+ * If you change a token in globals.css, change it here too.
+ */
+const CORE_PALETTE = [
+  { name: 'Background',           var: '--background',           light: 'oklch(1 0 0)',             dark: 'oklch(0.145 0 0)' },
+  { name: 'Foreground',           var: '--foreground',           light: 'oklch(0.145 0 0)',         dark: 'oklch(0.94 0 0)' },
+  { name: 'Card',                 var: '--card',                 light: 'oklch(0.99 0 0)',          dark: 'oklch(0.21 0 0)' },
+  { name: 'Card Foreground',      var: '--card-foreground',      light: 'oklch(0.145 0 0)',         dark: 'oklch(0.94 0 0)' },
+  { name: 'Popover',              var: '--popover',              light: 'oklch(1 0 0)',             dark: 'oklch(0.24 0 0)' },
+  { name: 'Popover Foreground',   var: '--popover-foreground',   light: 'oklch(0.145 0 0)',         dark: 'oklch(0.94 0 0)' },
+  { name: 'Primary',              var: '--primary',              light: 'oklch(0.205 0 0)',         dark: 'oklch(0.94 0 0)' },
+  { name: 'Primary Foreground',   var: '--primary-foreground',   light: 'oklch(0.985 0 0)',         dark: 'oklch(0.18 0 0)' },
+  { name: 'Secondary',            var: '--secondary',            light: 'oklch(0.46 0 0)',          dark: 'oklch(0.55 0.01 260)' },
+  { name: 'Secondary Foreground', var: '--secondary-foreground', light: 'oklch(1 0 0)',             dark: 'oklch(0.94 0 0)' },
+  { name: 'Muted',                var: '--muted',                light: 'oklch(0.955 0 0)',         dark: 'oklch(0.27 0 0)' },
+  { name: 'Muted Foreground',     var: '--muted-foreground',     light: 'oklch(0.45 0 0)',          dark: 'oklch(0.60 0 0)' },
+  { name: 'Accent',               var: '--accent',               light: 'oklch(0.96 0 0)',          dark: 'oklch(0.25 0 0)' },
+  { name: 'Accent Foreground',    var: '--accent-foreground',    light: 'oklch(0.145 0 0)',         dark: 'oklch(0.94 0 0)' },
+  { name: 'Border',               var: '--border',               light: 'oklch(0.885 0 0)',         dark: 'oklch(0.30 0 0)' },
+  { name: 'Input',                var: '--input',                light: 'oklch(0.905 0 0)',         dark: 'oklch(0.27 0 0)' },
+  { name: 'Ring',                 var: '--ring',                 light: 'oklch(0.708 0 0)',         dark: 'oklch(0.50 0 0)' },
+  { name: 'Destructive',          var: '--destructive',          light: 'oklch(0.577 0.245 27.325)', dark: 'oklch(0.396 0.141 25.723)' },
 ] as const;
 
 type LogoFormat = 'svg' | 'png';
@@ -757,51 +768,55 @@ export default function BrandPage() {
                   </div>
                 </div>
 
-                {/* Theme accents */}
-                <div className="mb-8">
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Theme accents
-                  </p>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-                    {ACCENT_COLORS.map((c) => (
-                      <div key={c.hex}>
-                        <div
-                          className={cn(
-                            'aspect-square rounded-lg',
-                            c.light ? 'ring-1 ring-black/[0.06]' : ''
-                          )}
-                          style={{ backgroundColor: c.hex }}
-                        />
-                        <div className="mt-2 px-0.5">
-                          <span className="text-xs font-medium text-foreground block">
-                            {c.name}
-                          </span>
-                          <Hex value={c.hex} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Semantic Colors */}
+                {/* Core palette — every token from globals.css (:root + .dark),
+                    rendered with both light and dark swatches so the whole
+                    theme is visible at a glance regardless of the current mode. */}
                 <div>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Semantic
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {SEMANTIC_COLORS.map((c) => (
+                  <div className="flex items-baseline justify-between mb-3">
+                    <p className="text-xs text-muted-foreground">
+                      Core palette
+                    </p>
+                    <p className="font-mono text-[10px] text-muted-foreground/70">
+                      globals.css · :root / .dark
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {CORE_PALETTE.map((token) => (
                       <div
-                        key={c.name}
+                        key={token.var}
                         className="rounded-lg border border-border/50 overflow-hidden"
                       >
-                        <div className={cn('h-10', c.className)} />
-                        <div className="px-3 py-2.5">
-                          <span className="text-xs font-medium text-foreground block">
-                            {c.name}
-                          </span>
-                          <span className="font-mono text-[10px] text-muted-foreground">
-                            {c.token}
-                          </span>
+                        <div className="grid grid-cols-2 h-14">
+                          <div
+                            className="relative ring-1 ring-inset ring-black/[0.06]"
+                            style={{ backgroundColor: token.light }}
+                          >
+                            <span className="absolute bottom-1 left-2 text-[9px] font-mono text-black/55 uppercase tracking-widest">
+                              light
+                            </span>
+                          </div>
+                          <div
+                            className="relative ring-1 ring-inset ring-white/[0.06]"
+                            style={{ backgroundColor: token.dark }}
+                          >
+                            <span className="absolute bottom-1 left-2 text-[9px] font-mono text-white/55 uppercase tracking-widest">
+                              dark
+                            </span>
+                          </div>
+                        </div>
+                        <div className="px-3 py-2.5 bg-background">
+                          <div className="flex items-baseline justify-between gap-2 mb-1">
+                            <span className="text-xs font-medium text-foreground truncate">
+                              {token.name}
+                            </span>
+                            <span className="font-mono text-[10px] text-muted-foreground shrink-0">
+                              {token.var}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <Hex value={token.light} />
+                            <Hex value={token.dark} />
+                          </div>
                         </div>
                       </div>
                     ))}
