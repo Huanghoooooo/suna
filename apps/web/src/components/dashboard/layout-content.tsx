@@ -449,10 +449,18 @@ function OnboardingSkipButton({ onConfirm }: { onConfirm: () => void }) {
 
 interface DashboardLayoutContentProps {
 	children: React.ReactNode;
+	/**
+	 * Sidebar open state as read from the `sidebar_state` cookie on the
+	 * server. Used as the SSR default so the sidebar doesn't flash
+	 * expanded-then-collapse on reload when the user's last choice was
+	 * collapsed. `undefined` means no cookie was set (first visit).
+	 */
+	initialSidebarOpen?: boolean;
 }
 
 export default function DashboardLayoutContent({
 	children,
+	initialSidebarOpen,
 }: DashboardLayoutContentProps) {
 	const { user, isLoading } = useAuth();
 	const router = useRouter();
@@ -616,6 +624,20 @@ export default function DashboardLayoutContent({
 	}, [activeServerId]);
 
 	// Check ONBOARDING_COMPLETE — enter onboarding mode or pass through.
+	//
+	// Guiding rule: onboarding is ONLY entered when we have positive evidence
+	// that it's incomplete (the proxy returned a 200 with ONBOARDING_COMPLETE
+	// !== 'true'). A 5xx / network failure means the sandbox is unreachable
+	// right now — we can't tell whether onboarding was done, so we do NOT
+	// enter onboarding mode. Instead we bail and let either
+	//   (a) the retry-on-activeServerId-change re-run the check once the
+	//       sandbox comes back, or
+	//   (b) the 1-second timeout fail-open branch render the dashboard shell
+	//       so the connection monitor can surface the real error.
+	//
+	// Previously we defaulted to onboarding on any failure, which meant a
+	// transiently down sandbox would pop the setup wizard on users who had
+	// already onboarded. Never again.
 	useEffect(() => {
 		if (!paramHandled) return;
 		const check = async () => {
@@ -626,14 +648,11 @@ export default function DashboardLayoutContent({
 				const f = await import("@/lib/auth-token").then((m) => m.authenticatedFetch);
 				const res = await f(`${instanceUrl}/env/ONBOARDING_COMPLETE`, undefined, { retryOnAuthError: false });
 				if (!res.ok) {
-					// If sandbox is unreachable (403/500/502), don't skip onboarding —
-					// assume setup hasn't been done and enter onboarding mode with setup wizard.
-					// This prevents going straight to an unusable dashboard.
-					if (res.status === 403 || res.status >= 500) {
-						console.warn(`[onboarding] /env/ONBOARDING_COMPLETE returned ${res.status} — entering setup mode`);
-						ob.enter({ skipBoot: true, skipSetup: false });
-					}
-					setOnboardingChecked(true);
+					// Sandbox unreachable or auth not yet propagated — do NOT
+					// assume "not onboarded". Bail silently; the effect re-runs
+					// when activeServerId changes, and the timeout fallback
+					// keeps the UI from hanging forever.
+					console.warn(`[onboarding] /env/ONBOARDING_COMPLETE returned ${res.status} — deferring, not entering onboarding`);
 					return;
 				}
 				const data = await res.json();
@@ -649,24 +668,24 @@ export default function DashboardLayoutContent({
 					}
 					setOnboardingChecked(true);
 				} else {
-				// Enter onboarding mode. If there's an existing session, skip boot + setup.
-				// Also clear any stale "onboarding complete" cache for this instance.
-				try {
-					localStorage.removeItem(
-						`kortix-onboarding-complete:${routeInstanceId || "default"}`,
-					);
-				} catch {
-					/* non-fatal */
-				}
-				const existing = await readEnv("ONBOARDING_SESSION_ID");
-				ob.enter({ skipBoot: !!existing, skipSetup: !!existing });
+					// Enter onboarding mode. If there's an existing session, skip boot + setup.
+					// Also clear any stale "onboarding complete" cache for this instance.
+					try {
+						localStorage.removeItem(
+							`kortix-onboarding-complete:${routeInstanceId || "default"}`,
+						);
+					} catch {
+						/* non-fatal */
+					}
+					const existing = await readEnv("ONBOARDING_SESSION_ID");
+					ob.enter({ skipBoot: !!existing, skipSetup: !!existing });
 					setOnboardingChecked(true);
 				}
 			} catch {
-				// Network error — sandbox likely not ready. Enter setup mode.
-				console.warn('[onboarding] Failed to check ONBOARDING_COMPLETE — entering setup mode');
-				ob.enter({ skipBoot: true, skipSetup: false });
-				setOnboardingChecked(true);
+				// Network error — sandbox is unreachable. Same reasoning as
+				// the !res.ok branch: do NOT default to onboarding. Let the
+				// connection monitor surface the real error state.
+				console.warn('[onboarding] Failed to check ONBOARDING_COMPLETE — deferring, not entering onboarding');
 			}
 		};
 		check();
@@ -970,7 +989,12 @@ export default function DashboardLayoutContent({
 			</Suspense>
 			<AppProviders
 				showSidebar={true}
-				defaultSidebarOpen={!ob.active}
+				defaultSidebarOpen={
+					// Prefer the server-read cookie so SSR and client match
+					// (no flicker on reload). Fall back to `!ob.active` when
+					// there's no persisted choice yet.
+					initialSidebarOpen ?? !ob.active
+				}
 				sidebarSiblings={
 					<Suspense fallback={null}>
 						<StatusOverlay />
