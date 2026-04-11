@@ -1,11 +1,11 @@
 /**
  * Kortix System Plugin — THE single plugin for the entire Kortix environment.
  *
- * Projects, agents, tasks, sessions, connectors, autowork, todo-enforcer,
- * triggers, auth, PTY, worktree, and /btw.
+ * Projects, agents, tasks, sessions, connectors, autowork, triggers, auth,
+ * PTY, worktree, and /btw.
  *
  * Native OpenCode task is disabled, but native todowrite/todoread can be used
- * alongside Kortix project tasks to support Autowork-style persistent worker loops.
+ * alongside Kortix project tasks to support autowork-style persistent worker loops.
  * Kortix also provides its own project/task orchestration surface plus worker lifecycle tools.
  *
  * opencode.jsonc: "./plugin/kortix-system/kortix-system.ts"
@@ -98,8 +98,6 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 	const auth = await load("auth", () => import("./auth").then(m => m.default(ctx)))
 	const pty = await load("pty", () => import("./pty-tools").then(m => m.default(ctx)))
 	const autowork = await load("autowork", () => import("./autowork/autowork").then(m => m.default(ctx)))
-	// todo-enforcer: disabled
-	const todoEnforcer: any = null
 	const triggers = await load("triggers", () => import("./triggers").then(m => m.default(ctx)))
 	const worktreeModule = await load("worktree", () => import("./worktree/worktree").then(m => m.default(ctx)))
 	const btw = await load("btw", async () => {
@@ -157,9 +155,6 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 			if (autowork?.["chat.message"]) {
 				await autowork["chat.message"](input, output).catch(() => {})
 			}
-			if (todoEnforcer?.["chat.message"]) {
-				await todoEnforcer["chat.message"](input, output).catch(() => {})
-			}
 		},
 
 		// Events
@@ -168,7 +163,6 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 			if (sid && payload.event.type === "session.created") currentSessionId = sid
 			if (pty?.event) await pty.event(payload).catch(() => {})
 			if (autowork?.event) await autowork.event(payload).catch(() => {})
-			if (todoEnforcer?.event) await todoEnforcer.event(payload).catch(() => {})
 			if (worktreeModule?.event) await worktreeModule.event(payload).catch(() => {})
 
 			// Agent async completion — runs last so autowork has already updated its active set

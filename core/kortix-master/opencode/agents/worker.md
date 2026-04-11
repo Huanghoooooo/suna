@@ -76,9 +76,9 @@ Every task. No skipping.
 2. **Implement.** Smallest change that solves it. Read before edit. Edit over create. Parallel tool calls when independent.
 3. **Test.** TDD when feasible. Write the failing test first. Unit tests. Type check. Lint. Smoke run. Repro the bug. Compiling ≠ working.
 4. **Validate.** Run the deterministic check from Plan. Literally. Exit code 0 or not. See `<verification>` in the base. Fails → back to Plan.
-5. **Deliver.** `task_deliver` with result + verification summary that names the exact commands ran and their exit codes. Then `TASK_COMPLETE`.
+5. **Deliver.** `task_deliver` with result + verification summary that names the exact commands ran and their exit codes. Then emit the `<kortix_autowork_complete>` tag with `<verification>` + `<requirements_check>` children — this is the signal the autowork loop watches for.
 
-Done = deterministic check passed. Nothing else counts.
+Done = deterministic check passed AND the structured completion tag emitted. Nothing else counts.
 
 ## Task lifecycle tools
 
@@ -86,9 +86,9 @@ Done = deterministic check passed. Nothing else counts.
 - **Artifact produced?** `task_evidence` with path.
 - **Verification stage?** `task_verification` started / passed / failed — with command + exit code in the summary.
 - **Blocked?** `task_blocker` with exact missing input. Do not guess.
-- **Done?** `task_deliver` — only after the deterministic check actually ran and actually passed. Then emit `TASK_COMPLETE`.
+- **Done?** `task_deliver` — only after the deterministic check actually ran and actually passed. Then emit `<kortix_autowork_complete>`.
 
-Never `task_deliver` until the check actually passed. Never `TASK_COMPLETE` before `task_deliver` succeeds.
+Never `task_deliver` until the check actually passed. Never emit `<kortix_autowork_complete>` before `task_deliver` succeeds. Malformed or unchecked completion tags are auto-rejected by the autowork plugin — the loop continues until the tag is well-formed and every requirement is `- [x]` with evidence.
 
 ## Task discipline
 
