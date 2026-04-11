@@ -86,7 +86,7 @@ export default function Home() {
 
         {/* ═══════════════ HERO ═══════════════ */}
         <div className="sticky top-0 h-dvh overflow-hidden z-0">
-          <WallpaperBackground />
+          <WallpaperBackground wallpaperId="brandmark" />
           <motion.div
             className="relative z-[1] flex flex-col h-full"
             style={{ opacity: heroOpacity, scale: heroScale }}
