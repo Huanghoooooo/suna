@@ -19,6 +19,14 @@ interface OldSandboxInfo {
 const ARCHIVE_PATH = '/tmp/legacy-uploads.tar.gz';
 const TRANSFER_DIRS = ['/workspace'];
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
+
+function toSafePathSegment(value: string): string {
+  return encodeURIComponent(value);
+}
+
 export async function getOldSandboxId(projectId: string): Promise<OldSandboxInfo | null> {
   const sql = postgres(config.DATABASE_URL!, { max: 1 });
   try {
@@ -114,7 +122,7 @@ async function tarFilesInOldSandbox(sandbox: Sandbox): Promise<{ fileCount: numb
 
   const tarSources = dirsWithFiles.map((d) => `"${d}"`).join(' ');
   const tarResult = await sandbox.process.executeCommand(
-    `tar czf ${ARCHIVE_PATH} ${tarSources} 2>&1`,
+    `tar czf ${shellQuote(ARCHIVE_PATH)} ${tarSources} 2>&1`,
     undefined,
     undefined,
     120,
@@ -180,11 +188,14 @@ async function uploadAndExtractOnNewSandbox(
 
   console.log(`[file-transfer] Archive uploaded to ${archivePath}, extracting on new sandbox...`);
 
+  const quotedDestPath = shellQuote(destPath);
+  const quotedArchivePath = shellQuote(archivePath);
+
   const execRes = await fetch(`${baseUrl}/kortix/core/exec`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      cmd: `mkdir -p ${destPath} && tar xzf ${archivePath} --strip-components=1 -C ${destPath} && rm -f ${archivePath}`,
+      cmd: `mkdir -p ${quotedDestPath} && tar xzf ${quotedArchivePath} --strip-components=1 -C ${quotedDestPath} && rm -f ${quotedArchivePath}`,
     }),
     signal: AbortSignal.timeout(60_000),
   });
@@ -274,7 +285,9 @@ export async function transferFiles(
   }
 
   try {
-    const destPath = threadId ? `/workspace/legacy/${threadId}` : '/workspace/legacy';
+    const destPath = threadId
+      ? `/workspace/legacy/${toSafePathSegment(threadId)}`
+      : '/workspace/legacy';
     console.log(`[file-transfer] Starting upload/extract to ${destPath} via ${baseUrl}`);
     await uploadAndExtractOnNewSandbox(baseUrl, headers, archive, destPath);
     result.transferred = true;
@@ -286,7 +299,7 @@ export async function transferFiles(
   }
 
   try {
-    await oldSandboxInstance.process.executeCommand(`rm -f ${ARCHIVE_PATH}`);
+    await oldSandboxInstance.process.executeCommand(`rm -f ${shellQuote(ARCHIVE_PATH)}`);
     const daytona = getDaytona();
     await daytona.stop(oldSandboxInstance);
     console.log(`[file-transfer] Stopped old sandbox ${oldSandbox.externalId}`);
