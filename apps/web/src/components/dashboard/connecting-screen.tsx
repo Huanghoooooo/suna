@@ -197,6 +197,8 @@ export function ConnectingScreen({
         title={title}
         overrideStage={overrideStage}
         onSwitch={handleSwitch}
+        onRestart={isCloudProvider ? handleRestart : undefined}
+        restarting={restarting}
         minimal={minimal}
       />
     </FullScreenShell>
@@ -339,12 +341,16 @@ function ConnectingView({
   title,
   overrideStage,
   onSwitch,
+  onRestart,
+  restarting = false,
   minimal = false,
 }: {
   label: string;
   title?: string;
   overrideStage?: Stage;
   onSwitch: () => void;
+  onRestart?: () => void;
+  restarting?: boolean;
   minimal?: boolean;
 }) {
   const [slowHint, setSlowHint] = useState(false);
@@ -377,6 +383,20 @@ function ConnectingView({
       )}
 
       <ProgressLine />
+
+      {!minimal && onRestart && (
+        <Button
+          type="button"
+          onClick={onRestart}
+          disabled={restarting}
+          variant="muted"
+          size="sm"
+          className="rounded-full"
+        >
+          <RotateCw className={cn('h-3.5 w-3.5', restarting && 'animate-spin')} />
+          {restarting ? 'Restarting…' : 'Restart'}
+        </Button>
+      )}
 
       {slowHint && !minimal && (
         <button
