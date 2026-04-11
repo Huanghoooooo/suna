@@ -151,19 +151,28 @@ export async function proxyToSandbox(
   if (serviceKey) {
     headers.set('Authorization', `Bearer ${serviceKey}`);
   }
-  if (extraHeaders) {
-    for (const [key, value] of Object.entries(extraHeaders)) {
-      headers.set(key, value);
-    }
-  }
-
   // Tell the sandbox what the public proxy base URL is so it can set the
-  // OpenAPI server URL correctly. Reconstruct from the original Host header
-  // (before we overwrite it) + the known proxy path prefix.
+  // OpenAPI server URL correctly AND so static-web's <base href> resolves
+  // sub-resources back through the same public origin.
+  //
+  // Default = path-based routing: `${proto}://${host}/v1/p/${sandboxId}/${port}`.
+  // Callers in subdomain mode (apps/api/src/index.ts subdomain handler)
+  // override this via `extraHeaders` because subdomain URLs have no path
+  // prefix — the subdomain itself encodes the routing.
   const originalHost = incomingHeaders.get('host');
   if (originalHost) {
     const proto = incomingHeaders.get('x-forwarded-proto') || 'http';
     headers.set('X-Forwarded-Prefix', `${proto}://${originalHost}/v1/p/${sandboxId}/${port}`);
+    headers.set('X-Forwarded-Proto', proto);
+    headers.set('X-Forwarded-Host', originalHost);
+  }
+
+  // extraHeaders applied last so callers can override defaults like
+  // X-Forwarded-Prefix.
+  if (extraHeaders) {
+    for (const [key, value] of Object.entries(extraHeaders)) {
+      headers.set(key, value);
+    }
   }
 
   // Abort handling — connection timeout only.

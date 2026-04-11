@@ -1282,9 +1282,18 @@ export default {
           }
         }
 
+        // Subdomain routing: the subdomain itself encodes which port the
+        // client is accessing, so the public base URL has no path prefix.
+        // Override the path-based default in proxyToSandbox so static-web's
+        // <base href> resolves sub-resources back through the same subdomain
+        // (not through `/v1/p/{sandboxId}/{port}/...` which doesn't exist on
+        // the subdomain).
+        const fwdProto = req.headers.get('x-forwarded-proto') || 'http';
         return await proxyToSandbox(
           sandboxId, port, req.method, url.pathname, url.search,
           req.headers, body, false, origin,
+          undefined, undefined,
+          { 'X-Forwarded-Prefix': `${fwdProto}://${host}` },
         );
       } catch (error) {
         console.error(`[subdomain-proxy] Error for ${sandboxId}:${port}${url.pathname}: ${error instanceof Error ? error.message : String(error)}`);
