@@ -5705,7 +5705,23 @@ export function SessionChat({
     }
   }, []);
 
+  // When this SessionChat is not the active tab, make sure any lingering
+  // ESC-counter state is cleared. Prevents stale "2 more to stop" hints from
+  // being carried over when the user switches tabs.
   useEffect(() => {
+    if (!isActiveSessionTab) clearEscHint();
+  }, [isActiveSessionTab, clearEscHint]);
+
+  useEffect(() => {
+    // CRITICAL: all open session tabs are pre-mounted simultaneously by
+    // SessionTabsContainer (see layout-content.tsx), so every mounted
+    // SessionChat would otherwise receive the same window keydown event and
+    // each busy session would independently advance its ESC counter and
+    // abort itself on triple-ESC. Only the visible (active) session tab may
+    // handle ESC — and never in read-only viewers (e.g. the sub-session
+    // modal), which must not issue stop commands.
+    if (!isActiveSessionTab || readOnly) return;
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || !isBusy) return;
 
@@ -5752,7 +5768,7 @@ export function SessionChat({
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isBusy, handleStop, clearEscHint, escCount]);
+  }, [isActiveSessionTab, readOnly, isBusy, handleStop, clearEscHint, escCount]);
 
   // Reset when session goes idle
   useEffect(() => {
