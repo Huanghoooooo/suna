@@ -3,13 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Loader2, Plus } from 'lucide-react';
+import { toast as sonnerToast } from 'sonner';
 
 import { ConnectingScreen } from '@/components/dashboard/connecting-screen';
 import {
   listSandboxes,
   ensureSandbox,
+  restartSandbox,
   type SandboxInfo,
 } from '@/lib/platform-client';
 import { isBillingEnabled } from '@/lib/config';
@@ -19,6 +21,7 @@ import { claimComputer } from '@/lib/api/billing';
 
 import { NewInstanceModal } from '@/components/billing/pricing/new-instance-modal';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   ComputerHeroCard,
   InstancesTopBar,
@@ -27,16 +30,20 @@ import {
   FallbackInstanceCard,
   InstanceCard,
 } from './_components/instance-card';
+import { InstanceUpdateDialog } from './_components/instance-update-dialog';
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export default function InstancesPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, isLoading: authLoading } = useAuth();
   const { servers, activeServerId } = useServerStore();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [autoCreating, setAutoCreating] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [updateTarget, setUpdateTarget] = useState<SandboxInfo | null>(null);
+  const [restartTarget, setRestartTarget] = useState<SandboxInfo | null>(null);
   const isCloud = isBillingEnabled();
   const {
     data: accountState,
@@ -101,6 +108,52 @@ export default function InstancesPage() {
   // Filter out archived — user shouldn't see those
   const visible = sandboxes?.filter((s) => s.status !== 'archived') ?? [];
   const fallbackServers = servers.filter((s) => !!s.provider || !!s.url);
+
+  // ── Per-card action handlers ──
+  //
+  // Each of these runs against a *specific* sandbox_id rather than the
+  // user's currently active one, so a user with multiple instances can
+  // restart / update / inspect backups on any card without first
+  // switching the app over to it.
+
+  const restartMutation = useMutation({
+    mutationFn: (sandboxId: string) => restartSandbox(sandboxId),
+    onMutate: (sandboxId) => {
+      sonnerToast.loading('Restarting instance…', { id: `restart-${sandboxId}` });
+    },
+    onSuccess: (_data, sandboxId) => {
+      sonnerToast.success('Instance restarted', { id: `restart-${sandboxId}` });
+      setRestartTarget(null);
+      // Refresh the list so the status pill + version reflect reality.
+      queryClient.invalidateQueries({ queryKey: ['platform', 'sandbox', 'list'] });
+    },
+    onError: (error, sandboxId) => {
+      const msg = error instanceof Error ? error.message : 'Failed to restart instance';
+      sonnerToast.error(msg, { id: `restart-${sandboxId}` });
+      setRestartTarget(null);
+    },
+  });
+
+  function handleRestart(sandbox: SandboxInfo) {
+    // Opening the card's restart action shows a confirmation dialog —
+    // the mutation fires only after the user confirms in
+    // <ConfirmDialog /> below.
+    if (restartMutation.isPending) return;
+    setRestartTarget(sandbox);
+  }
+
+  function confirmRestart() {
+    if (!restartTarget || restartMutation.isPending) return;
+    restartMutation.mutate(restartTarget.sandbox_id);
+  }
+
+  function handleChangelog(sandbox: SandboxInfo) {
+    setUpdateTarget(sandbox);
+  }
+
+  function handleBackups(sandbox: SandboxInfo) {
+    router.push(`/instances/${sandbox.sandbox_id}/backups`);
+  }
 
   function handleInstanceClick(sandbox: SandboxInfo) {
     // Active sandboxes go directly to the dashboard — skipping the
@@ -253,14 +306,21 @@ export default function InstancesPage() {
           {/* Instance list */}
           {!pageLoading && visible.length > 0 && (
             <div className="flex flex-col gap-2">
-              {visible.map((sandbox) => (
-                <InstanceCard
-                  key={sandbox.sandbox_id}
-                  sandbox={sandbox}
-                  onClick={() => handleInstanceClick(sandbox)}
-                  onBackups={() => router.push(`/instances/${sandbox.sandbox_id}/backups`)}
-                />
-              ))}
+              {visible.map((sandbox) => {
+                const isRestarting =
+                  restartMutation.isPending && restartMutation.variables === sandbox.sandbox_id;
+                return (
+                  <InstanceCard
+                    key={sandbox.sandbox_id}
+                    sandbox={sandbox}
+                    onClick={() => handleInstanceClick(sandbox)}
+                    onRestart={() => handleRestart(sandbox)}
+                    onChangelog={() => handleChangelog(sandbox)}
+                    onBackups={() => handleBackups(sandbox)}
+                    restarting={isRestarting}
+                  />
+                );
+              })}
             </div>
           )}
 
@@ -282,6 +342,40 @@ export default function InstancesPage() {
 
       {/* Checkout modal — opens instantly, no page navigation */}
       <NewInstanceModal open={checkoutOpen} onOpenChange={setCheckoutOpen} />
+
+      {/* Restart confirmation — destructive enough to warrant an
+          explicit prompt (it tears down the running machine). */}
+      <ConfirmDialog
+        open={!!restartTarget}
+        onOpenChange={(open) => {
+          if (!open && !restartMutation.isPending) setRestartTarget(null);
+        }}
+        title="Restart this instance?"
+        description={
+          <>
+            This will stop and start{' '}
+            <span className="font-medium text-foreground">
+              {restartTarget?.name || restartTarget?.sandbox_id || 'the instance'}
+            </span>
+            . Any unsaved in-memory state will be lost, but files on the
+            persistent volume are safe.
+          </>
+        }
+        confirmLabel="Restart"
+        onConfirm={confirmRestart}
+        isPending={restartMutation.isPending}
+      />
+
+      {/* Per-instance update dialog — targets a specific sandbox so it
+          works even when the user isn't connected to that instance. */}
+      <InstanceUpdateDialog
+        sandbox={updateTarget}
+        open={!!updateTarget}
+        onClose={() => setUpdateTarget(null)}
+        onCompleted={() => {
+          queryClient.invalidateQueries({ queryKey: ['platform', 'sandbox', 'list'] });
+        }}
+      />
     </div>
   );
 }

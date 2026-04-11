@@ -374,11 +374,13 @@ export async function listSandboxes(): Promise<SandboxInfo[]> {
 }
 
 /**
- * Restart the active sandbox (stop + start).
+ * Restart a sandbox (stop + start). Pass `sandboxId` to target a specific
+ * instance; omit to restart the user's most recently created sandbox.
  */
-export async function restartSandbox(): Promise<void> {
+export async function restartSandbox(sandboxId?: string): Promise<void> {
   const result = await platformFetch<void>('/platform/sandbox/restart', {
     method: 'POST',
+    body: sandboxId ? JSON.stringify({ sandbox_id: sandboxId }) : undefined,
   });
 
   if (!result.success) {
@@ -387,11 +389,13 @@ export async function restartSandbox(): Promise<void> {
 }
 
 /**
- * Stop the active sandbox.
+ * Stop a sandbox. Pass `sandboxId` to target a specific instance; omit to
+ * stop the user's active sandbox.
  */
-export async function stopSandbox(): Promise<void> {
+export async function stopSandbox(sandboxId?: string): Promise<void> {
   const result = await platformFetch<void>('/platform/sandbox/stop', {
     method: 'POST',
+    body: sandboxId ? JSON.stringify({ sandbox_id: sandboxId }) : undefined,
   });
 
   if (!result.success) {

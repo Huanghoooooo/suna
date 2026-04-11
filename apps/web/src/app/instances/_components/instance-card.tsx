@@ -10,11 +10,12 @@
  * computers. We render them uniformly.
  */
 
-import { Archive, ChevronRight, Server } from 'lucide-react';
+import { Archive, ArrowDownToLine, ChevronRight, Loader2, RotateCw, Server } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import type { SandboxInfo } from '@/lib/platform-client';
 import type { ServerEntry } from '@/stores/server-store';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 // ─── Status config ─────────────────────────────────────────────────────────
 
@@ -45,8 +46,8 @@ export function getStatusConfig(status: string): StatusConfig {
 
 // ─── Shared row primitives ─────────────────────────────────────────────────
 
-const ROW_CLS =
-  'w-full text-left rounded-xl border border-border/50 bg-card hover:bg-muted/30 hover:border-border transition-colors p-4 cursor-pointer group';
+const CARD_CLS =
+  'w-full rounded-xl border border-border/50 bg-card hover:bg-muted/30 hover:border-border transition-colors group';
 
 function IconBox() {
   return (
@@ -88,73 +89,163 @@ function ChevronAffordance({ className }: { className?: string }) {
   );
 }
 
+// ─── Card action button ────────────────────────────────────────────────────
+//
+// Inline icon action rendered inside the card. Clicks don't bubble to the
+// card's main navigation handler — each action is its own leaf interaction.
+
+function CardAction({
+  icon: Icon,
+  label,
+  onClick,
+  loading,
+  disabled,
+}: {
+  icon: typeof RotateCw;
+  label: string;
+  onClick: () => void;
+  loading?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          disabled={disabled || loading}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (disabled || loading) return;
+            onClick();
+          }}
+          className={cn(
+            'flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground/60',
+            'hover:text-foreground hover:bg-muted/70 transition-colors',
+            'disabled:opacity-40 disabled:cursor-not-allowed',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+          )}
+        >
+          {loading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Icon className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="text-xs">
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 // ─── Instance card (live sandbox) ──────────────────────────────────────────
 
 export function InstanceCard({
   sandbox,
   onClick,
+  onRestart,
+  onChangelog,
   onBackups,
+  restarting,
 }: {
   sandbox: SandboxInfo;
   onClick: () => void;
+  onRestart?: () => void;
+  onChangelog?: () => void;
   onBackups?: () => void;
+  restarting?: boolean;
 }) {
   const status = getStatusConfig(sandbox.status);
   const meta = sandbox.metadata as Record<string, unknown> | undefined;
   const location = (meta?.location as string) || null;
   const serverType = (meta?.serverType as string) || null;
+
+  // Actions only make sense once the machine has settled — hide everything
+  // while it's still provisioning so users can't poke at a half-built box.
+  const actionable = ['active', 'stopped', 'error'].includes(sandbox.status);
+  const isJustAVPS = sandbox.provider === 'justavps';
+
+  // Backups + in-place updates are currently JustAVPS-only (those endpoints
+  // only implement the justavps provider path). Restart works on every
+  // provider that has a start/stop pair, so it's always shown when actionable.
+  const showRestart = actionable && !!onRestart;
+  const showChangelog = actionable && isJustAVPS && !!onChangelog;
   const showBackups =
-    sandbox.provider === 'justavps' &&
-    ['active', 'stopped'].includes(sandbox.status);
+    isJustAVPS &&
+    ['active', 'stopped'].includes(sandbox.status) &&
+    !!onBackups;
+
+  const hasActions = showRestart || showChangelog || showBackups;
 
   return (
-    <button type="button" onClick={onClick} className={ROW_CLS}>
-      <div className="flex items-start gap-3">
-        <IconBox />
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-semibold text-foreground truncate block">
-            {sandbox.name || sandbox.sandbox_id}
-          </span>
-
-          <div className="flex items-center gap-3 mt-1.5">
-            <StatusPill status={status} animated={sandbox.status === 'provisioning'} />
-            {location && (
-              <span className="text-[11px] text-muted-foreground/50">{location}</span>
-            )}
-            {serverType && (
-              <span className="text-[11px] text-muted-foreground/50 font-mono">{serverType}</span>
-            )}
-            {sandbox.version && (
-              <span className="text-[11px] text-muted-foreground/50 font-mono">v{sandbox.version}</span>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1 flex-shrink-0 mt-1">
-          {showBackups && onBackups && (
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation();
-                onBackups();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.stopPropagation();
-                  onBackups();
-                }
-              }}
-              title="Backups"
-              className="flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-muted/60 transition-colors opacity-0 group-hover:opacity-100"
-            >
-              <Archive className="h-3.5 w-3.5" />
+    <div className={CARD_CLS}>
+      <div className="flex items-start gap-3 p-4">
+        <button
+          type="button"
+          onClick={onClick}
+          className="flex items-start gap-3 flex-1 min-w-0 text-left cursor-pointer"
+        >
+          <IconBox />
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-semibold text-foreground truncate block">
+              {sandbox.name || sandbox.sandbox_id}
             </span>
+
+            <div className="flex items-center gap-3 mt-1.5">
+              <StatusPill status={status} animated={sandbox.status === 'provisioning'} />
+              {location && (
+                <span className="text-[11px] text-muted-foreground/50">{location}</span>
+              )}
+              {serverType && (
+                <span className="text-[11px] text-muted-foreground/50 font-mono">{serverType}</span>
+              )}
+              {sandbox.version && (
+                <span className="text-[11px] text-muted-foreground/50 font-mono">v{sandbox.version}</span>
+              )}
+            </div>
+          </div>
+        </button>
+
+        <div className="flex items-center flex-shrink-0 mt-1">
+          {hasActions && (
+            <div className="flex items-center gap-0.5 mr-1 opacity-70 group-hover:opacity-100 transition-opacity">
+              {showRestart && (
+                <CardAction
+                  icon={RotateCw}
+                  label={sandbox.status === 'stopped' ? 'Start' : 'Restart'}
+                  onClick={onRestart!}
+                  loading={restarting}
+                />
+              )}
+              {showChangelog && (
+                <CardAction
+                  icon={ArrowDownToLine}
+                  label="Changelog & Update"
+                  onClick={onChangelog!}
+                />
+              )}
+              {showBackups && (
+                <CardAction
+                  icon={Archive}
+                  label="Backups"
+                  onClick={onBackups!}
+                />
+              )}
+            </div>
           )}
-          <ChevronAffordance />
+          <button
+            type="button"
+            onClick={onClick}
+            aria-label="Open instance"
+            className="flex items-center justify-center h-8 w-6 rounded-md cursor-pointer"
+          >
+            <ChevronAffordance />
+          </button>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -172,8 +263,12 @@ export function FallbackInstanceCard({
   const status = getStatusConfig(server.instanceId ? 'active' : 'available');
 
   return (
-    <button type="button" onClick={onClick} className={ROW_CLS}>
-      <div className="flex items-start gap-3">
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(CARD_CLS, 'text-left cursor-pointer')}
+    >
+      <div className="flex items-start gap-3 p-4">
         <IconBox />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
