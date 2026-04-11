@@ -16,7 +16,7 @@ export interface Wallpaper {
   thumbnailUrl: string;
 }
 
-export const DEFAULT_WALLPAPER_ID = 'aurora';
+export const DEFAULT_WALLPAPER_ID = 'brandmark';
 
 export const WALLPAPERS: Wallpaper[] = [
   {
