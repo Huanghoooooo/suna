@@ -376,7 +376,7 @@ function LoginContent() {
     const provider = registrationEmail ? getEmailProviderInfo(registrationEmail, isMobileDevice) : null;
     return (
       <div className="fixed inset-0">
-        <WallpaperBackground />
+        <WallpaperBackground wallpaperId="brandmark" />
         <div className="relative z-10 flex flex-col items-center justify-center h-full px-4 gap-6">
           <KortixLogo size={28} />
           <h1 className="text-[36px] font-extralight tracking-tight text-foreground/80 leading-none">
@@ -448,7 +448,7 @@ function LoginContent() {
   if (signupClosed) {
     return (
       <div className="fixed inset-0 overflow-hidden">
-        <WallpaperBackground />
+        <WallpaperBackground wallpaperId="brandmark" />
 
         <motion.div
           className="absolute inset-0 z-10 flex flex-col items-center justify-center"
@@ -507,7 +507,7 @@ function LoginContent() {
 
     return (
       <div className="fixed inset-0">
-        <WallpaperBackground />
+        <WallpaperBackground wallpaperId="brandmark" />
         <div className="relative z-10 flex flex-col items-center justify-center h-full px-4 gap-6">
           {autoSendingCode ? (
             <div className="flex flex-col items-center gap-4">
@@ -615,7 +615,7 @@ function LoginContent() {
       onClick={() => phase === 'lock' && setPhase('form')}
     >
       {/* Wallpaper always visible */}
-      <WallpaperBackground />
+      <WallpaperBackground wallpaperId="brandmark" />
 
       {/* ── Lock phase: clock + hint ── */}
       <AnimatePresence>
@@ -881,7 +881,7 @@ function SelfHostedLoginContent() {
       className="fixed inset-0 overflow-hidden cursor-pointer"
       onClick={() => phase === 'lock' && setPhase('form')}
     >
-      <WallpaperBackground />
+      <WallpaperBackground wallpaperId="brandmark" />
 
       {/* ── Lock phase: clock + hint ── */}
       <AnimatePresence>
