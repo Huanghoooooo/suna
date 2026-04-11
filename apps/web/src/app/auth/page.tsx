@@ -10,6 +10,7 @@ import { signUp, verifyOtp, requestAccess, signInWithPassword, sendOtpCode } fro
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Mail, MailCheck, Clock, ExternalLink, ChevronRight } from 'lucide-react';
 import { KortixLoader } from '@/components/ui/kortix-loader';
+import { ConnectingScreen } from '@/components/dashboard/connecting-screen';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useAuth } from '@/components/AuthProvider';
 import { useAuthMethodTracking } from '@/stores/auth-tracking';
@@ -871,11 +872,7 @@ function SelfHostedLoginContent() {
   }, [phase]);
 
   if (isLoading || statusLoading || (user && installed !== false)) {
-    return (
-      <div className="fixed inset-0 bg-background flex items-center justify-center">
-        <KortixLoader size="medium" />
-      </div>
-    );
+    return <ConnectingScreen forceConnecting minimal title="Signing in" />;
   }
 
   // Lock screen → frosted glass auth form
@@ -972,7 +969,7 @@ function SelfHostedLoginContent() {
 export default function Login() {
   if (isSelfHosted()) {
     return (
-      <Suspense fallback={<div className="fixed inset-0 bg-background flex items-center justify-center"><KortixLoader size="medium" /></div>}>
+      <Suspense fallback={<ConnectingScreen forceConnecting minimal title="Signing in" />}>
         <>
           <AuthBrowserNoiseGuard />
           <SelfHostedLoginContent />
@@ -981,7 +978,7 @@ export default function Login() {
     );
   }
   return (
-    <Suspense fallback={<div className="fixed inset-0 bg-background flex items-center justify-center"><KortixLoader size="medium" /></div>}>
+    <Suspense fallback={<ConnectingScreen forceConnecting minimal title="Signing in" />}>
       <>
         <AuthBrowserNoiseGuard />
         <LoginContent />

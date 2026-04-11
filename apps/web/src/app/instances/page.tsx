@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useQuery } from '@tanstack/react-query';
+import { ConnectingScreen } from '@/components/dashboard/connecting-screen';
 import { KortixLogo } from '@/components/sidebar/kortix-logo';
 import {
   listSandboxes,
@@ -266,14 +267,21 @@ export default function InstancesPage() {
   const fallbackServers = servers.filter((s) => !!s.provider || !!s.url);
 
   function handleInstanceClick(sandbox: SandboxInfo) {
-    // Always go to the instance detail page. It's the gatekeeper:
-    // active → dashboard, provisioning → progress, error → error.
+    // Active sandboxes go directly to the dashboard — skipping the
+    // `/instances/[id]` gatekeeper eliminates a route boundary and a
+    // remount of the connecting screen. For any non-active status the
+    // gatekeeper handles the UI (provisioning, error, stopped).
+    if (sandbox.status === 'active') {
+      router.push(`/instances/${sandbox.sandbox_id}/dashboard`);
+      return;
+    }
     router.push(`/instances/${sandbox.sandbox_id}`);
   }
 
   function handleFallbackServerClick(server: ServerEntry) {
     if (server.instanceId) {
-      router.push(`/instances/${server.instanceId}`);
+      // Fallback servers are assumed to already be warm.
+      router.push(`/instances/${server.instanceId}/dashboard`);
     } else {
       router.push('/dashboard');
     }
@@ -318,12 +326,13 @@ export default function InstancesPage() {
     router.push('/auth');
   };
 
+  // Single canonical loader until auth + initial sandbox list are ready.
+  // Prevents showing the page shell with an inline spinner.
   if (authLoading || !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <ConnectingScreen forceConnecting overrideStage="auth" />;
+  }
+  if (pageLoading && (sandboxes === undefined || sandboxes.length === 0)) {
+    return <ConnectingScreen forceConnecting overrideStage="routing" />;
   }
 
   return (
@@ -379,13 +388,6 @@ export default function InstancesPage() {
               </Button>
             )}
           </div>
-
-          {/* Loading */}
-          {pageLoading && (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          )}
 
           {/* Error */}
           {error && !pageLoading && fallbackServers.length === 0 && (

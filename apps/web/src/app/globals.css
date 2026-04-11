@@ -1649,6 +1649,15 @@
   animation: instance-fade-in 1s ease-out forwards;
 }
 
+/* ─── Connecting screen: sliding progress line ─── */
+@keyframes connect-progress-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+.animate-connect-progress {
+  animation: connect-progress-slide 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
 /* ─── Skeleton shimmer animations ─── */
 @keyframes skeleton-gradient {
   0%   { background-position: 0% 50%; }
