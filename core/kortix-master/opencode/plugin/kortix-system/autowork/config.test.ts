@@ -1,16 +1,16 @@
 import { describe, expect, test } from "bun:test"
-import { completionReached, parseRalphArgs } from "./config"
+import { completionReached, parseAutoworkArgs } from "./config"
 
-describe("parseRalphArgs", () => {
+describe("parseAutoworkArgs", () => {
 	test("parses max iterations and completion promise", () => {
-		const parsed = parseRalphArgs(`--max-iterations 12 --completion-promise "ALL GOOD" fix auth flow`)
+		const parsed = parseAutoworkArgs(`--max-iterations 12 --completion-promise "ALL GOOD" fix auth flow`)
 		expect(parsed.options.maxIterations).toBe(12)
 		expect(parsed.options.completionPromise).toBe("ALL GOOD")
 		expect(parsed.task).toBe("fix auth flow")
 	})
 
 	test("falls back to defaults when flags are missing", () => {
-		const parsed = parseRalphArgs("ship the feature")
+		const parsed = parseAutoworkArgs("ship the feature")
 		expect(parsed.options.maxIterations).toBe(50)
 		expect(parsed.options.completionPromise).toBe("DONE")
 		expect(parsed.task).toBe("ship the feature")

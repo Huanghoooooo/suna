@@ -2,15 +2,15 @@ export const INTERNAL_MARKER = "<!-- KORTIX_INTERNAL -->"
 export const CODE_BLOCK_PATTERN = /```[\s\S]*?```/g
 export const INLINE_CODE_PATTERN = /`[^`]+`/g
 
-export type RalphPhase = "starting" | "executing" | "verifying" | "fixing" | "complete" | "failed" | "cancelled"
+export type AutoworkPhase = "starting" | "executing" | "verifying" | "fixing" | "complete" | "failed" | "cancelled"
 
-export interface RalphOptions {
+export interface AutoworkOptions {
 	maxIterations: number
 	completionPromise: string
 	verificationCondition: string | null
 }
 
-export interface RalphState {
+export interface AutoworkState {
 	active: boolean
 	sessionId: string | null
 	taskPrompt: string | null
@@ -19,7 +19,7 @@ export interface RalphState {
 	iteration: number
 	maxIterations: number
 	completionPromise: string
-	currentPhase: RalphPhase
+	currentPhase: AutoworkPhase
 	startedAt: number
 	completedAt: number | null
 	messageCountAtStart: number
@@ -30,20 +30,20 @@ export interface RalphState {
 	stopped: boolean
 }
 
-export const RALPH_DEFAULTS: RalphOptions = {
+export const AUTOWORK_DEFAULTS: AutoworkOptions = {
 	maxIterations: 50,
 	completionPromise: "DONE",
 	verificationCondition: null,
 }
 
-export const RALPH_THRESHOLDS = {
+export const AUTOWORK_THRESHOLDS = {
 	baseCooldownMs: 3_000,
 	maxConsecutiveFailures: 5,
 	failureResetWindowMs: 5 * 60_000,
 	abortGracePeriodMs: 3_000,
 } as const
 
-export function createInitialRalphState(): RalphState {
+export function createInitialAutoworkState(): AutoworkState {
 	return {
 		active: false,
 		sessionId: null,
@@ -51,8 +51,8 @@ export function createInitialRalphState(): RalphState {
 		verificationCondition: null,
 		verificationAttempted: false,
 		iteration: 0,
-		maxIterations: RALPH_DEFAULTS.maxIterations,
-		completionPromise: RALPH_DEFAULTS.completionPromise,
+		maxIterations: AUTOWORK_DEFAULTS.maxIterations,
+		completionPromise: AUTOWORK_DEFAULTS.completionPromise,
 		currentPhase: "cancelled",
 		startedAt: 0,
 		completedAt: null,
@@ -70,9 +70,9 @@ function tokenizeArgs(raw: string): string[] {
 	return tokens.map((token) => token.replace(/^['"]|['"]$/g, ""))
 }
 
-export function parseRalphArgs(raw: string): { options: RalphOptions; task: string } {
+export function parseAutoworkArgs(raw: string): { options: AutoworkOptions; task: string } {
 	const tokens = tokenizeArgs(raw.trim())
-	const options: RalphOptions = { ...RALPH_DEFAULTS }
+	const options: AutoworkOptions = { ...AUTOWORK_DEFAULTS }
 	const taskTokens: string[] = []
 
 	for (let i = 0; i < tokens.length; i++) {

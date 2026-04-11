@@ -10,23 +10,23 @@ import {
 	CODE_BLOCK_PATTERN,
 	INLINE_CODE_PATTERN,
 	INTERNAL_MARKER,
-	RALPH_THRESHOLDS,
-	parseRalphArgs,
-	createInitialRalphState,
+	AUTOWORK_THRESHOLDS,
+	parseAutoworkArgs,
+	createInitialAutoworkState,
 } from "./config"
 import {
-	advanceRalph,
+	advanceAutowork,
 	appendTaskContext,
-	loadAllRalphStates,
-	loadRalphState,
-	persistRalphState,
-	recordRalphAbort,
-	recordRalphFailure,
-	removeRalphState,
-	startRalph,
-	stopRalph,
+	loadAllAutoworkStates,
+	loadAutoworkState,
+	persistAutoworkState,
+	recordAutoworkAbort,
+	recordAutoworkFailure,
+	removeAutoworkState,
+	startAutowork,
+	stopAutowork,
 } from "./state"
-import { checkRalphSafetyGates, evaluateRalph } from "./engine"
+import { checkAutoworkSafetyGates, evaluateAutowork } from "./engine"
 
 export const autoworkActiveSessions = new Set<string>()
 
@@ -142,12 +142,12 @@ class SessionStateMap<T> {
 	}
 }
 
-const RalphPlugin: Plugin = async ({ client }) => {
-	const states = new SessionStateMap((_sid) => createInitialRalphState())
+const AutoworkPlugin: Plugin = async ({ client }) => {
+	const states = new SessionStateMap((_sid) => createInitialAutoworkState())
 	const pendingCommand = new Map<string, { command: string; args: string }>()
 
 	try {
-		const persisted = loadAllRalphStates()
+		const persisted = loadAllAutoworkStates()
 		for (const [sid, state] of persisted) {
 			if (state.active && !state.stopped) {
 				states.set(sid, state)
@@ -198,7 +198,7 @@ const RalphPlugin: Plugin = async ({ client }) => {
 				if (cancelMatch) {
 					pendingCommand.delete(sessionId)
 					if (state.active) {
-						state = stopRalph(state, "cancelled")
+						state = stopAutowork(state, "cancelled")
 						states.set(sessionId, state)
 						autoworkActiveSessions.delete(sessionId)
 						log("info", `[autowork][${sid(sessionId)}] Cancelled`)
@@ -206,10 +206,10 @@ const RalphPlugin: Plugin = async ({ client }) => {
 					return
 				}
 
-				const ralphMatch = pending?.command === "autowork"
+				const autoworkMatch = pending?.command === "autowork"
 					|| /\/autowork\b/.test(clean)
 
-				if (ralphMatch) {
+				if (autoworkMatch) {
 					const pendingArgs = pending?.args?.trim()
 					const rawArgs = pendingArgs
 						|| (() => {
@@ -217,7 +217,7 @@ const RalphPlugin: Plugin = async ({ client }) => {
 							if (slashForm && slashForm !== clean) return slashForm
 							return extractRenderedCommandArgs(clean)
 						})()
-					const { task, options } = parseRalphArgs(rawArgs)
+					const { task, options } = parseAutoworkArgs(rawArgs)
 					pendingCommand.delete(sessionId)
 
 					if (state.active) {
@@ -232,7 +232,7 @@ const RalphPlugin: Plugin = async ({ client }) => {
 						} catch {
 							// ignore
 						}
-						state = startRalph(task, sessionId, msgCount, options.maxIterations, options.completionPromise, options.verificationCondition)
+						state = startAutowork(task, sessionId, msgCount, options.maxIterations, options.completionPromise, options.verificationCondition)
 						states.set(sessionId, state)
 						autoworkActiveSessions.add(sessionId)
 						log("info", `[autowork][${sid(sessionId)}] Activated: \"${task.slice(0, 80)}\"`)
@@ -257,7 +257,7 @@ const RalphPlugin: Plugin = async ({ client }) => {
 					if (sessionId) {
 						states.delete(sessionId)
 						autoworkActiveSessions.delete(sessionId)
-						removeRalphState(sessionId)
+						removeAutoworkState(sessionId)
 					}
 					return
 				}
@@ -267,7 +267,7 @@ const RalphPlugin: Plugin = async ({ client }) => {
 					if (!sessionId || !states.has(sessionId)) return
 					const state = states.get(sessionId)
 					if (!state.active) return
-					states.set(sessionId, recordRalphAbort(state))
+					states.set(sessionId, recordAutoworkAbort(state))
 					log("info", `[autowork][${sid(sessionId)}] Abort recorded`)
 					return
 				}
@@ -278,7 +278,7 @@ const RalphPlugin: Plugin = async ({ client }) => {
 
 				let state = states.get(sessionId)
 				if (!state.active) {
-					const persisted = loadRalphState(sessionId)
+					const persisted = loadAutoworkState(sessionId)
 					if (persisted?.active && !persisted.stopped) {
 						state = persisted
 						states.set(sessionId, state)
@@ -288,17 +288,17 @@ const RalphPlugin: Plugin = async ({ client }) => {
 				}
 				if (!state.active) return
 
-				const gateResult = checkRalphSafetyGates(
+				const gateResult = checkAutoworkSafetyGates(
 					state,
-					RALPH_THRESHOLDS.abortGracePeriodMs,
-					RALPH_THRESHOLDS.maxConsecutiveFailures,
-					RALPH_THRESHOLDS.failureResetWindowMs,
-					RALPH_THRESHOLDS.baseCooldownMs,
+					AUTOWORK_THRESHOLDS.abortGracePeriodMs,
+					AUTOWORK_THRESHOLDS.maxConsecutiveFailures,
+					AUTOWORK_THRESHOLDS.failureResetWindowMs,
+					AUTOWORK_THRESHOLDS.baseCooldownMs,
 				)
 
 				if (gateResult === "__reset_failures__") {
 					state = { ...state, consecutiveFailures: 0 }
-					persistRalphState(state)
+					persistAutoworkState(state)
 					states.set(sessionId, state)
 				} else if (gateResult) {
 					log("info", `[autowork][${sid(sessionId)}] Gate: ${gateResult}`)
@@ -319,25 +319,25 @@ const RalphPlugin: Plugin = async ({ client }) => {
 				}
 
 				const assistantTexts = extractAssistantTexts(messages, state.messageCountAtStart)
-				const decision = evaluateRalph(state, assistantTexts, todos)
+				const decision = evaluateAutowork(state, assistantTexts, todos)
 				log("info", `[autowork][${sid(sessionId)}] ${decision.action} — ${decision.reason}`)
 
 				if (decision.action === "stop") {
-					state = stopRalph(state, decision.phase === "failed" ? "failed" : decision.phase === "cancelled" ? "cancelled" : "complete")
+					state = stopAutowork(state, decision.phase === "failed" ? "failed" : decision.phase === "cancelled" ? "cancelled" : "complete")
 					states.set(sessionId, state)
 					autoworkActiveSessions.delete(sessionId)
 					return
 				}
 
 				if (decision.prompt) {
-					state = advanceRalph(state, decision.phase)
+					state = advanceAutowork(state, decision.phase)
 					states.set(sessionId, state)
 					await client.session.promptAsync({
 						path: { id: sessionId },
 						body: { parts: [{ type: "text", text: wrapSystemPrompt(decision.prompt, "autowork-continue") }] },
 					}).catch((error: unknown) => {
 						log("warn", `[autowork][${sid(sessionId)}] promptAsync failed: ${error}`)
-						state = recordRalphFailure(state)
+						state = recordAutoworkFailure(state)
 						states.set(sessionId, state)
 					})
 				}
@@ -348,4 +348,4 @@ const RalphPlugin: Plugin = async ({ client }) => {
 	}
 }
 
-export default RalphPlugin
+export default AutoworkPlugin

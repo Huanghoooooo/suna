@@ -20,7 +20,6 @@ import { tool, type ToolContext } from "@opencode-ai/plugin"
 import type { ProjectManager } from "./projects"
 import {
 	addTaskEvidence,
-	approveTask,
 	blockTask,
 	cancelTask,
 	createTask,
@@ -162,8 +161,8 @@ export function agentTaskTools(db: Database, mgr: ProjectManager, client: any) {
 		const task = getTaskByIdForProject(db, args.id, pid)
 		if (!task) return `Task not found: ${args.id}`
 
-		switch (args.action) {
-			case "start": {
+			switch (args.action) {
+				case "start": {
 				if (task.status === "in_progress") return "Task is already running."
 				if (isTerminal(task.status)) return `Cannot start a ${task.status} task.`
 				if (ctx.sessionID) mgr.ensureManagerSession(ctx.sessionID, pid)
@@ -180,13 +179,11 @@ export function agentTaskTools(db: Database, mgr: ProjectManager, client: any) {
 				} catch (err) {
 					return `Task **${task.id}** failed to start: ${err}`
 				}
-			}
+				}
 
-			case "approve": {
-				if (task.status !== "input_needed" && task.status !== "awaiting_review") return `Can only approve review/input tasks (current: ${task.status}).`
-				approveTask(db, task.id)
-				return `Task **${task.id}** approved and completed.`
-			}
+				case "approve": {
+					return `Human review required. Task **${task.id}** is in [1mawaiting_review[0m and must be completed through the human review UI/HTTP approval path, not by the orchestrator.`
+				}
 
 			case "cancel": {
 				const cancelled = await cancelTask(db, client as OpenCodeClientLike, task.id)
@@ -304,14 +301,14 @@ export function agentTaskTools(db: Database, mgr: ProjectManager, client: any) {
 		}),
 
 		// ── agent_task_update: start / approve / cancel / message ─
-		agent_task_update: tool({
-			description: [
-				"Update a task. Actions:",
-				'  "start" — spawn a worker for a todo task',
-				'  "approve" — approve an awaiting_review/input_needed task → completed',
-				'  "cancel" — cancel task + abort worker session if running',
-				'  "message" — send a follow-up message to the running worker',
-			].join("\n"),
+			agent_task_update: tool({
+				description: [
+					"Update a task. Actions:",
+					'  "start" — spawn a worker for a todo task',
+					'  "approve" — reserved for human review flow (tool will refuse)',
+					'  "cancel" — cancel task + abort worker session if running',
+					'  "message" — send a follow-up message to the running worker',
+				].join("\n"),
 			args: {
 				id: tool.schema.string().describe("Task ID"),
 				action: tool.schema.string().describe('"start", "approve", "cancel", or "message"'),
@@ -322,8 +319,8 @@ export function agentTaskTools(db: Database, mgr: ProjectManager, client: any) {
 			},
 		}),
 
-		task_update: tool({
-			description: "Canonical task lifecycle tool. Actions: start, approve, cancel, or message.",
+			task_update: tool({
+				description: "Canonical task lifecycle tool. Actions: start, cancel, or message. Human approval remains outside the orchestrator tool flow.",
 			args: {
 				id: tool.schema.string().describe("Task ID"),
 				action: tool.schema.string().describe('"start", "approve", "cancel", or "message"'),

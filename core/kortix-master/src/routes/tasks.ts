@@ -4,11 +4,12 @@
  * Statuses: todo, in_progress, input_needed, awaiting_review, completed, cancelled
  *
  * State machine:
- *   todo → [POST /start] → in_progress → input_needed/awaiting_review → [POST /approve] → completed
+ *   todo → [POST /start] → in_progress → input_needed/awaiting_review
+ *   awaiting_review → [POST /approve, human review only] → completed
  *   cancelled is always reachable; can reopen to todo
  *
  * POST /:id/start creates a real worker session via OpenCode and binds it to the task.
- * POST /:id/approve moves input_needed → completed (human decision).
+ * POST /:id/approve moves awaiting_review → completed (human decision only).
  */
 
 import { Hono } from 'hono'
@@ -186,7 +187,7 @@ tasksRouter.post('/:id/start', async (c) => {
 })
 
 // ---------------------------------------------------------------------------
-// POST /kortix/tasks/:id/approve  — approve a task in review → completed
+// POST /kortix/tasks/:id/approve  — HUMAN review approval → completed
 // ---------------------------------------------------------------------------
 tasksRouter.post('/:id/approve', async (c) => {
   try {

@@ -5,7 +5,7 @@
  * triggers, auth, PTY, worktree, and /btw.
  *
  * Native OpenCode task is disabled, but native todowrite/todoread can be used
- * alongside Kortix project tasks to support Ralph-style persistent worker loops.
+ * alongside Kortix project tasks to support Autowork-style persistent worker loops.
  * Kortix also provides its own project/task orchestration surface plus worker lifecycle tools.
  *
  * opencode.jsonc: "./plugin/kortix-system/kortix-system.ts"

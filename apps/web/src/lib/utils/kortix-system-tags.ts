@@ -81,8 +81,15 @@ export function extractKortixSystemMessages(text: string): KortixSystemMessage[]
 		const source = match[2]
 		const body = match[3].trim()
 
-		// Skip types that are already rendered by dedicated UI (session-report, pty-*, etc.)
-		if (type === "session-report" || type.startsWith("pty-")) continue
+		// Skip types that are already rendered elsewhere or are purely hidden context.
+		if (
+			type === "session-report" ||
+			type.startsWith("pty-") ||
+			type === "project-status" ||
+			type === "project-context" ||
+			type === "session-context" ||
+			type === "memory-context"
+		) continue
 
 		const { label, detail } = describeSystemMessage(type, source, body)
 		results.push({ type, source, label, detail })

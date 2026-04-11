@@ -85,12 +85,12 @@ export const STATUS_META: Record<KortixTaskStatus, StatusMeta> = {
 };
 
 /**
- * Pipeline: todo → [START] → in_progress → awaiting_review/input_needed → [APPROVE] → completed
+ * Pipeline: todo → [START] → in_progress → awaiting_review/input_needed; only human review approves awaiting_review → completed
  */
 export const VALID_TRANSITIONS: Record<KortixTaskStatus, KortixTaskStatus[]> = {
   todo: ['cancelled'],                                // START → in_progress (separate action)
   in_progress: ['input_needed', 'awaiting_review', 'todo', 'cancelled'],
-  input_needed: ['todo', 'cancelled'],                // APPROVE → completed (separate action)
+  input_needed: ['todo', 'cancelled'],                // blocked / waiting for human input, not approval-to-complete
   awaiting_review: ['todo', 'cancelled'],
   completed: [],                                         // terminal
   cancelled: ['todo'],                                // can be reopened

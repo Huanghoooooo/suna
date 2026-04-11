@@ -68,7 +68,7 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
   const projectFilesStore = projectFilesStoreRef.current;
 
   // ── Tabs ────────────────────────────────────────────────────
-  const [tab, setTabState] = useState<ProjectTab>('thread');
+  const [tab, setTabState] = useState<ProjectTab>('overview');
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const isProjectRouteActive = useIsRouteActive(`/projects/${encodeURIComponent(pid)}`);
   const shouldLoadProjectSessions = isProjectRouteActive && (tab === 'overview' || tab === 'sessions');
@@ -237,11 +237,11 @@ export default function ProjectPage({ params }: { params?: Promise<{ id: string 
 
       {/* ── Pre-mounted tab bodies ─────────────────────────── */}
       <div className="flex-1 min-h-0 relative">
-        <TabPanel active={tab === 'thread'}>
+        <TabPanel active={tab === 'orchestrator'}>
           {project.manager_session_id ? (
             <SessionChat sessionId={project.manager_session_id} hideHeader />
           ) : (
-            <EmptyState text="Bootstrapping project thread" sub="Kortix is preparing the canonical project orchestrator thread." />
+            <EmptyState text="Bootstrapping project orchestrator" sub="Kortix is preparing the canonical project orchestrator session." />
           )}
         </TabPanel>
 

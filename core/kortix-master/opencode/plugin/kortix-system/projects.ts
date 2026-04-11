@@ -20,6 +20,97 @@ export interface ProjectRow {
 	created_at: string; opencode_id: string | null; manager_session_id?: string | null
 }
 
+const TASK_SUMMARY_START = "<!-- KORTIX:TASK-SUMMARY:START -->"
+const TASK_SUMMARY_END = "<!-- KORTIX:TASK-SUMMARY:END -->"
+
+function projectContextPath(projectPath: string): string {
+	return path.join(projectPath, ".kortix", "CONTEXT.md")
+}
+
+function buildTaskSummary(db: Database, projectId: string): string {
+	const tasks = db.prepare(`
+		SELECT title, status, verification_summary, result, blocking_question
+		FROM tasks WHERE project_id=$pid
+		ORDER BY CASE status
+			WHEN 'in_progress' THEN 0
+			WHEN 'input_needed' THEN 1
+			WHEN 'awaiting_review' THEN 2
+			WHEN 'todo' THEN 3
+			WHEN 'completed' THEN 4
+			WHEN 'cancelled' THEN 5
+			ELSE 99 END, updated_at DESC
+		LIMIT 40
+	`).all({ $pid: projectId }) as Array<{
+		title: string
+		status: string
+		verification_summary: string | null
+		result: string | null
+		blocking_question: string | null
+	}>
+
+	const byStatus = (s: string) => tasks.filter((t) => t.status === s)
+	const summarize = (text: string | null | undefined, max = 140) => {
+		if (!text) return ""
+		const clean = text.replace(/\s+/g, " ").trim()
+		return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean
+	}
+
+	const lines = [
+		"## Task Snapshot",
+		"",
+		`- todo: ${byStatus("todo").length}`,
+		`- in_progress: ${byStatus("in_progress").length}`,
+		`- input_needed: ${byStatus("input_needed").length}`,
+		`- awaiting_review: ${byStatus("awaiting_review").length}`,
+		`- completed: ${byStatus("completed").length}`,
+		`- cancelled: ${byStatus("cancelled").length}`,
+	]
+
+	const active = tasks.filter((t) => ["todo", "in_progress", "input_needed", "awaiting_review"].includes(t.status))
+	if (active.length) {
+		lines.push("", "### Active / Review")
+		for (const task of active) {
+			const extra = task.status === "input_needed"
+				? summarize(task.blocking_question)
+				: task.status === "awaiting_review"
+					? summarize(task.verification_summary || task.result)
+					: ""
+			lines.push(`- [${task.status}] ${task.title}${extra ? ` — ${extra}` : ""}`)
+		}
+	}
+
+	const completed = byStatus("completed").slice(0, 8)
+	if (completed.length) {
+		lines.push("", "### Recent Completed")
+		for (const task of completed) {
+			const extra = summarize(task.verification_summary || task.result)
+			lines.push(`- ${task.title}${extra ? ` — ${extra}` : ""}`)
+		}
+	}
+
+	return [TASK_SUMMARY_START, ...lines, TASK_SUMMARY_END].join("\n")
+}
+
+async function syncProjectContextFile(db: Database, project: ProjectRow): Promise<string> {
+	const ctxPath = projectContextPath(project.path)
+	await fs.mkdir(path.dirname(ctxPath), { recursive: true })
+	let current = ""
+	try { current = await fs.readFile(ctxPath, "utf8") } catch {}
+	if (!current.trim()) current = `# ${project.name}\n\n${project.description || ""}\n`
+
+	const block = buildTaskSummary(db, project.id)
+	let next: string
+	const start = current.indexOf(TASK_SUMMARY_START)
+	const end = current.indexOf(TASK_SUMMARY_END)
+	if (start !== -1 && end !== -1 && end > start) {
+		next = `${current.slice(0, start).trimEnd()}\n\n${block}\n${current.slice(end + TASK_SUMMARY_END.length).trimStart()}`
+	} else {
+		next = `${current.trimEnd()}\n\n${block}\n`
+	}
+	await fs.writeFile(ctxPath, next, "utf8")
+	return ctxPath
+}
+
 // ── Database ─────────────────────────────────────────────────────────────────
 
 export function initProjectsDb(dbPath: string): Database {
@@ -197,6 +288,28 @@ export function projectTools(mgr: ProjectManager, db: Database) {
 			},
 		}),
 
+		project_context_get: tool({
+			description: "Get the current project's CONTEXT.md path and confirm whether it exists.",
+			args: { project: tool.schema.string().describe("Project name or path") },
+			async execute(args: { project: string }): Promise<string> {
+				const p = mgr.getProject(args.project)
+				if (!p) return `Project not found: "${args.project}"`
+				const ctx = projectContextPath(p.path)
+				return `Project CONTEXT: \`${ctx}\` ${existsSync(ctx) ? "✓" : "(missing)"}`
+			},
+		}),
+
+		project_context_sync: tool({
+			description: "Refresh the generated task snapshot section inside the project's CONTEXT.md while preserving manual content.",
+			args: { project: tool.schema.string().describe("Project name or path") },
+			async execute(args: { project: string }): Promise<string> {
+				const p = mgr.getProject(args.project)
+				if (!p) return `Project not found: "${args.project}"`
+				const ctx = await syncProjectContextFile(db, p)
+				return `Synced generated task snapshot in \`${ctx}\`.`
+			},
+		}),
+
 		project_update: tool({
 			description: "Update project name/description.",
 			args: {
@@ -248,6 +361,7 @@ export function projectGateHook(mgr: ProjectManager) {
 	// Everything else — including web search, read, skill — is blocked.
 	const UNGATED = new Set([
 		"project_create", "project_list", "project_get", "project_update",
+		"project_context_get", "project_context_sync",
 		"project_delete", "project_select",
 		"question",
 		"show",
@@ -287,7 +401,6 @@ export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId:
 			return false
 		})()
 		try {
-			// Get session ID from messages (more reliable than event-based tracking)
 			let sid = getCurrentSessionId()
 			if (!sid) {
 				for (const m of output.messages) {
@@ -295,8 +408,7 @@ export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId:
 					if (msgSid) { sid = msgSid; break }
 				}
 			}
-			console.log(`[project-gate] Transform called. sid=${sid}, messages=${output.messages?.length || 0}`)
-			if (!sid) { console.log("[project-gate] No session ID found, skipping"); return }
+			if (!sid) return
 			let statusXml: string
 			try {
 				const project = mgr.getSessionProject(sid)
@@ -312,8 +424,10 @@ export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId:
 							`1. This session is the canonical project manager / CEO / memory brain for the project.`,
 							`2. Use task_create/task_update/task_list/task_get/task_status as the canonical orchestration surface.`,
 							`3. All task events should flow back here for review, planning, reprioritization, and next-step decisions.`,
-							`4. Keep project documentation and .kortix/CONTEXT.md updated as durable memory.`,
-							`5. Prefer orchestrating and documenting over deep implementation unless direct work is clearly best.`,
+							`4. Worker delivery goes to awaiting_review for HUMAN review; the orchestrator should not complete tasks by approval.`,
+							`5. Keep project documentation and .kortix/CONTEXT.md updated as durable memory; keep it minimal, high-signal, and reference-heavy.`,
+							`6. Use project_context_sync after major task-state changes to refresh the generated task snapshot section.`,
+							`7. Prefer orchestrating and documenting over deep implementation unless direct work is clearly best.`,
 							`</system-reminder>`,
 						].join("\n")
 					} else {
@@ -322,17 +436,12 @@ export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId:
 							`<system-reminder>`,
 							`Regular project session workflow:`,
 							`1. This is NOT the canonical project-manager session. Use it for direct work or focused ad hoc work.`,
-							`2. If the work should become ongoing project orchestration, use the project manager thread.`,
+							`2. If the work should become ongoing project orchestration, use the project orchestrator session.`,
 							`3. Use canonical task_* tools if you need delegated execution.`,
 							`</system-reminder>`,
 						].join("\n")
 					}
 				} else {
-					// Count user messages to detect first message
-					const userMsgCount = output.messages.filter((m: any) => m?.info?.role === "user").length
-					const isFirst = userMsgCount <= 1
-
-					// Get project list for context
 					let projectList = ""
 					try {
 						const projects = mgr.listProjects()
@@ -340,8 +449,7 @@ export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId:
 							projectList = `\nExisting projects: ${projects.map(p => `"${p.name}" (${p.path})`).join(", ")}`
 						}
 					} catch {}
-
-					const gate = [
+					statusXml = [
 						`<system-reminder>`,
 						`STOP. DO NOT CALL ANY TOOL EXCEPT project_list, project_create, project_select, OR question.`,
 						``,
@@ -355,7 +463,6 @@ export function projectStatusTransform(mgr: ProjectManager, getCurrentSessionId:
 						`Step 3: ONLY THEN address the user's request.`,
 						`</system-reminder>`,
 					].join("\n")
-					statusXml = gate
 				}
 			} catch { return }
 			const messages = output.messages

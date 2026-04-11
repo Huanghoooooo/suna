@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { MessageSquare, Plus } from 'lucide-react';
 
-export type ProjectTab = 'thread' | 'overview' | 'tasks' | 'files' | 'sessions';
+export type ProjectTab = 'overview' | 'orchestrator' | 'tasks' | 'files' | 'sessions';
 
 export interface ProjectHeaderProps {
   project: any;
@@ -19,8 +19,8 @@ export interface ProjectHeaderProps {
 }
 
 const TAB_DEFS: Array<{ id: ProjectTab; label: string }> = [
-  { id: 'thread', label: 'Thread' },
   { id: 'overview', label: 'Overview' },
+  { id: 'orchestrator', label: 'Orchestrator' },
   { id: 'tasks', label: 'Tasks' },
   { id: 'files', label: 'Files' },
   { id: 'sessions', label: 'Sessions' },

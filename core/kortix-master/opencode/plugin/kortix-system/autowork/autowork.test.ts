@@ -13,7 +13,7 @@ afterEach(() => {
 })
 
 function makeStorage(): string {
-	const root = mkdtempSync(path.join(tmpdir(), "kortix-ralph-test-"))
+	const root = mkdtempSync(path.join(tmpdir(), "kortix-autowork-test-"))
 	tempRoots.push(root)
 	const storageBase = path.join(root, ".local", "share", "opencode")
 	mkdirSync(storageBase, { recursive: true })
@@ -24,7 +24,7 @@ function assistant(text: string) {
 	return { info: { role: "assistant" }, parts: [{ type: "text", text }] }
 }
 
-describe("Ralph plugin integration", () => {
+describe("Autowork plugin integration", () => {
 	test("continues on idle and stops after completion promise with clear todos", async () => {
 		process.env.OPENCODE_STORAGE_BASE = makeStorage()
 
@@ -32,8 +32,8 @@ describe("Ralph plugin integration", () => {
 		const messages = new Map<string, any[]>()
 		const todos = new Map<string, any[]>()
 
-		const pluginMod = await import(`./ralph.ts?ralph-test=${Date.now()}`)
-		const stateMod = await import(`./state.ts?ralph-test=${Date.now()}`)
+		const pluginMod = await import(`./autowork.ts?autowork-test=${Date.now()}`)
+		const stateMod = await import(`./state.ts?autowork-test=${Date.now()}`)
 		const pluginFactory = pluginMod.default
 
 		const client = {
@@ -48,29 +48,29 @@ describe("Ralph plugin integration", () => {
 		} as any
 
 		const plugin = await pluginFactory({ client })
-		const sessionId = "ses_ralph_1"
+		const sessionId = "ses_autowork_1"
 
 		messages.set(sessionId, [])
 		todos.set(sessionId, [{ status: "in_progress", content: "fix bug", priority: "high" }])
 
 		await plugin["chat.message"](
 			{ sessionID: sessionId },
-			{ parts: [{ type: "text", text: `/ralph --completion-promise "DONE" fix the bug` }] },
+			{ parts: [{ type: "text", text: `/autowork --completion-promise "DONE" fix the bug` }] },
 		)
 
 		messages.set(sessionId, [assistant("Investigating root cause")])
 		await plugin.event({ event: { type: "session.idle", properties: { sessionID: sessionId } } })
 
 		expect(prompts.length).toBe(1)
-		expect(prompts[0]?.text).toContain("[RALPH - ITERATION")
+		expect(prompts[0]?.text).toContain("[AUTOWORK - ITERATION")
 
 		messages.set(sessionId, [assistant("Verified implementation\nDONE")])
 		todos.set(sessionId, [{ status: "completed", content: "fix bug", priority: "high" }])
 		await new Promise((resolve) => setTimeout(resolve, 3100))
 		await plugin.event({ event: { type: "session.idle", properties: { sessionID: sessionId } } })
 
-		expect(pluginMod.ralphActiveSessions.has(sessionId)).toBe(false)
-		const persisted = stateMod.loadRalphState(sessionId)
+		expect(pluginMod.autoworkActiveSessions.has(sessionId)).toBe(false)
+		const persisted = stateMod.loadAutoworkState(sessionId)
 		expect(persisted?.active).toBe(false)
 		expect(persisted?.currentPhase).toBe("complete")
 	})
@@ -82,7 +82,7 @@ describe("Ralph plugin integration", () => {
 		const messages = new Map<string, any[]>()
 		const todos = new Map<string, any[]>()
 
-		const pluginMod = await import(`./ralph.ts?ralph-empty-args=${Date.now()}`)
+		const pluginMod = await import(`./autowork.ts?autowork-empty-args=${Date.now()}`)
 		const pluginFactory = pluginMod.default
 
 		const client = {
@@ -97,14 +97,14 @@ describe("Ralph plugin integration", () => {
 		} as any
 
 		const plugin = await pluginFactory({ client })
-		const sessionId = "ses_ralph_empty_args"
+		const sessionId = "ses_autowork_empty_args"
 		messages.set(sessionId, [])
 		todos.set(sessionId, [])
 
-		await plugin["command.execute.before"]({ sessionID: sessionId, command: "ralph", arguments: "" })
+		await plugin["command.execute.before"]({ sessionID: sessionId, command: "autowork", arguments: "" })
 		await plugin["chat.message"](
 			{ sessionID: sessionId },
-			{ parts: [{ type: "text", text: "/ralph --completion-promise RALPH_DONE --max-iterations 4 build feature" }] },
+			{ parts: [{ type: "text", text: "/autowork --completion-promise RALPH_DONE --max-iterations 4 build feature" }] },
 		)
 
 		messages.set(sessionId, [assistant("Still working")])
@@ -122,7 +122,7 @@ describe("Ralph plugin integration", () => {
 		const messages = new Map<string, any[]>()
 		const todos = new Map<string, any[]>()
 
-		const pluginMod = await import(`./ralph.ts?ralph-rendered-args=${Date.now()}`)
+		const pluginMod = await import(`./autowork.ts?autowork-rendered-args=${Date.now()}`)
 		const pluginFactory = pluginMod.default
 
 		const client = {
@@ -137,14 +137,14 @@ describe("Ralph plugin integration", () => {
 		} as any
 
 		const plugin = await pluginFactory({ client })
-		const sessionId = "ses_ralph_rendered_args"
+		const sessionId = "ses_autowork_rendered_args"
 		messages.set(sessionId, [])
 		todos.set(sessionId, [])
 
-		await plugin["command.execute.before"]({ sessionID: sessionId, command: "ralph", arguments: "" })
+		await plugin["command.execute.before"]({ sessionID: sessionId, command: "autowork", arguments: "" })
 		await plugin["chat.message"](
 			{ sessionID: sessionId },
-			{ parts: [{ type: "text", text: '# Ralph\n\nRules...\n\n"build feature --completion-promise RALPH_DONE --max-iterations 4"' }] },
+			{ parts: [{ type: "text", text: '# Autowork\n\nRules...\n\n"build feature --completion-promise RALPH_DONE --max-iterations 4"' }] },
 		)
 
 		messages.set(sessionId, [assistant("Still working")])

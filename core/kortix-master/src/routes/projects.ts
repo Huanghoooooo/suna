@@ -166,6 +166,34 @@ projectsRouter.get('/:id/sessions', async (c) => {
   return c.json(links.map(l => ({ id: l.session_id })))
 })
 
+// GET /by-session/:sessionId — resolve the project linked to a session
+projectsRouter.get('/by-session/:sessionId', async (c) => {
+  const db = getDb()
+  const sessionId = decodeURIComponent(c.req.param('sessionId'))
+  const p = db.prepare(
+    'SELECT p.* FROM session_projects sp JOIN projects p ON sp.project_id = p.id WHERE sp.session_id=$sid LIMIT 1'
+  ).get({ $sid: sessionId }) as ProjectRow | null
+  if (!p) return c.json({ error: 'No project linked' }, 404)
+  return c.json(p)
+})
+
+// DELETE /by-session/:sessionId — unlink a session from any project
+projectsRouter.delete('/by-session/:sessionId', async (c) => {
+  try {
+    const db = getDb()
+    const sessionId = decodeURIComponent(c.req.param('sessionId'))
+    db.exec(`CREATE TABLE IF NOT EXISTS session_projects (
+      session_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      set_at TEXT NOT NULL
+    )`)
+    db.prepare('DELETE FROM session_projects WHERE session_id=$sid').run({ $sid: sessionId })
+    return c.json({ ok: true, session_id: sessionId })
+  } catch (e) {
+    return c.json({ error: String(e) }, 500)
+  }
+})
+
 // DELETE /:id — remove project from registry (does NOT delete files on disk)
 projectsRouter.delete('/:id', async (c) => {
   const db = getDb()
@@ -215,6 +243,39 @@ projectsRouter.post('/:id/manager-session', async (c) => {
 
     await ensureProjectManagerSession(db, getOpenCodeClient(), p.id)
     return c.json(db.prepare('SELECT * FROM projects WHERE id=$id').get({ $id: p.id }))
+  } catch (e) {
+    return c.json({ error: String(e) }, 500)
+  }
+})
+
+// POST /:id/link-session — bind any existing session to this project
+projectsRouter.post('/:id/link-session', async (c) => {
+  try {
+    const db = getDb()
+    const id = decodeURIComponent(c.req.param('id'))
+    const p = (
+      db.prepare('SELECT * FROM projects WHERE id=$v').get({ $v: id })
+      || db.prepare('SELECT * FROM projects WHERE opencode_id=$v').get({ $v: id })
+      || db.prepare('SELECT * FROM projects WHERE LOWER(name)=LOWER($v)').get({ $v: id })
+    ) as ProjectRow | null
+    if (!p) return c.json({ error: 'Project not found' }, 404)
+
+    const body = await c.req.json<{ session_id?: string }>()
+    const sessionId = body.session_id?.trim()
+    if (!sessionId) return c.json({ error: 'session_id required' }, 400)
+
+    db.exec(`CREATE TABLE IF NOT EXISTS session_projects (
+      session_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      set_at TEXT NOT NULL
+    )`)
+    db.prepare('INSERT OR REPLACE INTO session_projects (session_id, project_id, set_at) VALUES ($sid, $pid, $now)').run({
+      $sid: sessionId,
+      $pid: p.id,
+      $now: new Date().toISOString(),
+    })
+
+    return c.json({ ok: true, project_id: p.id, session_id: sessionId })
   } catch (e) {
     return c.json({ error: String(e) }, 500)
   }

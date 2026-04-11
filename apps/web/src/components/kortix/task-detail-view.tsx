@@ -396,14 +396,14 @@ export function TaskDetailView({
                       Start task
                     </Button>
                   )}
-                  {(task.status === 'input_needed' || task.status === 'awaiting_review') && (
+                  {task.status === 'awaiting_review' && (
                     <Button
                       size="sm"
                       className="h-8 px-4 gap-1.5"
                       onClick={() => approveTask.mutate(task.id)}
                     >
                       <CheckCircle2 className="h-3 w-3" />
-                      Approve
+                      Human approve
                     </Button>
                   )}
                 </div>

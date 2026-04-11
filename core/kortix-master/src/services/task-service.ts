@@ -109,7 +109,7 @@ export interface CreateTaskInput {
 
 export const VALID_TASK_STATUSES: TaskStatus[] = ['todo', 'in_progress', 'input_needed', 'awaiting_review', 'completed', 'cancelled']
 export const TERMINAL_TASK_STATUSES: TaskStatus[] = ['completed', 'cancelled']
-export const ACTIVE_REVIEW_STATUSES: TaskStatus[] = ['input_needed', 'awaiting_review']
+export const ACTIVE_REVIEW_STATUSES: TaskStatus[] = ['awaiting_review']
 
 export const STATUS_ORDER_SQL = `CASE status
   WHEN 'in_progress' THEN 0
@@ -679,6 +679,7 @@ export function buildOwnerPrompt(project: ProjectRow, task: TaskRow): string {
     `- name: ${project.name}`,
     `- id: ${project.id}`,
     `- path: ${project.path}`,
+    `- context: ${project.path}/.kortix/CONTEXT.md`,
     '',
     'Task:',
     `- id: ${task.id}`,
@@ -689,6 +690,7 @@ export function buildOwnerPrompt(project: ProjectRow, task: TaskRow): string {
     '',
     'Execution contract:',
     `- FIRST: run project_select("${project.name}") to link this session to the project.`,
+    `- SECOND: read ${project.path}/.kortix/CONTEXT.md before making changes. Treat it as the shared project memory spine.`,
     '- Keep the native todo list current at all times.',
     '- You own exactly this one task for this run. Stay within scope and satisfy the verification condition.',
     '- Use task_progress for meaningful progress updates and task_evidence for important artifacts.',
@@ -704,6 +706,22 @@ async function bindSessionProjectDefault(db: Database, sessionId: string, projec
   ensureTasksTable(db)
   db.prepare(`INSERT OR REPLACE INTO session_projects (session_id, project_id, set_at) VALUES ($sid, $pid, $now)`)
     .run({ $sid: sessionId, $pid: projectId, $now: nowIso() })
+}
+
+async function ensureSessionProjectBinding(
+  db: Database,
+  sessionId: string,
+  projectId: string,
+  bindSessionProject?: (sessionId: string, projectId: string) => void | Promise<void>,
+): Promise<void> {
+  if (bindSessionProject) await bindSessionProject(sessionId, projectId)
+  else await bindSessionProjectDefault(db, sessionId, projectId)
+
+  const linked = db.prepare('SELECT 1 FROM session_projects WHERE session_id=$sid AND project_id=$pid LIMIT 1').get({
+    $sid: sessionId,
+    $pid: projectId,
+  })
+  if (!linked) throw new Error(`Failed to bind session ${sessionId} to project ${projectId}`)
 }
 
 export async function startTask(options: StartTaskOptions): Promise<TaskRow> {
@@ -762,6 +780,8 @@ export async function startTask(options: StartTaskOptions): Promise<TaskRow> {
         body: { agent: workerAgent, parts: [{ type: 'text', text: resumePrompt }] },
       })
 
+      await ensureSessionProjectBinding(db, task.owner_session_id, project.id, bindSessionProject)
+
       updateTaskRun(db, runId, {
         owner_session_id: task.owner_session_id,
         owner_agent: workerAgent,
@@ -790,8 +810,7 @@ export async function startTask(options: StartTaskOptions): Promise<TaskRow> {
   const ownerSessionId = sessionResult.data?.id
   if (!ownerSessionId) throw new Error('Failed to create worker session')
 
-  if (bindSessionProject) await bindSessionProject(ownerSessionId, project.id)
-  else await bindSessionProjectDefault(db, ownerSessionId, project.id)
+  await ensureSessionProjectBinding(db, ownerSessionId, project.id, bindSessionProject)
 
   if (onWorkerSessionCreated) onWorkerSessionCreated(ownerSessionId)
 
@@ -839,7 +858,7 @@ export function approveTask(db: Database, id: string): TaskRow {
   ensureTasksTable(db)
   const task = getTaskById(db, id)
   if (!task) throw new Error('Task not found')
-  if (!ACTIVE_REVIEW_STATUSES.includes(task.status)) throw new Error('Can only approve tasks awaiting review/input')
+  if (!ACTIVE_REVIEW_STATUSES.includes(task.status)) throw new Error('Can only approve tasks awaiting human review')
   const now = nowIso()
   updateTaskRun(db, task.latest_run_id || null, { status: 'completed', completed_at: now, updated_at: now })
   db.prepare(`UPDATE tasks SET status='completed', completed_at=COALESCE(completed_at, $now), updated_at=$now WHERE id=$id`)

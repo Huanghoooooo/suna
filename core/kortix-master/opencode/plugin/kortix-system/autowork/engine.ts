@@ -1,11 +1,11 @@
 import type { Todo } from "@opencode-ai/sdk"
-import { completionReached, INTERNAL_MARKER, type RalphPhase, type RalphState } from "./config"
+import { completionReached, INTERNAL_MARKER, type AutoworkPhase, type AutoworkState } from "./config"
 
-export type RalphAction = "continue" | "stop"
+export type AutoworkAction = "continue" | "stop"
 
-export interface RalphDecision {
-	action: RalphAction
-	phase: RalphPhase
+export interface AutoworkDecision {
+	action: AutoworkAction
+	phase: AutoworkPhase
 	prompt: string | null
 	reason: string
 }
@@ -16,7 +16,7 @@ function todoSummary(todos: Todo[]): { unfinished: Todo[]; completedCount: numbe
 	return { unfinished, completedCount }
 }
 
-function buildContinuePrompt(state: RalphState): string {
+function buildContinuePrompt(state: AutoworkState): string {
 	return [
 		`[AUTOWORK - ITERATION ${state.iteration + 1}/${state.maxIterations}]`,
 		"",
@@ -36,7 +36,7 @@ function buildContinuePrompt(state: RalphState): string {
 	].filter(Boolean).join("\n")
 }
 
-function buildPrematureCompletionPrompt(state: RalphState, todos: Todo[]): string {
+function buildPrematureCompletionPrompt(state: AutoworkState, todos: Todo[]): string {
 	const { unfinished, completedCount } = todoSummary(todos)
 	return [
 		"[AUTOWORK - COMPLETION REJECTED]",
@@ -52,7 +52,7 @@ function buildPrematureCompletionPrompt(state: RalphState, todos: Todo[]): strin
 	].join("\n")
 }
 
-function buildVerificationPrompt(state: RalphState): string {
+function buildVerificationPrompt(state: AutoworkState): string {
 	return [
 		`[AUTOWORK - VERIFICATION]`,
 		"",
@@ -71,7 +71,7 @@ function buildVerificationPrompt(state: RalphState): string {
 	].filter(Boolean).join("\n")
 }
 
-export function evaluateRalph(state: RalphState, assistantTexts: string[], todos: Todo[]): RalphDecision {
+export function evaluateAutowork(state: AutoworkState, assistantTexts: string[], todos: Todo[]): AutoworkDecision {
 	if (!state.active) return { action: "stop", phase: state.currentPhase, prompt: null, reason: "inactive" }
 	if (state.iteration >= state.maxIterations) {
 		return {
@@ -121,8 +121,8 @@ export function evaluateRalph(state: RalphState, assistantTexts: string[], todos
 	}
 }
 
-export function checkRalphSafetyGates(
-	state: RalphState,
+export function checkAutoworkSafetyGates(
+	state: AutoworkState,
 	abortGracePeriodMs: number,
 	maxConsecutiveFailures: number,
 	failureResetWindowMs: number,

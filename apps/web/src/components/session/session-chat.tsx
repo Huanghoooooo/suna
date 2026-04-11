@@ -4150,7 +4150,7 @@ export function SessionChat({
   const queueMoveUp = useMessageQueueStore((s) => s.moveUp);
   const queueMoveDown = useMessageQueueStore((s) => s.moveDown);
   const queueClearSession = useMessageQueueStore((s) => s.clearSession);
-  const [queueExpanded, setQueueExpanded] = useState(true);
+  const [queueExpanded, setQueueExpanded] = useState(false);
 
   // Guard against double-drain: tracks whether a drain is already in progress
   const drainScheduledRef = useRef(false);
