@@ -552,7 +552,7 @@ export function CommandPalette() {
     if (!visibleAgents.length) return [];
     const q = query.trim().toLowerCase();
     return visibleAgents.filter((a) =>
-      a.name.toLowerCase().includes(q) || (a.description || '').toLowerCase().includes(q),
+      (a.name || '').toLowerCase().includes(q) || (a.description || '').toLowerCase().includes(q),
     );
   }, [visibleAgents, query]);
 
@@ -565,9 +565,14 @@ export function CommandPalette() {
     return allModels
       .filter((m) => {
         if (!q && !modelStore.isVisible({ providerID: m.providerID, modelID: m.modelID })) return false;
-        return !q || m.modelName.toLowerCase().includes(q) || m.modelID.toLowerCase().includes(q) || m.providerName.toLowerCase().includes(q);
+        return (
+          !q ||
+          (m.modelName || '').toLowerCase().includes(q) ||
+          (m.modelID || '').toLowerCase().includes(q) ||
+          (m.providerName || '').toLowerCase().includes(q)
+        );
       })
-      .sort((a, b) => a.modelName.localeCompare(b.modelName));
+      .sort((a, b) => (a.modelName || '').localeCompare(b.modelName || ''));
   }, [allModels, query, modelStore]);
 
   const groupedModels = useMemo(() => {
