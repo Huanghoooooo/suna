@@ -167,12 +167,17 @@ export default function Home() {
         <section className="max-w-3xl mx-auto px-6 py-10 sm:py-14">
           <Reveal>
           <p className="text-2xl sm:text-3xl md:text-4xl font-medium text-foreground leading-snug tracking-tight">
-            One machine. All your tools. Agents that run themselves.
+            Maximum entropy. Full context. Let the agents run free.
           </p>
           </Reveal>
           <Reveal delay={0.1}>
           <p className="mt-3 text-base sm:text-lg text-muted-foreground leading-relaxed max-w-2xl">
-            A Kortix is a cloud computer where AI agents do the actual work of running a company. You connect your tools, define your agents, set their schedules and triggers — and the machine operates whether you&apos;re there or not. Persistent memory that compounds. A workforce that never stops.
+            The best results come from giving a language model everything — full context, every secret, every integration, every piece of institutional knowledge — and letting it operate freely. For that, it needs a proper machine. A real computer running 24/7 where all the context is stored, all the credentials live, all the work accumulates, and all the other agents work alongside it.
+          </p>
+          </Reveal>
+          <Reveal delay={0.15}>
+          <p className="mt-3 text-base sm:text-lg text-muted-foreground leading-relaxed max-w-2xl">
+            A Kortix <em>is</em> a company. One shared machine where every agent sees the same filesystem, the same databases, the same history. Context isn&apos;t siloed per tool or per session — it&apos;s shared across the entire system, compounding over time. Coding agents operating inside a full Linux environment are the optimal harness for all knowledge work — not just engineering, but sales, finance, ops, legal, support, and everything in between. We&apos;re building this as our own internal operating system to run our own companies, and open-sourcing the whole thing.
           </p>
           </Reveal>
         </section>
@@ -184,15 +189,20 @@ export default function Home() {
             The system
           </h2>
           </Reveal>
+          <Reveal delay={0.1}>
+          <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl mb-2">
+            Everything runs inside one shared Linux Ubuntu machine. Agents have bash, a real filesystem, package managers, databases, and the entire software ecosystem — plus full access to every credential, file, and piece of context in the system. One machine, total openness, maximum results.
+          </p>
+          </Reveal>
           <Reveal delay={0.15}>
           <div className="flex flex-col gap-4 mt-6">
             {[
-              { icon: <Bot className="size-4" />, title: 'Agents', desc: 'Markdown files with their own identity, permissions, tools, and triggers. A support agent, a bookkeeper, a recruiter — each a specialist.' },
-              { icon: <Sparkles className="size-4" />, title: 'Skills', desc: 'Reusable knowledge packs that teach agents how to do real work. 60+ built-in: coding, browser automation, deep research, legal writing, spreadsheets, and more.' },
+              { icon: <Bot className="size-4" />, title: 'Agents', desc: 'Markdown files with their own identity, permissions, tools, and triggers. A support agent, a bookkeeper, a recruiter, a sales rep — each a specialist operating inside the same machine.' },
+              { icon: <Sparkles className="size-4" />, title: 'Skills', desc: 'Reusable knowledge packs that teach agents how to do real work — coding, browser automation, deep research, legal writing, spreadsheets, data analysis, and more. 60+ built-in, and writing new ones is just writing code.' },
               { icon: <RefreshCw className="size-4" />, title: 'Autowork', desc: 'The autonomous execution loop. An agent works until the task is done, self-verifies, and only stops when it can prove the result is correct.' },
               { icon: <Zap className="size-4" />, title: 'Triggers', desc: 'Time-driven or event-driven. Cron schedules and webhooks with prompt, command, or HTTP actions. Git-versionable config. Morning briefings, recurring jobs, real-time reactions.' },
-              { icon: <Brain className="size-4" />, title: 'Memory', desc: 'Persistent and filesystem-based. Semantic search across all sessions. Every decision, preference, and context is retained. The longer it runs, the smarter it gets.' },
-              { icon: <GitFork className="size-4" />, title: 'Orchestration', desc: 'One agent delegates to many. Projects, background sessions, parallel sub-agents. A primary orchestrator decomposes work and tracks it to completion.' },
+              { icon: <Brain className="size-4" />, title: 'Memory', desc: 'Persistent, filesystem-based, and shared across all agents. Every decision, preference, and context is retained on the same machine. The longer the system runs, the smarter the whole company gets.' },
+              { icon: <GitFork className="size-4" />, title: 'Orchestration', desc: 'One agent delegates to many. Projects, background sessions, parallel sub-agents. A primary orchestrator decomposes work and tracks it to completion — like departments in a company.' },
               { icon: <Blocks className="size-4" />, title: 'Open standards', desc: (<>Runs on <a href="https://opencode.ai" target="_blank" rel="noopener noreferrer" className="text-foreground font-medium underline underline-offset-2 decoration-foreground/30 hover:decoration-foreground transition-colors">OpenCode</a> — an open foundation for agent skills, tools, and commands.</>) },
             ].map(({ icon, title, desc }) => (
               <div key={title} className="flex items-start gap-3">
@@ -218,7 +228,7 @@ export default function Home() {
           </Reveal>
           <Reveal delay={0.1}>
           <p className="text-base text-muted-foreground leading-relaxed max-w-2xl mb-8">
-            Connect your tools. Configure your agents. Deploy them. Check in when you want.
+            Connect your tools. Configure your agents. Deploy them. An entire company&apos;s knowledge work — automated inside one machine.
           </p>
           </Reveal>
 
@@ -256,7 +266,7 @@ export default function Home() {
                 <span className="text-sm font-semibold text-foreground">Configure your system</span>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed mb-4 max-w-xl">
-                Define agents, attach skills, set up triggers, create commands. Each agent is a markdown file with its own identity, permissions, and activation rules. Compose them into an autonomous workforce.
+                Define agents for every function — engineering, sales, finance, ops, legal, support. Each agent is a markdown file with its own identity, permissions, skills, and activation rules. Because they run inside a full Linux environment, anything you can script, they can do. Compose them into an autonomous workforce.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <ConfigCard

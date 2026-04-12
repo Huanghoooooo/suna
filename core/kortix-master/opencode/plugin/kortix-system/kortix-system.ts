@@ -28,14 +28,27 @@ const STARTUP_BUSY_SESSION_CLEANUP_PASSES = 20
 
 type ListedSession = { id: string; time?: { updated?: number } }
 
+function normalizeListedSessions(input: unknown): ListedSession[] {
+	if (Array.isArray(input)) return input as ListedSession[]
+	if (input && typeof input === "object" && Array.isArray((input as { sessions?: unknown }).sessions)) {
+		return (input as { sessions: ListedSession[] }).sessions
+	}
+	return []
+}
+
+function normalizeBusySessionIds(input: unknown): string[] {
+	if (!input || typeof input !== "object") return []
+	return getBusySessionIds(input as Record<string, { type?: string }> | null | undefined)
+}
+
 export function selectLingeringBusySessionIds(options: {
-	candidateBusySessionIds: string[]
-	sessions: ListedSession[]
+	candidateBusySessionIds?: string[]
+	sessions?: ListedSession[]
 	activeTaskSessionIds: Set<string>
 	cleanupStartedAt: number
 }): string[] {
-	const sessionsById = new Map(options.sessions.map((session) => [session.id, session]))
-	return options.candidateBusySessionIds.filter((sessionId) => {
+	const sessionsById = new Map((options.sessions ?? []).map((session) => [session.id, session]))
+	return (options.candidateBusySessionIds ?? []).filter((sessionId) => {
 		if (options.activeTaskSessionIds.has(sessionId)) return false
 		const updatedAt = sessionsById.get(sessionId)?.time?.updated
 		return typeof updatedAt !== "number" || updatedAt <= options.cleanupStartedAt
@@ -49,7 +62,7 @@ async function cleanupLingeringBusySessions(client: any, db: Database, cleanupSt
 				client.session.status(),
 				client.session.list(),
 			])
-			const candidateBusySessionIds = getBusySessionIds(statusRes.data as Record<string, { type?: string }> | null | undefined)
+			const candidateBusySessionIds = normalizeBusySessionIds(statusRes.data)
 			const activeTaskSessionIds = new Set(
 				(candidateBusySessionIds
 					.map((sessionId) => {
@@ -60,7 +73,7 @@ async function cleanupLingeringBusySessions(client: any, db: Database, cleanupSt
 			)
 			const busySessionIds = selectLingeringBusySessionIds({
 				candidateBusySessionIds,
-				sessions: (sessionsRes.data ?? []) as ListedSession[],
+				sessions: normalizeListedSessions(sessionsRes.data),
 				activeTaskSessionIds,
 				cleanupStartedAt,
 			})

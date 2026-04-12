@@ -13,7 +13,7 @@
   "agent": {
     "build": { "disable": true },
     "plan": { "disable": true },
-    "explore": { "disable": true },
+    "explore": { "disable": true }
   },
   "provider": {
     "kortix": {
