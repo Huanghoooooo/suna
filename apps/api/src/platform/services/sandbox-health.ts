@@ -39,6 +39,10 @@ const HEALTH_TIMEOUT_MS = 5_000;           // 5s timeout per check
 const MAX_SYNC_RETRIES = 3;
 const SYNC_BACKOFF_MS = [2_000, 5_000, 10_000]; // progressive backoff
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `"'"'`)}'`;
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export function getSandboxHealthState(): SandboxHealthState {
@@ -242,12 +246,12 @@ async function attemptKeySyncFallback(keys: Record<string, string>): Promise<boo
     }
 
     const writes = Object.entries(keys)
-      .map(([key, val]) => `printf '%s' '${val}' > /run/s6/container_environment/${key}`)
+      .map(([key, val]) => `printf '%s' ${shellQuote(val)} > /run/s6/container_environment/${key}`)
       .join(' && ');
     // No restart — getEnv() reads from s6 env dir live.
 
     execSync(
-      `docker exec ${config.SANDBOX_CONTAINER_NAME} bash -c "mkdir -p /run/s6/container_environment && ${writes}"`,
+      `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(`mkdir -p /run/s6/container_environment && ${writes}`)}`,
       { timeout: 15_000, stdio: 'pipe', env },
     );
 

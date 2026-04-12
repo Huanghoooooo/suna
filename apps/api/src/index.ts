@@ -47,6 +47,10 @@ import { adminApp } from './admin';
 import { sandboxPoolAdminApp } from './platform/routes/sandbox-pool-admin';
 import { oauthApp } from './oauth';
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `"'"'`)}'`;
+}
+
 // ─── App Setup ──────────────────────────────────────────────────────────────
 
 const app = new Hono();
@@ -663,16 +667,34 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
 
   const syncViaDockerExec = (): boolean => {
     try {
+      const bootstrapPayload = Buffer.from(JSON.stringify({
+        KORTIX_TOKEN: token,
+        KORTIX_API_URL: kortixApiUrl,
+      }), 'utf8').toString('base64');
       const writes = Object.entries(keysToSync)
-        .map(([k, v]) => `printf '%s' '${v}' > /run/s6/container_environment/${k}`)
+        .map(([k, v]) => `printf '%s' ${shellQuote(v)} > /run/s6/container_environment/${k}`)
         .join(' && ');
       rawExecSync(
-        `docker exec ${config.SANDBOX_CONTAINER_NAME} bash -c "mkdir -p /run/s6/container_environment && ${writes}"`,
+        `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(`mkdir -p /run/s6/container_environment && ${writes}`)}`,
         { stdio: 'pipe', timeout: 15_000, env: dockerEnv },
       );
       // Also write to bootstrap file so token survives container restart
       rawExecSync(
-        `docker exec ${config.SANDBOX_CONTAINER_NAME} bash -c 'mkdir -p /workspace/.secrets && cat /workspace/.secrets/.bootstrap-env.json 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin) if sys.stdin.readable() else {}; d.update(${JSON.stringify(JSON.stringify({ KORTIX_TOKEN: token, KORTIX_API_URL: kortixApiUrl }))}); print(json.dumps(d))" > /workspace/.secrets/.bootstrap-env.json.tmp && mv /workspace/.secrets/.bootstrap-env.json.tmp /workspace/.secrets/.bootstrap-env.json'`,
+        `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(`mkdir -p /workspace/.secrets && BOOTSTRAP_UPDATE_B64=${shellQuote(bootstrapPayload)} python3 - <<'PY'
+import base64, json, os
+from pathlib import Path
+
+path = Path('/workspace/.secrets/.bootstrap-env.json')
+try:
+    data = json.loads(path.read_text())
+except Exception:
+    data = {}
+
+data.update(json.loads(base64.b64decode(os.environ['BOOTSTRAP_UPDATE_B64']).decode('utf-8')))
+tmp = path.with_suffix('.json.tmp')
+tmp.write_text(json.dumps(data))
+tmp.replace(path)
+PY`)}`,
         { stdio: 'pipe', timeout: 15_000, env: dockerEnv },
       ).toString();
       // No restart — getEnv() reads from s6 env dir live. OpenCode picks up
