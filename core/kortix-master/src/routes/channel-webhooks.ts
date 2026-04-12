@@ -480,8 +480,8 @@ channelWebhooksRouter.post('/hooks/slack/:channelId', async (c) => {
 
   // Dispatch to OpenCode
   try {
-    const dispatch = await dispatchToOpenCode(channel, result.dispatch_event)
-    console.log(`[Channel Webhook] Slack ${result.dispatch_event.event_type} from ${result.dispatch_event.username} → session ${dispatch.sessionId}`)
+    const dispatch = await dispatchToOpenCode(channel, preParseResult.dispatch_event)
+    console.log(`[Channel Webhook] Slack ${preParseResult.dispatch_event.event_type} from ${preParseResult.dispatch_event.username} → session ${dispatch.sessionId}`)
     return c.json({ ok: true, sessionId: dispatch.sessionId }, 202)
   } catch (err) {
     console.error(`[Channel Webhook] Slack dispatch error:`, err)

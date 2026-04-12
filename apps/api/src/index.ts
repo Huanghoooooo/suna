@@ -19,6 +19,8 @@ import { billingApp, accountDeletionApp } from './billing';
 import { platformApp } from './platform';
 import { sandboxProxyApp, resolveProvider, invalidateProviderCache } from './sandbox-proxy';
 import { isProxyTokenStale, refreshSandboxProxyToken } from './platform/providers/justavps';
+import { buildCanonicalSandboxAuthCommand } from './platform/services/sandbox-auth';
+import { ensureLocalSandboxPublicBase } from './platform/services/local-public-base';
 import { getSandboxBaseUrl, proxyToSandbox } from './sandbox-proxy/routes/local-preview';
 import { validateSecretKey } from './repositories/api-keys';
 import { isKortixToken } from './shared/crypto';
@@ -534,7 +536,7 @@ app.notFound((c) => {
  * sandbox already has it, this is a no-op. It only re-issues when the key is
  * actually missing or invalid.
  */
-async function injectSandboxToken(sandboxId: string, accountId: string): Promise<void> {
+async function injectSandboxToken(sandboxId: string, accountId: string): Promise<string> {
   const { db } = await import('./shared/db');
   const { kortixApiKeys } = await import('@kortix/db');
   const { sandboxes } = await import('@kortix/db');
@@ -547,6 +549,21 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
   const sandboxBaseUrl = config.SANDBOX_NETWORK
     ? `http://${config.SANDBOX_CONTAINER_NAME}:8000`
     : `http://localhost:${config.SANDBOX_PORT_BASE}`;
+
+  const waitForSandboxMaster = async (): Promise<void> => {
+    const deadline = Date.now() + 20_000;
+    while (Date.now() < deadline) {
+      try {
+        const res = await fetch(`${sandboxBaseUrl}/kortix/health`, {
+          signal: AbortSignal.timeout(2_000),
+        });
+        if (res.ok || res.status === 503) return;
+      } catch {
+        // keep polling until startup finishes
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  };
 
   // Resolve how sandbox reaches kortix-api
   const rawUrl = (config.KORTIX_URL || '').replace(/\/v1\/router\/?$/, '');
@@ -562,6 +579,8 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
   } catch { /* keep default */ }
 
   const { createApiKey, validateSecretKey } = await import('./repositories/api-keys');
+
+  await waitForSandboxMaster();
 
   // ─── Resolve the token: reuse existing or create new ───────────────────
   const [sandbox] = await db.select().from(sandboxes).where(eq(sandboxes.sandboxId, sandboxId));
@@ -595,51 +614,48 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
       .where(eq(sandboxes.sandboxId, sandboxId));
   }
 
+  const authCandidates = Array.from(new Set([token, config.INTERNAL_SERVICE_KEY].filter(Boolean)));
+
+  const readSandboxEnvValue = async (key: string): Promise<string | null> => {
+    for (const authToken of authCandidates) {
+      try {
+        const res = await fetch(`${sandboxBaseUrl}/env/${key}`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+          signal: AbortSignal.timeout(5_000),
+        });
+        if (!res.ok) continue;
+        const data = await res.json() as Record<string, string | null>;
+        return data?.[key] ?? null;
+      } catch {
+        // try next candidate
+      }
+    }
+    return null;
+  };
+
   // ─── Check if sandbox already has the correct token ─────────────────────
   // Read the sandbox's current KORTIX_TOKEN via its /env API. If it already
   // matches, skip the sync entirely — no restart, no downtime.
-  const sandboxAlreadyHasToken = async (): Promise<boolean> => {
-    try {
-      const res = await fetch(`${sandboxBaseUrl}/env/KORTIX_TOKEN`, {
-        headers: { Authorization: `Bearer ${config.INTERNAL_SERVICE_KEY}` },
-        signal: AbortSignal.timeout(5_000),
-      });
-      if (!res.ok) return false;
-      const data = await res.json() as Record<string, string | null>;
-      return data?.KORTIX_TOKEN === token;
-    } catch {
-      return false;
-    }
-  };
+  const sandboxAlreadyHasToken = async (): Promise<boolean> => (await readSandboxEnvValue('KORTIX_TOKEN')) === token;
 
   // Also check KORTIX_API_URL
-  const sandboxAlreadyHasUrl = async (): Promise<boolean> => {
-    try {
-      const res = await fetch(`${sandboxBaseUrl}/env/KORTIX_API_URL`, {
-        headers: { Authorization: `Bearer ${config.INTERNAL_SERVICE_KEY}` },
-        signal: AbortSignal.timeout(5_000),
-      });
-      if (!res.ok) return false;
-      const data = await res.json() as Record<string, string | null>;
-      return data?.KORTIX_API_URL === kortixApiUrl;
-    } catch {
-      return false;
-    }
-  };
+  const sandboxAlreadyHasUrl = async (): Promise<boolean> => (await readSandboxEnvValue('KORTIX_API_URL')) === kortixApiUrl;
+  const sandboxAlreadyHasInboundKey = async (): Promise<boolean> => (await readSandboxEnvValue('INTERNAL_SERVICE_KEY')) === token;
 
   // Fast path: if the sandbox already has the correct token AND URL, skip sync.
   // This is the common case on normal startup — no restart, no downtime.
-  const [hasToken, hasUrl] = await Promise.all([
+  const [hasToken, hasUrl, hasInboundKey] = await Promise.all([
     sandboxAlreadyHasToken(),
     sandboxAlreadyHasUrl(),
+    sandboxAlreadyHasInboundKey(),
   ]);
-  if (hasToken && hasUrl) {
-    console.log('[startup] Sandbox already has correct KORTIX_TOKEN + KORTIX_API_URL — skipping sync');
+  if (hasToken && hasUrl && hasInboundKey) {
+    console.log('[startup] Sandbox already has correct auth bundle + API URL — skipping sync');
     // Still ensure ONBOARDING_COMPLETE is set for self-hosted mode
     if (config.SANDBOX_NETWORK) {
       try {
         const res = await fetch(`${sandboxBaseUrl}/env/ONBOARDING_COMPLETE`, {
-          headers: { Authorization: `Bearer ${config.INTERNAL_SERVICE_KEY}` },
+          headers: { Authorization: `Bearer ${authCandidates[0]}` },
           signal: AbortSignal.timeout(3_000),
         });
         if (res.ok) {
@@ -647,7 +663,7 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
           if (data?.ONBOARDING_COMPLETE !== 'true') {
             await fetch(`${sandboxBaseUrl}/env/ONBOARDING_COMPLETE`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.INTERNAL_SERVICE_KEY}` },
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authCandidates[0]}` },
               body: JSON.stringify({ value: 'true' }),
               signal: AbortSignal.timeout(5_000),
             });
@@ -656,10 +672,10 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
         }
       } catch { /* non-critical */ }
     }
-    return;
+    return token;
   }
 
-  console.log(`[startup] Sandbox needs token sync (hasToken=${hasToken}, hasUrl=${hasUrl})`);
+  console.log(`[startup] Sandbox needs token sync (hasToken=${hasToken}, hasUrl=${hasUrl}, hasInboundKey=${hasInboundKey})`);
 
   // ─── Sync token to sandbox ─────────────────────────────────────────────
   // Primary: POST to sandbox's /env API (handles triple-write + restart)
@@ -668,6 +684,8 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
   // OpenCode if the values are unchanged (belt-and-suspenders with the check above).
   const keysToSync: Record<string, string> = {
     KORTIX_TOKEN: token,
+    INTERNAL_SERVICE_KEY: token,
+    TUNNEL_TOKEN: token,
     KORTIX_API_URL: kortixApiUrl,
     TUNNEL_API_URL: kortixApiUrl,
     // Self-hosted: skip onboarding wizard (no setup needed for local Docker)
@@ -680,7 +698,7 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${config.INTERNAL_SERVICE_KEY}`,
+          Authorization: `Bearer ${authCandidates[0]}`,
         },
         body: JSON.stringify({ keys: keysToSync }),
         signal: AbortSignal.timeout(10_000),
@@ -690,7 +708,24 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
         console.log(`[startup] KORTIX_TOKEN synced via /env API (restarted=${result?.restarted ?? 'unknown'})`);
         return true;
       }
-      console.warn(`[startup] /env API returned ${res.status} — falling back to docker exec`);
+      console.warn(`[startup] /env API returned ${res.status} for primary auth candidate — trying fallback candidates`);
+      for (const authToken of authCandidates.slice(1)) {
+        const retry = await fetch(`${sandboxBaseUrl}/env`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({ keys: keysToSync }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (retry.ok) {
+          const result = await retry.json() as { restarted?: boolean };
+          console.log(`[startup] KORTIX_TOKEN synced via /env API fallback (restarted=${result?.restarted ?? 'unknown'})`);
+          return true;
+        }
+      }
+      console.warn('[startup] /env API auth candidates exhausted — falling back to docker exec');
       return false;
     } catch (e: any) {
       console.warn(`[startup] /env API unreachable (${e?.message}) — falling back to docker exec`);
@@ -700,18 +735,23 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
 
   const syncViaDockerExec = (): boolean => {
     try {
-      rawExecSync(
-        `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(buildDockerEnvWriteCommand(keysToSync, '/run/s6/container_environment'))}`,
-        { stdio: 'pipe', timeout: 15_000, env: dockerEnv },
-      );
-      // Also write to bootstrap file so token survives container restart
-      rawExecSync(
-        `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(buildBootstrapUpdateCommand({
-          KORTIX_TOKEN: token,
-          KORTIX_API_URL: kortixApiUrl,
-        }))}`,
-        { stdio: 'pipe', timeout: 15_000, env: dockerEnv },
-      ).toString();
+      if (config.SANDBOX_NETWORK) {
+        rawExecSync(
+          `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(buildDockerEnvWriteCommand(keysToSync, '/run/s6/container_environment'))}`,
+          { stdio: 'pipe', timeout: 15_000, env: dockerEnv },
+        );
+        rawExecSync(
+          `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(buildBootstrapUpdateCommand({
+            KORTIX_TOKEN: token,
+            KORTIX_API_URL: kortixApiUrl,
+            INTERNAL_SERVICE_KEY: token,
+            TUNNEL_TOKEN: token,
+          }))}`,
+          { stdio: 'pipe', timeout: 15_000, env: dockerEnv },
+        ).toString();
+      } else {
+        forceLocalDockerAuthBundle();
+      }
       // No restart — getEnv() reads from s6 env dir live. OpenCode picks up
       // the new values on the next tool call without a process restart.
       console.log('[startup] KORTIX_TOKEN synced via docker exec fallback + bootstrap file');
@@ -722,11 +762,59 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
     }
   };
 
+  const forceLocalDockerAuthBundle = (): void => {
+    if (config.SANDBOX_NETWORK) return;
+    rawExecSync(
+      `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(buildCanonicalSandboxAuthCommand(token, kortixApiUrl))}`,
+      { stdio: 'pipe', timeout: 15_000, env: dockerEnv },
+    );
+  };
+
+  const readLocalDockerAuthBundle = (): Record<string, string> | null => {
+    if (config.SANDBOX_NETWORK) return null;
+    try {
+      const raw = rawExecSync(
+        `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} python3 -c ${shellQuote("from pathlib import Path; import json; keys=['KORTIX_TOKEN','INTERNAL_SERVICE_KEY','TUNNEL_TOKEN']; print(json.dumps({k:(Path('/run/s6/container_environment')/k).read_text() for k in keys}))")}`,
+        { stdio: 'pipe', timeout: 15_000, env: dockerEnv },
+      ).toString();
+      return JSON.parse(raw) as Record<string, string>;
+    } catch {
+      return null;
+    }
+  };
+
   // Try /env API first, fall back to docker exec
   const synced = await syncViaEnvApi() || syncViaDockerExec();
   if (!synced) {
     console.error('[startup] FATAL: Could not sync KORTIX_TOKEN to sandbox. LLM calls will fail with 401.');
+    return token;
   }
+
+  try {
+    if (!config.SANDBOX_NETWORK) {
+      let enforced = false;
+      for (let attempt = 0; attempt < 6; attempt++) {
+        forceLocalDockerAuthBundle();
+        const bundle = readLocalDockerAuthBundle();
+        if (
+          bundle?.KORTIX_TOKEN === token &&
+          bundle?.INTERNAL_SERVICE_KEY === token &&
+          bundle?.TUNNEL_TOKEN === token
+        ) {
+          enforced = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      if (!enforced) {
+        throw new Error('Canonical auth bundle did not stick after repeated enforcement');
+      }
+    }
+    console.log('[startup] Enforced canonical sandbox auth bundle after sync');
+  } catch (e: any) {
+    console.error(`[startup] Failed to enforce canonical sandbox auth bundle: ${e?.message || e}`);
+  }
+  return token;
 }
 
 async function ensureLocalSandboxRegistered() {
@@ -741,6 +829,11 @@ async function ensureLocalSandboxRegistered() {
   const CONTAINER_NAME = config.SANDBOX_CONTAINER_NAME;
   const portBase = config.SANDBOX_PORT_BASE;
   const baseUrl = `http://localhost:${portBase}`;
+  const ensureLocalContainerRunning = async (): Promise<void> => {
+    const { LocalDockerProvider } = await import('./platform/providers/local-docker');
+    const provider = new LocalDockerProvider();
+    await provider.ensure();
+  };
 
   // Helper: check if the Docker container actually exists and is running
   const isContainerRunning = (): boolean => {
@@ -769,10 +862,8 @@ async function ensureLocalSandboxRegistered() {
     const containerRunning = isContainerRunning();
 
     if (!containerRunning) {
-      // Container doesn't exist or isn't running — don't promote to active.
-      // Leave current status as-is (provisioning flow or /init will handle it).
-      console.log(`[startup] Container ${CONTAINER_NAME} not running — skipping (sandbox ${existing.sandboxId} status: ${existing.status})`);
-      return;
+      console.log(`[startup] Container ${CONTAINER_NAME} not running — recreating/starting before registration`);
+      await ensureLocalContainerRunning();
     }
 
     // Container is running — ensure DB reflects active status
@@ -788,7 +879,13 @@ async function ensureLocalSandboxRegistered() {
     // Inject token — injectSandboxToken is now idempotent: it checks if the
     // sandbox already has the correct token and skips sync + restart if so.
     // Safe to call on every tick without causing OpenCode restarts.
-    await injectSandboxToken(existing.sandboxId, existing.accountId);
+    const token = await injectSandboxToken(existing.sandboxId, existing.accountId);
+    try {
+      await ensureLocalSandboxPublicBase(baseUrl, token);
+      console.log('[startup] Local sandbox PUBLIC_BASE_URL synced');
+    } catch (err) {
+      console.warn('[startup] Failed to sync local PUBLIC_BASE_URL:', err instanceof Error ? err.message : String(err));
+    }
     return;
   }
 
@@ -803,8 +900,8 @@ async function ensureLocalSandboxRegistered() {
 
   const containerRunning = isContainerRunning();
   if (!containerRunning) {
-    console.log(`[startup] Container ${CONTAINER_NAME} not running — skipping auto-provision (will be created via /init)`);
-    return;
+    console.log(`[startup] Container ${CONTAINER_NAME} not running — creating before auto-provision`);
+    await ensureLocalContainerRunning();
   }
 
   const sandbox = await db
@@ -822,7 +919,13 @@ async function ensureLocalSandboxRegistered() {
     .returning()
     .then(([r]) => r);
 
-  await injectSandboxToken(sandbox.sandboxId, account.accountId);
+  const token = await injectSandboxToken(sandbox.sandboxId, account.accountId);
+  try {
+    await ensureLocalSandboxPublicBase(baseUrl, token);
+    console.log('[startup] Local sandbox PUBLIC_BASE_URL synced');
+  } catch (err) {
+    console.warn('[startup] Failed to sync local PUBLIC_BASE_URL:', err instanceof Error ? err.message : String(err));
+  }
   console.log(`[startup] Local sandbox auto-provisioned (${sandbox.sandboxId}), token injected`);
 }
 
@@ -1329,7 +1432,7 @@ export default {
         return await proxyToSandbox(
           sandboxId, port, req.method, url.pathname, url.search,
           req.headers, body, false, origin,
-          undefined, undefined,
+          undefined, resolved?.serviceKey,
           { 'X-Forwarded-Prefix': `${fwdProto}://${host}` },
         );
       } catch (error) {

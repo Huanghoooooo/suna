@@ -12,6 +12,8 @@ describe('sandbox sync fallback shell safety', () => {
     expect(source).toContain("ENV_WRITE_PAYLOAD_B64");
     expect(source).toContain('docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ');
     expect(source).toContain('os.environ["BOOTSTRAP_UPDATE_B64"]');
+    expect(source).toContain('INTERNAL_SERVICE_KEY: token');
+    expect(source).toContain('TUNNEL_TOKEN: token');
     expect(source).not.toContain('JSON.stringify(JSON.stringify({ KORTIX_TOKEN: token, KORTIX_API_URL: kortixApiUrl }))');
   });
 

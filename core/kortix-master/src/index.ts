@@ -37,7 +37,7 @@ import projectsRouter from './routes/projects'
 import { tasksRouter } from './routes/tasks'
 import { serviceManager } from './services/service-manager'
 import { config } from './config'
-import { loadBootstrapEnv, saveBootstrapEnv } from './services/bootstrap-env'
+import { loadBootstrapEnv, normalizeBootstrapAuthAliases, saveBootstrapEnv } from './services/bootstrap-env'
 import { HealthResponse, PortsResponse } from './schemas/common'
 
 // ─── Crash protection ────────────────────────────────────────────────────────
@@ -55,6 +55,7 @@ const app = new Hono()
 // ─── Bootstrap: restore core env vars if missing from process.env ───────────
 // Must run BEFORE SecretStore because KORTIX_TOKEN is the encryption key.
 loadBootstrapEnv()
+normalizeBootstrapAuthAliases()
 
 // Initialize secret store and load ENV variables
 const secretStore = new SecretStore()
@@ -64,14 +65,14 @@ await secretStore.loadIntoProcessEnv()
 import { initShareStore } from './services/share-store'
 initShareStore()
 
-// ─── Guarantee KORTIX_TOKEN + KORTIX_API_URL in s6 env dir ──────────────────
+// ─── Guarantee core auth vars in s6 env dir ──────────────────────────────────
 // These are injected as Docker env vars at container creation but never written
 // to the s6 env directory. Tools use getEnv() which falls back to reading
 // /run/s6/container_environment/{KEY} — so we must write them there on boot
 // to ensure they're always available regardless of how the process was started.
 {
   const S6_ENV_DIR = process.env.S6_ENV_DIR || '/run/s6/container_environment'
-  const CORE_VARS = ['KORTIX_TOKEN', 'KORTIX_API_URL', 'INTERNAL_SERVICE_KEY'] as const
+  const CORE_VARS = ['KORTIX_TOKEN', 'KORTIX_API_URL', 'INTERNAL_SERVICE_KEY', 'TUNNEL_TOKEN'] as const
   let synced = 0
   for (const key of CORE_VARS) {
     // Use injected env var, but fall back to a sane default for KORTIX_API_URL

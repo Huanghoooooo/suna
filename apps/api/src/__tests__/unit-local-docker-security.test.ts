@@ -11,4 +11,13 @@ describe('local docker fallback shell safety', () => {
     expect(source).toContain("ENV_WRITE_PAYLOAD_B64");
     expect(source).toContain('docker exec ${shellQuote(CONTAINER_NAME)} bash -c ');
   });
+
+  test('local docker uses one canonical sandbox auth token in both directions', () => {
+    const source = readFileSync(join(import.meta.dir, '../platform/providers/local-docker.ts'), 'utf8');
+
+    expect(source).toContain('const serviceKey = authToken;');
+    expect(source).toContain('INTERNAL_SERVICE_KEY: token');
+    expect(source).toContain('TUNNEL_TOKEN: token');
+    expect(source).toContain('getCanonicalServiceKey()');
+  });
 });

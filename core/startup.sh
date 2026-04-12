@@ -64,6 +64,15 @@ fi
 migrate_dir_to_persistent() {
   local legacy="$1"
   local target="$2"
+
+  if [ "$legacy" = "$target" ]; then
+    if [ -L "$legacy" ] && [ "$(readlink "$legacy" 2>/dev/null || true)" = "$legacy" ]; then
+      rm -f "$legacy"
+    fi
+    mkdir -p "$target"
+    return
+  fi
+
   mkdir -p "$(dirname "$legacy")" "$target"
 
   if [ -L "$legacy" ]; then

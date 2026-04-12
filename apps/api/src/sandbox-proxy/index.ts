@@ -134,7 +134,12 @@ if (enabledCount === 1 && config.isDaytonaEnabled()) {
 
     const origin = c.req.header('Origin') || '';
 
-    return proxyToSandbox(sandboxId, port, method, remainingPath, queryString, c.req.raw.headers, body, false, origin);
+    const resolved = await resolveProvider(sandboxId);
+    if (!resolved || resolved.provider !== 'local_docker') {
+      return c.json({ error: 'Sandbox not found' }, 404);
+    }
+
+    return proxyToSandbox(sandboxId, port, method, remainingPath, queryString, c.req.raw.headers, body, false, origin, undefined, resolved.serviceKey);
   });
 
   localOnlyProxy.all('/:sandboxId/:port', async (c) => {
@@ -228,7 +233,7 @@ if (enabledCount === 1 && config.isDaytonaEnabled()) {
     const origin = c.req.header('Origin') || '';
 
     if (resolved?.provider === 'local_docker') {
-      return proxyToSandbox(sandboxId, port, method, remainingPath, queryString, c.req.raw.headers, body, false, origin);
+      return proxyToSandbox(sandboxId, port, method, remainingPath, queryString, c.req.raw.headers, body, false, origin, undefined, resolved.serviceKey);
     }
 
     if (resolved?.provider === 'justavps') {

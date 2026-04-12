@@ -15,7 +15,7 @@ import {
   ClipboardCheck,
 } from 'lucide-react';
 import { SlackIcon } from '@/components/ui/icons/slack';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { useSlackConnect } from '@/hooks/channels/use-slack-wizard';
 import { getActiveOpenCodeUrl } from '@/stores/server-store';
 import { authenticatedFetch } from '@/lib/auth-token';
@@ -71,7 +71,9 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
     try {
       const baseUrl = getActiveOpenCodeUrl();
       if (!baseUrl) {
-        toast.error('No active sandbox');
+        toast.error('No active sandbox', {
+          description: 'Start or select an instance before generating the Slack manifest.',
+        });
         return;
       }
       const res = await authenticatedFetch(`${baseUrl}/kortix/channels/slack-manifest`, {
@@ -81,21 +83,32 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
       });
       const text = await res.text();
       let data: any;
-      try { data = JSON.parse(text); } catch { toast.error('Server returned invalid response'); return; }
-      if (data.ok && data.manifest) {
-        setManifest(data.manifest);
-        setWebhookUrl(data.webhookUrl || '');
-        setManifestChannelId(data.channelId || '');
-        toast.success('Manifest generated');
-        setStep(2);
-      } else {
-        toast.error(data.error || 'Failed to generate manifest');
+        try { data = JSON.parse(text); } catch {
+          toast.error('Server returned an invalid manifest response', {
+            description: 'The sandbox did not return JSON. Try again after the instance reconnects.',
+          });
+          return;
+        }
+        if (data.ok && data.manifest) {
+          setManifest(data.manifest);
+          setWebhookUrl(data.webhookUrl || '');
+          setManifestChannelId(data.channelId || '');
+          toast.success('Slack manifest generated', {
+            description: data.webhookUrl || 'Copy the manifest into Slack and continue to the next step.',
+          });
+          setStep(2);
+        } else {
+          toast.error('Failed to generate Slack manifest', {
+            description: data.error || 'The sandbox could not create a public webhook URL.',
+          });
+        }
+      } catch {
+      toast.error('Failed to generate Slack manifest', {
+        description: 'The request did not complete. Check the instance connection and try again.',
+      });
+      } finally {
+        setIsGenerating(false);
       }
-    } catch {
-      toast.error('Failed to generate manifest');
-    } finally {
-      setIsGenerating(false);
-    }
   };
 
   const handleCopyManifest = async () => {
@@ -106,7 +119,7 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
       toast.success('Manifest copied to clipboard');
       setTimeout(() => setManifestCopied(false), 3000);
     } catch {
-      toast.error('Failed to copy');
+      toast.error('Failed to copy manifest');
     }
   };
 
@@ -133,13 +146,20 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
       });
       const webhookUrl = result.channel?.webhookUrl;
       if (webhookUrl) {
-        toast.success(`Connected! Webhook: ${webhookUrl}`, { duration: 8000 });
+        toast.success('Slack bot connected', {
+          description: webhookUrl,
+          duration: 8000,
+        });
       } else {
-        toast.success(result.message || 'Slack bot connected!');
+        toast.success('Slack bot connected', {
+          description: result.message || 'Update your Slack app event subscription URL if needed.',
+        });
       }
       onCreated();
     } catch (err: any) {
-      toast.error(err.message || 'Setup failed');
+      toast.error('Slack setup failed', {
+        description: err?.message || 'The sandbox rejected the Slack configuration request.',
+      });
     }
   };
 
