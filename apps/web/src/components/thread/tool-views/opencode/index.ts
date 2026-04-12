@@ -44,6 +44,8 @@ export { OcProjectCreateToolView } from './OcProjectCreateToolView';
 export { OcConnectorListToolView } from './OcConnectorListToolView';
 export { OcConnectorGetToolView } from './OcConnectorGetToolView';
 export { OcConnectorSetupToolView } from './OcConnectorSetupToolView';
+export { OcTriggersToolView } from './OcTriggersToolView';
+export { OcSessionStatsToolView } from './OcSessionStatsToolView';
 
 import type { ToolViewComponent } from '../wrapper/ToolViewRegistry';
 import { OcBashToolView } from './OcBashToolView';
@@ -83,6 +85,8 @@ import { OcProjectCreateToolView } from './OcProjectCreateToolView';
 import { OcConnectorListToolView } from './OcConnectorListToolView';
 import { OcConnectorGetToolView } from './OcConnectorGetToolView';
 import { OcConnectorSetupToolView } from './OcConnectorSetupToolView';
+import { OcTriggersToolView } from './OcTriggersToolView';
+import { OcSessionStatsToolView } from './OcSessionStatsToolView';
 import { OcKortixTaskToolView } from './OcKortixTaskToolView';
 
 /**
@@ -267,6 +271,9 @@ export const ocToolViewRegistrations: Record<string, ToolViewComponent> = {
   'oc-session_lineage': OcSessionLineageToolView,
   'oc-session-lineage': OcSessionLineageToolView,
   'session_lineage': OcSessionLineageToolView,
+  'oc-session_stats': OcSessionStatsToolView,
+  'oc-session-stats': OcSessionStatsToolView,
+  'session_stats': OcSessionStatsToolView,
   'oc-session_list_background': OcSessionListToolView,
   'oc-session-list-background': OcSessionListToolView,
   'session_list_background': OcSessionListToolView,
@@ -310,6 +317,42 @@ export const ocToolViewRegistrations: Record<string, ToolViewComponent> = {
   'oc-get-mem': OcGetMemToolView,
   'get_mem': OcGetMemToolView,
   'get-mem': OcGetMemToolView,
+
+  // Trigger tools (Kortix trigger management)
+  'oc-triggers': OcTriggersToolView,
+  'triggers': OcTriggersToolView,
+  'oc-trigger_create': OcTriggersToolView,
+  'oc-trigger-create': OcTriggersToolView,
+  'trigger_create': OcTriggersToolView,
+  'trigger-create': OcTriggersToolView,
+  'oc-trigger_list': OcTriggersToolView,
+  'oc-trigger-list': OcTriggersToolView,
+  'trigger_list': OcTriggersToolView,
+  'trigger-list': OcTriggersToolView,
+  'oc-trigger_get': OcTriggersToolView,
+  'oc-trigger-get': OcTriggersToolView,
+  'trigger_get': OcTriggersToolView,
+  'trigger-get': OcTriggersToolView,
+  'oc-trigger_delete': OcTriggersToolView,
+  'oc-trigger-delete': OcTriggersToolView,
+  'trigger_delete': OcTriggersToolView,
+  'trigger-delete': OcTriggersToolView,
+  'oc-trigger_update': OcTriggersToolView,
+  'oc-trigger-update': OcTriggersToolView,
+  'trigger_update': OcTriggersToolView,
+  'trigger-update': OcTriggersToolView,
+  'oc-trigger_test': OcTriggersToolView,
+  'oc-trigger-test': OcTriggersToolView,
+  'trigger_test': OcTriggersToolView,
+  'trigger-test': OcTriggersToolView,
+  'oc-trigger_pause': OcTriggersToolView,
+  'oc-trigger-pause': OcTriggersToolView,
+  'trigger_pause': OcTriggersToolView,
+  'trigger-pause': OcTriggersToolView,
+  'oc-trigger_resume': OcTriggersToolView,
+  'oc-trigger-resume': OcTriggersToolView,
+  'trigger_resume': OcTriggersToolView,
+  'trigger-resume': OcTriggersToolView,
 
   // MCP tools and other unknown tools will fall through to the
   // registry's default (GenericToolView). The OcGenericToolView

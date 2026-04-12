@@ -5931,9 +5931,13 @@ function SessionSpawnTool({ part, forceOpen }: ToolProps) {
   );
 }
 ToolRegistry.register('session_spawn', SessionSpawnTool);
+ToolRegistry.register('session-spawn', SessionSpawnTool);
+ToolRegistry.register('oc-session_spawn', SessionSpawnTool);
+ToolRegistry.register('oc-session-spawn', SessionSpawnTool);
 ToolRegistry.register('session_start_background', SessionSpawnTool);
 ToolRegistry.register('session-start-background', SessionSpawnTool);
-ToolRegistry.register('session-spawn', SessionSpawnTool);
+ToolRegistry.register('oc-session_start_background', SessionSpawnTool);
+ToolRegistry.register('oc-session-start-background', SessionSpawnTool);
 
 // ============================================================================
 // SessionReadTool — structured session read with parsed metadata
@@ -6043,6 +6047,8 @@ function SessionReadTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
 }
 ToolRegistry.register('session_read', SessionReadTool);
 ToolRegistry.register('session-read', SessionReadTool);
+ToolRegistry.register('oc-session_read', SessionReadTool);
+ToolRegistry.register('oc-session-read', SessionReadTool);
 
 // ============================================================================
 // SessionGetTool — rich session info card with metadata, todos, conversation
@@ -6399,6 +6405,8 @@ function SessionSearchTool({
 }
 ToolRegistry.register('session_search', SessionSearchTool);
 ToolRegistry.register('session-search', SessionSearchTool);
+ToolRegistry.register('oc-session_search', SessionSearchTool);
+ToolRegistry.register('oc-session-search', SessionSearchTool);
 
 // ============================================================================
 // SessionMessageTool — message sent indicator
@@ -6438,6 +6446,8 @@ function SessionMessageTool({ part }: ToolProps) {
 }
 ToolRegistry.register('session_message', SessionMessageTool);
 ToolRegistry.register('session-message', SessionMessageTool);
+ToolRegistry.register('oc-session_message', SessionMessageTool);
+ToolRegistry.register('oc-session-message', SessionMessageTool);
 
 // ============================================================================
 // SessionLineageTool — tree visualization
@@ -6484,6 +6494,8 @@ function SessionLineageTool({
 }
 ToolRegistry.register('session_lineage', SessionLineageTool);
 ToolRegistry.register('session-lineage', SessionLineageTool);
+ToolRegistry.register('oc-session_lineage', SessionLineageTool);
+ToolRegistry.register('oc-session-lineage', SessionLineageTool);
 
 // ============================================================================
 // SessionStatsTool
@@ -6510,6 +6522,8 @@ function SessionStatsTool({ part }: ToolProps) {
 }
 ToolRegistry.register('session_stats', SessionStatsTool);
 ToolRegistry.register('session-stats', SessionStatsTool);
+ToolRegistry.register('oc-session_stats', SessionStatsTool);
+ToolRegistry.register('oc-session-stats', SessionStatsTool);
 
 // ============================================================================
 // SessionListBackgroundTool — structured worker list
@@ -6604,10 +6618,18 @@ function SessionListBackgroundTool({
     </BasicTool>
   );
 }
+ToolRegistry.register('session_list', SessionListBackgroundTool);
+ToolRegistry.register('session-list', SessionListBackgroundTool);
+ToolRegistry.register('oc-session_list', SessionListBackgroundTool);
+ToolRegistry.register('oc-session-list', SessionListBackgroundTool);
 ToolRegistry.register('session_list_background', SessionListBackgroundTool);
 ToolRegistry.register('session-list-background', SessionListBackgroundTool);
+ToolRegistry.register('oc-session_list_background', SessionListBackgroundTool);
+ToolRegistry.register('oc-session-list-background', SessionListBackgroundTool);
 ToolRegistry.register('session_list_spawned', SessionListBackgroundTool);
 ToolRegistry.register('session-list-spawned', SessionListBackgroundTool);
+ToolRegistry.register('oc-session_list_spawned', SessionListBackgroundTool);
+ToolRegistry.register('oc-session-list-spawned', SessionListBackgroundTool);
 
 // ============================================================================
 // ProjectDeleteTool
@@ -7921,6 +7943,245 @@ ToolRegistry.register('connector_setup', ConnectorSetupTool);
 ToolRegistry.register('connector-setup', ConnectorSetupTool);
 ToolRegistry.register('oc-connector_setup', ConnectorSetupTool);
 ToolRegistry.register('oc-connector-setup', ConnectorSetupTool);
+
+// ============================================================================
+// TriggersTool — Kortix trigger management (create, list, delete, etc.)
+// ============================================================================
+
+function TriggersTool({ part, defaultOpen, forceOpen }: ToolProps) {
+  const input = partInput(part);
+  const output = partOutput(part);
+  const action = (input.action as string) || 'list';
+
+  // Derive display info based on action
+  const { title, subtitle, icon, args } = useMemo(() => {
+    switch (action) {
+      case 'create': {
+        const name = (input.name as string) || '';
+        const sourceType = (input.source_type as string) || '';
+        const created = output.match(/Trigger created:\s*(\S+)/)?.[1];
+        return {
+          title: 'Create Trigger',
+          subtitle: created || name || 'Creating...',
+          icon: <Plus className="size-3.5 text-muted-foreground" />,
+          args: sourceType ? [sourceType] : undefined,
+        };
+      }
+      case 'list': {
+        const countMatch = output.match(/TRIGGERS\s*\((\d+)\)/);
+        const count = countMatch ? countMatch[1] : undefined;
+        return {
+          title: 'List Triggers',
+          subtitle: count ? `${count} trigger${count === '1' ? '' : 's'}` : output ? 'Loaded' : 'Loading...',
+          icon: <ListTree className="size-3.5 text-muted-foreground" />,
+          args: count ? [count] : undefined,
+        };
+      }
+      case 'delete': {
+        const id = (input.trigger_id as string) || '';
+        const deleted = output.toLowerCase().includes('deleted');
+        return {
+          title: 'Delete Trigger',
+          subtitle: deleted ? 'Deleted' : id ? id.slice(0, 8) + '...' : 'Deleting...',
+          icon: <Trash2 className="size-3.5 text-muted-foreground" />,
+          args: deleted ? ['deleted'] : undefined,
+        };
+      }
+      case 'get': {
+        const id = (input.trigger_id as string) || (input.name as string) || '';
+        return {
+          title: 'Trigger Details',
+          subtitle: id ? (id.length > 20 ? id.slice(0, 20) + '...' : id) : 'Loading...',
+          icon: <CalendarClock className="size-3.5 text-muted-foreground" />,
+          args: undefined,
+        };
+      }
+      case 'update': {
+        const name = (input.name as string) || (input.trigger_id as string) || '';
+        return {
+          title: 'Update Trigger',
+          subtitle: name || 'Updating...',
+          icon: <RefreshCw className="size-3.5 text-muted-foreground" />,
+          args: output ? ['updated'] : undefined,
+        };
+      }
+      case 'test': {
+        const name = (input.name as string) || (input.trigger_id as string) || '';
+        return {
+          title: 'Test Trigger',
+          subtitle: name || 'Testing...',
+          icon: <MonitorPlay className="size-3.5 text-muted-foreground" />,
+          args: output ? ['tested'] : undefined,
+        };
+      }
+      case 'pause': {
+        const name = (input.name as string) || (input.trigger_id as string) || '';
+        return {
+          title: 'Pause Trigger',
+          subtitle: name || 'Pausing...',
+          icon: <Ban className="size-3.5 text-muted-foreground" />,
+          args: output ? ['paused'] : undefined,
+        };
+      }
+      case 'resume': {
+        const name = (input.name as string) || (input.trigger_id as string) || '';
+        return {
+          title: 'Resume Trigger',
+          subtitle: name || 'Resuming...',
+          icon: <RefreshCw className="size-3.5 text-muted-foreground" />,
+          args: output ? ['resumed'] : undefined,
+        };
+      }
+      default:
+        return {
+          title: 'Triggers',
+          subtitle: action,
+          icon: <CalendarClock className="size-3.5 text-muted-foreground" />,
+          args: undefined,
+        };
+    }
+  }, [action, input, output]);
+
+  // Parse trigger lines from list/create output for expanded view
+  const triggerLines = useMemo(() => {
+    if (!output) return [];
+    return output
+      .split('\n')
+      .filter((l) => l.trim().startsWith('['))
+      .map((line) => {
+        const m = line
+          .trim()
+          .match(
+            /^\[(\w+)]\s+(\S+)\s*\|\s*(webhook|cron):\s*(.+?)\s*\|\s*(\w+)\s*→\s*(\w+)\s*\|\s*last_run:\s*(.+)$/,
+          );
+        if (!m) return { raw: line.trim() };
+        return {
+          status: m[1],
+          name: m[2],
+          sourceType: m[3] as 'webhook' | 'cron',
+          sourceDetail: m[4].trim(),
+          agent: m[6],
+          lastRun: m[7].trim(),
+        };
+      });
+  }, [output]);
+
+  return (
+    <BasicTool
+      icon={icon}
+      trigger={{ title, subtitle, args }}
+      defaultOpen={defaultOpen}
+      forceOpen={forceOpen}
+    >
+      <div className="p-2">
+        {triggerLines.length > 0 ? (
+          <div className="space-y-1">
+            {triggerLines.map((t, i) =>
+              'name' in t ? (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 text-xs py-1 px-1 rounded hover:bg-muted/30"
+                >
+                  {t.sourceType === 'webhook' ? (
+                    <Globe className="size-3 flex-shrink-0 text-muted-foreground" />
+                  ) : (
+                    <CalendarClock className="size-3 flex-shrink-0 text-muted-foreground" />
+                  )}
+                  <span className="font-medium text-foreground truncate">
+                    {t.name}
+                  </span>
+                  <span className="text-muted-foreground font-mono text-[10px] truncate ml-auto">
+                    {t.sourceType === 'webhook'
+                      ? t.sourceDetail
+                      : t.sourceDetail}
+                  </span>
+                  <span
+                    className={cn(
+                      'text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0',
+                      t.status === 'active'
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                        : t.status === 'paused'
+                          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                          : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {t.status}
+                  </span>
+                </div>
+              ) : (
+                <div
+                  key={i}
+                  className="text-xs text-muted-foreground font-mono py-0.5"
+                >
+                  {t.raw}
+                </div>
+              ),
+            )}
+          </div>
+        ) : output ? (
+          <div className="text-xs text-muted-foreground whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">
+            {output.slice(0, 3000)}
+          </div>
+        ) : (
+          <div className="p-3 text-xs text-muted-foreground">
+            {action === 'create'
+              ? 'Creating trigger...'
+              : action === 'delete'
+                ? 'Deleting trigger...'
+                : 'Loading...'}
+          </div>
+        )}
+
+        {/* Show prompt preview for create action */}
+        {action === 'create' && typeof input.prompt === 'string' && (
+          <div className="mt-2 border-t border-border/30 pt-2">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-1">
+              Prompt
+            </div>
+            <div className="text-[11px] text-muted-foreground font-mono whitespace-pre-wrap max-h-24 overflow-y-auto leading-relaxed">
+              {input.prompt.slice(0, 400)}
+              {input.prompt.length > 400 ? '...' : ''}
+            </div>
+          </div>
+        )}
+      </div>
+    </BasicTool>
+  );
+}
+ToolRegistry.register('triggers', TriggersTool);
+ToolRegistry.register('oc-triggers', TriggersTool);
+ToolRegistry.register('trigger_create', TriggersTool);
+ToolRegistry.register('trigger-create', TriggersTool);
+ToolRegistry.register('oc-trigger_create', TriggersTool);
+ToolRegistry.register('oc-trigger-create', TriggersTool);
+ToolRegistry.register('trigger_list', TriggersTool);
+ToolRegistry.register('trigger-list', TriggersTool);
+ToolRegistry.register('oc-trigger_list', TriggersTool);
+ToolRegistry.register('oc-trigger-list', TriggersTool);
+ToolRegistry.register('trigger_get', TriggersTool);
+ToolRegistry.register('trigger-get', TriggersTool);
+ToolRegistry.register('oc-trigger_get', TriggersTool);
+ToolRegistry.register('oc-trigger-get', TriggersTool);
+ToolRegistry.register('trigger_delete', TriggersTool);
+ToolRegistry.register('trigger-delete', TriggersTool);
+ToolRegistry.register('oc-trigger_delete', TriggersTool);
+ToolRegistry.register('oc-trigger-delete', TriggersTool);
+ToolRegistry.register('trigger_update', TriggersTool);
+ToolRegistry.register('trigger-update', TriggersTool);
+ToolRegistry.register('oc-trigger_update', TriggersTool);
+ToolRegistry.register('oc-trigger-update', TriggersTool);
+ToolRegistry.register('trigger_test', TriggersTool);
+ToolRegistry.register('trigger-test', TriggersTool);
+ToolRegistry.register('oc-trigger_test', TriggersTool);
+ToolRegistry.register('oc-trigger-test', TriggersTool);
+ToolRegistry.register('trigger_pause', TriggersTool);
+ToolRegistry.register('trigger-pause', TriggersTool);
+ToolRegistry.register('oc-trigger_pause', TriggersTool);
+ToolRegistry.register('oc-trigger-pause', TriggersTool);
+ToolRegistry.register('trigger_resume', TriggersTool);
+ToolRegistry.register('trigger-resume', TriggersTool);
+ToolRegistry.register('oc-trigger_resume', TriggersTool);
+ToolRegistry.register('oc-trigger-resume', TriggersTool);
 
 // ============================================================================
 // ToolError
