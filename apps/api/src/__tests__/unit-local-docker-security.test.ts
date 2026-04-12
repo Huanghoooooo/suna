@@ -7,7 +7,8 @@ describe('local docker fallback shell safety', () => {
     const source = readFileSync(join(import.meta.dir, '../platform/providers/local-docker.ts'), 'utf8');
 
     expect(source).toContain('function shellQuote(value: string)');
-    expect(source).toContain("printf '%s' ${shellQuote(val)} > /run/s6/container_environment/${key}");
+    expect(source).toContain('function buildDockerEnvWriteCommand(payload: Record<string, string>, targetDir: string): string');
+    expect(source).toContain("ENV_WRITE_PAYLOAD_B64");
     expect(source).toContain('docker exec ${shellQuote(CONTAINER_NAME)} bash -c ');
   });
 });

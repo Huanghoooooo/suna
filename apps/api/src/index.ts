@@ -51,6 +51,39 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `"'"'`)}'`;
 }
 
+function buildDockerEnvWriteCommand(payload: Record<string, string>, targetDir: string): string {
+  const payloadB64 = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
+  return `mkdir -p ${targetDir} && ENV_WRITE_PAYLOAD_B64=${shellQuote(payloadB64)} python3 - <<PY
+import base64, json, os
+from pathlib import Path
+
+target_dir = Path(${JSON.stringify(targetDir)})
+target_dir.mkdir(parents=True, exist_ok=True)
+payload = json.loads(base64.b64decode(os.environ["ENV_WRITE_PAYLOAD_B64"]).decode("utf-8"))
+for key, value in payload.items():
+    (target_dir / key).write_text(value)
+PY`;
+}
+
+function buildBootstrapUpdateCommand(payload: Record<string, string>): string {
+  const payloadB64 = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
+  return `mkdir -p /workspace/.secrets && BOOTSTRAP_UPDATE_B64=${shellQuote(payloadB64)} python3 - <<PY
+import base64, json, os
+from pathlib import Path
+
+path = Path("/workspace/.secrets/.bootstrap-env.json")
+try:
+    data = json.loads(path.read_text())
+except Exception:
+    data = {}
+
+data.update(json.loads(base64.b64decode(os.environ["BOOTSTRAP_UPDATE_B64"]).decode("utf-8")))
+tmp = path.with_suffix(".json.tmp")
+tmp.write_text(json.dumps(data))
+tmp.replace(path)
+PY`;
+}
+
 // ─── App Setup ──────────────────────────────────────────────────────────────
 
 const app = new Hono();
@@ -667,34 +700,16 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
 
   const syncViaDockerExec = (): boolean => {
     try {
-      const bootstrapPayload = Buffer.from(JSON.stringify({
-        KORTIX_TOKEN: token,
-        KORTIX_API_URL: kortixApiUrl,
-      }), 'utf8').toString('base64');
-      const writes = Object.entries(keysToSync)
-        .map(([k, v]) => `printf '%s' ${shellQuote(v)} > /run/s6/container_environment/${k}`)
-        .join(' && ');
       rawExecSync(
-        `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(`mkdir -p /run/s6/container_environment && ${writes}`)}`,
+        `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(buildDockerEnvWriteCommand(keysToSync, '/run/s6/container_environment'))}`,
         { stdio: 'pipe', timeout: 15_000, env: dockerEnv },
       );
       // Also write to bootstrap file so token survives container restart
       rawExecSync(
-        `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(`mkdir -p /workspace/.secrets && BOOTSTRAP_UPDATE_B64=${shellQuote(bootstrapPayload)} python3 - <<'PY'
-import base64, json, os
-from pathlib import Path
-
-path = Path('/workspace/.secrets/.bootstrap-env.json')
-try:
-    data = json.loads(path.read_text())
-except Exception:
-    data = {}
-
-data.update(json.loads(base64.b64decode(os.environ['BOOTSTRAP_UPDATE_B64']).decode('utf-8')))
-tmp = path.with_suffix('.json.tmp')
-tmp.write_text(json.dumps(data))
-tmp.replace(path)
-PY`)}`,
+        `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(buildBootstrapUpdateCommand({
+          KORTIX_TOKEN: token,
+          KORTIX_API_URL: kortixApiUrl,
+        }))}`,
         { stdio: 'pipe', timeout: 15_000, env: dockerEnv },
       ).toString();
       // No restart — getEnv() reads from s6 env dir live. OpenCode picks up

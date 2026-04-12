@@ -7,9 +7,11 @@ describe('sandbox sync fallback shell safety', () => {
     const source = readFileSync(join(import.meta.dir, '../index.ts'), 'utf8');
 
     expect(source).toContain('function shellQuote(value: string)');
-    expect(source).toContain("printf '%s' ${shellQuote(v)} > /run/s6/container_environment/${k}");
+    expect(source).toContain('function buildDockerEnvWriteCommand(payload: Record<string, string>, targetDir: string): string');
+    expect(source).toContain('function buildBootstrapUpdateCommand(payload: Record<string, string>): string');
+    expect(source).toContain("ENV_WRITE_PAYLOAD_B64");
     expect(source).toContain('docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ');
-    expect(source).toContain("os.environ['BOOTSTRAP_UPDATE_B64']");
+    expect(source).toContain('os.environ["BOOTSTRAP_UPDATE_B64"]');
     expect(source).not.toContain('JSON.stringify(JSON.stringify({ KORTIX_TOKEN: token, KORTIX_API_URL: kortixApiUrl }))');
   });
 
@@ -17,7 +19,8 @@ describe('sandbox sync fallback shell safety', () => {
     const source = readFileSync(join(import.meta.dir, '../platform/services/sandbox-health.ts'), 'utf8');
 
     expect(source).toContain('function shellQuote(value: string)');
-    expect(source).toContain("printf '%s' ${shellQuote(val)} > /run/s6/container_environment/${key}");
+    expect(source).toContain('function buildDockerEnvWriteCommand(payload: Record<string, string>, targetDir: string): string');
+    expect(source).toContain("ENV_WRITE_PAYLOAD_B64");
     expect(source).toContain('docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ');
   });
 });

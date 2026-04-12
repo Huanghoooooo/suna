@@ -43,6 +43,20 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `"'"'`)}'`;
 }
 
+function buildDockerEnvWriteCommand(payload: Record<string, string>, targetDir: string): string {
+  const payloadB64 = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
+  return `mkdir -p ${targetDir} && ENV_WRITE_PAYLOAD_B64=${shellQuote(payloadB64)} python3 - <<PY
+import base64, json, os
+from pathlib import Path
+
+target_dir = Path(${JSON.stringify(targetDir)})
+target_dir.mkdir(parents=True, exist_ok=True)
+payload = json.loads(base64.b64decode(os.environ["ENV_WRITE_PAYLOAD_B64"]).decode("utf-8"))
+for key, value in payload.items():
+    (target_dir / key).write_text(value)
+PY`;
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export function getSandboxHealthState(): SandboxHealthState {
@@ -245,13 +259,8 @@ async function attemptKeySyncFallback(keys: Record<string, string>): Promise<boo
       env.DOCKER_HOST = `unix://${config.DOCKER_HOST}`;
     }
 
-    const writes = Object.entries(keys)
-      .map(([key, val]) => `printf '%s' ${shellQuote(val)} > /run/s6/container_environment/${key}`)
-      .join(' && ');
-    // No restart — getEnv() reads from s6 env dir live.
-
     execSync(
-      `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(`mkdir -p /run/s6/container_environment && ${writes}`)}`,
+      `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(buildDockerEnvWriteCommand(keys, '/run/s6/container_environment'))}`,
       { timeout: 15_000, stdio: 'pipe', env },
     );
 
