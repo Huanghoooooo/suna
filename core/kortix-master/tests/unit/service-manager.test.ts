@@ -411,6 +411,45 @@ describe("ServiceManager — Managed project services", () => {
     ).toBe(false);
   }, 40000);
 
+  it("does not auto-heal restart a spawn service while startupPromise is still pending after grace", async () => {
+    const storageDir = makeTempDir("service-manager-store-");
+    const appDir = makeTempDir("service-manager-app-");
+
+    writeFileSync(join(appDir, "server.js"), "setInterval(() => {}, 1000)");
+
+    const manager = createManager(storageDir);
+    const serviceId = `late-startup-${Date.now()}`;
+    await manager.registerService({
+      id: serviceId,
+      sourcePath: appDir,
+      framework: "node",
+      startCommand: "bun server.js",
+      desiredState: "running",
+      healthCheck: { type: "none", timeoutMs: 500 },
+    });
+
+    await manager.start();
+
+    const item = (manager as any).services.get(serviceId);
+    expect(item).toBeTruthy();
+    const pending = new Promise((resolve) => setTimeout(() => resolve({ ok: true }), 100));
+    item.startupPromise = pending;
+    item.state.status = "failed";
+    item.state.startedAt = new Date(Date.now() - 31_000).toISOString();
+
+    const result = await manager.requestRecovery(serviceId, "unit-test-late-start");
+    expect(result).toBe(await pending);
+
+    const logs = await manager.getLogs(serviceId);
+    const startCount = logs.logs.filter((line) =>
+      line.includes("[manager] starting bun server.js"),
+    ).length;
+    expect(startCount).toBe(1);
+    expect(
+      logs.logs.some((line) => line.includes("recovery joined active startup (unit-test-late-start)")),
+    ).toBe(true);
+  }, 15000);
+
   it("uses raw TCP probes for tcp health checks without sending HTTP to the port", async () => {
     const storageDir = makeTempDir("service-manager-store-");
     const port = await findFreePort();

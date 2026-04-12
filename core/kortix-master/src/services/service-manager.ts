@@ -1095,7 +1095,7 @@ export class ServiceManager {
     const inFlight = this.recoveryInFlight.get(id);
     if (inFlight) return inFlight;
 
-    if (item.startupPromise && this.isWithinStartupGrace(item)) {
+    if (item.startupPromise) {
       this.appendLog(
         id,
         `[manager] recovery joined active startup (${reason})`,
@@ -1115,7 +1115,7 @@ export class ServiceManager {
     const recovery = (async () => {
       this.lastRecoveryAt.set(id, Date.now());
       await this.probeManagedService(item);
-      if (item.startupPromise && this.isWithinStartupGrace(item)) {
+      if (item.startupPromise) {
         this.appendLog(
           id,
           `[manager] recovery waiting for startup (${reason})`,

@@ -11,6 +11,7 @@
  */
 
 import type { Plugin } from "@opencode-ai/plugin"
+import { clearStartupAbortedSession, hasStartupAbortedSession } from "../lib/startup-aborted-sessions"
 import {
 	AUTOWORK_THRESHOLDS,
 	COMPLETION_TAG,
@@ -34,6 +35,8 @@ import { checkAutoworkSafetyGates, evaluateAutowork } from "./engine"
 
 export const autoworkActiveSessions = new Set<string>()
 
+const PENDING_COMMAND_TTL_MS = 15_000
+
 function extractMessageText(input: any): string {
 	const parts = input?.parts ?? []
 	let text = ""
@@ -55,16 +58,8 @@ function isInternalMessage(text: string): boolean {
 	return text.includes(`<${SYSTEM_WRAPPER_TAG}`) || text.includes(`<${COMPLETION_TAG}`)
 }
 
-function extractRenderedCommandArgs(text: string): string {
-	const quotedBlocks = [...text.matchAll(/"([\s\S]*?)"/g)]
-	for (let i = quotedBlocks.length - 1; i >= 0; i--) {
-		const candidate = quotedBlocks[i]?.[1]?.trim()
-		if (candidate && (candidate.includes("--max-iterations") || candidate.length > 0)) {
-			return candidate
-		}
-	}
-	const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
-	return lines.at(-1) ?? ""
+function startsWithSlashCommand(text: string, command: "autowork" | "autowork-cancel"): boolean {
+	return new RegExp(`^/${command}\\b`, "i").test(text.trim())
 }
 
 function extractAssistantTexts(messages: any[], fromIndex = 0): string[] {
@@ -142,11 +137,15 @@ class SessionStateMap<T> {
 
 const AutoworkPlugin: Plugin = async ({ client }) => {
 	const states = new SessionStateMap((_sid) => createInitialAutoworkState())
-	const pendingCommand = new Map<string, { command: string; args: string }>()
+	const pendingCommand = new Map<string, { command: string; args: string; createdAt: number }>()
 
 	try {
 		const persisted = loadAllAutoworkStates()
 		for (const [sid, state] of persisted) {
+			if (hasStartupAbortedSession(sid)) {
+				removeAutoworkState(sid)
+				continue
+			}
 			if (state.active && !state.stopped) {
 				states.set(sid, state)
 				autoworkActiveSessions.add(sid)
@@ -173,7 +172,7 @@ const AutoworkPlugin: Plugin = async ({ client }) => {
 			const args = (input?.arguments as string | undefined) || ""
 			if (!command || !sessionId) return
 			if (["autowork", "autowork-cancel"].includes(command)) {
-				pendingCommand.set(sessionId, { command, args })
+				pendingCommand.set(sessionId, { command, args, createdAt: Date.now() })
 				log("info", `[autowork][${sid(sessionId)}] command.execute.before: ${command} "${args.slice(0, 80)}"`)
 			}
 		},
@@ -189,34 +188,41 @@ const AutoworkPlugin: Plugin = async ({ client }) => {
 				let state = states.get(sessionId)
 				const clean = messageText.trim()
 				const pending = pendingCommand.get(sessionId)
+				const livePending = pending && Date.now() - pending.createdAt <= PENDING_COMMAND_TTL_MS ? pending : null
+				if (pending && !livePending) pendingCommand.delete(sessionId)
 
-				const cancelMatch = pending?.command === "autowork-cancel"
-					|| /\/autowork-cancel\b/.test(clean)
+				const cancelMatch = livePending?.command === "autowork-cancel"
+					|| startsWithSlashCommand(clean, "autowork-cancel")
 
 				if (cancelMatch) {
 					pendingCommand.delete(sessionId)
+					removeAutoworkState(sessionId)
+					autoworkActiveSessions.delete(sessionId)
 					if (state.active) {
 						state = stopAutowork(state, "cancelled")
 						states.set(sessionId, state)
-						autoworkActiveSessions.delete(sessionId)
 						log("info", `[autowork][${sid(sessionId)}] Cancelled`)
+					} else {
+						log("info", `[autowork][${sid(sessionId)}] Cleared persisted state on cancel`)
 					}
 					return
 				}
 
-				const autoworkMatch = pending?.command === "autowork"
-					|| /\/autowork\b/.test(clean)
+				const explicitSlashAutowork = startsWithSlashCommand(clean, "autowork")
+				const autoworkMatch = livePending?.command === "autowork"
+					|| explicitSlashAutowork
 
 				if (autoworkMatch) {
-					const pendingArgs = pending?.args?.trim()
+					const pendingArgs = livePending?.args?.trim()
 					const rawArgs = pendingArgs
-						|| (() => {
-							const slashForm = clean.replace(/^.*?\/autowork\s*/i, "").trim()
-							if (slashForm && slashForm !== clean) return slashForm
-							return extractRenderedCommandArgs(clean)
-						})()
+						|| (explicitSlashAutowork ? clean.replace(/^\/autowork\s*/i, "").trim() : "")
 					const { task, options } = parseAutoworkArgs(rawArgs)
 					pendingCommand.delete(sessionId)
+
+					if (!pendingArgs && !explicitSlashAutowork) {
+						log("warn", `[autowork][${sid(sessionId)}] Ignored autowork activation without explicit slash command or args`)
+						return
+					}
 
 					if (state.active) {
 						state = appendTaskContext(state, `[User added context at iteration ${state.iteration}]: ${task}`)
@@ -256,15 +262,36 @@ const AutoworkPlugin: Plugin = async ({ client }) => {
 						states.delete(sessionId)
 						autoworkActiveSessions.delete(sessionId)
 						removeAutoworkState(sessionId)
+						clearStartupAbortedSession(sessionId)
 					}
 					return
 				}
 
-				if (event.type === "session.error" || (event.type as string) === "session.aborted") {
+				if ((event.type as string) === "session.aborted") {
+					const sessionId = (event as any).properties?.sessionID as string | undefined
+					if (!sessionId) return
+					const state = states.get(sessionId)
+					if (state.active) {
+						states.set(sessionId, stopAutowork(state, "cancelled"))
+					}
+					autoworkActiveSessions.delete(sessionId)
+					removeAutoworkState(sessionId)
+					log("info", `[autowork][${sid(sessionId)}] Cancelled after session abort`)
+					return
+				}
+
+				if (event.type === "session.error") {
 					const sessionId = (event as any).properties?.sessionID as string | undefined
 					if (!sessionId || !states.has(sessionId)) return
 					const state = states.get(sessionId)
 					if (!state.active) return
+					if (hasStartupAbortedSession(sessionId)) {
+						states.set(sessionId, stopAutowork(state, "cancelled"))
+						autoworkActiveSessions.delete(sessionId)
+						removeAutoworkState(sessionId)
+						log("info", `[autowork][${sid(sessionId)}] Disabled after startup cleanup abort`)
+						return
+					}
 					states.set(sessionId, recordAutoworkAbort(state))
 					log("info", `[autowork][${sid(sessionId)}] Abort recorded`)
 					return
@@ -273,6 +300,14 @@ const AutoworkPlugin: Plugin = async ({ client }) => {
 				if (event.type !== "session.idle") return
 				const sessionId = (event as any).properties?.sessionID as string | undefined
 				if (!sessionId) return
+				if (hasStartupAbortedSession(sessionId)) {
+					const existing = states.get(sessionId)
+					if (existing.active) states.set(sessionId, stopAutowork(existing, "cancelled"))
+					autoworkActiveSessions.delete(sessionId)
+					removeAutoworkState(sessionId)
+					log("info", `[autowork][${sid(sessionId)}] Skipped: session aborted during startup cleanup`)
+					return
+				}
 
 				let state = states.get(sessionId)
 				if (!state.active) {

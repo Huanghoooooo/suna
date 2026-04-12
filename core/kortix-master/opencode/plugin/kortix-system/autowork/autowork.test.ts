@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { clearAllStartupAbortedSessions, markStartupAbortedSession } from "../lib/startup-aborted-sessions"
 import { COMPLETION_TAG } from "./config"
 
 const tempRoots: string[] = []
@@ -10,6 +11,7 @@ const originalStorageBase = process.env.OPENCODE_STORAGE_BASE
 afterEach(() => {
 	if (originalStorageBase === undefined) delete process.env.OPENCODE_STORAGE_BASE
 	else process.env.OPENCODE_STORAGE_BASE = originalStorageBase
+	clearAllStartupAbortedSessions()
 	for (const dir of tempRoots.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
@@ -227,5 +229,181 @@ describe("Autowork plugin integration", () => {
 		expect(persisted).not.toBeNull()
 		expect(persisted?.active).toBe(false)
 		expect(persisted?.stopReason).toBe("failed")
+	})
+
+	test("startup-aborted sessions do not resume persisted autowork", async () => {
+		process.env.OPENCODE_STORAGE_BASE = makeStorage()
+
+		const prompts: Array<{ sessionId: string; text: string }> = []
+		const messages = new Map<string, any[]>()
+		const sessionId = "ses_autowork_startup_abort"
+
+		const stateMod = await import(`./state.ts?autowork-startup-state=${Date.now()}`)
+		stateMod.startAutowork("fix the zombie session", sessionId, 0, 50)
+		markStartupAbortedSession(sessionId)
+
+		const pluginMod = await import(`./autowork.ts?autowork-startup-abort=${Date.now()}`)
+		const pluginFactory = pluginMod.default
+
+		const client = {
+			app: { log: async () => {} },
+			session: {
+				messages: async ({ path }: any) => ({ data: messages.get(path.id) ?? [] }),
+				promptAsync: async ({ path, body }: any) => {
+					prompts.push({ sessionId: path.id, text: body.parts[0].text })
+				},
+			},
+		} as any
+
+		const plugin = await pluginFactory({ client })
+		messages.set(sessionId, [assistant("Still working")])
+		await plugin.event({ event: { type: "session.idle", properties: { sessionID: sessionId } } })
+
+		expect(prompts).toHaveLength(0)
+		expect(pluginMod.autoworkActiveSessions.has(sessionId)).toBe(false)
+		expect(stateMod.loadAutoworkState(sessionId)).toBeNull()
+	})
+
+	test("does not activate autowork when a message merely mentions /autowork", async () => {
+		process.env.OPENCODE_STORAGE_BASE = makeStorage()
+
+		const prompts: Array<{ sessionId: string; text: string }> = []
+		const messages = new Map<string, any[]>()
+
+		const pluginMod = await import(`./autowork.ts?autowork-mention=${Date.now()}`)
+		const pluginFactory = pluginMod.default
+
+		const client = {
+			app: { log: async () => {} },
+			session: {
+				messages: async ({ path }: any) => ({ data: messages.get(path.id) ?? [] }),
+				promptAsync: async ({ path, body }: any) => {
+					prompts.push({ sessionId: path.id, text: body.parts[0].text })
+				},
+			},
+		} as any
+
+		const plugin = await pluginFactory({ client })
+		const sessionId = "ses_autowork_mention"
+
+		await plugin["chat.message"](
+			{ sessionID: sessionId },
+			{ parts: [{ type: "text", text: "If you need to restart it later, use /autowork with a fresh task." }] },
+		)
+
+		messages.set(sessionId, [assistant("Still idle")])
+		await plugin.event({ event: { type: "session.idle", properties: { sessionID: sessionId } } })
+
+		expect(prompts).toHaveLength(0)
+		expect(pluginMod.autoworkActiveSessions.has(sessionId)).toBe(false)
+	})
+
+	test("ignores stale pending autowork commands instead of deriving garbage task text", async () => {
+			process.env.OPENCODE_STORAGE_BASE = makeStorage()
+
+		const prompts: Array<{ sessionId: string; text: string }> = []
+		const messages = new Map<string, any[]>()
+
+		const pluginMod = await import(`./autowork.ts?autowork-stale-pending=${Date.now()}`)
+		const pluginFactory = pluginMod.default
+
+		const client = {
+			app: { log: async () => {} },
+			session: {
+				messages: async ({ path }: any) => ({ data: messages.get(path.id) ?? [] }),
+				promptAsync: async ({ path, body }: any) => {
+					prompts.push({ sessionId: path.id, text: body.parts[0].text })
+				},
+			},
+		} as any
+
+		const plugin = await pluginFactory({ client })
+		const sessionId = "ses_autowork_stale_pending"
+
+			await plugin["command.execute.before"]({
+				command: "autowork",
+				sessionID: sessionId,
+				arguments: "",
+			})
+			const realNow = Date.now
+			Date.now = () => realNow() + 16_000
+			await plugin["chat.message"](
+				{ sessionID: sessionId },
+				{ parts: [{ type: "text", text: '<todo status="in_progress" priority="high">Inspect bug</todo>' }] },
+			)
+			Date.now = realNow
+
+			messages.set(sessionId, [assistant("Still idle")])
+			await plugin.event({ event: { type: "session.idle", properties: { sessionID: sessionId } } })
+
+		expect(prompts).toHaveLength(0)
+		expect(pluginMod.autoworkActiveSessions.has(sessionId)).toBe(false)
+	})
+
+	test("session.aborted cancels autowork and removes persisted state", async () => {
+		process.env.OPENCODE_STORAGE_BASE = makeStorage()
+
+		const messages = new Map<string, any[]>()
+		const pluginMod = await import(`./autowork.ts?autowork-abort-cancel=${Date.now()}`)
+		const stateMod = await import(`./state.ts?autowork-abort-cancel=${Date.now()}`)
+		const pluginFactory = pluginMod.default
+
+		const client = {
+			app: { log: async () => {} },
+			session: {
+				messages: async ({ path }: any) => ({ data: messages.get(path.id) ?? [] }),
+				promptAsync: async () => {},
+			},
+		} as any
+
+		const plugin = await pluginFactory({ client })
+		const sessionId = "ses_autowork_abort_cancel"
+
+		messages.set(sessionId, [])
+		await plugin["chat.message"](
+			{ sessionID: sessionId },
+			{ parts: [{ type: "text", text: "/autowork fix the bug" }] },
+		)
+
+		expect(pluginMod.autoworkActiveSessions.has(sessionId)).toBe(true)
+		expect(stateMod.loadAutoworkState(sessionId)?.active).toBe(true)
+
+		await plugin.event({ event: { type: "session.aborted", properties: { sessionID: sessionId } } })
+
+		expect(pluginMod.autoworkActiveSessions.has(sessionId)).toBe(false)
+		expect(stateMod.loadAutoworkState(sessionId)).toBeNull()
+	})
+
+	test("autowork-cancel clears persisted state even when in-memory state is inactive", async () => {
+		process.env.OPENCODE_STORAGE_BASE = makeStorage()
+
+		const messages = new Map<string, any[]>()
+		const stateMod = await import(`./state.ts?autowork-cancel-persisted=${Date.now()}`)
+		stateMod.startAutowork("fix the bug", "ses_autowork_cancel_persisted", 0, 50)
+
+		const pluginMod = await import(`./autowork.ts?autowork-cancel-persisted=${Date.now()}`)
+		const pluginFactory = pluginMod.default
+
+		const client = {
+			app: { log: async () => {} },
+			session: {
+				messages: async ({ path }: any) => ({ data: messages.get(path.id) ?? [] }),
+				promptAsync: async () => {},
+			},
+		} as any
+
+		const plugin = await pluginFactory({ client })
+		const sessionId = "ses_autowork_cancel_persisted"
+
+		await plugin.event({ event: { type: "session.deleted", properties: { sessionID: sessionId } } })
+		stateMod.startAutowork("fix the bug", sessionId, 0, 50)
+
+		await plugin["chat.message"](
+			{ sessionID: sessionId },
+			{ parts: [{ type: "text", text: "/autowork-cancel" }] },
+		)
+
+		expect(pluginMod.autoworkActiveSessions.has(sessionId)).toBe(false)
+		expect(stateMod.loadAutoworkState(sessionId)).toBeNull()
 	})
 })

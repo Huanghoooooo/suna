@@ -10,6 +10,7 @@ import type { Plugin } from "@opencode-ai/plugin"
 import type { Todo } from "@opencode-ai/sdk"
 import { autoworkActiveSessions } from "../autowork/autowork"
 import { wrapInKortixSystemTags } from "../lib/message-transform"
+import { clearStartupAbortedSession, hasStartupAbortedSession } from "../lib/startup-aborted-sessions"
 import { DEFAULT_CONFIG, TODO_ENFORCER_INTERNAL_MARKER, createInitialContinuationState, type ContinuationState } from "./config"
 import { evaluate } from "./engine"
 
@@ -153,6 +154,7 @@ const TodoEnforcerPlugin: Plugin = async ({ client }) => {
 						states.delete(sessionId)
 						autoworkActiveSessions.delete(sessionId)
 						disabledSessions.delete(sessionId)
+						clearStartupAbortedSession(sessionId)
 					}
 					return
 				}
@@ -164,6 +166,7 @@ const TodoEnforcerPlugin: Plugin = async ({ client }) => {
 					state.lastAbortAt = Date.now()
 					state.consecutiveAborts += 1
 					state.inflight = false
+					disabledSessions.add(sessionId)
 					return
 				}
 
@@ -171,6 +174,11 @@ const TodoEnforcerPlugin: Plugin = async ({ client }) => {
 
 				const sessionId = (event as any).properties?.sessionID
 				if (!sessionId || autoworkActiveSessions.has(sessionId) || disabledSessions.has(sessionId)) return
+				if (hasStartupAbortedSession(sessionId)) {
+					disabledSessions.add(sessionId)
+					log("info", `[todo-enforcing][${sid(sessionId)}] skipped: session aborted during startup cleanup`)
+					return
+				}
 
 				const state = states.get(sessionId)
 				const [todoRes, messagesRes] = await Promise.all([

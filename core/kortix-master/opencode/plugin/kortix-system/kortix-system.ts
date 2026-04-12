@@ -15,11 +15,32 @@ import * as path from "node:path"
 import { Database } from "bun:sqlite"
 import type { Plugin } from "@opencode-ai/plugin"
 
-import { initProjectsDb, ProjectManager, projectTools, projectGateHook, projectStatusTransform } from "./projects"
+import { initProjectsDb, ProjectManager, projectTools, projectGateHook } from "./projects"
 import { agentTaskTools, handleAgentTaskSessionEvent } from "./agent-tasks"
 import { ensureTasksTable, reconcileAllRunningTasks } from "../../../src/services/task-service"
 import { resolveKortixWorkspaceRoot, ensureKortixDir } from "./lib/paths"
+import { markStartupAbortedSession } from "./lib/startup-aborted-sessions"
 import { getBusySessionIds } from "../../../src/services/runtime-reload"
+
+const STARTUP_BUSY_SESSION_CLEANUP_DELAY_MS = 750
+const STARTUP_BUSY_SESSION_CLEANUP_INTERVAL_MS = 3_000
+const STARTUP_BUSY_SESSION_CLEANUP_PASSES = 20
+
+type ListedSession = { id: string; time?: { updated?: number } }
+
+export function selectLingeringBusySessionIds(options: {
+	candidateBusySessionIds: string[]
+	sessions: ListedSession[]
+	activeTaskSessionIds: Set<string>
+	cleanupStartedAt: number
+}): string[] {
+	const sessionsById = new Map(options.sessions.map((session) => [session.id, session]))
+	return options.candidateBusySessionIds.filter((sessionId) => {
+		if (options.activeTaskSessionIds.has(sessionId)) return false
+		const updatedAt = sessionsById.get(sessionId)?.time?.updated
+		return typeof updatedAt !== "number" || updatedAt <= options.cleanupStartedAt
+	})
+}
 
 async function cleanupLingeringBusySessions(client: any, db: Database, cleanupStartedAt: number): Promise<void> {
 	for (let attempt = 1; attempt <= 5; attempt++) {
@@ -29,20 +50,23 @@ async function cleanupLingeringBusySessions(client: any, db: Database, cleanupSt
 				client.session.list(),
 			])
 			const candidateBusySessionIds = getBusySessionIds(statusRes.data as Record<string, { type?: string }> | null | undefined)
-			const sessionsById = new Map(
-				((sessionsRes.data ?? []) as Array<{ id: string; time?: { updated?: number } }>).map((session) => [session.id, session]),
+			const activeTaskSessionIds = new Set(
+				(candidateBusySessionIds
+					.map((sessionId) => {
+						const activeTaskRun = db.prepare("SELECT 1 FROM task_runs WHERE owner_session_id=$sid AND status='running' LIMIT 1").get({ $sid: sessionId })
+						return activeTaskRun ? sessionId : null
+					})
+					.filter((sessionId): sessionId is string => Boolean(sessionId))),
 			)
-			const busySessionIds = candidateBusySessionIds.filter((sessionId) => {
-				const activeTaskRun = db.prepare("SELECT 1 FROM task_runs WHERE owner_session_id=$sid AND status='running' LIMIT 1").get({ $sid: sessionId })
-				if (activeTaskRun) return false
-				const updatedAt = sessionsById.get(sessionId)?.time?.updated
-				return typeof updatedAt !== "number" || updatedAt <= cleanupStartedAt
+			const busySessionIds = selectLingeringBusySessionIds({
+				candidateBusySessionIds,
+				sessions: (sessionsRes.data ?? []) as ListedSession[],
+				activeTaskSessionIds,
+				cleanupStartedAt,
 			})
 			if (busySessionIds.length === 0) {
 				if (candidateBusySessionIds.length > 0) {
 					console.log("[kortix-system] startup cleanup: only fresh busy sessions found, skipping cleanup")
-				} else {
-					console.log("[kortix-system] startup cleanup: no lingering busy sessions")
 				}
 				return
 			}
@@ -52,6 +76,7 @@ async function cleanupLingeringBusySessions(client: any, db: Database, cleanupSt
 			await Promise.all(
 				busySessionIds.map(async (sessionId) => {
 					try {
+						markStartupAbortedSession(sessionId)
 						await client.session.abort({ path: { id: sessionId } })
 					} catch (err) {
 						failures.push(`${sessionId}: ${err instanceof Error ? err.message : String(err)}`)
@@ -73,6 +98,23 @@ async function cleanupLingeringBusySessions(client: any, db: Database, cleanupSt
 			await Bun.sleep(attempt * 250)
 		}
 	}
+}
+
+function scheduleStartupBusySessionCleanup(client: any, db: Database, cleanupStartedAt: number): void {
+	let passesRemaining = STARTUP_BUSY_SESSION_CLEANUP_PASSES
+
+	const runPass = async () => {
+		passesRemaining -= 1
+		await cleanupLingeringBusySessions(client, db, cleanupStartedAt)
+		if (passesRemaining <= 0) return
+		setTimeout(() => {
+			void runPass()
+		}, STARTUP_BUSY_SESSION_CLEANUP_INTERVAL_MS)
+	}
+
+	setTimeout(() => {
+		void runPass()
+	}, STARTUP_BUSY_SESSION_CLEANUP_DELAY_MS)
 }
 
 const KortixSystemPlugin: Plugin = async (ctx) => {
@@ -107,9 +149,7 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 	})
 	
 	console.log("[kortix-system] Plugin initialized. Tools:", Object.keys(projectTools(mgr, db)).length, "project +", Object.keys(agentTaskTools(db, mgr, client)).length, "task")
-	setTimeout(() => {
-		void cleanupLingeringBusySessions(client, db, startupCleanupStartedAt)
-	}, 750)
+	scheduleStartupBusySessionCleanup(client, db, startupCleanupStartedAt)
 	setInterval(() => {
 		void reconcileAllRunningTasks(db, client).catch(() => {})
 	}, 5000)
@@ -131,9 +171,6 @@ const KortixSystemPlugin: Plugin = async (ctx) => {
 
 		// Project gate (file writes require project)
 		"tool.execute.before": projectGateHook(mgr),
-
-		// Project status + active tasks injection
-		"experimental.chat.messages.transform": projectStatusTransform(mgr, () => currentSessionId),
 
 		// System prompt transform — forwards to auth (anthropic prefix)
 		"experimental.chat.system.transform": async (input: any, output: { system: string[] }) => {
