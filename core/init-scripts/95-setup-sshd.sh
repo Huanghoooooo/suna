@@ -100,7 +100,6 @@ _wrap_cli_binary() {
   case "$bin" in *.real*) return 1 ;; esac
   [ -x "$bin" ] || return 1
   [ -f "$bin.real" ] && return 1
-  file "$bin" | grep -q ELF || return 1
   mv "$bin" "$bin.real"
   printf '%s\n' "$WRAPPER_CONTENT" > "$bin"
   chmod +x "$bin"
@@ -113,9 +112,14 @@ _wrap_cli_binary() {
 # VSCODE_AGENT_FOLDER, which the install script may override.
 _WRAP_DIRS="/config/.vscode-server /config/.cursor-server /workspace/.vscode-server /workspace/.cursor-server"
 
-# Part 1: wrap existing binaries right now
+# Part 1: wrap existing launchers right now
 for _dir in $_WRAP_DIRS; do
-  for _bin in "$_dir"/code-* "$_dir"/cursor-*; do
+  for _bin in \
+    "$_dir"/code-* \
+    "$_dir"/cursor-* \
+    "$_dir"/bin/*/*/bin/cursor-server \
+    "$_dir"/bin/*/*/bin/remote-cli/cursor \
+    "$_dir"/bin/*/*/bin/remote-cli/code; do
     _wrap_cli_binary "$_bin" 2>/dev/null
   done
 done
@@ -127,7 +131,12 @@ done
   while true; do
     for _dir in $_WRAP_DIRS; do
       [ -d "$_dir" ] || continue
-      for _bin in "$_dir"/code-* "$_dir"/cursor-*; do
+      for _bin in \
+        "$_dir"/code-* \
+        "$_dir"/cursor-* \
+        "$_dir"/bin/*/*/bin/cursor-server \
+        "$_dir"/bin/*/*/bin/remote-cli/cursor \
+        "$_dir"/bin/*/*/bin/remote-cli/code; do
         _wrap_cli_binary "$_bin" 2>/dev/null
       done
     done
@@ -168,20 +177,31 @@ chown -R abc:abc /config/.cache 2>/dev/null
 # If Cursor has installed its server, replace the bundled node with a symlink
 # to the system node. The install script already has fallback logic for this.
 _fix_cursor_node() {
-  local cursor_base="/config/.cursor-server/bin"
-  [ -d "$cursor_base" ] || return 0
-  for node_bin in "$cursor_base"/*/511523af765daeb1fa69500ab0df5b6524424610/node "$cursor_base"/*/*/node; do
-    [ -f "$node_bin" ] || continue
-    [ -L "$node_bin" ] && continue  # already a symlink, skip
-    local sys_node
-    sys_node="$(command -v node 2>/dev/null)" || continue
-    cp "$node_bin" "${node_bin}.bundled" 2>/dev/null
-    rm -f "$node_bin"
-    ln -s "$sys_node" "$node_bin"
-    echo "[init] Replaced Cursor bundled node with system node ($sys_node) at $node_bin"
+  local sys_node cursor_base node_bin
+  sys_node="$(command -v node 2>/dev/null)" || return 0
+  for cursor_base in /config/.cursor-server/bin /workspace/.cursor-server/bin; do
+    [ -d "$cursor_base" ] || continue
+    for node_bin in "$cursor_base"/*/*/node; do
+      [ -f "$node_bin" ] || continue
+      [ -L "$node_bin" ] && continue  # already a symlink, skip
+      cp "$node_bin" "${node_bin}.bundled" 2>/dev/null || true
+      rm -f "$node_bin"
+      ln -s "$sys_node" "$node_bin"
+      echo "[init] Replaced Cursor bundled node with system node ($sys_node) at $node_bin"
+    done
   done
 }
 _fix_cursor_node
+
+# Part 3: background watcher for newly-downloaded Cursor nodes
+# New Cursor server versions may be downloaded after container boot; repair
+# them continuously so Remote-SSH doesn't regress on reconnect.
+(
+  while true; do
+    _fix_cursor_node
+    sleep 1
+  done
+) &
 
 # ── Login profile for SSH sessions ──────────────────────────────────────────
 cat > /config/.profile <<'PROFILE'
