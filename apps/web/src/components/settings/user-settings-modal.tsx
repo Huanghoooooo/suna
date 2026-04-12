@@ -95,7 +95,6 @@ import { useTranslations } from 'next-intl';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Keyboard, CheckCircle2, HelpCircle, ShieldCheck, Volume2, EyeOff, Globe } from 'lucide-react';
 import CreditTransactions from '@/components/billing/credit-transactions';
-import BillingHistory from '@/components/billing/billing-history';
 import { useWebNotificationStore } from '@/stores/web-notification-store';
 import { useServerStore } from '@/stores/server-store';
 import { isNotificationSupported, sendWebNotification } from '@/lib/web-notifications';
@@ -1574,12 +1573,12 @@ function TransactionsTab() {
     return (
         <div className="p-4 sm:p-6 pb-12 sm:pb-6 space-y-4 min-w-0 max-w-full overflow-x-hidden">
             <div>
-                <h3 className="text-lg font-medium tracking-tight mb-0.5">History</h3>
+                <h3 className="text-lg font-medium tracking-tight mb-0.5">Credit ledger</h3>
                 <p className="text-sm text-muted-foreground">
-                    Subscription renewals, credit purchases, auto top-ups, and refunds.
+                    Ledger-backed account events from the Kortix schema: purchases, grants, usage, expirations, refunds, and bonuses.
                 </p>
             </div>
-            <BillingHistory />
+            <CreditTransactions />
         </div>
     );
 }
