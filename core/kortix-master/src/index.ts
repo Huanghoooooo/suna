@@ -505,6 +505,7 @@ const WS_IDLE_TIMEOUT_MS = 5 * 60_000     // 5min idle timeout (no messages)
 interface WsProxyData {
   targetPort: number
   targetPath: string
+  subprotocol?: string
   upstream: WebSocket | null
   buffered: (string | Buffer | ArrayBuffer)[]
   bufferBytes: number
@@ -531,11 +532,18 @@ function buildWsUpstreamHeaders(req: Request): Record<string, string> | undefine
   const headers: Record<string, string> = {}
   const origin = req.headers.get('origin')
   const userAgent = req.headers.get('user-agent')
+  const protocol = req.headers.get('sec-websocket-protocol')?.split(',')[0]?.trim()
 
   if (origin) headers.Origin = origin
   if (userAgent) headers['User-Agent'] = userAgent
+  if (protocol) headers['Sec-WebSocket-Protocol'] = protocol
 
   return Object.keys(headers).length > 0 ? headers : undefined
+}
+
+function buildWsUpgradeHeaders(req: Request): Record<string, string> | undefined {
+  const protocol = req.headers.get('sec-websocket-protocol')?.split(',')[0]?.trim()
+  return protocol ? { 'Sec-WebSocket-Protocol': protocol } : undefined
 }
 
 /**
@@ -596,9 +604,11 @@ export default {
 
       if (parsed && !WS_BLOCKED_PORTS.has(parsed.port)) {
         const success = server.upgrade(req, {
+          headers: buildWsUpgradeHeaders(req),
           data: {
             targetPort: parsed.port,
             targetPath: parsed.path + url.search,
+            subprotocol: req.headers.get('sec-websocket-protocol')?.split(',')[0]?.trim() || undefined,
             upstream: null,
             buffered: [],
             bufferBytes: 0,
@@ -614,9 +624,11 @@ export default {
       // Also handle catch-all WebSocket proxy to OpenCode
       if (!parsed) {
         const success = server.upgrade(req, {
+          headers: buildWsUpgradeHeaders(req),
           data: {
             targetPort: config.OPENCODE_PORT,
             targetPath: url.pathname + url.search,
+            subprotocol: req.headers.get('sec-websocket-protocol')?.split(',')[0]?.trim() || undefined,
             upstream: null,
             buffered: [],
             bufferBytes: 0,
@@ -659,8 +671,12 @@ export default {
 
       try {
         const upstream = upstreamHeaders
-          ? new WebSocket(upstreamUrl, { headers: upstreamHeaders } as any)
-          : new WebSocket(upstreamUrl)
+          ? (ws.data.subprotocol
+              ? new WebSocket(upstreamUrl, ws.data.subprotocol, { headers: upstreamHeaders } as any)
+              : new WebSocket(upstreamUrl, { headers: upstreamHeaders } as any))
+          : (ws.data.subprotocol
+              ? new WebSocket(upstreamUrl, ws.data.subprotocol)
+              : new WebSocket(upstreamUrl))
         ws.data.upstream = upstream
 
         upstream.addEventListener('open', () => {

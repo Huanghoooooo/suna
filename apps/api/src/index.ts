@@ -1071,6 +1071,7 @@ const WS_IDLE_TIMEOUT_MS = 5 * 60_000;   // 5min
 interface WsProxyData {
   targetUrl: string;
   upstreamHeaders?: Record<string, string>;
+  subprotocol?: string;
   upstream: WebSocket | null;
   buffered: (string | Buffer | ArrayBuffer)[];
   bufferBytes: number;
@@ -1175,6 +1176,18 @@ function markSubdomainAuthenticated(sandboxId: string, port: number): void {
   authenticatedSubdomains.set(getSubdomainKey(sandboxId, port), Date.now());
 }
 
+function getRequestedWsProtocol(req: Request): string | undefined {
+  const raw = req.headers.get('sec-websocket-protocol');
+  if (!raw) return undefined;
+  const first = raw.split(',')[0]?.trim();
+  return first || undefined;
+}
+
+function buildWsUpgradeHeaders(req: Request): Record<string, string> | undefined {
+  const protocol = getRequestedWsProtocol(req);
+  return protocol ? { 'Sec-WebSocket-Protocol': protocol } : undefined;
+}
+
 // Periodic cleanup of expired sessions (every 30 min)
 setInterval(() => {
   const now = Date.now();
@@ -1184,15 +1197,16 @@ setInterval(() => {
 }, 30 * 60 * 1000);
 
 /** Build WS target URL for local_docker sandbox. */
-function buildLocalDockerWsTarget(sandboxId: string, port: number, remainingPath: string, searchParams: URLSearchParams): { url: string; headers?: Record<string, string> } {
+function buildLocalDockerWsTarget(sandboxId: string, port: number, remainingPath: string, searchParams: URLSearchParams, serviceKey?: string): { url: string; headers?: Record<string, string> } {
   const sandboxBaseUrl = getSandboxBaseUrl(sandboxId);
   const wsBase = sandboxBaseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
   const targetPath = port === 8000 ? remainingPath : `/proxy/${port}${remainingPath}`;
 
   const upstreamParams = new URLSearchParams(searchParams);
   upstreamParams.delete('token');
-  if (config.INTERNAL_SERVICE_KEY) {
-    upstreamParams.set('token', config.INTERNAL_SERVICE_KEY);
+  const authToken = serviceKey || config.INTERNAL_SERVICE_KEY;
+  if (authToken) {
+    upstreamParams.set('token', authToken);
   }
   const search = upstreamParams.toString() ? `?${upstreamParams.toString()}` : '';
   return { url: `${wsBase}${targetPath}${search}` };
@@ -1251,7 +1265,7 @@ function resolveWsTarget(
       break;
   }
 
-  return buildLocalDockerWsTarget(opts.sandboxId, opts.port, opts.remainingPath, opts.searchParams);
+  return buildLocalDockerWsTarget(opts.sandboxId, opts.port, opts.remainingPath, opts.searchParams, opts.serviceKey);
 }
 
 export default {
@@ -1332,9 +1346,14 @@ export default {
         });
 
         const success = server.upgrade(req, {
+          headers: buildWsUpgradeHeaders(req),
           data: {
             targetUrl: wsTarget.url,
-            upstreamHeaders: wsTarget.headers,
+            subprotocol: getRequestedWsProtocol(req),
+            upstreamHeaders: {
+              ...(wsTarget.headers || {}),
+              ...(buildWsUpgradeHeaders(req) || {}),
+            },
             upstream: null,
             buffered: [],
             bufferBytes: 0,
@@ -1356,6 +1375,8 @@ export default {
       // NOTE: CORS preflight (OPTIONS) is handled above, before the auth check.
 
       try {
+        const resolved = await resolveProvider(sandboxId).catch(() => null);
+
         // JustAVPS: route through CF Worker proxy at {port}--{slug}.{domain}
         if (config.isJustAVPSEnabled()) {
           const { sandboxes } = await import('@kortix/db');
@@ -1520,9 +1541,14 @@ export default {
           });
 
           const success = server.upgrade(req, {
+            headers: buildWsUpgradeHeaders(req),
             data: {
               targetUrl: wsTarget.url,
-              upstreamHeaders: wsTarget.headers,
+              subprotocol: getRequestedWsProtocol(req),
+              upstreamHeaders: {
+                ...(wsTarget.headers || {}),
+                ...(buildWsUpgradeHeaders(req) || {}),
+              },
               upstream: null,
               buffered: [],
               bufferBytes: 0,
@@ -1562,7 +1588,9 @@ export default {
       }, WS_CONNECT_TIMEOUT_MS);
 
       try {
-        const upstream = new WebSocket(ws.data.targetUrl, { headers: ws.data.upstreamHeaders || {} } as any);
+        const upstream = ws.data.subprotocol
+          ? new WebSocket(ws.data.targetUrl, ws.data.subprotocol, { headers: ws.data.upstreamHeaders || {} } as any)
+          : new WebSocket(ws.data.targetUrl, { headers: ws.data.upstreamHeaders || {} } as any);
         ws.data.upstream = upstream;
 
         upstream.addEventListener('open', () => {

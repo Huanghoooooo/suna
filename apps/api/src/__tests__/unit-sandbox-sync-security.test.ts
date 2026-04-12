@@ -25,4 +25,12 @@ describe('sandbox sync fallback shell safety', () => {
     expect(source).toContain("ENV_WRITE_PAYLOAD_B64");
     expect(source).toContain('docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ');
   });
+
+  test('subdomain websocket proxy uses resolved sandbox service key', () => {
+    const source = readFileSync(join(import.meta.dir, '../index.ts'), 'utf8');
+
+    expect(source).toContain('function buildLocalDockerWsTarget(sandboxId: string, port: number, remainingPath: string, searchParams: URLSearchParams, serviceKey?: string)');
+    expect(source).toContain('const authToken = serviceKey || config.INTERNAL_SERVICE_KEY;');
+    expect(source).toContain('return buildLocalDockerWsTarget(opts.sandboxId, opts.port, opts.remainingPath, opts.searchParams, opts.serviceKey);');
+  });
 });
