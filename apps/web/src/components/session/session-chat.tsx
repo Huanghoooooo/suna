@@ -5725,13 +5725,16 @@ export function SessionChat({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || !isBusy) return;
 
-      // Don't intercept inside dialogs/modals
+      if (e.defaultPrevented) return;
+
+      // Only the main chat composer should arm triple-ESC stop. Modal/dialog ESC
+      // handling and other focused controls must never advance this counter.
       const active = document.activeElement;
-      if (
-        active?.closest('[role="dialog"]') ||
-        active?.closest('[data-radix-popper-content-wrapper]')
-      )
-        return;
+      const isChatTextareaFocused =
+        active instanceof HTMLTextAreaElement &&
+        active.dataset.sessionChatStopScope === 'true';
+
+      if (!isChatTextareaFocused) return;
 
       e.preventDefault();
 
