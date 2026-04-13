@@ -76,3 +76,30 @@ core/kortix-master/opencode/.kortix/
 .pulumi
 .pulumi/
 .vercel
+
+# -----------------------------------------------------------------------------
+# 本地/内部工具与交付物：不进入远程仓库（密钥仍见下方「敏感凭据」）
+# -----------------------------------------------------------------------------
+.cursor/
+.agents/
+
+# 团队内部说明（若需共享，改用私有 Wiki 或另建内部仓）
+docs/collaboration-git-workflow.md
+docs/project-structure.md
+
+# 敏感凭据与密钥材料（通配不宜过宽，避免误伤合法证书/源码）
+*.p12
+*.pfx
+**/id_rsa
+**/id_ed25519
+*.ppk
+**/serviceAccount*.json
+.secrets/
+*.secret
+# Google / 部分云 SDK 常用文件名（若确为模板可改名或改用 ! 例外）
+/credentials.json
+
+# Windows 本机垃圾文件
+Thumbs.db
+ehthumbs.db
+Desktop.ini

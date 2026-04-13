@@ -176,11 +176,11 @@ export function UserMenu({ user }: UserMenuProps) {
               <DropdownMenuGroup>
                 <DropdownMenuItem onClick={() => openSettings('billing')} className="gap-2 p-2 cursor-pointer">
                   <CreditCard className="size-4" />
-                  <span>Billing</span>
+                  <span>{t('billing')}</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => openSettings('general')} className="gap-2 p-2 cursor-pointer">
                   <SettingsIcon className="size-4" />
-                  <span>Settings</span>
+                  <span>{t('settings')}</span>
                 </DropdownMenuItem>
               </DropdownMenuGroup>
 
@@ -223,7 +223,7 @@ export function UserMenu({ user }: UserMenuProps) {
                   onClick={handleLogout}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer px-2 py-1"
                 >
-                  Log out
+                  {t('logout')}
                 </button>
               </div>
             </DropdownMenuContent>

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "NODE_OPTIONS='--max-http-header-size=32768' next dev --turbopack --port 3000",
+    "dev": "cross-env NODE_OPTIONS=--max-http-header-size=32768 next dev --turbopack --port 3000",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -13,7 +13,7 @@
     "test:e2e:full": "bash ../../tests/e2e/scripts/run-full-self-hosted-e2e.sh",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "postinstall": "cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs 2>/dev/null || true"
+    "postinstall": "node -e \"const fs=require('fs');const s='node_modules/pdfjs-dist/build/pdf.worker.min.mjs',d='public/pdf.worker.min.mjs';try{fs.mkdirSync('public',{recursive:true});fs.copyFileSync(s,d);}catch(_){}\""
   },
   "dependencies": {
     "@calcom/embed-react": "^1.5.2",
@@ -253,6 +253,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "@eslint/eslintrc": "^3",
     "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4.1.4",

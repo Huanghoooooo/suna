@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 import {
   X,
   MessageCircle,
@@ -391,6 +392,7 @@ function TabItem({
   isDragOver,
   dragSide,
 }: TabItemProps) {
+  const t = useTranslations('common');
   const Icon = TAB_ICONS[tab.type];
   const isDashboard = tab.id === DASHBOARD_TAB_ID;
   const didDragRef = useRef(false);
@@ -546,7 +548,7 @@ function TabItem({
               ? 'md:opacity-40 md:hover:opacity-80'
               : 'md:opacity-0 md:group-hover:opacity-40 md:group-hover:hover:opacity-80',
           )}
-          aria-label={`Close ${tab.title}`}
+          aria-label={t('closeTab', { title: tab.title })}
         >
           <X className="h-2.5 w-2.5" />
         </button>
@@ -566,6 +568,7 @@ function TabItem({
 // ============================================================================
 
 export function TabBar() {
+  const t = useTranslations('common');
   const rawPathname = usePathname();
   const pathname = normalizeAppPathname(rawPathname);
   const currentInstanceId = getCurrentInstanceIdFromPathname(rawPathname) || getActiveInstanceIdFromCookie();
@@ -1102,14 +1105,14 @@ export function TabBar() {
           <button
             onClick={() => { sidebar.setOpenMobile(true); }}
             className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-            aria-label="Open menu"
+            aria-label={t('openMenu')}
           >
             <Menu className="h-4 w-4" />
           </button>
           <button
             onClick={() => { rightSidebar?.setOpenMobile(true); }}
             className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-            aria-label="Quick actions"
+            aria-label={t('quickActions')}
           >
             <PanelRight className="h-4 w-4" />
           </button>

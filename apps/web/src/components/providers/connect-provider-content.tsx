@@ -42,6 +42,8 @@ import {
 } from '@/components/providers/provider-branding';
 
 import { getClient } from '@/lib/opencode-sdk';
+import { authenticatedFetch } from '@/lib/auth-token';
+import { getEnv } from '@/lib/env-config';
 import { useQueryClient } from '@tanstack/react-query';
 import { opencodeKeys } from '@/hooks/opencode/use-opencode-sessions';
 import type { ProviderListResponse } from '@/hooks/opencode/use-opencode-sessions';
@@ -360,13 +362,26 @@ export function ConnectProviderContent({
     setSaving(true);
     setError('');
     try {
-      const client = getClient();
-      if (customForm.apiKey.trim()) {
-        await client.auth.set({
-          providerID: customForm.providerID,
-          auth: { type: 'api', key: customForm.apiKey.trim() },
-        });
+      const backendUrl = getEnv().BACKEND_URL || 'http://localhost:8008/v1';
+      const res = await authenticatedFetch(`${backendUrl}/providers/custom`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerID: customForm.providerID.trim(),
+          name: customForm.name.trim(),
+          baseURL: customForm.baseURL.trim(),
+          apiKey: customForm.apiKey.trim(),
+          modelId: customForm.modelId.trim(),
+          modelName: customForm.modelName.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || body?.details || `Failed to save custom provider (${res.status})`);
       }
+
+      const client = getClient();
       await client.global.dispose();
       queryClient.invalidateQueries({ queryKey: opencodeKeys.providers() });
       onProviderConnected?.();

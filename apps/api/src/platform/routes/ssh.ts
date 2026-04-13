@@ -19,6 +19,7 @@ import { readFileSync, unlinkSync, mkdirSync, rmdirSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import Docker from 'dockerode';
+import { createDockerodeFromSocketPath } from '../dockerode-env-client';
 import { and, eq } from 'drizzle-orm';
 import { sandboxes } from '@kortix/db';
 import { config } from '../../config';
@@ -204,8 +205,10 @@ function getDockerClient(): Docker {
     return new Docker({ host: url.hostname, port: parseInt(url.port || '2375', 10) });
   }
 
-  const socketPath = config.DOCKER_HOST.replace(/^unix:\/\//, '');
-  return new Docker({ socketPath });
+  const socketPath = config.DOCKER_HOST.startsWith('npipe://')
+    ? config.DOCKER_HOST.replace(/^npipe:\/\//, '')
+    : config.DOCKER_HOST.replace(/^unix:\/\//, '');
+  return createDockerodeFromSocketPath(socketPath);
 }
 
 async function runContainerCommand(container: Docker.Container, cmd: string): Promise<void> {

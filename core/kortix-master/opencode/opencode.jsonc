@@ -53,6 +53,48 @@
           "limit": { "context": 196608, "output": 65536 }
         }
       }
+    },
+    "11": {
+      "name": "111",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://",
+        "apiKey": "{env:PROVIDER_11_API_KEY}"
+      },
+      "models": {
+        "111111": {
+          "name": "11111",
+          "id": "111111"
+        }
+      }
+    },
+    "bigmodel": {
+      "name": "GLM官方",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://open.bigmodel.cn/api/paas/v4",
+        "apiKey": "{env:BIGMODEL_API_KEY}"
+      },
+      "models": {
+        "glm-5-1": {
+          "name": "glm-5.1",
+          "id": "glm-5.1"
+        }
+      }
+    },
+    "zhipu-glm51": {
+      "name": "智谱 GLM-5.1",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://open.bigmodel.cn/api/paas/v4/",
+        "apiKey": "{env:BIGMODEL_API_KEY}"
+      },
+      "models": {
+        "glm-5-1": {
+          "name": "glm-5.1",
+          "id": "glm-5.1"
+        }
+      }
     }
   },
   "plugin": [

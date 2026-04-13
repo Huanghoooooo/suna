@@ -23,18 +23,18 @@
 
 ### Three components
 
-| Component | Image | Source | What it does |
-|---|---|---|---|
-| **API** | `kortix/kortix-api` | `apps/api/` | Backend API (Bun + Hono) |
-| **Frontend** | `kortix/kortix-frontend` | `apps/web/` | Next.js web app |
-| **Computer** | `kortix/computer` | `core/` | Sandbox container (Alpine, s6, browser, tools) |
+| Component    | Image                    | Source      | What it does                                   |
+| ------------ | ------------------------ | ----------- | ---------------------------------------------- |
+| **API**      | `kortix/kortix-api`      | `apps/api/` | Backend API (Bun + Hono)                       |
+| **Frontend** | `kortix/kortix-frontend` | `apps/web/` | Next.js web app                                |
+| **Computer** | `kortix/computer`        | `core/`     | Sandbox container (Alpine, s6, browser, tools) |
 
 ### Two environments
 
-| Environment | URL | API | Frontend | Computer |
-|---|---|---|---|---|
-| **Dev** | `dev.kortix.com` | `dev-api.kortix.com` (VPS) | Vercel (main branch) | JustAVPS (dev org) |
-| **Prod** | `kortix.com` | `new-api.kortix.com` (VPS) | Vercel (production branch) | JustAVPS (prod org) |
+| Environment | URL              | API                        | Frontend                   | Computer            |
+| ----------- | ---------------- | -------------------------- | -------------------------- | ------------------- |
+| **Dev**     | `dev.kortix.com` | `dev-api.kortix.com` (VPS) | Vercel (main branch)       | JustAVPS (dev org)  |
+| **Prod**    | `kortix.com`     | `new-api.kortix.com` (VPS) | Vercel (production branch) | JustAVPS (prod org) |
 
 ### Single registry
 
@@ -73,20 +73,22 @@ pnpm dev:sandbox    # Sandbox container with bind mounts
 
 `docker-compose.dev.yml` overlays local source on the prebaked image:
 
-| Local path | Container path |
-|---|---|
-| `core/kortix-master/src` | `/ephemeral/kortix-master/src` |
-| `core/kortix-master/opencode/` | `/ephemeral/kortix-master/opencode/` |
+| Local path                        | Container path                          |
+| --------------------------------- | --------------------------------------- |
+| `core/kortix-master/src`          | `/ephemeral/kortix-master/src`          |
+| `core/kortix-master/opencode/`    | `/ephemeral/kortix-master/opencode/`    |
 | `core/kortix-master/channels/src` | `/ephemeral/kortix-master/channels/src` |
 | `core/kortix-master/triggers/src` | `/ephemeral/kortix-master/triggers/src` |
 
 ### When to rebuild
 
 You **do not** need to rebuild for:
+
 - TypeScript source changes (bind-mounted live)
 - Adding/editing agents, skills, tools, prompts
 
 You **do** need `pnpm dev:sandbox --build` when:
+
 - `Dockerfile` changes
 - `core/package.json` or `kortix-master/package.json` changes
 - `bun.lock` in a sandbox package changes
@@ -163,6 +165,7 @@ gh workflow run deploy-dev.yml --repo kortix-ai/suna
 ### Dev snapshot
 
 Dev snapshots are built by the unified `snapshot-build.yml` workflow:
+
 - Auto on push to `core/**` if `AUTO_SNAPSHOT_DEV=true`
 - Manual dispatch any time:
 
@@ -183,6 +186,7 @@ The snapshot workflow is decoupled from `deploy-dev.yml` so it doesn't block the
 Manual only. Go to GitHub Actions → "Release Version" → Run workflow.
 
 **Inputs:**
+
 - `version` — e.g. `0.8.30`
 - `title` — release title, e.g. `"Streaming fixes, new onboarding"`
 - `description` — optional multi-line description
@@ -223,20 +227,20 @@ All images live in the `kortix/` Docker Hub namespace.
 
 ### Tag convention
 
-| Tag | Meaning |
-|---|---|
+| Tag          | Meaning                                              |
+| ------------ | ---------------------------------------------------- |
 | `dev-{sha8}` | Specific dev build from commit `{sha8}` (multi-arch) |
-| `dev-latest` | Points to the current dev line state |
-| `0.8.30` | A released version (multi-arch) |
-| `latest` | Latest released version |
+| `dev-latest` | Points to the current dev line state                 |
+| `0.8.30`     | A released version (multi-arch)                      |
+| `latest`     | Latest released version                              |
 
 ### Images
 
-| Image | Component |
-|---|---|
-| `kortix/kortix-api` | Backend API |
-| `kortix/kortix-frontend` | Next.js frontend |
-| `kortix/computer` | Sandbox container |
+| Image                    | Component         |
+| ------------------------ | ----------------- |
+| `kortix/kortix-api`      | Backend API       |
+| `kortix/kortix-frontend` | Next.js frontend  |
+| `kortix/computer`        | Sandbox container |
 
 All images are **multi-arch (amd64 + arm64)**. Works on x86 servers and Apple Silicon / ARM machines.
 
@@ -246,11 +250,11 @@ All images are **multi-arch (amd64 + arm64)**. Works on x86 servers and Apple Si
 
 Single source of truth per component:
 
-| Component | How version is set | Where it's read |
-|---|---|---|
-| **API** (`kortix-api`) | `SANDBOX_VERSION` env var injected by `deploy-zero-downtime.sh` from image tag | `config.SANDBOX_VERSION`, `/health` endpoint, `/v1/platform/sandbox/version` |
+| Component                        | How version is set                                                                   | Where it's read                                                                                             |
+| -------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| **API** (`kortix-api`)           | `SANDBOX_VERSION` env var injected by `deploy-zero-downtime.sh` from image tag       | `config.SANDBOX_VERSION`, `/health` endpoint, `/v1/platform/sandbox/version`                                |
 | **Computer** (`kortix/computer`) | `SANDBOX_VERSION` env var injected by `justavps.ts`/`local-docker.ts` from image tag | `kortix-master` `/kortix/health` endpoint, falls back to `/ephemeral/metadata/.version` baked at build time |
-| **Frontend** | Not tracked (Vercel deployment hashes) | — |
+| **Frontend**                     | Not tracked (Vercel deployment hashes)                                               | —                                                                                                           |
 
 ### Version endpoints
 
@@ -286,17 +290,18 @@ JustAVPS snapshots are VPS images that speed up provisioning of new machines. Th
 
 One file, three triggers: `snapshot-build.yml`
 
-| Trigger | Target |
-|---|---|
-| Push to `core/**` (gated by `AUTO_SNAPSHOT_DEV` repo variable) | dev |
-| Manual dispatch — pick `version` + `target` (dev/prod) | user choice |
-| `workflow_call` from `release.yml` | prod |
+| Trigger                                                        | Target      |
+| -------------------------------------------------------------- | ----------- |
+| Push to `core/**` (gated by `AUTO_SNAPSHOT_DEV` repo variable) | dev         |
+| Manual dispatch — pick `version` + `target` (dev/prod)         | user choice |
+| `workflow_call` from `release.yml`                             | prod        |
 
 Snapshots use the `dev` or `prod` GitHub Environment to select the correct `JUSTAVPS_API_KEY` secret (different org per environment).
 
 ### Provisioning logic (`justavps.ts`)
 
 When a new machine is needed, the API:
+
 1. Explicit `JUSTAVPS_IMAGE_ID` override? Use it.
 2. Dev snapshots (`kortix-computer-vdev-*`) ready? Use the newest one.
 3. Stable snapshots (`kortix-computer-v0.8.*`) ready? Use the highest semver.
@@ -310,17 +315,17 @@ Machine provisioning is always available — it never blocks on the latest snaps
 
 All ports are on `127.0.0.1` in dev (no public exposure).
 
-| Host port | Container port | Service |
-|---|---|---|
-| `14000` | `8000` | Kortix Master (proxy entry point) |
-| `14001` | `3111` | OpenCode Web UI |
-| `14002` | `6080` | Desktop (noVNC HTTP) |
-| `14003` | `6081` | Desktop (noVNC HTTPS) |
-| `14004` | `3210` | Presentation Viewer |
-| `14005` | `9223` | Agent Browser Stream (WebSocket) |
-| `14006` | `9224` | Agent Browser Viewer |
-| `14007` | `22` | SSH |
-| `14008` | `3211` | Static Web Server |
+| Host port | Container port | Service                           |
+| --------- | -------------- | --------------------------------- |
+| `14000`   | `8000`         | Kortix Master (proxy entry point) |
+| `14001`   | `3111`         | OpenCode Web UI                   |
+| `14002`   | `6080`         | Desktop (noVNC HTTP)              |
+| `14003`   | `6081`         | Desktop (noVNC HTTPS)             |
+| `14004`   | `3210`         | Presentation Viewer               |
+| `14005`   | `9223`         | Agent Browser Stream (WebSocket)  |
+| `14006`   | `9224`         | Agent Browser Viewer              |
+| `14007`   | `22`           | SSH                               |
+| `14008`   | `3211`         | Static Web Server                 |
 
 ---
 

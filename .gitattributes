@@ -1,0 +1,55 @@
+# Normalize line endings to LF in the repository and on checkout.
+# Helps Windows + macOS/Linux collaborators avoid CRLF noise and merge issues.
+* text=auto eol=lf
+
+# Common text formats in this monorepo
+*.ts text eol=lf
+*.tsx text eol=lf
+*.mts text eol=lf
+*.cts text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.jsonc text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.html text eol=lf
+*.svg text eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+*.toml text eol=lf
+*.env.example text eol=lf
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+
+# Lockfiles / manifests (keep stable, LF)
+pnpm-lock.yaml text eol=lf
+package-lock.json text eol=lf
+yarn.lock text eol=lf
+bun.lock text eol=lf
+
+# Minified bundles: do not treat as text for EOL conversion
+*.min.js binary
+*.min.mjs binary
+*.min.css binary
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.wasm binary

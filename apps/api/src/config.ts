@@ -1,4 +1,64 @@
+import { execSync } from 'child_process';
+import { platform } from 'node:os';
 import { z } from 'zod';
+
+/**
+ * docker-modem only treats `unix://`, `npipe://`, or unset `DOCKER_HOST` as a socket.
+ * A bare Windows path like `//./pipe/docker_engine` falls through to `new URL()` and throws,
+ * which breaks Dockerode everywhere (local sandbox, POST /platform/init, etc.).
+ */
+function normalizeDockerHostEnvForWindows(): void {
+  if (platform() !== 'win32') return;
+  const raw = process.env.DOCKER_HOST;
+  if (!raw) return;
+  const dh = raw.trim();
+  if (/^(npipe|unix|tcp|https?):\/\//i.test(dh)) return;
+  let socketPath = dh;
+  if (dh.startsWith('\\\\.\\pipe\\')) {
+    socketPath = '//./pipe/' + dh.slice('\\\\.\\pipe\\'.length).replace(/\\/g, '');
+  } else if (!dh.startsWith('//./pipe/')) {
+    return;
+  }
+  process.env.DOCKER_HOST = `npipe://${socketPath}`;
+}
+
+/**
+ * Prefer the Docker CLI's active context `Host` (npipe / unix / tcp). This matches
+ * Docker Desktop + context switching and avoids hand-copied DOCKER_HOST mistakes and
+ * Bun+dockerode edge cases on Windows named pipes.
+ */
+function syncDockerHostFromDockerCli(): void {
+  try {
+    const out = execSync('docker context inspect -f "{{.Endpoints.docker.Host}}"', {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 5000,
+      windowsHide: true,
+    }).trim();
+    if (!out) return;
+
+    let resolved = out;
+
+    // On Windows, Docker Desktop may return a malformed tcp:// URL that embeds a
+    // named pipe path, e.g. "tcp://127.0.0.1:2375//./pipe/dockerDesktopLinuxEngine".
+    // TCP port 2375 is typically not exposed; extract the pipe and use npipe://.
+    if (platform() === 'win32' && resolved.startsWith('tcp://')) {
+      const pipeMatch = resolved.match(/(\/\/\.\/pipe\/[^\s?]+)/);
+      if (pipeMatch) {
+        resolved = `npipe://${pipeMatch[1]}`;
+      }
+    }
+
+    if (
+      resolved.startsWith('npipe://') || resolved.startsWith('unix://') || resolved.startsWith('tcp://')
+    ) {
+      process.env.DOCKER_HOST = resolved;
+      console.warn(`[config] DOCKER_HOST set from active Docker context (${resolved.split('?')[0]})`);
+    }
+  } catch {
+    // Docker not installed, not on PATH, or daemon unavailable — keep .env / normalize.
+  }
+}
 
 /**
  * Running sandbox version.
@@ -220,6 +280,8 @@ function parseAllowedProviders(raw: string): SandboxProviderName[] {
 }
 
 function validateEnv(): z.infer<typeof envSchema> {
+  normalizeDockerHostEnvForWindows();
+  syncDockerHostFromDockerCli();
   const result = envSchema.safeParse(process.env);
 
   const issues: EnvIssue[] = [];

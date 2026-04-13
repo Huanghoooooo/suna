@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -44,6 +44,8 @@ export default function InstancesPage() {
   const [claiming, setClaiming] = useState(false);
   const [updateTarget, setUpdateTarget] = useState<SandboxInfo | null>(null);
   const [restartTarget, setRestartTarget] = useState<SandboxInfo | null>(null);
+  /** Stops an infinite loop when auto `ensureSandbox` fails but the list stays empty (local mode). */
+  const autoEnsureAttemptedRef = useRef(false);
   const isCloud = isBillingEnabled();
   const {
     data: accountState,
@@ -83,17 +85,27 @@ export default function InstancesPage() {
     refetch();
   }, [user, refetch]);
 
+  // When the user has at least one active instance again, allow a future auto-ensure
+  // (e.g. they removed all instances and land back on an empty list).
+  useEffect(() => {
+    const active = sandboxes?.filter((s) => s.status !== 'archived') ?? [];
+    if (active.length > 0) {
+      autoEnsureAttemptedRef.current = false;
+    }
+  }, [sandboxes]);
+
   // Local mode: auto-create the single sandbox if none exists, then redirect.
   // Only 1 instance allowed in local mode.
   useEffect(() => {
     if (!user || isLoading || autoCreating || isCloud) return;
-    if (sandboxes && sandboxes.length === 0) {
-      setAutoCreating(true);
-      ensureSandbox()
-        .then(() => refetch())
-        .catch(() => { })
-        .finally(() => setAutoCreating(false));
-    }
+    if (!sandboxes || sandboxes.length > 0) return;
+    if (autoEnsureAttemptedRef.current) return;
+    autoEnsureAttemptedRef.current = true;
+    setAutoCreating(true);
+    ensureSandbox()
+      .then(() => refetch())
+      .catch(() => {})
+      .finally(() => setAutoCreating(false));
   }, [user, isLoading, sandboxes, autoCreating, isCloud, refetch]);
 
   // Auto-redirect: if there's exactly 1 instance (local mode typical), go straight to it.
