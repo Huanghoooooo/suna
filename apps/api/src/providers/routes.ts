@@ -33,7 +33,12 @@ function findRepoRoot(): string | null {
     resolve(__dirname, '../../../..'),
   ];
   for (const dir of candidates) {
-    if (existsSync(resolve(dir, 'docker-compose.local.yml'))) {
+    const markers = [
+      resolve(dir, 'package.json'),
+      resolve(dir, 'scripts/setup-env.sh'),
+      resolve(dir, 'core/kortix-master/opencode/opencode.jsonc'),
+    ];
+    if (markers.every((path) => existsSync(path))) {
       return dir;
     }
   }
@@ -194,6 +199,137 @@ function removeFromEnvFile(path: string, keysToRemove: string[]): void {
   }
 
   writeFileSync(path, out.join('\n') + '\n');
+}
+
+function findObjectRange(source: string, propertyName: string): { start: number; end: number } | null {
+  const keyIndex = source.indexOf(`"${propertyName}"`);
+  if (keyIndex === -1) return null;
+
+  const colonIndex = source.indexOf(':', keyIndex);
+  if (colonIndex === -1) return null;
+
+  let start = colonIndex + 1;
+  while (start < source.length && /\s/.test(source[start])) start++;
+  if (source[start] !== '{') return null;
+
+  let depth = 0;
+  let inString = false;
+  let stringQuote = '"';
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let i = start; i < source.length; i++) {
+    const ch = source[i];
+    const next = source[i + 1];
+    const prev = source[i - 1];
+
+    if (inLineComment) {
+      if (ch === '\n') inLineComment = false;
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (prev === '*' && ch === '/') inBlockComment = false;
+      continue;
+    }
+
+    if (inString) {
+      if (ch === stringQuote && prev !== '\\') inString = false;
+      continue;
+    }
+
+    if (ch === '/' && next === '/') {
+      inLineComment = true;
+      continue;
+    }
+
+    if (ch === '/' && next === '*') {
+      inBlockComment = true;
+      continue;
+    }
+
+    if (ch === '"' || ch === '\'') {
+      inString = true;
+      stringQuote = ch;
+      continue;
+    }
+
+    if (ch === '{') depth++;
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) return { start, end: i };
+    }
+  }
+
+  return null;
+}
+
+function sanitizeModelAlias(modelId: string): string {
+  const normalized = modelId.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+  return normalized.replace(/^-+|-+$/g, '') || 'default';
+}
+
+function upsertCustomProviderInConfig(
+  configPath: string,
+  payload: {
+    providerID: string;
+    name: string;
+    baseURL: string;
+    apiKey?: string;
+    modelId: string;
+    modelName: string;
+  },
+): void {
+  const source = readFileSync(configPath, 'utf-8');
+  const providerRange = findObjectRange(source, 'provider');
+  if (!providerRange) {
+    throw new Error('Could not find "provider" object in opencode.jsonc');
+  }
+
+  const alias = sanitizeModelAlias(payload.modelId);
+  const providerBlock = [
+    `    "${payload.providerID}": {`,
+    `      "name": ${JSON.stringify(payload.name)},`,
+    '      "npm": "@ai-sdk/openai-compatible",',
+    '      "options": {',
+    `        "baseURL": ${JSON.stringify(payload.baseURL)},`,
+    `        "apiKey": ${JSON.stringify(payload.apiKey || '')}`,
+    '      },',
+    '      "models": {',
+    `        "${alias}": {`,
+    `          "name": ${JSON.stringify(payload.modelName)},`,
+    `          "id": ${JSON.stringify(payload.modelId)}`,
+    '        }',
+    '      }',
+    '    }',
+  ].join('\n');
+
+  const providerBody = source.slice(providerRange.start + 1, providerRange.end);
+  const existingRange = findObjectRange(providerBody, payload.providerID);
+
+  let nextProviderBody: string;
+  if (existingRange) {
+    const replaceStart = providerRange.start + 1 + existingRange.start;
+    const replaceEnd = providerRange.start + 1 + existingRange.end + 1;
+    const before = source.slice(0, replaceStart);
+    const after = source.slice(replaceEnd);
+    writeFileSync(configPath, `${before}${providerBlock}${after}`);
+    return;
+  }
+
+  const trimmedBody = providerBody.trimEnd();
+  if (!trimmedBody.trim()) {
+    nextProviderBody = `\n${providerBlock}\n  `;
+  } else {
+    const needsComma = trimmedBody.trim().endsWith(',') ? '' : ',';
+    nextProviderBody = `${providerBody.replace(/\s*$/, '')}${needsComma}\n${providerBlock}\n  `;
+  }
+
+  const updated =
+    source.slice(0, providerRange.start + 1) +
+    nextProviderBody +
+    source.slice(providerRange.end);
+  writeFileSync(configPath, updated);
 }
 
 // ─── Provider Status Types ──────────────────────────────────────────────────
@@ -364,6 +500,59 @@ providersApp.put('/:id/connect', async (c) => {
   }
 
   return c.json({ ok: true });
+});
+
+/**
+ * POST /v1/providers/custom
+ * Persist a custom OpenAI-compatible provider in the local OpenCode config.
+ */
+providersApp.post('/custom', async (c) => {
+  const body = await c.req.json();
+  const providerID = typeof body?.providerID === 'string' ? body.providerID.trim() : '';
+  const name = typeof body?.name === 'string' ? body.name.trim() : '';
+  const baseURL = typeof body?.baseURL === 'string' ? body.baseURL.trim() : '';
+  const apiKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : '';
+  const modelId = typeof body?.modelId === 'string' ? body.modelId.trim() : '';
+  const modelName = typeof body?.modelName === 'string' ? body.modelName.trim() : '';
+
+  if (!providerID || !name || !baseURL || !modelId || !modelName) {
+    return c.json({ error: 'providerID, name, baseURL, modelId, and modelName are required' }, 400);
+  }
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(providerID)) {
+    return c.json({ error: 'providerID may only contain letters, numbers, underscores, and dashes' }, 400);
+  }
+
+  if (!/^https?:\/\//.test(baseURL)) {
+    return c.json({ error: 'baseURL must start with http:// or https://' }, 400);
+  }
+
+  const repoRoot = findRepoRoot();
+  if (!repoRoot) {
+    return c.json({ error: 'Custom provider persistence is only supported in local repo development mode right now' }, 501);
+  }
+
+  const configPath = resolve(repoRoot, 'core/kortix-master/opencode/opencode.jsonc');
+  if (!existsSync(configPath)) {
+    return c.json({ error: `OpenCode config not found: ${configPath}` }, 500);
+  }
+
+  try {
+    upsertCustomProviderInConfig(configPath, {
+      providerID,
+      name,
+      baseURL,
+      apiKey,
+      modelId,
+      modelName,
+    });
+    return c.json({ ok: true });
+  } catch (e: any) {
+    return c.json(
+      { ok: false, error: 'Failed to save custom provider', details: e?.message || String(e) },
+      500,
+    );
+  }
 });
 
 /**

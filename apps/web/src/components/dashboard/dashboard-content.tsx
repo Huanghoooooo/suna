@@ -28,6 +28,7 @@ import { Menu } from 'lucide-react';
 import type { Command } from '@/hooks/opencode/use-opencode-sessions';
 import { playSound } from '@/lib/sounds';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 // ============================================================================
 // Dashboard Content
@@ -39,6 +40,8 @@ const SEND_FADE_MS = 150;
 
 export function DashboardContent() {
   const [isSending, setIsSending] = useState(false);
+  const t = useTranslations('dashboard');
+  const tSidebar = useTranslations('sidebar');
 
   const router = useRouter();
   const isMobile = useIsMobile();
@@ -108,7 +111,7 @@ export function DashboardContent() {
 
         openTabAndNavigate({
           id: session.id,
-          title: 'New session',
+          title: t('newSession'),
           type: 'session',
           href: `/sessions/${session.id}`,
           serverId: useServerStore.getState().activeServerId,
@@ -119,7 +122,7 @@ export function DashboardContent() {
         });
       } catch {
         usePendingFilesStore.getState().setPendingFiles([]);
-        toast.warning('Failed to create session');
+        toast.warning(t('failedToCreateSession'));
       } finally {
         // On success the dashboard is already hidden (pushState + setActiveTab),
         // so the fade-in transition runs off-screen — no visible flicker.
@@ -150,10 +153,10 @@ export function DashboardContent() {
           ...(local.model.currentKey && { model: formatModelString(local.model.currentKey) }),
           ...(local.model.variant.current && { variant: local.model.variant.current }),
         } as any).catch(() => {
-          toast.warning('Failed to execute command');
+          toast.warning(t('failedToExecuteCommand'));
         });
       } catch {
-        toast.warning('Failed to create session');
+        toast.warning(t('failedToCreateSession'));
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -171,7 +174,7 @@ export function DashboardContent() {
               setOpenMobile(true);
             }}
             className="flex items-center justify-center h-9 w-9 -ml-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50 active:bg-accent transition-colors touch-manipulation"
-            aria-label="Open menu"
+            aria-label={tSidebar('openMenu')}
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -204,7 +207,7 @@ export function DashboardContent() {
       <SessionChatInput
         onSend={handleSend}
         disabled={isSending}
-        placeholder="Ask anything..."
+        placeholder={t('askAnything')}
         agents={local.agent.list}
         selectedAgent={local.agent.current?.name ?? null}
         onAgentChange={(name) => local.agent.set(name ?? undefined)}

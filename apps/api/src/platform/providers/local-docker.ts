@@ -1,5 +1,6 @@
 import Docker from 'dockerode';
-import { execSync } from 'child_process';
+import { createDockerodeFromSocketPath } from '../dockerode-env-client';
+import { execSync, execFileSync } from 'child_process';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { config, SANDBOX_VERSION } from '../../config';
@@ -125,11 +126,19 @@ function readSandboxEnv(): string[] {
 function getDocker(): Docker {
   if (config.DOCKER_HOST) {
     if (config.DOCKER_HOST.startsWith('tcp://') || config.DOCKER_HOST.startsWith('http://')) {
+      // Guard: a tcp:// URL that embeds a Windows named pipe path should use the pipe,
+      // not TCP (Docker Desktop doesn't expose port 2375 by default).
+      const pipeMatch = config.DOCKER_HOST.match(/(\/\/\.\/pipe\/[^\s?]+)/);
+      if (pipeMatch) {
+        return createDockerodeFromSocketPath(pipeMatch[1]);
+      }
       const url = new URL(config.DOCKER_HOST);
-      return new Docker({ host: url.hostname, port: parseInt(url.port || '2375') });
+      return new Docker({ host: url.hostname, port: parseInt(url.port || '2375', 10) });
     }
-    const socketPath = config.DOCKER_HOST.replace(/^unix:\/\//, '');
-    return new Docker({ socketPath });
+    const socketPath = config.DOCKER_HOST.startsWith('npipe://')
+      ? config.DOCKER_HOST.replace(/^npipe:\/\//, '')
+      : config.DOCKER_HOST.replace(/^unix:\/\//, '');
+    return createDockerodeFromSocketPath(socketPath);
   }
   return new Docker();
 }
@@ -674,15 +683,12 @@ export class LocalDockerProvider implements SandboxProvider {
    */
   private syncCoreEnvVarsFallback(stale: Record<string, string>): void {
     const env = { ...process.env };
-    if (config.DOCKER_HOST && !config.DOCKER_HOST.includes('://')) {
-      env.DOCKER_HOST = `unix://${config.DOCKER_HOST}`;
-    }
+    delete env.DOCKER_HOST;
 
-    const cmd =
-      `docker exec ${shellQuote(CONTAINER_NAME)} bash -c ` +
-      `${shellQuote(buildDockerEnvWriteCommand(stale, '/run/s6/container_environment'))}`;
-
-    execSync(cmd, { timeout: 15_000, stdio: 'pipe', env });
+    const bashScript = buildDockerEnvWriteCommand(stale, '/run/s6/container_environment');
+    execFileSync('docker', ['exec', CONTAINER_NAME, 'bash', '-c', bashScript], {
+      timeout: 15_000, stdio: 'pipe', env,
+    });
     console.log(`[LOCAL-DOCKER] Core env vars synced via fallback (docker exec): ${Object.keys(stale).join(', ')}`);
   }
 

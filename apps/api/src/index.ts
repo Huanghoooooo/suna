@@ -541,10 +541,11 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
   const { kortixApiKeys } = await import('@kortix/db');
   const { sandboxes } = await import('@kortix/db');
   const { eq, and } = await import('drizzle-orm');
-  const { execSync: rawExecSync } = await import('child_process');
-  const rawDockerHost = config.DOCKER_HOST || process.env.DOCKER_HOST || '';
-  const dockerHost = rawDockerHost.startsWith('/') ? `unix://${rawDockerHost}` : rawDockerHost;
-  const dockerEnv = { ...process.env, DOCKER_HOST: dockerHost.startsWith('/') ? `unix://${dockerHost}` : dockerHost };
+  const { execSync: rawExecSync, execFileSync: rawExecFileSync } = await import('child_process');
+  // Clear DOCKER_HOST for docker CLI calls — let docker use its own context.
+  // The env var is set for Dockerode's TCP bridge and confuses the CLI on Windows.
+  const dockerEnv = { ...process.env };
+  delete dockerEnv.DOCKER_HOST;
   // Use Docker DNS when on a shared network (self-hosted), localhost when on host (dev)
   const sandboxBaseUrl = config.SANDBOX_NETWORK
     ? `http://${config.SANDBOX_CONTAINER_NAME}:8000`
@@ -736,24 +737,22 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
   const syncViaDockerExec = (): boolean => {
     try {
       if (config.SANDBOX_NETWORK) {
-        rawExecSync(
-          `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(buildDockerEnvWriteCommand(keysToSync, '/run/s6/container_environment'))}`,
-          { stdio: 'pipe', timeout: 15_000, env: dockerEnv },
-        );
-        rawExecSync(
-          `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(buildBootstrapUpdateCommand({
+        rawExecFileSync('docker', [
+          'exec', config.SANDBOX_CONTAINER_NAME, 'bash', '-c',
+          buildDockerEnvWriteCommand(keysToSync, '/run/s6/container_environment'),
+        ], { stdio: 'pipe', timeout: 15_000, env: dockerEnv });
+        rawExecFileSync('docker', [
+          'exec', config.SANDBOX_CONTAINER_NAME, 'bash', '-c',
+          buildBootstrapUpdateCommand({
             KORTIX_TOKEN: token,
             KORTIX_API_URL: kortixApiUrl,
             INTERNAL_SERVICE_KEY: token,
             TUNNEL_TOKEN: token,
-          }))}`,
-          { stdio: 'pipe', timeout: 15_000, env: dockerEnv },
-        ).toString();
+          }),
+        ], { stdio: 'pipe', timeout: 15_000, env: dockerEnv });
       } else {
         forceLocalDockerAuthBundle();
       }
-      // No restart — getEnv() reads from s6 env dir live. OpenCode picks up
-      // the new values on the next tool call without a process restart.
       console.log('[startup] KORTIX_TOKEN synced via docker exec fallback + bootstrap file');
       return true;
     } catch (e: any) {
@@ -764,19 +763,19 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
 
   const forceLocalDockerAuthBundle = (): void => {
     if (config.SANDBOX_NETWORK) return;
-    rawExecSync(
-      `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(buildCanonicalSandboxAuthCommand(token, kortixApiUrl))}`,
-      { stdio: 'pipe', timeout: 15_000, env: dockerEnv },
-    );
+    rawExecFileSync('docker', [
+      'exec', config.SANDBOX_CONTAINER_NAME, 'bash', '-c',
+      buildCanonicalSandboxAuthCommand(token, kortixApiUrl),
+    ], { stdio: 'pipe', timeout: 15_000, env: dockerEnv });
   };
 
   const readLocalDockerAuthBundle = (): Record<string, string> | null => {
     if (config.SANDBOX_NETWORK) return null;
     try {
-      const raw = rawExecSync(
-        `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} python3 -c ${shellQuote("from pathlib import Path; import json; keys=['KORTIX_TOKEN','INTERNAL_SERVICE_KEY','TUNNEL_TOKEN']; print(json.dumps({k:(Path('/run/s6/container_environment')/k).read_text() for k in keys}))")}`,
-        { stdio: 'pipe', timeout: 15_000, env: dockerEnv },
-      ).toString();
+      const raw = rawExecFileSync('docker', [
+        'exec', config.SANDBOX_CONTAINER_NAME, 'python3', '-c',
+        "from pathlib import Path; import json; keys=['KORTIX_TOKEN','INTERNAL_SERVICE_KEY','TUNNEL_TOKEN']; print(json.dumps({k:(Path('/run/s6/container_environment')/k).read_text() for k in keys}))",
+      ], { stdio: 'pipe', timeout: 15_000, env: dockerEnv }).toString();
       return JSON.parse(raw) as Record<string, string>;
     } catch {
       return null;
@@ -821,11 +820,8 @@ async function ensureLocalSandboxRegistered() {
   const { db } = await import('./shared/db');
   const { sandboxes } = await import('@kortix/db');
   const { eq, and } = await import('drizzle-orm');
-  const { execSync } = await import('child_process');
+  const { execFileSync } = await import('child_process');
 
-  // Use a well-known account ID for the self-hosted single-owner case.
-  // When Supabase auth is active, the real user ID will be used via POST /init.
-  // This bootstrap is for the case where we need a sandbox before any user logs in.
   const CONTAINER_NAME = config.SANDBOX_CONTAINER_NAME;
   const portBase = config.SANDBOX_PORT_BASE;
   const baseUrl = `http://localhost:${portBase}`;
@@ -835,17 +831,15 @@ async function ensureLocalSandboxRegistered() {
     await provider.ensure();
   };
 
-  // Helper: check if the Docker container actually exists and is running
   const isContainerRunning = (): boolean => {
     try {
-      const rawDockerHost = config.DOCKER_HOST || process.env.DOCKER_HOST || '';
-      const dockerHost = rawDockerHost.startsWith('/') ? `unix://${rawDockerHost}` : rawDockerHost;
-      const env = { ...process.env, DOCKER_HOST: dockerHost.startsWith('/') ? `unix://${dockerHost}` : dockerHost };
-      const out = execSync(`docker inspect -f '{{.State.Running}}' ${CONTAINER_NAME}`, {
-        encoding: 'utf-8',
-        timeout: 5000,
-        env,
-      }).trim();
+      // Clear DOCKER_HOST so docker CLI uses its own context (npipe via context
+      // works reliably; the env var set for Dockerode's TCP bridge confuses the CLI).
+      const env = { ...process.env };
+      delete env.DOCKER_HOST;
+      const out = execFileSync('docker', [
+        'inspect', '-f', '{{.State.Running}}', CONTAINER_NAME,
+      ], { encoding: 'utf-8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'], env }).trim();
       return out === 'true';
     } catch {
       return false;

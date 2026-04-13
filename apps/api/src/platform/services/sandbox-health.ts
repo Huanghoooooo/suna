@@ -270,18 +270,16 @@ async function attemptKeySyncFallback(keys: Record<string, string>): Promise<boo
   }
 
   try {
-    const { execSync } = require('child_process');
+    const { execFileSync } = require('child_process');
     const env: Record<string, string> = { ...process.env as Record<string, string> };
-    if (config.DOCKER_HOST && !config.DOCKER_HOST.includes('://')) {
-      env.DOCKER_HOST = `unix://${config.DOCKER_HOST}`;
-    }
+    delete env.DOCKER_HOST;
 
     const token = keys.KORTIX_TOKEN || keys.INTERNAL_SERVICE_KEY || '';
     const apiUrl = keys.KORTIX_API_URL || keys.TUNNEL_API_URL || '';
-    execSync(
-      `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(buildCanonicalSandboxAuthCommand(token, apiUrl))}`,
-      { timeout: 15_000, stdio: 'pipe', env },
-    );
+    execFileSync('docker', [
+      'exec', config.SANDBOX_CONTAINER_NAME, 'bash', '-c',
+      buildCanonicalSandboxAuthCommand(token, apiUrl),
+    ], { timeout: 15_000, stdio: 'pipe', env });
 
     console.log(`[sandbox-health] Core env sync successful via docker exec fallback`);
     return true;

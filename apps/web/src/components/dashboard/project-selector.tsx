@@ -29,6 +29,7 @@ import {
   type KortixProject,
 } from '@/hooks/kortix/use-kortix-projects';
 import { openTabAndNavigate } from '@/stores/tab-store';
+import { useTranslations } from 'next-intl';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -79,6 +80,7 @@ export function ProjectSelector({
   selectedProjectId,
   onSelect,
 }: ProjectSelectorProps) {
+  const t = useTranslations('dashboard.projectSelector');
   const { data: projects, isLoading } = useKortixProjects();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -109,7 +111,7 @@ export function ProjectSelector({
     [sorted, selectedProjectId],
   );
 
-  const displayName = selected?.name ?? 'Default project';
+  const displayName = selected?.name ?? t('defaultProject');
   const hasProjects = sorted.length > 0;
 
   const handleOpenProject = (project: KortixProject) => {
@@ -153,7 +155,7 @@ export function ProjectSelector({
             </CommandPopoverTrigger>
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">
-            <p>Choose project for this session</p>
+            <p>{t('chooseProject')}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -165,7 +167,7 @@ export function ProjectSelector({
         >
           <CommandInput
             compact
-            placeholder="Search projects..."
+            placeholder={t('searchProjects')}
             value={search}
             onValueChange={setSearch}
           />
@@ -182,9 +184,9 @@ export function ProjectSelector({
                   }}
                 >
                   <div className="flex-1 min-w-0">
-                    <span className="font-medium truncate">Default project</span>
+                    <span className="font-medium truncate">{t('defaultProject')}</span>
                     <p className="text-[11px] text-muted-foreground/50 leading-snug mt-0.5 line-clamp-1">
-                      Use the current working directory
+                      {t('defaultProjectDescription')}
                     </p>
                   </div>
                   {!selectedProjectId && (
@@ -195,7 +197,7 @@ export function ProjectSelector({
             )}
 
             {filtered.length > 0 && (
-              <CommandGroup heading="Recent projects" forceMount>
+              <CommandGroup heading={t('recentProjects')} forceMount>
                 {filtered.map((project) => {
                   const isSelected = selectedProjectId === project.id;
                   const recency = projectRecency(project);
@@ -223,7 +225,7 @@ export function ProjectSelector({
                       <span
                         role="button"
                         tabIndex={-1}
-                        aria-label={`Open ${project.name} page`}
+                        aria-label={t('openProject', { name: project.name })}
                         onMouseDown={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -241,7 +243,7 @@ export function ProjectSelector({
                           'transition-opacity duration-150',
                         )}
                       >
-                        Open ↗
+                        {t('open')}
                       </span>
                       {isSelected && (
                         <Check className="size-3.5 text-foreground shrink-0" />
@@ -255,12 +257,12 @@ export function ProjectSelector({
             {/* Empty states */}
             {filtered.length === 0 && search.trim() && (
               <div className="py-8 text-center text-xs text-muted-foreground/50">
-                No projects match &ldquo;{search.trim()}&rdquo;
+                {t('noProjectsMatch', { query: search.trim() })}
               </div>
             )}
             {!hasProjects && !search.trim() && !isLoading && (
               <div className="py-6 text-center text-xs text-muted-foreground/50">
-                No projects yet
+                {t('noProjectsYet')}
               </div>
             )}
           </CommandList>
@@ -269,11 +271,11 @@ export function ProjectSelector({
             <div className="flex items-center gap-1">
               <ArrowUp className="h-3 w-3" />
               <ArrowDown className="h-3 w-3" />
-              <span>navigate</span>
+              <span>{t('navigate')}</span>
             </div>
             <div className="flex items-center gap-1">
               <CornerDownLeft className="h-3 w-3" />
-              <span>select</span>
+              <span>{t('select')}</span>
             </div>
           </CommandFooter>
         </CommandPopoverContent>

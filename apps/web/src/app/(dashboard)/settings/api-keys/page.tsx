@@ -47,6 +47,7 @@ import { getActiveServer, getActiveOpenCodeUrl } from '@/stores/server-store';
 import { getAuthToken } from '@/lib/auth-token';
 import { useServerStore } from '@/stores/server-store';
 import { getEnv } from '@/lib/env-config';
+import { useTranslations } from 'next-intl';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -72,6 +73,7 @@ interface PublicShareEntry {
 
 function CopyButton({ value, label, size = 'sm' }: { value: string; label?: string; size?: 'sm' | 'icon' }) {
   const [copied, setCopied] = useState(false);
+  const t = useTranslations('apiKeys');
 
   const handleCopy = useCallback(async () => {
     try {
@@ -79,9 +81,9 @@ function CopyButton({ value, label, size = 'sm' }: { value: string; label?: stri
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.warning('Failed to copy to clipboard');
+      toast.warning(t('failedToCopy'));
     }
-  }, [value]);
+  }, [value, t]);
 
   if (size === 'icon') {
     return (
@@ -128,26 +130,27 @@ function isKeyExpired(expiresAt?: string) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const t = useTranslations('apiKeys');
   switch (status) {
     case 'active':
       return (
         <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          Active
+          {t('statusActive')}
         </span>
       );
     case 'revoked':
       return (
         <span className="inline-flex items-center gap-1.5 text-xs text-red-500 dark:text-red-400">
           <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-          Revoked
+          {t('statusRevoked')}
         </span>
       );
     case 'expired':
       return (
         <span className="inline-flex items-center gap-1.5 text-xs text-yellow-600 dark:text-yellow-400">
           <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
-          Expired
+          {t('statusExpired')}
         </span>
       );
     default:
@@ -158,6 +161,7 @@ function StatusBadge({ status }: { status: string }) {
 // ── Main page ──────────────────────────────────────────────────────────────
 
 export default function APIKeysPage() {
+  const t = useTranslations('apiKeys');
   // Use instanceId (the stable DB UUID) so the api-keys backend can resolve
   // ownership unambiguously. Using sandboxId (external_id) breaks for cloud
   // providers like Daytona where the external_id is also a UUID — the backend
@@ -228,28 +232,28 @@ export default function APIKeysPage() {
         queryClient.invalidateQueries({ queryKey: ['api-keys'] });
         setNewKeyData({ title: '', description: '', expiresInDays: 'never' });
       } else {
-        toast.warning(response.error?.message || 'Failed to create API key');
+        toast.warning(response.error?.message || t('failedToCreateKey'));
       }
     },
-    onError: () => toast.warning('Failed to create API key'),
+    onError: () => toast.warning(t('failedToCreateKey')),
   });
 
   const revokeMutation = useMutation({
     mutationFn: (keyId: string) => apiKeysApi.revoke(keyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
-      toast.info('API key revoked');
+      toast.info(t('keyRevoked'));
     },
-    onError: () => toast.warning('Failed to revoke API key'),
+    onError: () => toast.warning(t('failedToRevokeKey')),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (keyId: string) => apiKeysApi.delete(keyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
-      toast.info('API key deleted');
+      toast.info(t('keyDeleted'));
     },
-    onError: () => toast.warning('Failed to delete API key'),
+    onError: () => toast.warning(t('failedToDeleteKey')),
   });
 
   const regenerateMutation = useMutation({
@@ -259,12 +263,12 @@ export default function APIKeysPage() {
         setCreatedApiKey(response.data.data);
         setShowCreatedKey(true);
         queryClient.invalidateQueries({ queryKey: ['api-keys'] });
-        toast.info('Token regenerated');
+        toast.info(t('tokenRegeneratedSuccess'));
       } else {
-        toast.warning(response.error?.message || 'Failed to regenerate key');
+        toast.warning(response.error?.message || t('failedToRegenerateKey'));
       }
     },
-    onError: () => toast.warning('Failed to regenerate sandbox key'),
+    onError: () => toast.warning(t('failedToRegenerateSandboxKey')),
   });
 
   const [publicUrlResult, setPublicUrlResult] = useState<{ url: string; expiresAt?: string; label?: string } | null>(null);
@@ -319,9 +323,9 @@ export default function APIKeysPage() {
     onSuccess: (data) => {
       setPublicUrlResult(data);
       refetchShares();
-      toast.info('Public URL ready');
+      toast.info(t('publicUrlReady'));
     },
-    onError: (err: any) => toast.warning(err?.message || 'Failed to generate public URL'),
+    onError: (err: any) => toast.warning(err?.message || t('failedToGenerateUrl')),
   });
 
   const revokeShareMutation = useMutation({
@@ -346,14 +350,14 @@ export default function APIKeysPage() {
     },
     onSuccess: () => {
       refetchShares();
-      toast.info('Public link revoked');
+      toast.info(t('publicLinkRevoked'));
     },
-    onError: (err: any) => toast.warning(err?.message || 'Failed to revoke public link'),
+    onError: (err: any) => toast.warning(err?.message || t('failedToRevokeLink')),
   });
 
   const handleCreateAPIKey = () => {
     if (!activeSandboxId) {
-      toast.warning('No active sandbox. Please wait for your sandbox to start.');
+      toast.warning(t('noActiveSandbox'));
       return;
     }
     createMutation.mutate({
@@ -381,9 +385,9 @@ export default function APIKeysPage() {
         {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg sm:text-xl font-semibold">API Keys</h1>
+            <h1 className="text-lg sm:text-xl font-semibold">{t('title')}</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Manage keys for programmatic access to your sandbox.
+              {t('description')}
             </p>
           </div>
           <Button
@@ -408,7 +412,7 @@ export default function APIKeysPage() {
             }}
           >
             <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-            API Docs
+            {t('apiDocs')}
           </Button>
         </div>
 
@@ -421,11 +425,11 @@ export default function APIKeysPage() {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Sandbox Token</span>
+                  <span className="text-sm font-medium">{t('sandboxToken')}</span>
                   <StatusBadge status={activeSandboxKey.status} />
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Used by the agent inside your sandbox to call the platform API
+                  {t('sandboxTokenDescription')}
                 </p>
               </div>
             </div>
@@ -433,24 +437,23 @@ export default function APIKeysPage() {
               <AlertDialogTrigger asChild>
                 <Button variant="ghost" size="sm" className="flex-shrink-0 text-muted-foreground hover:text-foreground">
                   <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                  Regenerate
+                  {t('regenerate')}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Regenerate Sandbox Token</AlertDialogTitle>
+                  <AlertDialogTitle>{t('regenerateSandboxToken')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will revoke the current token and create a new one.
-                    It will be applied to the sandbox automatically.
+                    {t('regenerateDescription')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => regenerateMutation.mutate(activeSandboxKey.key_id)}
                     disabled={regenerateMutation.isPending}
                   >
-                    {regenerateMutation.isPending ? 'Regenerating...' : 'Regenerate'}
+                    {regenerateMutation.isPending ? t('regenerating') : t('regenerate')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -461,24 +464,24 @@ export default function APIKeysPage() {
         {/* ── Public Access Links ─────────────────────────────────────── */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-muted-foreground">Public Links</h2>
+            <h2 className="text-sm font-medium text-muted-foreground">{t('publicLinks')}</h2>
             <Dialog>
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="w-4 h-4 mr-1.5" />
-                  New Link
+                  {t('newLink')}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-sm">
                 <DialogHeader>
-                  <DialogTitle>Create Public Link</DialogTitle>
+                  <DialogTitle>{t('createPublicLink')}</DialogTitle>
                   <DialogDescription>
-                    Generate a token-based public URL for a sandbox port.
+                    {t('createPublicLinkDescription')}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="share-port" className="text-xs text-muted-foreground">Port</Label>
+                    <Label htmlFor="share-port" className="text-xs text-muted-foreground">{t('port')}</Label>
                     <Input type="text"
                       id="share-port"
                       inputMode="numeric"
@@ -488,20 +491,20 @@ export default function APIKeysPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="share-ttl" className="text-xs text-muted-foreground">Expires after</Label>
+                    <Label htmlFor="share-ttl" className="text-xs text-muted-foreground">{t('expiresAfter')}</Label>
                     <Select value={shareForm.ttl} onValueChange={(value) => setShareForm((prev) => ({ ...prev, ttl: value }))}>
                       <SelectTrigger id="share-ttl"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1h">1 hour</SelectItem>
-                        <SelectItem value="1d">1 day</SelectItem>
-                        <SelectItem value="7d">7 days</SelectItem>
-                        <SelectItem value="30d">30 days</SelectItem>
-                        <SelectItem value="365d">1 year</SelectItem>
+                        <SelectItem value="1h">{t('1hour')}</SelectItem>
+                        <SelectItem value="1d">{t('1day')}</SelectItem>
+                        <SelectItem value="7d">{t('7days')}</SelectItem>
+                        <SelectItem value="30d">{t('30days')}</SelectItem>
+                        <SelectItem value="365d">{t('1year')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="share-label" className="text-xs text-muted-foreground">Label <span className="font-normal">(optional)</span></Label>
+                    <Label htmlFor="share-label" className="text-xs text-muted-foreground">{t('labelOptional')}</Label>
                     <Input type="text"
                       id="share-label"
                       value={shareForm.label}
@@ -515,7 +518,7 @@ export default function APIKeysPage() {
                     onClick={() => publicUrlMutation.mutate()}
                     disabled={!activeSandboxExternalId || !shareForm.port || publicUrlMutation.isPending}
                   >
-                    {publicUrlMutation.isPending ? 'Creating...' : 'Create Link'}
+                    {publicUrlMutation.isPending ? t('creating') : t('createLink')}
                   </Button>
                 </div>
               </DialogContent>
@@ -528,13 +531,13 @@ export default function APIKeysPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium">Link created</span>
+                  <span className="text-sm font-medium">{t('linkCreated')}</span>
                 </div>
-                <CopyButton value={publicUrlResult.url} label="Copy" />
+                <CopyButton value={publicUrlResult.url} label={t('copy')} />
               </div>
               <Input type="text" value={publicUrlResult.url} readOnly className="font-mono text-xs" />
               {publicUrlResult.expiresAt && (
-                <p className="text-[11px] text-muted-foreground">Expires {formatDateFull(publicUrlResult.expiresAt)}</p>
+                <p className="text-[11px] text-muted-foreground">{t('expires', { date: formatDateFull(publicUrlResult.expiresAt) })}</p>
               )}
             </div>
           )}
@@ -546,8 +549,8 @@ export default function APIKeysPage() {
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                   <AlertCircle className="w-5 h-5 text-muted-foreground" />
                 </div>
-                <p className="text-sm font-medium">No sandbox active</p>
-                <p className="text-xs text-muted-foreground">A running sandbox is required to manage public links.</p>
+                <p className="text-sm font-medium">{t('noSandboxActive')}</p>
+                <p className="text-xs text-muted-foreground">{t('noSandboxForLinks')}</p>
               </div>
             ) : isSharesLoading ? (
               <div className="divide-y">
@@ -568,8 +571,8 @@ export default function APIKeysPage() {
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                   <ExternalLink className="w-5 h-5 text-muted-foreground" />
                 </div>
-                <p className="text-sm font-medium mb-1">No public links</p>
-                <p className="text-xs text-muted-foreground">Create a link to expose a sandbox port publicly.</p>
+                <p className="text-sm font-medium mb-1">{t('noPublicLinks')}</p>
+                <p className="text-xs text-muted-foreground">{t('noPublicLinksDescription')}</p>
               </div>
             ) : (
               <div className="divide-y">
@@ -588,7 +591,7 @@ export default function APIKeysPage() {
                       </div>
                       <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
                         <span className="font-mono truncate max-w-[260px]">{share.url.replace(/^https?:\/\//, '')}</span>
-                        <span>Expires {formatDate(share.expiresAt)}</span>
+                        <span>{t('expires', { date: formatDate(share.expiresAt) })}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
@@ -610,24 +613,24 @@ export default function APIKeysPage() {
         {/* ── User API Keys ───────────────────────────────────────────── */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-muted-foreground">Your Keys</h2>
+            <h2 className="text-sm font-medium text-muted-foreground">{t('yourKeys')}</h2>
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="w-4 h-4 mr-1.5" />
-                  Create Key
+                  {t('createKey')}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-sm">
                 <DialogHeader>
-                  <DialogTitle>New API Key</DialogTitle>
+                  <DialogTitle>{t('newApiKey')}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="title" className="text-xs text-muted-foreground">Name</Label>
+                    <Label htmlFor="title" className="text-xs text-muted-foreground">{t('name')}</Label>
                     <Input type="text"
                       id="title"
-                      placeholder="e.g. CI/CD Pipeline"
+                      placeholder={t('namePlaceholder')}
                       value={newKeyData.title}
                       onChange={(e) => setNewKeyData((prev) => ({ ...prev, title: e.target.value }))}
                       onKeyDown={(e) => {
@@ -637,42 +640,42 @@ export default function APIKeysPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="description" className="text-xs text-muted-foreground">Description <span className="font-normal">(optional)</span></Label>
+                    <Label htmlFor="description" className="text-xs text-muted-foreground">{t('description2')}</Label>
                     <Input type="text"
                       id="description"
-                      placeholder="What is this key for?"
+                      placeholder={t('descriptionPlaceholder')}
                       value={newKeyData.description}
                       onChange={(e) => setNewKeyData((prev) => ({ ...prev, description: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="expires" className="text-xs text-muted-foreground">Expiration</Label>
+                    <Label htmlFor="expires" className="text-xs text-muted-foreground">{t('expiration')}</Label>
                     <Select
                       value={newKeyData.expiresInDays}
                       onValueChange={(value) => setNewKeyData((prev) => ({ ...prev, expiresInDays: value }))}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Never" />
+                        <SelectValue placeholder={t('noExpiration')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="never">No expiration</SelectItem>
-                        <SelectItem value="7">7 days</SelectItem>
-                        <SelectItem value="30">30 days</SelectItem>
+                        <SelectItem value="never">{t('noExpiration')}</SelectItem>
+                        <SelectItem value="7">{t('7days')}</SelectItem>
+                        <SelectItem value="30">{t('30days')}</SelectItem>
                         <SelectItem value="90">90 days</SelectItem>
-                        <SelectItem value="365">1 year</SelectItem>
+                        <SelectItem value="365">{t('1year')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 pt-1">
                   <Button variant="ghost" onClick={() => setIsCreateDialogOpen(false)}>
-                    Cancel
+                    {t('cancel')}
                   </Button>
                   <Button
                     onClick={handleCreateAPIKey}
                     disabled={!newKeyData.title.trim() || createMutation.isPending}
                   >
-                    {createMutation.isPending ? 'Creating...' : 'Create'}
+                    {createMutation.isPending ? t('creating2') : t('create')}
                   </Button>
                 </div>
               </DialogContent>
@@ -686,9 +689,9 @@ export default function APIKeysPage() {
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                   <AlertCircle className="w-5 h-5 text-muted-foreground" />
                 </div>
-                <p className="text-sm font-medium">No sandbox active</p>
+                <p className="text-sm font-medium">{t('noSandboxActive')}</p>
                 <p className="text-xs text-muted-foreground">
-                  A running sandbox is required to manage API keys.
+                  {t('noSandboxForKeys')}
                 </p>
               </div>
             ) : isLoading ? (
@@ -709,10 +712,10 @@ export default function APIKeysPage() {
               <div className="px-4 py-12 text-center space-y-3">
                 <AlertCircle className="w-8 h-8 text-muted-foreground mx-auto" />
                 <p className="text-muted-foreground text-sm">
-                  {(error as Error)?.message || apiKeysResponse?.error?.message || 'Failed to load API keys.'}
+                  {(error as Error)?.message || apiKeysResponse?.error?.message || t('failedToLoadKeys')}
                 </p>
                 <Button variant="outline" size="sm" onClick={() => refetch()}>
-                  Try Again
+                  {t('tryAgain')}
                 </Button>
               </div>
             ) : userKeys.length === 0 ? (
@@ -720,13 +723,13 @@ export default function APIKeysPage() {
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                   <Key className="w-5 h-5 text-muted-foreground" />
                 </div>
-                <p className="text-sm font-medium mb-1">No API keys</p>
+                <p className="text-sm font-medium mb-1">{t('noApiKeys')}</p>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Create a key to access your sandbox programmatically.
+                  {t('noApiKeysDescription')}
                 </p>
                 <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}>
                   <Plus className="w-4 h-4 mr-1.5" />
-                  Create Key
+                  {t('createKey')}
                 </Button>
               </div>
             ) : (
@@ -748,14 +751,14 @@ export default function APIKeysPage() {
                         <StatusBadge status={apiKey.status} />
                       </div>
                       <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-                        <span>Created {formatDate(apiKey.created_at)}</span>
+                        <span>{t('created', { date: formatDate(apiKey.created_at) })}</span>
                         {apiKey.expires_at && (
                           <span className={isKeyExpired(apiKey.expires_at) ? 'text-yellow-600 dark:text-yellow-400' : ''}>
-                            {isKeyExpired(apiKey.expires_at) ? 'Expired' : 'Expires'} {formatDate(apiKey.expires_at)}
+                            {isKeyExpired(apiKey.expires_at) ? t('expired', { date: formatDate(apiKey.expires_at) }) : t('expiresOn', { date: formatDate(apiKey.expires_at) })}
                           </span>
                         )}
                         {apiKey.last_used_at && (
-                          <span>Last used {formatDate(apiKey.last_used_at)}</span>
+                          <span>{t('lastUsed', { date: formatDate(apiKey.last_used_at) })}</span>
                         )}
                       </div>
                     </div>
@@ -771,18 +774,18 @@ export default function APIKeysPage() {
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Revoke &quot;{apiKey.title}&quot;</AlertDialogTitle>
+                              <AlertDialogTitle>{t('revokeKey', { name: apiKey.title })}</AlertDialogTitle>
                               <AlertDialogDescription>
-                                This will immediately invalidate the key. Any applications using it will stop working.
+                                {t('revokeDescription')}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => revokeMutation.mutate(apiKey.key_id)}
                                 className="bg-destructive hover:bg-destructive/90 text-white"
                               >
-                                Revoke
+                                {t('revoke')}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -796,18 +799,18 @@ export default function APIKeysPage() {
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Delete &quot;{apiKey.title}&quot;</AlertDialogTitle>
+                              <AlertDialogTitle>{t('deleteKey', { name: apiKey.title })}</AlertDialogTitle>
                               <AlertDialogDescription>
-                                This will permanently remove the key. This cannot be undone.
+                                {t('deleteDescription')}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => deleteMutation.mutate(apiKey.key_id)}
                                 className="bg-destructive hover:bg-destructive/90 text-white"
                               >
-                                Delete
+                                {t('delete')}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -827,10 +830,10 @@ export default function APIKeysPage() {
             <Shield className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
             <div className="text-xs text-muted-foreground space-y-1">
               <p>
-                Pass your secret key as a Bearer token: <code className="bg-muted px-1 py-0.5 rounded text-foreground">Authorization: Bearer kortix_...</code>
+                {t('usageHint', { code: 'Authorization: Bearer kortix_...' })}
               </p>
               <p>
-                Keys are hashed server-side and never stored in plain text. The secret is shown once at creation.
+                {t('securityNote')}
               </p>
             </div>
           </div>
@@ -842,39 +845,39 @@ export default function APIKeysPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {createdApiKey?.type === 'sandbox' ? 'Token Regenerated' : 'Key Created'}
+              {createdApiKey?.type === 'sandbox' ? t('tokenRegenerated') : t('keyCreated')}
             </DialogTitle>
             <DialogDescription>
               {createdApiKey?.type === 'sandbox'
-                ? 'The new token has been applied to your sandbox.'
-                : 'Copy your secret key now. It won\'t be shown again.'}
+                ? t('tokenApplied')
+                : t('copyKeyNow')}
             </DialogDescription>
           </DialogHeader>
 
           {createdApiKey && 'secret_key' in createdApiKey && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>{createdApiKey.type === 'sandbox' ? 'Sandbox Token' : 'Secret Key'}</Label>
+                <Label>{createdApiKey.type === 'sandbox' ? t('sandboxTokenLabel') : t('secretKeyLabel')}</Label>
                 <div className="flex gap-2">
                   <Input type="text"
                     value={createdKeyDisplayValue}
                     readOnly
                     className="font-mono text-sm"
                   />
-                  <CopyButton value={createdKeyDisplayValue} label="Copy" />
+                  <CopyButton value={createdKeyDisplayValue} label={t('copy')} />
                 </div>
               </div>
 
               <div className="rounded-xl bg-yellow-500/10 border border-yellow-500/20 px-3 py-2.5">
                 <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                  Store this key securely. It cannot be retrieved after closing this dialog.
+                  {t('storeSecurely')}
                 </p>
               </div>
             </div>
           )}
 
           <div className="flex justify-end pt-1">
-            <Button onClick={() => setShowCreatedKey(false)}>Done</Button>
+            <Button onClick={() => setShowCreatedKey(false)}>{t('done')}</Button>
           </div>
         </DialogContent>
       </Dialog>
