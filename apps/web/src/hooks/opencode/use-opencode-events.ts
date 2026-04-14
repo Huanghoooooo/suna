@@ -880,6 +880,7 @@ export function useOpenCodeEventStream() {
 				queryClient.invalidateQueries({ queryKey: opcodeKeys.agents(), type: 'active' });
 				queryClient.invalidateQueries({ queryKey: opcodeKeys.toolIds(), type: 'active' });
 				queryClient.invalidateQueries({ queryKey: opcodeKeys.commands(), type: 'active' });
+				queryClient.invalidateQueries({ queryKey: opencodeKeys.providers(), type: 'active' });
 				break;
 			}
 
