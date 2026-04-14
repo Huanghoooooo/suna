@@ -437,6 +437,13 @@ function normalizeCommandParts(parts: string[]): string[] {
   return parts;
 }
 
+function getShellCommand(cmd: string): string[] {
+  if (process.platform === "win32") {
+    return ["cmd.exe", "/d", "/s", "/c", cmd];
+  }
+  return ["/bin/sh", "-c", cmd];
+}
+
 async function runShell(
   cmd: string,
   cwd: string,
@@ -454,7 +461,7 @@ async function runShell(
 
   let proc: ReturnType<typeof Bun.spawn>;
   try {
-    proc = Bun.spawn(["/bin/sh", "-c", cmd], {
+    proc = Bun.spawn(getShellCommand(cmd), {
       cwd,
       env: mergedEnv,
       stdout: "pipe",
@@ -1277,7 +1284,7 @@ export class ServiceManager {
 
     let proc: ReturnType<typeof Bun.spawn>;
     try {
-      proc = Bun.spawn(["/bin/sh", "-c", spec.startCommand], {
+      proc = Bun.spawn(getShellCommand(spec.startCommand), {
         cwd,
         env: {
           ...(process.env as Record<string, string>),

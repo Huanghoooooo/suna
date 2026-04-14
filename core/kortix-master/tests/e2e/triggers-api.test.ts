@@ -16,6 +16,22 @@ import { tmpdir } from 'os'
 // because it initializes the store at module level
 let tempDir: string
 let app: Hono
+let storeForCleanup: any
+
+async function cleanupTempDir(dir: string): Promise<void> {
+  // Windows can keep SQLite files locked briefly after test execution.
+  for (let attempt = 0; attempt < 8; attempt++) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'EBUSY' && code !== 'EPERM' && code !== 'ENOTEMPTY') throw error
+      await Bun.sleep(40 * (attempt + 1))
+    }
+  }
+  rmSync(dir, { recursive: true, force: true })
+}
 
 function createTestApp(dir: string) {
   // We can't use the real router (it hardcodes /workspace), so we'll
@@ -181,12 +197,16 @@ async function req(method: string, path: string, body?: unknown) {
 describe('Triggers API E2E', () => {
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'triggers-e2e-'))
-    const { api } = createTestApp(tempDir)
+    const { api, store } = createTestApp(tempDir)
+    storeForCleanup = store
     app = api
   })
 
-  afterEach(() => {
-    rmSync(tempDir, { recursive: true, force: true })
+  afterEach(async () => {
+    // Close sqlite handle before deleting temp directory.
+    try { storeForCleanup?.db?.close?.() } catch {}
+    storeForCleanup = null
+    await cleanupTempDir(tempDir)
   })
 
   // ─── CRUD lifecycle ─────────────────────────────────────────────────────
