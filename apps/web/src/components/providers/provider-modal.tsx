@@ -52,6 +52,8 @@ import { useOpenCodeProviders } from '@/hooks/opencode/use-opencode-sessions';
 import { useModelStore } from '@/hooks/opencode/use-model-store';
 import type { FlatModel } from '@/components/session/session-chat-input';
 import { getClient } from '@/lib/opencode-sdk';
+import { authenticatedFetch } from '@/lib/auth-token';
+import { getEnv } from '@/lib/env-config';
 import { useQueryClient } from '@tanstack/react-query';
 import { opencodeKeys } from '@/hooks/opencode/use-opencode-sessions';
 import { toast } from '@/lib/toast';
@@ -123,6 +125,7 @@ function ConnectedTabContent({
       setConfirmDisconnect(null);
       try {
         const client = getClient();
+        const backendUrl = getEnv().BACKEND_URL || 'http://localhost:8008/v1';
         try {
           await client.auth.remove({ providerID });
         } catch (err) {
@@ -138,6 +141,9 @@ function ConnectedTabContent({
             throw err;
           }
         }
+        await authenticatedFetch(`${backendUrl}/providers/custom/${encodeURIComponent(providerID)}`, {
+          method: 'DELETE',
+        }).catch(() => null);
         await client.global.dispose();
         await queryClient.refetchQueries({ queryKey: opencodeKeys.providers() });
         toast.success(`${PROVIDER_LABELS[providerID] || providerID} disconnected`);

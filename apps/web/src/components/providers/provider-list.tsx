@@ -29,6 +29,8 @@ import {
 } from '@/components/ui/dialog';
 import { ProviderLogo, PROVIDER_LABELS } from '@/components/providers/provider-branding';
 import { getClient } from '@/lib/opencode-sdk';
+import { authenticatedFetch } from '@/lib/auth-token';
+import { getEnv } from '@/lib/env-config';
 import { useQueryClient } from '@tanstack/react-query';
 import { opencodeKeys } from '@/hooks/opencode/use-opencode-sessions';
 import { toast } from '@/lib/toast';
@@ -69,6 +71,7 @@ export function ProviderList({
       setConfirmDisconnect(null);
       try {
         const client = getClient();
+        const backendUrl = getEnv().BACKEND_URL || 'http://localhost:8008/v1';
         try {
           await client.auth.remove({ providerID });
         } catch (err) {
@@ -84,6 +87,9 @@ export function ProviderList({
             throw err;
           }
         }
+        await authenticatedFetch(`${backendUrl}/providers/custom/${encodeURIComponent(providerID)}`, {
+          method: 'DELETE',
+        }).catch(() => null);
         await client.global.dispose();
         await queryClient.refetchQueries({ queryKey: opencodeKeys.providers() });
         toast.success(`${PROVIDER_LABELS[providerID] || providerID} disconnected`);

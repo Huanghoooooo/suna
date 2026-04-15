@@ -826,12 +826,28 @@ async function ensureLocalSandboxRegistered() {
   const portBase = config.SANDBOX_PORT_BASE;
   const baseUrl = `http://localhost:${portBase}`;
   const ensureLocalContainerRunning = async (): Promise<void> => {
+    if (config.SANDBOX_NETWORK) return;
     const { LocalDockerProvider } = await import('./platform/providers/local-docker');
     const provider = new LocalDockerProvider();
     await provider.ensure();
   };
 
-  const isContainerRunning = (): boolean => {
+  const isSandboxReachable = async (): Promise<boolean> => {
+    try {
+      const res = await fetch(`${baseUrl}/kortix/health`, {
+        signal: AbortSignal.timeout(5_000),
+      });
+      return res.ok || res.status === 503;
+    } catch {
+      return false;
+    }
+  };
+
+  const isContainerRunning = async (): Promise<boolean> => {
+    if (config.SANDBOX_NETWORK) {
+      return isSandboxReachable();
+    }
+
     try {
       // Clear DOCKER_HOST so docker CLI uses its own context (npipe via context
       // works reliably; the env var set for Dockerode's TCP bridge confuses the CLI).
@@ -841,7 +857,11 @@ async function ensureLocalSandboxRegistered() {
         'inspect', '-f', '{{.State.Running}}', CONTAINER_NAME,
       ], { encoding: 'utf-8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'], env }).trim();
       return out === 'true';
-    } catch {
+    } catch (err: any) {
+      if (err?.code === 'ENOENT') {
+        console.warn('[startup] docker CLI not available, falling back to sandbox health probe');
+        return isSandboxReachable();
+      }
       return false;
     }
   };
@@ -853,11 +873,15 @@ async function ensureLocalSandboxRegistered() {
     .where(eq(sandboxes.externalId, CONTAINER_NAME));
 
   if (existing) {
-    const containerRunning = isContainerRunning();
+    const containerRunning = await isContainerRunning();
 
     if (!containerRunning) {
-      console.log(`[startup] Container ${CONTAINER_NAME} not running — recreating/starting before registration`);
-      await ensureLocalContainerRunning();
+      if (config.SANDBOX_NETWORK) {
+        console.warn(`[startup] Sandbox ${CONTAINER_NAME} not reachable on ${baseUrl} — skipping auto-start in network mode`);
+      } else {
+        console.log(`[startup] Container ${CONTAINER_NAME} not running — recreating/starting before registration`);
+        await ensureLocalContainerRunning();
+      }
     }
 
     // Container is running — ensure DB reflects active status
@@ -892,8 +916,12 @@ async function ensureLocalSandboxRegistered() {
     return;
   }
 
-  const containerRunning = isContainerRunning();
+  const containerRunning = await isContainerRunning();
   if (!containerRunning) {
+    if (config.SANDBOX_NETWORK) {
+      console.warn(`[startup] Sandbox ${CONTAINER_NAME} not reachable on ${baseUrl} — skipping auto-provision in network mode`);
+      return;
+    }
     console.log(`[startup] Container ${CONTAINER_NAME} not running — creating before auto-provision`);
     await ensureLocalContainerRunning();
   }

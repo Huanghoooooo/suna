@@ -269,13 +269,87 @@ function sanitizeModelAlias(modelId: string): string {
   return normalized.replace(/^-+|-+$/g, '') || 'default';
 }
 
+function customProviderApiKeyEnvKey(providerID: string): string {
+  const normalized = providerID
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toUpperCase();
+  return `CUSTOM_PROVIDER_${normalized || 'DEFAULT'}_API_KEY`;
+}
+
+function ensureRootEnvFile(repoRoot: string): string {
+  const rootEnvPath = resolve(repoRoot, '.env');
+  if (!existsSync(rootEnvPath)) {
+    const examplePath = resolve(repoRoot, '.env.example');
+    if (existsSync(examplePath)) {
+      writeFileSync(rootEnvPath, readFileSync(examplePath, 'utf-8'));
+    } else {
+      writeFileSync(rootEnvPath, '# Kortix Environment Configuration\nENV_MODE=local\n');
+    }
+  }
+  return rootEnvPath;
+}
+
+function ensureSandboxEnvFile(repoRoot: string): string {
+  const sandboxEnvPath = resolve(repoRoot, 'core/docker/.env');
+  mkdirSync(dirname(sandboxEnvPath), { recursive: true });
+  if (!existsSync(sandboxEnvPath)) {
+    const examplePath = resolve(repoRoot, 'core/docker/.env.example');
+    if (existsSync(examplePath)) {
+      writeFileSync(sandboxEnvPath, readFileSync(examplePath, 'utf-8'));
+    } else {
+      writeFileSync(sandboxEnvPath, '# Kortix Sandbox Environment\nENV_MODE=local\n');
+    }
+  }
+  return sandboxEnvPath;
+}
+
+function writeCustomProviderApiKey(repoRoot: string, providerID: string, apiKey: string): string {
+  const envKey = customProviderApiKeyEnvKey(providerID);
+  const trimmed = apiKey.trim();
+  if (!trimmed) return envKey;
+
+  const rootEnvPath = ensureRootEnvFile(repoRoot);
+  writeEnvFile(rootEnvPath, {
+    [envKey]: trimmed,
+    ENV_MODE: 'local',
+    ALLOWED_SANDBOX_PROVIDERS: 'local_docker',
+  });
+
+  const sandboxEnvPath = ensureSandboxEnvFile(repoRoot);
+  writeEnvFile(sandboxEnvPath, {
+    [envKey]: trimmed,
+    ENV_MODE: 'local',
+    SANDBOX_ID: config.SANDBOX_CONTAINER_NAME,
+    PROJECT_ID: 'local',
+    KORTIX_API_URL: 'http://kortix-api:8008',
+  });
+
+  return envKey;
+}
+
+function removeCustomProviderApiKey(repoRoot: string, providerID: string): void {
+  const envKey = customProviderApiKeyEnvKey(providerID);
+  removeFromEnvFile(resolve(repoRoot, '.env'), [envKey]);
+  removeFromEnvFile(resolve(repoRoot, 'core/docker/.env'), [envKey]);
+}
+
+function rerunSetupEnv(repoRoot: string): void {
+  try {
+    execSync('bash scripts/setup-env.sh', { cwd: repoRoot, stdio: 'pipe', timeout: 15000 });
+  } catch (e: any) {
+    console.error('[providers] setup-env.sh failed:', e.message);
+  }
+}
+
 function upsertCustomProviderInConfig(
   configPath: string,
   payload: {
     providerID: string;
     name: string;
     baseURL: string;
-    apiKey?: string;
+    apiKeyEnvVar: string;
     modelId: string;
     modelName: string;
   },
@@ -293,7 +367,7 @@ function upsertCustomProviderInConfig(
     '      "npm": "@ai-sdk/openai-compatible",',
     '      "options": {',
     `        "baseURL": ${JSON.stringify(payload.baseURL)},`,
-    `        "apiKey": ${JSON.stringify(payload.apiKey || '')}`,
+    `        "apiKey": ${JSON.stringify(`{env:${payload.apiKeyEnvVar}}`)}`,
     '      },',
     '      "models": {',
     `        "${alias}": {`,
@@ -330,6 +404,45 @@ function upsertCustomProviderInConfig(
     nextProviderBody +
     source.slice(providerRange.end);
   writeFileSync(configPath, updated);
+}
+
+function removeCustomProviderFromConfig(configPath: string, providerID: string): boolean {
+  const source = readFileSync(configPath, 'utf-8');
+  const providerRange = findObjectRange(source, 'provider');
+  if (!providerRange) {
+    throw new Error('Could not find "provider" object in opencode.jsonc');
+  }
+
+  const bodyStart = providerRange.start + 1;
+  const bodyEnd = providerRange.end;
+  const providerBody = source.slice(bodyStart, bodyEnd);
+  const existingRange = findObjectRange(providerBody, providerID);
+  if (!existingRange) return false;
+
+  const keyIndex = providerBody.indexOf(`"${providerID}"`);
+  if (keyIndex === -1) return false;
+
+  let removeStart = keyIndex;
+  while (removeStart > 0 && providerBody[removeStart - 1] !== '\n') removeStart--;
+
+  let removeEnd = existingRange.end + 1;
+  while (removeEnd < providerBody.length && /\s/.test(providerBody[removeEnd])) removeEnd++;
+
+  if (providerBody[removeEnd] === ',') {
+    removeEnd++;
+    while (removeEnd < providerBody.length && /\s/.test(providerBody[removeEnd])) removeEnd++;
+  } else {
+    let commaStart = removeStart;
+    while (commaStart > 0 && /\s/.test(providerBody[commaStart - 1])) commaStart--;
+    if (commaStart > 0 && providerBody[commaStart - 1] === ',') {
+      removeStart = commaStart - 1;
+    }
+  }
+
+  const updatedBody = providerBody.slice(0, removeStart) + providerBody.slice(removeEnd);
+  const updated = source.slice(0, bodyStart) + updatedBody + source.slice(bodyEnd);
+  writeFileSync(configPath, updated);
+  return true;
 }
 
 // ─── Provider Status Types ──────────────────────────────────────────────────
@@ -475,16 +588,7 @@ providersApp.put('/:id/connect', async (c) => {
   }
 
   if (Object.keys(sandboxData).length > 0) {
-    const sandboxEnvPath = resolve(repoRoot, 'core/docker/.env');
-    mkdirSync(dirname(sandboxEnvPath), { recursive: true });
-    if (!existsSync(sandboxEnvPath)) {
-      const examplePath = resolve(repoRoot, 'core/docker/.env.example');
-      if (existsSync(examplePath)) {
-        writeFileSync(sandboxEnvPath, readFileSync(examplePath, 'utf-8'));
-      } else {
-        writeFileSync(sandboxEnvPath, '# Kortix Sandbox Environment\nENV_MODE=local\n');
-      }
-    }
+    const sandboxEnvPath = ensureSandboxEnvFile(repoRoot);
     sandboxData.ENV_MODE = 'local';
     sandboxData.SANDBOX_ID = config.SANDBOX_CONTAINER_NAME;
     sandboxData.PROJECT_ID = 'local';
@@ -493,11 +597,7 @@ providersApp.put('/:id/connect', async (c) => {
   }
 
   // Run setup-env.sh to distribute to per-service .env files
-  try {
-    execSync('bash scripts/setup-env.sh', { cwd: repoRoot, stdio: 'pipe', timeout: 15000 });
-  } catch (e: any) {
-    console.error('[providers] setup-env.sh failed:', e.message);
-  }
+  rerunSetupEnv(repoRoot);
 
   return c.json({ ok: true });
 });
@@ -538,14 +638,16 @@ providersApp.post('/custom', async (c) => {
   }
 
   try {
+    const apiKeyEnvVar = writeCustomProviderApiKey(repoRoot, providerID, apiKey);
     upsertCustomProviderInConfig(configPath, {
       providerID,
       name,
       baseURL,
-      apiKey,
+      apiKeyEnvVar,
       modelId,
       modelName,
     });
+    rerunSetupEnv(repoRoot);
     return c.json({ ok: true });
   } catch (e: any) {
     return c.json(
@@ -589,13 +691,42 @@ providersApp.delete('/:id/disconnect', async (c) => {
   removeFromEnvFile(sandboxEnvPath, provider.envKeys);
 
   // Re-run setup-env.sh
-  try {
-    execSync('bash scripts/setup-env.sh', { cwd: repoRoot, stdio: 'pipe', timeout: 15000 });
-  } catch (e: any) {
-    console.error('[providers] setup-env.sh failed:', e.message);
-  }
+  rerunSetupEnv(repoRoot);
 
   return c.json({ ok: true });
+});
+
+/**
+ * DELETE /v1/providers/custom/:id
+ * Remove a custom OpenAI-compatible provider from local config and env.
+ */
+providersApp.delete('/custom/:id', async (c) => {
+  const providerID = c.req.param('id').trim();
+  if (!providerID) {
+    return c.json({ error: 'providerID is required' }, 400);
+  }
+
+  const repoRoot = findRepoRoot();
+  if (!repoRoot) {
+    return c.json({ error: 'Custom provider removal is only supported in local repo development mode right now' }, 501);
+  }
+
+  const configPath = resolve(repoRoot, 'core/kortix-master/opencode/opencode.jsonc');
+  if (!existsSync(configPath)) {
+    return c.json({ error: `OpenCode config not found: ${configPath}` }, 500);
+  }
+
+  try {
+    const removed = removeCustomProviderFromConfig(configPath, providerID);
+    removeCustomProviderApiKey(repoRoot, providerID);
+    rerunSetupEnv(repoRoot);
+    return c.json({ ok: true, removed });
+  } catch (e: any) {
+    return c.json(
+      { ok: false, error: 'Failed to remove custom provider', details: e?.message || String(e) },
+      500,
+    );
+  }
 });
 
 /**
