@@ -2565,28 +2565,17 @@ function EditTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
   const hasDiff = before !== '' || after !== '';
   const isStreaming = partStatus(part) === 'pending';
   const running = useContext(ToolRunningContext);
+  const { openPreview } = useFilePreviewStore();
 
   return (
     <BasicTool
       icon={<FileCode2 className="size-3.5 flex-shrink-0" />}
-      trigger={
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          <span className="font-medium text-xs text-foreground whitespace-nowrap">
-            Edit
-          </span>
-          <span className="text-xs text-foreground font-mono truncate">
-            {filename}
-          </span>
-          {directory && (
-            <span className="text-muted-foreground text-[10px] font-mono truncate hidden sm:inline">
-              {directory}
-            </span>
-          )}
-          {filediff && (
-            <DiffChanges additions={additions} deletions={deletions} />
-          )}
-        </div>
-      }
+      trigger={{
+        title: 'Edit',
+        subtitle: filename,
+        args: directory ? [directory] : undefined,
+      }}
+      onSubtitleClick={filePath ? () => openPreview(filePath) : undefined}
       defaultOpen={defaultOpen}
       forceOpen={forceOpen}
       locked={locked}
@@ -2648,32 +2637,17 @@ function WriteTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
     !running && !filename && (status === 'pending' || status === 'running');
   const isStreaming = status === 'pending' && running;
 
+  const { openPreview } = useFilePreviewStore();
+
   return (
     <BasicTool
       icon={<FileCode2 className="size-3.5 flex-shrink-0" />}
-      trigger={
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          <span className="font-medium text-xs text-foreground whitespace-nowrap">
-            Write
-          </span>
-          {filename ? (
-            <>
-              <span className="text-xs text-foreground font-mono truncate">
-                {filename}
-              </span>
-              {directory && (
-                <span className="text-muted-foreground text-[10px] font-mono truncate hidden sm:inline">
-                  {directory}
-                </span>
-              )}
-            </>
-          ) : isStalePending ? (
-            <TextShimmer duration={1} spread={2} className="text-xs italic">
-              Working...
-            </TextShimmer>
-          ) : null}
-        </div>
-      }
+      trigger={{
+        title: 'Write',
+        subtitle: filename || (isStalePending ? 'Working...' : undefined),
+        args: directory ? [directory] : undefined,
+      }}
+      onSubtitleClick={filePath ? () => openPreview(filePath) : undefined}
       defaultOpen={defaultOpen}
       forceOpen={forceOpen}
       locked={locked}
