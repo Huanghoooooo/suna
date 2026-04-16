@@ -77,6 +77,7 @@ write_env "apps/api/.env" \
   "$(kv DOCKER_HOST)" \
   "$(kv KORTIX_URL)" \
   "$(kv FRONTEND_URL "$(e NEXT_PUBLIC_URL http://localhost:3000)")" \
+  "$(kv CORS_ALLOWED_ORIGINS "$(e NEXT_PUBLIC_URL http://localhost:3000)")" \
   "" \
   "# Daytona (conditional — only if daytona provider enabled)" \
   "$(kv DAYTONA_API_KEY)" \
@@ -132,12 +133,12 @@ write_env "apps/web/.env" \
   "$(kv NEXT_PUBLIC_ENV_MODE "$(e ENV_MODE local)")" \
   "$(kv NEXT_PUBLIC_BILLING_ENABLED false)" \
   "" \
-  "$(kv NEXT_PUBLIC_SUPABASE_URL "$(e SUPABASE_URL)")" \
+  "$(kv NEXT_PUBLIC_SUPABASE_URL "$(e NEXT_PUBLIC_SUPABASE_URL "$(e SUPABASE_URL)")")" \
   "$(kv NEXT_PUBLIC_SUPABASE_ANON_KEY "$(e SUPABASE_ANON_KEY)")" \
   "" \
-  "$(kv NEXT_PUBLIC_APP_URL "$(e NEXT_PUBLIC_URL http://localhost:3000)")" \
-  "$(kv NEXT_PUBLIC_URL http://localhost:3000)" \
-  "$(kv NEXT_PUBLIC_BACKEND_URL http://localhost:8008/v1)" \
+  "$(kv NEXT_PUBLIC_APP_URL "$(e NEXT_PUBLIC_APP_URL "$(e NEXT_PUBLIC_URL http://localhost:3000)")")" \
+  "$(kv NEXT_PUBLIC_URL "$(e NEXT_PUBLIC_URL http://localhost:3000)")" \
+  "$(kv NEXT_PUBLIC_BACKEND_URL "$(e NEXT_PUBLIC_BACKEND_URL http://localhost:8008/v1)")" \
   "$(kv NEXT_PUBLIC_SANDBOX_ID "$(e SANDBOX_CONTAINER_NAME kortix-sandbox)")" \
   "" \
   "$(kv NEXT_PUBLIC_GOOGLE_CLIENT_ID)" \
