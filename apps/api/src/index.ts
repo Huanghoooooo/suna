@@ -976,6 +976,21 @@ function startLocalSandboxSelfHeal(): void {
   console.log('[startup] Local sandbox self-heal started (interval: 60s)');
 }
 
+function startLocalSandboxBootstrap(): void {
+  if (!config.isLocalDockerEnabled() || !config.DATABASE_URL) return;
+
+  const startHealthMonitorOnce = () => {
+    startSandboxHealthMonitor();
+  };
+
+  ensureLocalSandboxRegistered()
+    .catch((err) =>
+      console.error('[startup] Failed to register local sandbox:', err),
+    )
+    .finally(startHealthMonitorOnce);
+  startLocalSandboxSelfHeal();
+}
+
 // === Start Server ===
 
 console.log(`
@@ -1025,17 +1040,7 @@ ensureSchema()
     startTunnelService();
     startAutoReplenish();
 
-    if (config.isLocalDockerEnabled() && config.DATABASE_URL) {
-      // Non-blocking: sandbox registration + token sync runs in background.
-      // Must NOT await — the /env API call can take seconds and would block
-      // all route handlers from being ready. The self-heal timer ensures
-      // convergence even if the first attempt fails.
-      ensureLocalSandboxRegistered().catch((err) =>
-        console.error('[startup] Failed to register local sandbox:', err),
-      );
-      startLocalSandboxSelfHeal();
-      startSandboxHealthMonitor();
-    }
+    startLocalSandboxBootstrap();
 
     // Start provision poller for cloud mode (compensates for broken/missing webhooks)
     if (config.isJustAVPSEnabled()) {
@@ -1050,13 +1055,7 @@ ensureSchema()
     startTunnelService();
     startAutoReplenish();
 
-    if (config.isLocalDockerEnabled() && config.DATABASE_URL) {
-      ensureLocalSandboxRegistered().catch((e) =>
-        console.error('[startup] Failed to register local sandbox:', e),
-      );
-      startLocalSandboxSelfHeal();
-      startSandboxHealthMonitor();
-    }
+    startLocalSandboxBootstrap();
 
     if (config.isJustAVPSEnabled()) {
       startProvisionPoller();

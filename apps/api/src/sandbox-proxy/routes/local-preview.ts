@@ -15,6 +15,7 @@
 
 import { config } from '../../config';
 import { execSync } from 'child_process';
+import { existsSync } from 'fs';
 import { buildCanonicalSandboxAuthCommand } from '../../platform/services/sandbox-auth';
 
 const KORTIX_MASTER_PORT = 8000;
@@ -124,8 +125,12 @@ const STRIP_RESPONSE_HEADERS = new Set([
  * Inside Docker: http://{sandboxId}:8000 (Docker DNS)
  * On host (pnpm dev): http://localhost:{SANDBOX_PORT_BASE}
  */
+function isRunningInsideContainer(): boolean {
+  return existsSync('/.dockerenv');
+}
+
 export function getSandboxBaseUrl(sandboxId: string): string {
-  if (config.SANDBOX_NETWORK) {
+  if (config.SANDBOX_NETWORK && isRunningInsideContainer()) {
     return `http://${sandboxId}:8000`;
   }
   return `http://localhost:${config.SANDBOX_PORT_BASE}`;

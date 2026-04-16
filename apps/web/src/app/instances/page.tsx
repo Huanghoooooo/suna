@@ -103,10 +103,16 @@ export default function InstancesPage() {
     autoEnsureAttemptedRef.current = true;
     setAutoCreating(true);
     ensureSandbox()
-      .then(() => refetch())
-      .catch(() => {})
+      .then(({ sandbox }) => {
+        router.replace(`/instances/${sandbox.sandbox_id}`);
+      })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : 'Failed to create instance';
+        console.error('[InstancesPage] auto ensureSandbox failed:', err);
+        sonnerToast.error(message);
+      })
       .finally(() => setAutoCreating(false));
-  }, [user, isLoading, sandboxes, autoCreating, isCloud, refetch]);
+  }, [user, isLoading, sandboxes, autoCreating, isCloud, router]);
 
   // Auto-redirect: if there's exactly 1 instance (local mode typical), go straight to it.
   useEffect(() => {
@@ -195,8 +201,14 @@ export default function InstancesPage() {
       // Local mode: create directly, no checkout
       setAutoCreating(true);
       ensureSandbox()
-        .then(() => refetch())
-        .catch(() => { })
+        .then(({ sandbox }) => {
+          router.push(`/instances/${sandbox.sandbox_id}`);
+        })
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : 'Failed to create instance';
+          console.error('[InstancesPage] ensureSandbox failed:', err);
+          sonnerToast.error(message);
+        })
         .finally(() => setAutoCreating(false));
     }
   }
