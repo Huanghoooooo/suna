@@ -12,7 +12,7 @@
  *  6. Backward compat: old /v1/setup/env still works after provider changes
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, mock } from 'bun:test';
 import { Hono } from 'hono';
 import { mkdirSync, writeFileSync, existsSync, rmSync, readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -46,15 +46,21 @@ function createTestApp() {
 beforeAll(() => {
   mkdirSync(TEST_DIR, { recursive: true });
   mkdirSync(resolve(TEST_DIR, 'scripts'), { recursive: true });
+  mkdirSync(resolve(TEST_DIR, 'core', 'kortix-master', 'opencode'), { recursive: true });
   mkdirSync(resolve(TEST_DIR, 'deploy', 'docker', 'sandbox'), { recursive: true });
   mkdirSync(resolve(TEST_DIR, 'apps', 'api'), { recursive: true });
   mkdirSync(resolve(TEST_DIR, 'apps/web'), { recursive: true });
 
+  writeFileSync(resolve(TEST_DIR, 'package.json'), '{"name":"providers-test"}\n');
   writeFileSync(
     resolve(TEST_DIR, 'docker-compose.local.yml'),
     'services:\n  test:\n    image: hello-world\n',
   );
   writeFileSync(resolve(TEST_DIR, 'scripts', 'setup-env.sh'), '#!/usr/bin/env bash\nexit 0\n');
+  writeFileSync(
+    resolve(TEST_DIR, 'core', 'kortix-master', 'opencode', 'opencode.jsonc'),
+    '{\n  "provider": {\n    "kortix": {\n      "name": "Kortix",\n      "npm": "@ai-sdk/openai-compatible",\n      "options": { "baseURL": "http://localhost:8008/v1/router", "apiKey": "{env:KORTIX_TOKEN}" },\n      "models": {}\n    }\n  }\n}\n',
+  );
   writeFileSync(resolve(TEST_DIR, '.env.example'), 'ENV_MODE=local\nANTHROPIC_API_KEY=\n');
   writeFileSync(resolve(TEST_DIR, 'deploy', 'docker', 'sandbox', '.env.example'), 'ANTHROPIC_API_KEY=\nENV_MODE=local\n');
 
@@ -69,6 +75,10 @@ beforeEach(() => {
   // Clean env files between tests
   rmSync(resolve(TEST_DIR, '.env'), { force: true });
   rmSync(resolve(TEST_DIR, 'core/docker/.env'), { force: true });
+});
+
+afterEach(() => {
+  global.fetch = fetch;
 });
 
 // ─── Tests: GET /v1/providers ───────────────────────────────────────────────
@@ -337,6 +347,77 @@ describe('PUT /v1/providers/:id/connect', () => {
     const openai = data.providers.find((p: any) => p.id === 'openai');
     expect(anthropic.connected).toBe(true);
     expect(openai.connected).toBe(true);
+  });
+});
+
+// ─── Tests: POST/DELETE /v1/providers/custom ────────────────────────────────
+
+describe('custom provider runtime refresh', () => {
+  it('restarts opencode after saving a custom provider', async () => {
+    const fetchMock = mock(async (input: Request | URL | string) => {
+      const url = String(input);
+      expect(url).toContain('/core/restart/opencode-serve');
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    const app = createTestApp();
+    const res = await app.request('/v1/providers/custom', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        providerID: 'apipool',
+        name: 'API Pool',
+        baseURL: 'https://api.apipool.dev/v1',
+        apiKey: 'sk-custom-provider',
+        modelId: 'gpt-5.4',
+        modelName: 'gpt-5.4',
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const opencodeConfig = readFileSync(
+      resolve(TEST_DIR, 'core', 'kortix-master', 'opencode', 'opencode.jsonc'),
+      'utf-8',
+    );
+    expect(opencodeConfig).toContain('"apipool"');
+    expect(opencodeConfig).toContain('{env:CUSTOM_PROVIDER_APIPOOL_API_KEY}');
+  });
+
+  it('restarts opencode after deleting a custom provider', async () => {
+    writeFileSync(
+      resolve(TEST_DIR, 'core', 'kortix-master', 'opencode', 'opencode.jsonc'),
+      '{\n  "provider": {\n    "kortix": {\n      "name": "Kortix",\n      "npm": "@ai-sdk/openai-compatible",\n      "options": { "baseURL": "http://localhost:8008/v1/router", "apiKey": "{env:KORTIX_TOKEN}" },\n      "models": {}\n    },\n    "apipool": {\n      "name": "API Pool",\n      "npm": "@ai-sdk/openai-compatible",\n      "options": { "baseURL": "https://api.apipool.dev/v1", "apiKey": "{env:CUSTOM_PROVIDER_APIPOOL_API_KEY}" },\n      "models": {\n        "gpt-5-4": { "name": "gpt-5.4", "id": "gpt-5.4" }\n      }\n    }\n  }\n}\n',
+    );
+    writeFileSync(resolve(TEST_DIR, '.env'), 'CUSTOM_PROVIDER_APIPOOL_API_KEY=sk-custom-provider\n');
+    writeFileSync(resolve(TEST_DIR, 'core/docker/.env'), 'CUSTOM_PROVIDER_APIPOOL_API_KEY=sk-custom-provider\n');
+
+    const fetchMock = mock(async (_input: Request | URL | string) => {
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    const app = createTestApp();
+    const res = await app.request('/v1/providers/custom/apipool', {
+      method: 'DELETE',
+    });
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const opencodeConfig = readFileSync(
+      resolve(TEST_DIR, 'core', 'kortix-master', 'opencode', 'opencode.jsonc'),
+      'utf-8',
+    );
+    expect(opencodeConfig).not.toContain('"apipool"');
   });
 });
 

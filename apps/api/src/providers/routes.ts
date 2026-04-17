@@ -122,6 +122,18 @@ async function deleteSandboxEnv(keys: string[]): Promise<void> {
   }
 }
 
+async function restartOpenCodeRuntime(): Promise<void> {
+  const result = await fetchMasterJson<{ success?: boolean; error?: string; output?: string }>(
+    '/core/restart/opencode-serve',
+    { method: 'POST' },
+    30000,
+  );
+
+  if (result?.success === false) {
+    throw new Error(result.error || result.output || 'OpenCode restart failed');
+  }
+}
+
 function parseEnvFile(path: string): Record<string, string> {
   if (!existsSync(path)) return {};
   const lines = readFileSync(path, 'utf-8').split('\n');
@@ -267,6 +279,21 @@ function findObjectRange(source: string, propertyName: string): { start: number;
 function sanitizeModelAlias(modelId: string): string {
   const normalized = modelId.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
   return normalized.replace(/^-+|-+$/g, '') || 'default';
+}
+
+function isLikelyValidProviderBaseUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    const host = url.hostname.trim().toLowerCase();
+    if (!host) return false;
+    if (host === 'localhost') return true;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
+    if (host.includes(':')) return true;
+    return host.includes('.');
+  } catch {
+    return false;
+  }
 }
 
 function customProviderApiKeyEnvKey(providerID: string): string {
@@ -604,7 +631,8 @@ providersApp.put('/:id/connect', async (c) => {
 
 /**
  * POST /v1/providers/custom
- * Persist a custom OpenAI-compatible provider in the local OpenCode config.
+ * Persist a custom OpenAI-compatible provider in the local OpenCode runtime
+ * config and env files.
  */
 providersApp.post('/custom', async (c) => {
   const body = await c.req.json();
@@ -627,6 +655,10 @@ providersApp.post('/custom', async (c) => {
     return c.json({ error: 'baseURL must start with http:// or https://' }, 400);
   }
 
+  if (!isLikelyValidProviderBaseUrl(baseURL)) {
+    return c.json({ error: 'baseURL must be a valid http(s) endpoint with a real host' }, 400);
+  }
+
   const repoRoot = findRepoRoot();
   if (!repoRoot) {
     return c.json({ error: 'Custom provider persistence is only supported in local repo development mode right now' }, 501);
@@ -638,7 +670,7 @@ providersApp.post('/custom', async (c) => {
   }
 
   try {
-    const apiKeyEnvVar = writeCustomProviderApiKey(repoRoot, providerID, apiKey);
+    const apiKeyEnvVar = customProviderApiKeyEnvKey(providerID);
     upsertCustomProviderInConfig(configPath, {
       providerID,
       name,
@@ -647,7 +679,9 @@ providersApp.post('/custom', async (c) => {
       modelId,
       modelName,
     });
+    writeCustomProviderApiKey(repoRoot, providerID, apiKey);
     rerunSetupEnv(repoRoot);
+    await restartOpenCodeRuntime();
     return c.json({ ok: true });
   } catch (e: any) {
     return c.json(
@@ -698,7 +732,7 @@ providersApp.delete('/:id/disconnect', async (c) => {
 
 /**
  * DELETE /v1/providers/custom/:id
- * Remove a custom OpenAI-compatible provider from local config and env.
+ * Remove a custom OpenAI-compatible provider from local runtime config and env.
  */
 providersApp.delete('/custom/:id', async (c) => {
   const providerID = c.req.param('id').trim();
@@ -720,6 +754,7 @@ providersApp.delete('/custom/:id', async (c) => {
     const removed = removeCustomProviderFromConfig(configPath, providerID);
     removeCustomProviderApiKey(repoRoot, providerID);
     rerunSetupEnv(repoRoot);
+    await restartOpenCodeRuntime();
     return c.json({ ok: true, removed });
   } catch (e: any) {
     return c.json(
