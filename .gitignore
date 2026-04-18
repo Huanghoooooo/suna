@@ -1,3 +1,6 @@
+# 本地对照 upstream 用的独立克隆，勿入库
+/suna-latest/
+
 # Dependencies
 node_modules/
 **/node_modules/
