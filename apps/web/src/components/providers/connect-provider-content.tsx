@@ -505,24 +505,8 @@ export function ConnectProviderContent({
 
           {/* Provider list */}
           <div className="space-y-3">
-            {/* Custom provider */}
-            {(!search || 'custom'.includes(search.toLowerCase())) && (
-              <Button
-                type="button"
-                onClick={() => setView({ type: 'custom' })}
-                variant="ghost"
-                className="group mb-1 h-auto w-full items-center gap-3 rounded-2xl border border-border/50 bg-muted/20 px-4 py-3 text-left hover:bg-muted/35 justify-start"
-              >
-                <ProviderLogo providerID="custom" name="Custom" size="default" />
-                <span className="min-w-0 flex-1">
-                  <span className="text-sm font-medium block text-foreground">Custom Provider</span>
-                  <span className="text-xs text-muted-foreground block mt-0.5">
-                    Add any OpenAI-compatible endpoint
-                  </span>
-                </span>
-                <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors ml-auto" />
-              </Button>
-            )}
+            {/* Custom Provider entry removed: providers are hardcoded in
+                core/kortix-master/opencode/opencode.jsonc. See docs/custom-providers.md. */}
 
             {/* Popular providers */}
             {popularGroup.length > 0 && (
