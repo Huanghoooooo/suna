@@ -615,6 +615,16 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
       .where(eq(sandboxes.sandboxId, sandboxId));
   }
 
+  // The sandbox's INTERNAL_SERVICE_KEY always equals our canonical KORTIX_TOKEN
+  // (see keysToSync below). Pin process.env + .env to that value NOW so every
+  // subsequent `fetchMasterJson` — including the providers/custom restart path —
+  // authenticates cleanly, even before the sync POST lands.
+  if (process.env.INTERNAL_SERVICE_KEY !== token) {
+    process.env.INTERNAL_SERVICE_KEY = token;
+    const { persistInternalServiceKey } = await import('./config');
+    persistInternalServiceKey(token);
+  }
+
   const authCandidates = Array.from(new Set([token, config.INTERNAL_SERVICE_KEY].filter(Boolean)));
 
   const readSandboxEnvValue = async (key: string): Promise<string | null> => {
