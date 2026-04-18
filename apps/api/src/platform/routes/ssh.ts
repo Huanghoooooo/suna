@@ -109,7 +109,15 @@ async function verifyPublicKeyViaHostExec(
   containerName = 'justavps-workload',
 ): Promise<void> {
   const keyData = publicKey.split(' ')[1] || publicKey;
-  const verifyCmd = `docker exec ${containerName} sh -lc "test -f /config/.ssh/authorized_keys && grep -q '${keyData}' /config/.ssh/authorized_keys && test \"$(stat -c %a /config/.ssh/authorized_keys)\" = \"600\" && test \"$(stat -c %U /config/.ssh/authorized_keys)\" = \"abc\""`;
+  // Single-quote the sh -lc argument so $(stat ...) is evaluated by the
+  // container's shell, not the host. The previous \"...\" quoting broke
+  // the host's quoting state, causing the substitutions to run on the
+  // host (where /config/.ssh/authorized_keys does not exist) and leading
+  // to both "cannot statx" noise and `test: =: unexpected operator` when
+  // dash saw the resulting empty LHS. "x$VAR" = "xLIT" tolerates empty
+  // substitutions without the =-as-operator error.
+  // keyData is the ssh-ed25519 blob (base64 + '/+='), safe inside "...".
+  const verifyCmd = `docker exec ${containerName} sh -lc 'test -f /config/.ssh/authorized_keys && grep -qF "${keyData}" /config/.ssh/authorized_keys && [ "x$(stat -c %a /config/.ssh/authorized_keys 2>/dev/null)" = "x600" ] && [ "x$(stat -c %U /config/.ssh/authorized_keys 2>/dev/null)" = "xabc" ]'`;
   const result = await execOnHost(endpoint, verifyCmd, 30);
   if (!result.success) {
     throw new Error(`SSH key verification failed: ${result.stderr || result.stdout || 'authorized_keys missing or invalid'}`);
@@ -288,11 +296,17 @@ async function setupJustavpsSSH(externalId: string) {
 
   const provider = new JustAVPSProvider();
 
-  // The DB row can become "active" before the underlying JustAVPS machine has
-  // finished provisioning. Wait until the provider reports the VM itself is
-  // actually ready before attempting SSH setup.
-  await provider.ensureRunning(externalId);
-
+  // buildConnectionForJustavps below verifies machine.status === 'ready' and
+  // requires machine.ip — that is the only "is the VM up?" gate we need here.
+  //
+  // Historically this called provider.ensureRunning(externalId), which always
+  // forced a full host recovery (systemctl restart justavps-docker + wait
+  // loops, up to ~240s per attempt, 20 retries → ~1h worst-case). That
+  // restarted the sandbox container on every SSH click — hence the "machine
+  // turned off" reports when the restart stumbled. Key injection only needs
+  // a healthy container; if the container is down, injectPublicKeyViaHostExec
+  // -WithRetry will fail fast within its 120s window with a clear error, and
+  // the user can hit the explicit Restart action to trigger recovery.
   const connection = await buildConnectionForJustavps(externalId);
 
   // Generate a fresh keypair for this session
