@@ -69,6 +69,43 @@ function syncDockerHostFromDockerCli(): void {
  */
 export const SANDBOX_VERSION = process.env.SANDBOX_VERSION || 'unknown';
 
+/**
+ * Persist INTERNAL_SERVICE_KEY to the nearest .env file. Rewrites an existing
+ * `INTERNAL_SERVICE_KEY=...` line (including the empty stub written by
+ * scripts/setup-env.sh) rather than appending a duplicate. Safe to call from
+ * both the config getter (initial auto-gen) and from injectSandboxToken
+ * (authoritative sync from DB).
+ */
+export function persistInternalServiceKey(value: string): void {
+  if (!value) return;
+  try {
+    const { readFileSync, writeFileSync, appendFileSync, existsSync } = require('fs');
+    const { resolve } = require('path');
+    const candidates = [
+      resolve(__dirname, '../../.env'),
+      resolve(process.cwd(), '.env'),
+    ];
+    for (const envPath of candidates) {
+      if (!existsSync(envPath)) continue;
+      const content = readFileSync(envPath, 'utf-8');
+      const re = /^INTERNAL_SERVICE_KEY\s*=.*$/m;
+      if (re.test(content)) {
+        const existing = content.match(re)?.[0] ?? '';
+        const expected = `INTERNAL_SERVICE_KEY=${value}`;
+        if (existing === expected) return;
+        writeFileSync(envPath, content.replace(re, expected));
+        console.log(`[config] Updated INTERNAL_SERVICE_KEY in ${envPath}`);
+      } else {
+        appendFileSync(envPath, `\n# Auto-generated service key for sandbox auth (do not remove)\nINTERNAL_SERVICE_KEY=${value}\n`);
+        console.log(`[config] Persisted INTERNAL_SERVICE_KEY to ${envPath}`);
+      }
+      return;
+    }
+  } catch (err: any) {
+    console.warn('[config] Could not persist INTERNAL_SERVICE_KEY to .env:', err?.message || err);
+  }
+}
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type SandboxProviderName = 'daytona' | 'local_docker' | 'justavps';
@@ -520,28 +557,7 @@ export const config = {
       const generated = randomBytes(32).toString('hex');
       process.env.INTERNAL_SERVICE_KEY = generated;
       console.log('[config] Auto-generated INTERNAL_SERVICE_KEY for sandbox auth');
-      // Persist to .env so the key survives process restarts (avoids re-sync on every restart)
-      try {
-        const { appendFileSync, readFileSync, existsSync } = require('fs');
-        const { resolve } = require('path');
-        const candidates = [
-          resolve(__dirname, '../../.env'),       // from src/config.ts -> ../../.env
-          resolve(process.cwd(), '.env'),          // cwd/.env
-        ];
-        for (const envPath of candidates) {
-          if (existsSync(envPath)) {
-            const content = readFileSync(envPath, 'utf-8');
-            if (!content.includes('INTERNAL_SERVICE_KEY=')) {
-              appendFileSync(envPath, `\n# Auto-generated service key for sandbox auth (do not remove)\nINTERNAL_SERVICE_KEY=${generated}\n`);
-              console.log(`[config] Persisted INTERNAL_SERVICE_KEY to ${envPath}`);
-            }
-            break;
-          }
-        }
-      } catch (err: any) {
-        // Non-fatal -- key still works in-memory for this process lifetime
-        console.warn('[config] Could not persist INTERNAL_SERVICE_KEY to .env:', err.message);
-      }
+      persistInternalServiceKey(generated);
     }
     return process.env.INTERNAL_SERVICE_KEY!;
   },
