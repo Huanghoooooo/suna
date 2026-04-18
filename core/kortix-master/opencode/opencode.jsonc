@@ -15,7 +15,13 @@
     "plan": { "disable": true },
     "explore": { "disable": true },
   },
+  // ──────────────────────────────────────────────────────────────────────────
+  // Provider registry — HARDCODED. End users cannot add providers via the UI.
+  // To add/change a provider: edit this file + set the matching API key in
+  // `apps/api/.env`, then redeploy. See docs/custom-providers.md.
+  // ──────────────────────────────────────────────────────────────────────────
   "provider": {
+    // Kortix-hosted router (default). Uses KORTIX_TOKEN from the sandbox env.
     "kortix": {
       "npm": "@ai-sdk/openai-compatible",
       "env": ["KORTIX_TOKEN", "KORTIX_API_URL"],
@@ -54,20 +60,7 @@
         },
       },
     },
-    "11": {
-      "name": "111",
-      "npm": "@ai-sdk/openai-compatible",
-      "options": {
-        "baseURL": "https://",
-        "apiKey": "{env:PROVIDER_11_API_KEY}",
-      },
-      "models": {
-        "111111": {
-          "name": "11111",
-          "id": "111111",
-        },
-      },
-    },
+    // GLM 官方（智谱）— requires BIGMODEL_API_KEY.
     "bigmodel": {
       "name": "GLM官方",
       "npm": "@ai-sdk/openai-compatible",
@@ -77,25 +70,69 @@
       },
       "models": {
         "glm-5-1": {
-          "name": "glm-5.1",
+          "name": "GLM-5.1",
           "id": "glm-5.1",
         },
       },
     },
-    "zhipu-glm51": {
-      "name": "智谱 GLM-5.1",
+    // Claude 中转（apipool.dev）— requires CLAUDE_API_KEY.
+    "claude": {
+      "name": "Claude (apipool)",
       "npm": "@ai-sdk/openai-compatible",
       "options": {
-        "baseURL": "https://open.bigmodel.cn/api/paas/v4/",
-        "apiKey": "{env:BIGMODEL_API_KEY}",
+        "baseURL": "https://api.apipool.dev/v1",
+        "apiKey": "{env:CLAUDE_API_KEY}",
       },
       "models": {
-        "glm-5-1": {
-          "name": "glm-5.1",
-          "id": "glm-5.1",
+        "claude-opus-4-7": {
+          "name": "Claude Opus 4.7",
+          "id": "claude-opus-4-7",
+        },
+        "claude-sonnet-4-6": {
+          "name": "Claude Sonnet 4.6",
+          "id": "claude-sonnet-4-6",
         },
       },
     },
+    // ── Examples (OpenAI-compatible) — uncomment + set API key to enable ──
+    //
+    // "openai": {
+    //   "name": "OpenAI",
+    //   "npm": "@ai-sdk/openai-compatible",
+    //   "options": {
+    //     "baseURL": "https://api.openai.com/v1",
+    //     "apiKey": "{env:OPENAI_API_KEY}",
+    //   },
+    //   "models": {
+    //     "gpt-4o": { "name": "GPT-4o", "id": "gpt-4o" },
+    //     "gpt-4o-mini": { "name": "GPT-4o mini", "id": "gpt-4o-mini" },
+    //   },
+    // },
+    //
+    // "deepseek": {
+    //   "name": "DeepSeek",
+    //   "npm": "@ai-sdk/openai-compatible",
+    //   "options": {
+    //     "baseURL": "https://api.deepseek.com/v1",
+    //     "apiKey": "{env:DEEPSEEK_API_KEY}",
+    //   },
+    //   "models": {
+    //     "deepseek-chat": { "name": "DeepSeek Chat", "id": "deepseek-chat" },
+    //     "deepseek-reasoner": { "name": "DeepSeek Reasoner", "id": "deepseek-reasoner" },
+    //   },
+    // },
+    //
+    // "moonshot": {
+    //   "name": "Moonshot",
+    //   "npm": "@ai-sdk/openai-compatible",
+    //   "options": {
+    //     "baseURL": "https://api.moonshot.cn/v1",
+    //     "apiKey": "{env:MOONSHOT_API_KEY}",
+    //   },
+    //   "models": {
+    //     "kimi-k2": { "name": "Kimi K2", "id": "kimi-k2-0711-preview" },
+    //   },
+    // },
   },
   "plugin": [
     "./plugin/kortix-system/kortix-system.ts",

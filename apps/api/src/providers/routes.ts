@@ -630,65 +630,19 @@ providersApp.put('/:id/connect', async (c) => {
 });
 
 /**
- * POST /v1/providers/custom
- * Persist a custom OpenAI-compatible provider in the local OpenCode runtime
- * config and env files.
+ * POST /v1/providers/custom — DISABLED.
+ *
+ * Providers are hardcoded in core/kortix-master/opencode/opencode.jsonc. See
+ * docs/custom-providers.md for how to add/change one. The runtime JSONC writer
+ * used by this endpoint was fragile and could corrupt the config file.
  */
 providersApp.post('/custom', async (c) => {
-  const body = await c.req.json();
-  const providerID = typeof body?.providerID === 'string' ? body.providerID.trim() : '';
-  const name = typeof body?.name === 'string' ? body.name.trim() : '';
-  const baseURL = typeof body?.baseURL === 'string' ? body.baseURL.trim() : '';
-  const apiKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : '';
-  const modelId = typeof body?.modelId === 'string' ? body.modelId.trim() : '';
-  const modelName = typeof body?.modelName === 'string' ? body.modelName.trim() : '';
-
-  if (!providerID || !name || !baseURL || !modelId || !modelName) {
-    return c.json({ error: 'providerID, name, baseURL, modelId, and modelName are required' }, 400);
-  }
-
-  if (!/^[a-zA-Z0-9_-]+$/.test(providerID)) {
-    return c.json({ error: 'providerID may only contain letters, numbers, underscores, and dashes' }, 400);
-  }
-
-  if (!/^https?:\/\//.test(baseURL)) {
-    return c.json({ error: 'baseURL must start with http:// or https://' }, 400);
-  }
-
-  if (!isLikelyValidProviderBaseUrl(baseURL)) {
-    return c.json({ error: 'baseURL must be a valid http(s) endpoint with a real host' }, 400);
-  }
-
-  const repoRoot = findRepoRoot();
-  if (!repoRoot) {
-    return c.json({ error: 'Custom provider persistence is only supported in local repo development mode right now' }, 501);
-  }
-
-  const configPath = resolve(repoRoot, 'core/kortix-master/opencode/opencode.jsonc');
-  if (!existsSync(configPath)) {
-    return c.json({ error: `OpenCode config not found: ${configPath}` }, 500);
-  }
-
-  try {
-    const apiKeyEnvVar = customProviderApiKeyEnvKey(providerID);
-    upsertCustomProviderInConfig(configPath, {
-      providerID,
-      name,
-      baseURL,
-      apiKeyEnvVar,
-      modelId,
-      modelName,
-    });
-    writeCustomProviderApiKey(repoRoot, providerID, apiKey);
-    rerunSetupEnv(repoRoot);
-    await restartOpenCodeRuntime();
-    return c.json({ ok: true });
-  } catch (e: any) {
-    return c.json(
-      { ok: false, error: 'Failed to save custom provider', details: e?.message || String(e) },
-      500,
-    );
-  }
+  return c.json(
+    {
+      error: 'Custom providers are hardcoded. Edit core/kortix-master/opencode/opencode.jsonc and redeploy. See docs/custom-providers.md.',
+    },
+    410,
+  );
 });
 
 /**
@@ -731,37 +685,16 @@ providersApp.delete('/:id/disconnect', async (c) => {
 });
 
 /**
- * DELETE /v1/providers/custom/:id
- * Remove a custom OpenAI-compatible provider from local runtime config and env.
+ * DELETE /v1/providers/custom/:id — DISABLED.
+ * Providers are hardcoded. Edit opencode.jsonc + redeploy instead.
  */
 providersApp.delete('/custom/:id', async (c) => {
-  const providerID = c.req.param('id').trim();
-  if (!providerID) {
-    return c.json({ error: 'providerID is required' }, 400);
-  }
-
-  const repoRoot = findRepoRoot();
-  if (!repoRoot) {
-    return c.json({ error: 'Custom provider removal is only supported in local repo development mode right now' }, 501);
-  }
-
-  const configPath = resolve(repoRoot, 'core/kortix-master/opencode/opencode.jsonc');
-  if (!existsSync(configPath)) {
-    return c.json({ error: `OpenCode config not found: ${configPath}` }, 500);
-  }
-
-  try {
-    const removed = removeCustomProviderFromConfig(configPath, providerID);
-    removeCustomProviderApiKey(repoRoot, providerID);
-    rerunSetupEnv(repoRoot);
-    await restartOpenCodeRuntime();
-    return c.json({ ok: true, removed });
-  } catch (e: any) {
-    return c.json(
-      { ok: false, error: 'Failed to remove custom provider', details: e?.message || String(e) },
-      500,
-    );
-  }
+  return c.json(
+    {
+      error: 'Custom providers are hardcoded. Edit core/kortix-master/opencode/opencode.jsonc and redeploy. See docs/custom-providers.md.',
+    },
+    410,
+  );
 });
 
 /**
