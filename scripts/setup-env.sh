@@ -146,6 +146,42 @@ write_env "apps/web/.env" \
   "$(kv KORTIX_ADMIN_API_KEY)" \
   "" \
 
+# ─── Sandbox container env (loaded by core/docker/docker-compose.yml) ───────
+# Reads as env_file: .env from that compose file, i.e. core/docker/.env.
+# OpenCode inside the sandbox resolves {env:XXX_API_KEY} from these values.
+# Keep this block in sync with the provider list in
+# core/kortix-master/opencode/opencode.jsonc — every provider's {env:...}
+# reference MUST have a corresponding $(kv ...) line below.
+write_env "core/docker/.env" \
+  "# Kortix (provider + master proxy)" \
+  "$(kv KORTIX_API_URL http://localhost:8008)" \
+  "$(kv KORTIX_TOKEN)" \
+  "" \
+  "# Sandbox metadata" \
+  "$(kv SANDBOX_ID local)" \
+  "$(kv PROJECT_ID local)" \
+  "$(kv ENV_MODE local)" \
+  "" \
+  "# Hardcoded LLM provider API keys (see docs/custom-providers.md)" \
+  "$(kv BIGMODEL_API_KEY)" \
+  "$(kv CLAUDE_API_KEY)" \
+  "# $(kv DEEPSEEK_API_KEY)  # uncomment in opencode.jsonc first" \
+  "# $(kv MOONSHOT_API_KEY)  # uncomment in opencode.jsonc first" \
+  "$(kv OPENAI_API_KEY)" \
+  "$(kv ANTHROPIC_API_KEY)" \
+  "" \
+  "# Tool API keys" \
+  "$(kv TAVILY_API_KEY)" \
+  "$(kv FIRECRAWL_API_KEY)" \
+  "$(kv SERPER_API_KEY)" \
+  "$(kv REPLICATE_API_TOKEN)" \
+  "$(kv CONTEXT7_API_KEY)" \
+  "$(kv ELEVENLABS_API_KEY)" \
+  "" \
+  "# Internal service auth (shared with host API)" \
+  "$(kv INTERNAL_SERVICE_KEY)" \
+  ""
+
 echo ""
 echo "Done! All .env files generated from $ENV_FILE"
 echo ""
