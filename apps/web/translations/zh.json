@@ -367,6 +367,7 @@
     "30days": "30 天",
     "1year": "1 年"
   },
+  "sidebar": {
     "referAndEarn": "推荐赚取",
     "referralShareTitle": "推荐好友",
     "referralShareSubtitle": "获得 400 积分",
@@ -422,7 +423,11 @@
     "selectAllConversations": "全选对话",
     "deselectAllConversations": "取消全选对话",
     "loadMore": "加载更多",
-    "remaining": "剩余"
+    "remaining": "剩余",
+    "servers": "服务器",
+    "searchServers": "搜索服务器...",
+    "addServer": "添加服务器",
+    "noServersFound": "未找到服务器"
   },
   "dashboard": {
     "title": "仪表板",
