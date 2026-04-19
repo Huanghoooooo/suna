@@ -528,7 +528,7 @@ function SidebarSections() {
             <CollapsibleTrigger asChild>
               <button className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] text-sidebar-foreground hover:bg-sidebar-accent transition-colors duration-150 cursor-pointer group">
                 <FolderKanban className="h-4 w-4 flex-shrink-0" />
-                <span className="flex-1 text-left">Projects</span>
+                <span className="flex-1 text-left">项目</span>
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=closed]:-rotate-90" />
               </button>
             </CollapsibleTrigger>
@@ -568,7 +568,7 @@ function SidebarSections() {
           <CollapsibleTrigger asChild>
             <button className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] text-sidebar-foreground hover:bg-sidebar-accent transition-colors duration-150 cursor-pointer group">
               <ListTree className="h-4 w-4 flex-shrink-0" />
-              <span className="flex-1 text-left">Sessions</span>
+              <span className="flex-1 text-left">会话</span>
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=closed]:-rotate-90" />
             </button>
           </CollapsibleTrigger>
@@ -586,7 +586,7 @@ function SidebarSections() {
               className="flex items-center gap-3 flex-1 px-3 py-2 rounded-lg text-[13px] text-sidebar-foreground hover:bg-sidebar-accent transition-colors duration-150 cursor-pointer"
             >
               <History className="h-4 w-4 flex-shrink-0" />
-              <span className="flex-1 text-left">Previous Chats</span>
+              <span className="flex-1 text-left">历史对话</span>
               <span className="text-[10px] tabular-nums text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
                 {legacyData!.total}
               </span>
@@ -1043,7 +1043,7 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
               )}
             >
               <SquarePen className="h-4 w-4 flex-shrink-0" />
-              <span className="flex-1 text-left">{createSession.isPending ? 'Creating...' : 'New session'}</span>
+              <span className="flex-1 text-left">{createSession.isPending ? '创建中...' : '新会话'}</span>
               <kbd className="text-[10px] text-muted-foreground">
                 {isMac ? '\u2318J' : 'Ctrl J'}
               </kbd>
@@ -1066,7 +1066,7 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
               className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] text-sidebar-foreground hover:bg-sidebar-accent transition-colors duration-150 cursor-pointer"
             >
               <Search className="h-4 w-4 flex-shrink-0" />
-              <span className="flex-1 text-left">Search</span>
+              <span className="flex-1 text-left">搜索</span>
               <kbd className="text-[10px] text-muted-foreground">
                 {isMac ? '\u2318K' : 'Ctrl K'}
               </kbd>
@@ -1077,7 +1077,7 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
               onClick={() => {
                 openTabAndNavigate({
                   id: 'page:/files',
-                  title: 'Files',
+                  title: '文件',
                   type: 'page',
                   href: '/files',
                 });
@@ -1091,7 +1091,7 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
               )}
             >
               <FolderOpen className="h-4 w-4 flex-shrink-0" />
-              <span className="flex-1 text-left">Files</span>
+              <span className="flex-1 text-left">文件</span>
             </button>
 
             {/* Sessions — expandable, default open */}

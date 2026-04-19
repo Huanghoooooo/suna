@@ -889,17 +889,66 @@ export const menuRegistry: MenuItemDef[] = [
 // Selectors — filter the registry for each surface
 // ============================================================================
 
+/**
+ * Whitelist of menu item IDs that are exposed to end users.
+ * Everything else is hidden from all surfaces (but kept in the registry so
+ * internal callers like getItemById / getPreferenceTabs / actions still work).
+ */
+const VISIBLE_IDS = new Set<string>([
+  // 主界面 / 主导航
+  'dashboard',
+  'new-session',
+  'search',
+  'files-quick',
+  'files',
+  'workspace',
+  'providers-quick',
+  'api-keys-quick',
+  // 用户下拉菜单
+  'pref-general',
+  'account-billing',
+  'logout',
+]);
+
+/** 菜单项显示标签的中文覆盖（保留条目 id → 中文）。 */
+const ZH_LABELS: Record<string, string> = {
+  'dashboard': '主界面',
+  'new-session': '新会话',
+  'search': '搜索',
+  'files-quick': '文件',
+  'files': '文件',
+  'workspace': '工作区',
+  'providers-quick': '模型提供商',
+  'api-keys-quick': 'API 密钥',
+  'pref-general': '通用设置',
+  'pref-appearance': '外观',
+  'account-billing': '账单',
+  'logout': '退出登录',
+};
+
+function localizeItem(item: MenuItemDef): MenuItemDef {
+  const zh = ZH_LABELS[item.id];
+  return zh ? { ...item, label: zh } : item;
+}
+
 export function getItemsForSurface(surface: MenuSurface): MenuItemDef[] {
-  return menuRegistry.filter((item) => item.showIn.includes(surface));
+  return menuRegistry
+    .filter((item) => item.showIn.includes(surface) && VISIBLE_IDS.has(item.id))
+    .map(localizeItem);
 }
 
 export function getItemsByGroup(
   surface: MenuSurface,
   group: MenuGroup,
 ): MenuItemDef[] {
-  return menuRegistry.filter(
-    (item) => item.showIn.includes(surface) && item.group === group,
-  );
+  return menuRegistry
+    .filter(
+      (item) =>
+        item.showIn.includes(surface) &&
+        item.group === group &&
+        VISIBLE_IDS.has(item.id),
+    )
+    .map(localizeItem);
 }
 
 export function getItemById(id: string): MenuItemDef | undefined {
@@ -957,24 +1006,24 @@ export interface SettingsTab {
 
 /** Preference tabs for the settings modal */
 export function getPreferenceTabs(): SettingsTab[] {
-  const preferenceIds: SettingsTabId[] = ['general', 'appearance', 'sounds', 'notifications', 'shortcuts'];
+  // 只保留通用（账户/语言）与外观（主题）两个标签
+  const preferenceIds: SettingsTabId[] = ['general', 'appearance'];
   return preferenceIds.map((tabId) => {
     const item = menuRegistry.find(
       (i) => i.kind === 'settings' && i.settingsTab === tabId,
     );
     if (!item) {
-      // Fallback — should not happen if registry is complete
       return { id: tabId, label: tabId, icon: SettingsIcon };
     }
-    return { id: tabId, label: item.label, icon: item.icon };
+    const label = ZH_LABELS[item.id] ?? item.label;
+    return { id: tabId, label, icon: item.icon };
   });
 }
 
 /** Account tabs for the settings modal */
 export function getAccountTabs(billingEnabled: boolean): SettingsTab[] {
   const items: SettingsTab[] = [
-    { id: 'billing', label: 'Billing', icon: CreditCard },
-    { id: 'transactions', label: 'Transactions', icon: Receipt },
+    { id: 'billing', label: '账单', icon: CreditCard },
   ];
   // Referrals tab disabled for now
   // if (billingEnabled) {
