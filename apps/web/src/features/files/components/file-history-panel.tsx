@@ -206,7 +206,7 @@ function CommitDiffDetail({
     return (
       <div className="p-4 text-xs text-muted-foreground flex items-center gap-2">
         <AlertCircle className="size-3.5" />
-        Failed to load diff
+        加载差异失败
       </div>
     );
   }
@@ -350,7 +350,7 @@ function CommitCard({
             'flex items-center gap-1 text-xs font-mono px-1.5 py-0.5 rounded shrink-0',
             'bg-muted/50 hover:bg-muted text-muted-foreground transition-colors',
           )}
-          title="Copy commit hash"
+          title="复制提交哈希"
         >
           {copied ? (
             <Check className="size-3 text-emerald-500" />
@@ -398,7 +398,7 @@ export function FileHistoryPanel() {
           size="icon"
           className="h-8 w-8"
           onClick={closeHistory}
-          title="Back"
+          title="返回"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -406,7 +406,7 @@ export function FileHistoryPanel() {
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <History className="h-4 w-4 text-muted-foreground shrink-0" />
           <span className="font-medium text-sm truncate">{fileName}</span>
-          <span className="text-xs text-muted-foreground shrink-0">History</span>
+          <span className="text-xs text-muted-foreground shrink-0">历史</span>
         </div>
 
         {totalCommits > 0 && (
@@ -453,7 +453,7 @@ export function FileHistoryPanel() {
         {!isLoading && !error && totalCommits === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
             <GitCommitHorizontal className="h-8 w-8 text-muted-foreground/20" />
-            <p className="text-sm text-muted-foreground">No commit history</p>
+            <p className="text-sm text-muted-foreground">没有提交历史</p>
             <p className="text-xs text-muted-foreground/50 mt-1">
               This file has no git commits yet.
             </p>

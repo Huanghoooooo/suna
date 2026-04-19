@@ -54,7 +54,7 @@ function BreadcrumbSegments({
     <nav
       className="flex items-center gap-0.5 min-w-0 flex-1 overflow-x-auto"
       onDoubleClick={onDoubleClick}
-      title={onDoubleClick ? 'Double-click to edit path' : undefined}
+      title={onDoubleClick ? '双击编辑路径' : undefined}
     >
       {/* Home / root */}
       <button

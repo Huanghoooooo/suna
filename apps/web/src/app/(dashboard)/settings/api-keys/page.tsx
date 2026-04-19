@@ -47,8 +47,6 @@ import { getActiveServer, getActiveOpenCodeUrl } from '@/stores/server-store';
 import { getAuthToken } from '@/lib/auth-token';
 import { useServerStore } from '@/stores/server-store';
 import { getEnv } from '@/lib/env-config';
-import { useTranslations } from 'next-intl';
-
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 interface NewAPIKeyData {
@@ -73,17 +71,15 @@ interface PublicShareEntry {
 
 function CopyButton({ value, label, size = 'sm' }: { value: string; label?: string; size?: 'sm' | 'icon' }) {
   const [copied, setCopied] = useState(false);
-  const t = useTranslations('apiKeys');
-
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.warning(t('failedToCopy'));
+      toast.warning('复制到剪贴板失败');
     }
-  }, [value, t]);
+  }, [value]);
 
   if (size === 'icon') {
     return (
@@ -130,27 +126,26 @@ function isKeyExpired(expiresAt?: string) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const t = useTranslations('apiKeys');
   switch (status) {
     case 'active':
       return (
         <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          {t('statusActive')}
+          {'活跃'}
         </span>
       );
     case 'revoked':
       return (
         <span className="inline-flex items-center gap-1.5 text-xs text-red-500 dark:text-red-400">
           <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-          {t('statusRevoked')}
+          {'已撤销'}
         </span>
       );
     case 'expired':
       return (
         <span className="inline-flex items-center gap-1.5 text-xs text-yellow-600 dark:text-yellow-400">
           <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
-          {t('statusExpired')}
+          {'已过期'}
         </span>
       );
     default:
@@ -161,7 +156,6 @@ function StatusBadge({ status }: { status: string }) {
 // ── Main page ──────────────────────────────────────────────────────────────
 
 export default function APIKeysPage() {
-  const t = useTranslations('apiKeys');
   // Use instanceId (the stable DB UUID) so the api-keys backend can resolve
   // ownership unambiguously. Using sandboxId (external_id) breaks for cloud
   // providers like Daytona where the external_id is also a UUID — the backend
@@ -232,28 +226,28 @@ export default function APIKeysPage() {
         queryClient.invalidateQueries({ queryKey: ['api-keys'] });
         setNewKeyData({ title: '', description: '', expiresInDays: 'never' });
       } else {
-        toast.warning(response.error?.message || t('failedToCreateKey'));
+        toast.warning(response.error?.message || '创建 API 密钥失败');
       }
     },
-    onError: () => toast.warning(t('failedToCreateKey')),
+    onError: () => toast.warning('创建 API 密钥失败'),
   });
 
   const revokeMutation = useMutation({
     mutationFn: (keyId: string) => apiKeysApi.revoke(keyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
-      toast.info(t('keyRevoked'));
+      toast.info('API 密钥已撤销');
     },
-    onError: () => toast.warning(t('failedToRevokeKey')),
+    onError: () => toast.warning('撤销 API 密钥失败'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (keyId: string) => apiKeysApi.delete(keyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
-      toast.info(t('keyDeleted'));
+      toast.info('API 密钥已删除');
     },
-    onError: () => toast.warning(t('failedToDeleteKey')),
+    onError: () => toast.warning('删除 API 密钥失败'),
   });
 
   const regenerateMutation = useMutation({
@@ -263,12 +257,12 @@ export default function APIKeysPage() {
         setCreatedApiKey(response.data.data);
         setShowCreatedKey(true);
         queryClient.invalidateQueries({ queryKey: ['api-keys'] });
-        toast.info(t('tokenRegeneratedSuccess'));
+        toast.info('令牌已重新生成');
       } else {
-        toast.warning(response.error?.message || t('failedToRegenerateKey'));
+        toast.warning(response.error?.message || '重新生成密钥失败');
       }
     },
-    onError: () => toast.warning(t('failedToRegenerateSandboxKey')),
+    onError: () => toast.warning('重新生成沙箱密钥失败'),
   });
 
   const [publicUrlResult, setPublicUrlResult] = useState<{ url: string; expiresAt?: string; label?: string } | null>(null);
@@ -323,9 +317,9 @@ export default function APIKeysPage() {
     onSuccess: (data) => {
       setPublicUrlResult(data);
       refetchShares();
-      toast.info(t('publicUrlReady'));
+      toast.info('公共 URL 已就绪');
     },
-    onError: (err: any) => toast.warning(err?.message || t('failedToGenerateUrl')),
+    onError: (err: any) => toast.warning(err?.message || '生成公共 URL 失败'),
   });
 
   const revokeShareMutation = useMutation({
@@ -350,14 +344,14 @@ export default function APIKeysPage() {
     },
     onSuccess: () => {
       refetchShares();
-      toast.info(t('publicLinkRevoked'));
+      toast.info('公共链接已撤销');
     },
-    onError: (err: any) => toast.warning(err?.message || t('failedToRevokeLink')),
+    onError: (err: any) => toast.warning(err?.message || '撤销公共链接失败'),
   });
 
   const handleCreateAPIKey = () => {
     if (!activeSandboxId) {
-      toast.warning(t('noActiveSandbox'));
+      toast.warning('没有活跃的沙箱，请等待沙箱启动。');
       return;
     }
     createMutation.mutate({
@@ -385,9 +379,9 @@ export default function APIKeysPage() {
         {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg sm:text-xl font-semibold">{t('title')}</h1>
+            <h1 className="text-lg sm:text-xl font-semibold">{'API 密钥'}</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {t('description')}
+              {'管理用于以编程方式访问沙箱的密钥。'}
             </p>
           </div>
           <Button
@@ -412,7 +406,7 @@ export default function APIKeysPage() {
             }}
           >
             <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-            {t('apiDocs')}
+            {'API 文档'}
           </Button>
         </div>
 
@@ -425,11 +419,11 @@ export default function APIKeysPage() {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{t('sandboxToken')}</span>
+                  <span className="text-sm font-medium">{'沙箱令牌'}</span>
                   <StatusBadge status={activeSandboxKey.status} />
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {t('sandboxTokenDescription')}
+                  {'由沙箱内的智能体用于调用平台 API'}
                 </p>
               </div>
             </div>
@@ -437,23 +431,23 @@ export default function APIKeysPage() {
               <AlertDialogTrigger asChild>
                 <Button variant="ghost" size="sm" className="flex-shrink-0 text-muted-foreground hover:text-foreground">
                   <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                  {t('regenerate')}
+                  {'重新生成'}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>{t('regenerateSandboxToken')}</AlertDialogTitle>
+                  <AlertDialogTitle>{'重新生成沙箱令牌'}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {t('regenerateDescription')}
+                    {'这将撤销当前令牌并创建一个新令牌，新令牌将自动应用到沙箱。'}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                  <AlertDialogCancel>{'取消'}</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => regenerateMutation.mutate(activeSandboxKey.key_id)}
                     disabled={regenerateMutation.isPending}
                   >
-                    {regenerateMutation.isPending ? t('regenerating') : t('regenerate')}
+                    {regenerateMutation.isPending ? '重新生成中...' : '重新生成'}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -464,24 +458,24 @@ export default function APIKeysPage() {
         {/* ── Public Access Links ─────────────────────────────────────── */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-muted-foreground">{t('publicLinks')}</h2>
+            <h2 className="text-sm font-medium text-muted-foreground">{'公共链接'}</h2>
             <Dialog>
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="w-4 h-4 mr-1.5" />
-                  {t('newLink')}
+                  {'新建链接'}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-sm">
                 <DialogHeader>
-                  <DialogTitle>{t('createPublicLink')}</DialogTitle>
+                  <DialogTitle>{'创建公共链接'}</DialogTitle>
                   <DialogDescription>
-                    {t('createPublicLinkDescription')}
+                    {'为沙箱端口生成基于令牌的公共 URL。'}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="share-port" className="text-xs text-muted-foreground">{t('port')}</Label>
+                    <Label htmlFor="share-port" className="text-xs text-muted-foreground">{'端口'}</Label>
                     <Input type="text"
                       id="share-port"
                       inputMode="numeric"
@@ -491,20 +485,20 @@ export default function APIKeysPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="share-ttl" className="text-xs text-muted-foreground">{t('expiresAfter')}</Label>
+                    <Label htmlFor="share-ttl" className="text-xs text-muted-foreground">{'过期时间'}</Label>
                     <Select value={shareForm.ttl} onValueChange={(value) => setShareForm((prev) => ({ ...prev, ttl: value }))}>
                       <SelectTrigger id="share-ttl"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1h">{t('1hour')}</SelectItem>
-                        <SelectItem value="1d">{t('1day')}</SelectItem>
-                        <SelectItem value="7d">{t('7days')}</SelectItem>
-                        <SelectItem value="30d">{t('30days')}</SelectItem>
-                        <SelectItem value="365d">{t('1year')}</SelectItem>
+                        <SelectItem value="1h">{'1 小时'}</SelectItem>
+                        <SelectItem value="1d">{'1 天'}</SelectItem>
+                        <SelectItem value="7d">{'7 天'}</SelectItem>
+                        <SelectItem value="30d">{'30 天'}</SelectItem>
+                        <SelectItem value="365d">{'1 年'}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="share-label" className="text-xs text-muted-foreground">{t('labelOptional')}</Label>
+                    <Label htmlFor="share-label" className="text-xs text-muted-foreground">{'标签（可选）'}</Label>
                     <Input type="text"
                       id="share-label"
                       value={shareForm.label}
@@ -518,7 +512,7 @@ export default function APIKeysPage() {
                     onClick={() => publicUrlMutation.mutate()}
                     disabled={!activeSandboxExternalId || !shareForm.port || publicUrlMutation.isPending}
                   >
-                    {publicUrlMutation.isPending ? t('creating') : t('createLink')}
+                    {publicUrlMutation.isPending ? '创建中...' : '创建链接'}
                   </Button>
                 </div>
               </DialogContent>
@@ -531,13 +525,13 @@ export default function APIKeysPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium">{t('linkCreated')}</span>
+                  <span className="text-sm font-medium">{'链接已创建'}</span>
                 </div>
-                <CopyButton value={publicUrlResult.url} label={t('copy')} />
+                <CopyButton value={publicUrlResult.url} label={'复制'} />
               </div>
               <Input type="text" value={publicUrlResult.url} readOnly className="font-mono text-xs" />
               {publicUrlResult.expiresAt && (
-                <p className="text-[11px] text-muted-foreground">{t('expires', { date: formatDateFull(publicUrlResult.expiresAt) })}</p>
+                <p className="text-[11px] text-muted-foreground">{`过期时间 ${formatDateFull(publicUrlResult.expiresAt)}`}</p>
               )}
             </div>
           )}
@@ -549,8 +543,8 @@ export default function APIKeysPage() {
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                   <AlertCircle className="w-5 h-5 text-muted-foreground" />
                 </div>
-                <p className="text-sm font-medium">{t('noSandboxActive')}</p>
-                <p className="text-xs text-muted-foreground">{t('noSandboxForLinks')}</p>
+                <p className="text-sm font-medium">{'没有活跃的沙箱'}</p>
+                <p className="text-xs text-muted-foreground">{'管理公共链接需要运行中的沙箱。'}</p>
               </div>
             ) : isSharesLoading ? (
               <div className="divide-y">
@@ -571,8 +565,8 @@ export default function APIKeysPage() {
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                   <ExternalLink className="w-5 h-5 text-muted-foreground" />
                 </div>
-                <p className="text-sm font-medium mb-1">{t('noPublicLinks')}</p>
-                <p className="text-xs text-muted-foreground">{t('noPublicLinksDescription')}</p>
+                <p className="text-sm font-medium mb-1">{'没有公共链接'}</p>
+                <p className="text-xs text-muted-foreground">{'创建链接以公开暴露沙箱端口。'}</p>
               </div>
             ) : (
               <div className="divide-y">
@@ -591,7 +585,7 @@ export default function APIKeysPage() {
                       </div>
                       <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
                         <span className="font-mono truncate max-w-[260px]">{share.url.replace(/^https?:\/\//, '')}</span>
-                        <span>{t('expires', { date: formatDate(share.expiresAt) })}</span>
+                        <span>{`过期时间 ${formatDate(share.expiresAt)}`}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
@@ -613,24 +607,24 @@ export default function APIKeysPage() {
         {/* ── User API Keys ───────────────────────────────────────────── */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-muted-foreground">{t('yourKeys')}</h2>
+            <h2 className="text-sm font-medium text-muted-foreground">{'你的密钥'}</h2>
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="w-4 h-4 mr-1.5" />
-                  {t('createKey')}
+                  {'创建密钥'}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-sm">
                 <DialogHeader>
-                  <DialogTitle>{t('newApiKey')}</DialogTitle>
+                  <DialogTitle>{'新建 API 密钥'}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="title" className="text-xs text-muted-foreground">{t('name')}</Label>
+                    <Label htmlFor="title" className="text-xs text-muted-foreground">{'名称'}</Label>
                     <Input type="text"
                       id="title"
-                      placeholder={t('namePlaceholder')}
+                      placeholder={'例如：CI/CD 流水线'}
                       value={newKeyData.title}
                       onChange={(e) => setNewKeyData((prev) => ({ ...prev, title: e.target.value }))}
                       onKeyDown={(e) => {
@@ -640,42 +634,42 @@ export default function APIKeysPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="description" className="text-xs text-muted-foreground">{t('description2')}</Label>
+                    <Label htmlFor="description" className="text-xs text-muted-foreground">{'描述'}</Label>
                     <Input type="text"
                       id="description"
-                      placeholder={t('descriptionPlaceholder')}
+                      placeholder={'这个密钥用于什么？'}
                       value={newKeyData.description}
                       onChange={(e) => setNewKeyData((prev) => ({ ...prev, description: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="expires" className="text-xs text-muted-foreground">{t('expiration')}</Label>
+                    <Label htmlFor="expires" className="text-xs text-muted-foreground">{'过期时间'}</Label>
                     <Select
                       value={newKeyData.expiresInDays}
                       onValueChange={(value) => setNewKeyData((prev) => ({ ...prev, expiresInDays: value }))}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder={t('noExpiration')} />
+                        <SelectValue placeholder={'永不过期'} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="never">{t('noExpiration')}</SelectItem>
-                        <SelectItem value="7">{t('7days')}</SelectItem>
-                        <SelectItem value="30">{t('30days')}</SelectItem>
+                        <SelectItem value="never">{'永不过期'}</SelectItem>
+                        <SelectItem value="7">{'7 天'}</SelectItem>
+                        <SelectItem value="30">{'30 天'}</SelectItem>
                         <SelectItem value="90">90 days</SelectItem>
-                        <SelectItem value="365">{t('1year')}</SelectItem>
+                        <SelectItem value="365">{'1 年'}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 pt-1">
                   <Button variant="ghost" onClick={() => setIsCreateDialogOpen(false)}>
-                    {t('cancel')}
+                    {'取消'}
                   </Button>
                   <Button
                     onClick={handleCreateAPIKey}
                     disabled={!newKeyData.title.trim() || createMutation.isPending}
                   >
-                    {createMutation.isPending ? t('creating2') : t('create')}
+                    {createMutation.isPending ? '创建中...' : '创建'}
                   </Button>
                 </div>
               </DialogContent>
@@ -689,9 +683,9 @@ export default function APIKeysPage() {
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                   <AlertCircle className="w-5 h-5 text-muted-foreground" />
                 </div>
-                <p className="text-sm font-medium">{t('noSandboxActive')}</p>
+                <p className="text-sm font-medium">{'没有活跃的沙箱'}</p>
                 <p className="text-xs text-muted-foreground">
-                  {t('noSandboxForKeys')}
+                  {'管理 API 密钥需要运行中的沙箱。'}
                 </p>
               </div>
             ) : isLoading ? (
@@ -712,10 +706,10 @@ export default function APIKeysPage() {
               <div className="px-4 py-12 text-center space-y-3">
                 <AlertCircle className="w-8 h-8 text-muted-foreground mx-auto" />
                 <p className="text-muted-foreground text-sm">
-                  {(error as Error)?.message || apiKeysResponse?.error?.message || t('failedToLoadKeys')}
+                  {(error as Error)?.message || apiKeysResponse?.error?.message || '加载 API 密钥失败。'}
                 </p>
                 <Button variant="outline" size="sm" onClick={() => refetch()}>
-                  {t('tryAgain')}
+                  {'重试'}
                 </Button>
               </div>
             ) : userKeys.length === 0 ? (
@@ -723,13 +717,13 @@ export default function APIKeysPage() {
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                   <Key className="w-5 h-5 text-muted-foreground" />
                 </div>
-                <p className="text-sm font-medium mb-1">{t('noApiKeys')}</p>
+                <p className="text-sm font-medium mb-1">{'没有 API 密钥'}</p>
                 <p className="text-xs text-muted-foreground mb-4">
-                  {t('noApiKeysDescription')}
+                  {'创建密钥以编程方式访问你的沙箱。'}
                 </p>
                 <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}>
                   <Plus className="w-4 h-4 mr-1.5" />
-                  {t('createKey')}
+                  {'创建密钥'}
                 </Button>
               </div>
             ) : (
@@ -751,14 +745,14 @@ export default function APIKeysPage() {
                         <StatusBadge status={apiKey.status} />
                       </div>
                       <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-                        <span>{t('created', { date: formatDate(apiKey.created_at) })}</span>
+                        <span>{`创建于 ${formatDate(apiKey.created_at)}`}</span>
                         {apiKey.expires_at && (
                           <span className={isKeyExpired(apiKey.expires_at) ? 'text-yellow-600 dark:text-yellow-400' : ''}>
-                            {isKeyExpired(apiKey.expires_at) ? t('expired', { date: formatDate(apiKey.expires_at) }) : t('expiresOn', { date: formatDate(apiKey.expires_at) })}
+                            {isKeyExpired(apiKey.expires_at) ? `已过期 ${formatDate(apiKey.expires_at)}` : `过期于 ${formatDate(apiKey.expires_at)}`}
                           </span>
                         )}
                         {apiKey.last_used_at && (
-                          <span>{t('lastUsed', { date: formatDate(apiKey.last_used_at) })}</span>
+                          <span>{`最后使用 ${formatDate(apiKey.last_used_at)}`}</span>
                         )}
                       </div>
                     </div>
@@ -774,18 +768,18 @@ export default function APIKeysPage() {
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>{t('revokeKey', { name: apiKey.title })}</AlertDialogTitle>
+                              <AlertDialogTitle>{`撤销 "${apiKey.title}"`}</AlertDialogTitle>
                               <AlertDialogDescription>
-                                {t('revokeDescription')}
+                                {'这将立即使密钥失效，使用该密钥的所有应用将停止工作。'}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                              <AlertDialogCancel>{'取消'}</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => revokeMutation.mutate(apiKey.key_id)}
                                 className="bg-destructive hover:bg-destructive/90 text-white"
                               >
-                                {t('revoke')}
+                                {'撤销'}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -799,18 +793,18 @@ export default function APIKeysPage() {
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>{t('deleteKey', { name: apiKey.title })}</AlertDialogTitle>
+                              <AlertDialogTitle>{`删除 "${apiKey.title}"`}</AlertDialogTitle>
                               <AlertDialogDescription>
-                                {t('deleteDescription')}
+                                {'这将永久删除该密钥，此操作无法撤销。'}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                              <AlertDialogCancel>{'取消'}</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => deleteMutation.mutate(apiKey.key_id)}
                                 className="bg-destructive hover:bg-destructive/90 text-white"
                               >
-                                {t('delete')}
+                                {'删除'}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -830,10 +824,10 @@ export default function APIKeysPage() {
             <Shield className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
             <div className="text-xs text-muted-foreground space-y-1">
               <p>
-                {t('usageHint', { code: 'Authorization: Bearer kortix_...' })}
+                {'将密钥作为 Bearer 令牌传递：Authorization: Bearer kortix_...'}
               </p>
               <p>
-                {t('securityNote')}
+                {'密钥在服务器端经过哈希处理，从不以明文存储。密钥仅在创建时显示一次。'}
               </p>
             </div>
           </div>
@@ -845,39 +839,39 @@ export default function APIKeysPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {createdApiKey?.type === 'sandbox' ? t('tokenRegenerated') : t('keyCreated')}
+              {createdApiKey?.type === 'sandbox' ? '令牌已重新生成' : '密钥已创建'}
             </DialogTitle>
             <DialogDescription>
               {createdApiKey?.type === 'sandbox'
-                ? t('tokenApplied')
-                : t('copyKeyNow')}
+                ? '新令牌已应用到你的沙箱。'
+                : '请立即复制你的密钥，关闭此对话框后将无法再次查看。'}
             </DialogDescription>
           </DialogHeader>
 
           {createdApiKey && 'secret_key' in createdApiKey && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>{createdApiKey.type === 'sandbox' ? t('sandboxTokenLabel') : t('secretKeyLabel')}</Label>
+                <Label>{createdApiKey.type === 'sandbox' ? '沙箱令牌' : '密钥'}</Label>
                 <div className="flex gap-2">
                   <Input type="text"
                     value={createdKeyDisplayValue}
                     readOnly
                     className="font-mono text-sm"
                   />
-                  <CopyButton value={createdKeyDisplayValue} label={t('copy')} />
+                  <CopyButton value={createdKeyDisplayValue} label={'复制'} />
                 </div>
               </div>
 
               <div className="rounded-xl bg-yellow-500/10 border border-yellow-500/20 px-3 py-2.5">
                 <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                  {t('storeSecurely')}
+                  {'请安全存储此密钥，关闭此对话框后将无法找回。'}
                 </p>
               </div>
             </div>
           )}
 
           <div className="flex justify-end pt-1">
-            <Button onClick={() => setShowCreatedKey(false)}>{t('done')}</Button>
+            <Button onClick={() => setShowCreatedKey(false)}>{'完成'}</Button>
           </div>
         </DialogContent>
       </Dialog>

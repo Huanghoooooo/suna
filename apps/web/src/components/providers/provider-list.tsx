@@ -95,7 +95,7 @@ export function ProviderList({
         toast.success(`${PROVIDER_LABELS[providerID] || providerID} disconnected`);
         onDisconnected?.();
       } catch {
-        toast.error('Failed to disconnect provider');
+        toast.error('断开提供商失败');
       } finally {
         setDisconnecting(null);
       }
@@ -106,7 +106,7 @@ export function ProviderList({
   if (connectedProviders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center">
-        <p className="text-xs text-muted-foreground/60">No providers connected</p>
+        <p className="text-xs text-muted-foreground/60">还未连接提供商</p>
         {showConnectButton && onConnect && (
           <Button
             variant="outline"
@@ -115,7 +115,7 @@ export function ProviderList({
             onClick={onConnect}
           >
             <Plus className="h-3 w-3" />
-            Connect a provider
+            接入一个提供商
           </Button>
         )}
       </div>
@@ -159,7 +159,7 @@ export function ProviderList({
                   variant="ghost"
                   size="icon-sm"
                   className="text-muted-foreground/30 hover:text-red-500 hover:bg-red-500/10"
-                  title="Disconnect"
+                  title="断开连接"
                 >
                   {isDisc ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -181,7 +181,7 @@ export function ProviderList({
                   ) : (
                     <ChevronRight className="h-3 w-3" />
                   )}
-                  {isExp ? 'Hide models' : 'Show models'}
+                  {isExp ? '收起模型列表' : '展开模型列表'}
                 </Button>
               )}
 
@@ -208,7 +208,7 @@ export function ProviderList({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Disconnect provider?</AlertDialogTitle>
+            <AlertDialogTitle>断开此提供商？</AlertDialogTitle>
             <AlertDialogDescription className="text-xs">
               {confirmDisconnect && (
                 <>
@@ -222,12 +222,12 @@ export function ProviderList({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => confirmDisconnect && doDisconnect(confirmDisconnect)}
               className="bg-destructive text-white hover:bg-destructive/90"
             >
-              Disconnect
+              断开连接
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

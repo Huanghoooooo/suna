@@ -10,7 +10,6 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter, usePathname } from 'next/navigation';
 import { KortixLogo } from '@/components/sidebar/kortix-logo';
-import { useTranslations } from 'next-intl';
 import { trackCtaSignup } from '@/lib/analytics/gtm';
 import { AppDownloadQR } from '@/components/common/app-download-qr';
 import { Button } from '@/components/ui/button';
@@ -154,7 +153,6 @@ export function Navbar({ isAbsolute = false }: NavbarProps) {
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const t = useTranslations('common');
   const lastScrollY = useRef(0);
 
   const filteredNavLinks = siteConfig.nav.links;
@@ -435,7 +433,7 @@ export function Navbar({ isAbsolute = false }: NavbarProps) {
                       }}
                       suppressHydrationWarning
                     >
-                      {t('tryFree')}
+                      {'开始'}
                     </Link>
                   </Button>
                 )}

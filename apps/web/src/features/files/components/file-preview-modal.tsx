@@ -157,7 +157,7 @@ export function FilePreviewModal() {
                 historyPath ? 'text-foreground bg-muted' : 'text-muted-foreground hover:text-foreground',
               )}
               onClick={() => setHistoryPath(historyPath ? null : selectedFilePath)}
-              title="History"
+              title="历史"
             >
               <History className="h-4 w-4" />
             </Button>
@@ -166,7 +166,7 @@ export function FilePreviewModal() {
               size="icon"
               className="h-8 w-8 text-muted-foreground hover:text-foreground"
               onClick={handleDownload}
-              title="Download"
+              title="下载"
             >
               <Download className="h-4 w-4" />
             </Button>
@@ -175,7 +175,7 @@ export function FilePreviewModal() {
               size="icon"
               className="h-8 w-8 text-muted-foreground hover:text-foreground"
               onClick={handleOpenInTab}
-              title="Open in tab"
+              title="在标签页中打开"
             >
               <ExternalLink className="h-4 w-4" />
             </Button>
@@ -185,7 +185,7 @@ export function FilePreviewModal() {
               size="icon"
               className="h-8 w-8 text-muted-foreground hover:text-foreground"
               onClick={goBackToBrowser}
-              title="Close (Esc)"
+              title="关闭 (Esc)"
             >
               <X className="h-4 w-4" />
             </Button>
@@ -199,7 +199,7 @@ export function FilePreviewModal() {
             <button
               onClick={prevFile}
               className="absolute left-3 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-md hover:bg-background flex items-center justify-center transition-colors cursor-pointer hover:scale-105"
-              title="Previous file"
+              title="上一个文件"
             >
               <ChevronLeft className="h-5 w-5 text-foreground" />
             </button>
@@ -210,7 +210,7 @@ export function FilePreviewModal() {
             <button
               onClick={nextFile}
               className="absolute right-3 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-md hover:bg-background flex items-center justify-center transition-colors cursor-pointer hover:scale-105"
-              title="Next file"
+              title="下一个文件"
             >
               <ChevronRight className="h-5 w-5 text-foreground" />
             </button>

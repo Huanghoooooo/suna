@@ -236,8 +236,8 @@ function DetailSheet({
                   onClick={() => copy(item.name, 'name')}
                 >
                   {copied === 'name'
-                    ? <><Check className="h-3 w-3" />Copied</>
-                    : <><Copy className="h-3 w-3" />Copy</>
+                    ? <><Check className="h-3 w-3" />已复制</>
+                    : <><Copy className="h-3 w-3" />复制</>
                   }
                 </Button>
               </div>
@@ -252,7 +252,7 @@ function DetailSheet({
               {/* Properties */}
               {rows.length > 0 && (
                 <div className="px-6 py-5">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-3">Properties</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-3">属性</p>
                   <div className="space-y-3">
                     {rows.map((row) => (
                       <div key={row.label} className="grid grid-cols-[100px_1fr] gap-2">
@@ -281,8 +281,8 @@ function DetailSheet({
                       onClick={() => copy(content!, 'content')}
                     >
                       {copied === 'content'
-                        ? <><Check className="h-2.5 w-2.5" />Copied</>
-                        : <><Copy className="h-2.5 w-2.5" />Copy</>
+                        ? <><Check className="h-2.5 w-2.5" />已复制</>
+                        : <><Copy className="h-2.5 w-2.5" />复制</>
                       }
                     </Button>
                   </div>
@@ -297,7 +297,7 @@ function DetailSheet({
               {/* Empty fallback */}
               {rows.length === 0 && !content && (
                 <div className="flex flex-col items-center justify-center py-20 text-muted-foreground/30">
-                  <p className="text-xs">No additional details</p>
+                  <p className="text-xs">没有更多细节</p>
                 </div>
               )}
             </div>
@@ -367,7 +367,7 @@ function EmptyState({ hasFilters, onClear }: { hasFilters: boolean; onClear: () 
   return (
     <div className="flex flex-col items-center justify-center py-20 rounded-xl border border-dashed border-border/50">
       <Blocks className="h-7 w-7 text-muted-foreground/30 mb-3" />
-      <p className="text-sm font-medium text-foreground mb-1">Nothing here yet</p>
+      <p className="text-sm font-medium text-foreground mb-1">还没有内容</p>
       <p className="text-xs text-muted-foreground text-center max-w-xs">
         Use the actions above to add agents, skills, commands, projects, or MCP servers.
       </p>
@@ -407,7 +407,7 @@ export default function WorkspacePage() {
       });
       requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('focus-session-textarea')));
     } catch {
-      toast.error('Failed to create session');
+      toast.error('创建会话失败');
     }
   }, [createSession]);
 
@@ -553,7 +553,7 @@ export default function WorkspacePage() {
         <div className="container mx-auto max-w-7xl px-3 sm:px-4 py-3 sm:py-4 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both">
           <PageHeader icon={Blocks}>
             <div className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
-              <span className="text-primary">Workspace</span>
+              <span className="text-primary">工作区</span>
             </div>
           </PageHeader>
         </div>
@@ -562,7 +562,7 @@ export default function WorkspacePage() {
 
           {/* Quick actions */}
           <div className="mb-6 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 fill-mode-both delay-50">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">Quick actions</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">快捷操作</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
               {quickActions.map((action) => {
                 const Icon = action.icon;
@@ -627,7 +627,7 @@ export default function WorkspacePage() {
             <PageSearchBar
               value={search}
               onChange={setSearch}
-              placeholder="Search..."
+              placeholder="搜索..."
               className="max-w-sm"
             />
 

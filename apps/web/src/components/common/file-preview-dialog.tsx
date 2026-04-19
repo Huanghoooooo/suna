@@ -14,8 +14,6 @@ import { useFilePreviewStore } from '@/stores/file-preview-store';
 import { openTabAndNavigate } from '@/stores/tab-store';
 import { FileContentRenderer } from '@/features/files/components/file-content-renderer';
 import { useOcFileOpen } from '@/components/thread/tool-views/opencode/useOcFileOpen';
-import { useTranslations } from 'next-intl';
-
 /**
  * Global file preview dialog.
  *
@@ -27,7 +25,6 @@ import { useTranslations } from 'next-intl';
  *   - Click outside / X / Escape to close
  */
 export function FilePreviewDialog() {
-  const t = useTranslations('common');
   const isOpen = useFilePreviewStore((s) => s.isOpen);
   const rawFilePath = useFilePreviewStore((s) => s.filePath);
   const closePreview = useFilePreviewStore((s) => s.closePreview);
@@ -108,7 +105,7 @@ export function FilePreviewDialog() {
               size="icon"
               className="h-7 w-7 text-muted-foreground hover:text-foreground"
               onClick={() => setIsFullscreen((v) => !v)}
-              title={isFullscreen ? t('exitFullscreen') : t('fullscreen')}
+              title={isFullscreen ? '退出全屏' : '全屏'}
             >
               {isFullscreen ? (
                 <Minimize2 className="h-3.5 w-3.5" />
@@ -121,7 +118,7 @@ export function FilePreviewDialog() {
               size="icon"
               className="h-7 w-7 text-muted-foreground hover:text-foreground"
               onClick={handleOpenInTab}
-              title={t('openInNewTab')}
+              title={'在新标签页中打开'}
             >
               <ExternalLink className="h-3.5 w-3.5" />
             </Button>
@@ -130,7 +127,7 @@ export function FilePreviewDialog() {
               size="icon"
               className="h-7 w-7 text-muted-foreground hover:text-foreground"
               onClick={() => handleOpenChange(false)}
-              title={t('close')}
+              title={'关闭'}
             >
               <span className="text-lg leading-none">&times;</span>
             </Button>
@@ -152,19 +149,19 @@ export function FilePreviewDialog() {
                     <>
                       <FileX className="h-8 w-8 text-muted-foreground/30" />
                       <p className="text-sm text-muted-foreground">
-                        {t('fileDoesNotExist')}
+                        {'文件不存在'}
                       </p>
                       <p className="text-xs font-mono text-muted-foreground/60 max-w-sm break-all">
                         {path}
                       </p>
                       <p className="text-xs text-muted-foreground/40 mt-1">
-                        {t('filePathNote')}
+                        {'此路径可能是相对路径或来自其他会话。文件必须使用绝对路径才能访问。'}
                       </p>
                     </>
                   ) : (
                     <>
                       <p className="text-sm text-muted-foreground">
-                        {t('cannotPreview')} <span className="font-mono text-foreground">{path}</span>
+                        {'无法预览'} <span className="font-mono text-foreground">{path}</span>
                       </p>
                       <p className="text-xs text-muted-foreground/60">{error}</p>
                       <Button
@@ -174,7 +171,7 @@ export function FilePreviewDialog() {
                         className="mt-2"
                       >
                         <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                        {t('openInTabInstead')}
+                        {'改为在标签页中打开'}
                       </Button>
                     </>
                   )}

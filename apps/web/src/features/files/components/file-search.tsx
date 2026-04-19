@@ -106,7 +106,7 @@ export function FileSearch() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleInputKeyDown}
-              placeholder="Search files..."
+              placeholder="搜索文件..."
               className="border-0 shadow-none focus-visible:ring-0 px-0 h-10"
             />
             <button

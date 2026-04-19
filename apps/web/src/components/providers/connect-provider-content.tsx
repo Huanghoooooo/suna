@@ -73,11 +73,11 @@ function methodIcon(method: { type: string; label: string }) {
 /** Get a short description for the auth method */
 function methodDescription(method: { type: string; label: string }) {
   const label = method.label.toLowerCase();
-  if (label.includes('pro') && label.includes('max')) return 'Use your Claude Pro or Max subscription';
-  if (label.includes('pro') && label.includes('plus')) return 'Use your ChatGPT Pro or Plus subscription';
-  if (label.includes('create') && label.includes('api')) return 'Automatically create and connect an API key';
-  if (method.type === 'api') return 'Manually enter an existing API key';
-  if (label.includes('copilot') || label.includes('github')) return 'Login with your GitHub account';
+  if (label.includes('pro') && label.includes('max')) return '使用你的 Claude Pro 或 Max 订阅';
+  if (label.includes('pro') && label.includes('plus')) return '使用你的 ChatGPT Pro 或 Plus 订阅';
+  if (label.includes('create') && label.includes('api')) return '自动创建并连接一把 API 密钥';
+  if (method.type === 'api') return '手动输入已有的 API 密钥';
+  if (label.includes('copilot') || label.includes('github')) return '使用你的 GitHub 账户登录';
   return undefined;
 }
 
@@ -217,11 +217,11 @@ export function ConnectProviderContent({
           selectMethod(providerID, methods, 0);
         }
       } else {
-        setAuthMethods([{ type: 'api', label: 'API Key' }]);
+        setAuthMethods([{ type: 'api', label: 'API 密钥' }]);
         setMethodIndex(0);
       }
     } catch {
-      setAuthMethods([{ type: 'api', label: 'API Key' }]);
+      setAuthMethods([{ type: 'api', label: 'API 密钥' }]);
       setMethodIndex(0);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -290,7 +290,7 @@ export function ConnectProviderContent({
     e?.preventDefault();
     if (view.type !== 'connect') return;
     if (!oauthCode.trim()) {
-      setError('Authorization code is required');
+      setError('缺少授权码');
       return;
     }
     setSaving(true);
@@ -458,16 +458,16 @@ export function ConnectProviderContent({
           </Button>
         )}
         <h3 className="flex-1 text-sm font-medium text-foreground">
-          {view.type === 'custom' && 'Add Custom'}
+          {view.type === 'custom' && '添加自定义'}
           {view.type === 'connect' && connectTitle}
-          {view.type === 'list' && 'Add Provider'}
+          {view.type === 'list' && '添加提供商'}
         </h3>
       </div>
 
       {/* Description for list view */}
       {view.type === 'list' && (
         <p className="pb-4 text-sm text-muted-foreground/70">
-          Choose a provider to power model access in chat.
+          选择一个提供商，为对话中的模型访问供能。
         </p>
       )}
 
@@ -495,7 +495,7 @@ export function ConnectProviderContent({
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60" />
             <Input type="text"
-              placeholder="Search providers..." autoComplete="off"
+              placeholder="搜索提供商..." autoComplete="off"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-9 rounded-xl border-border/50 bg-muted/20 pl-9 text-sm shadow-none focus-visible:ring-1 focus-visible:ring-ring/40"
@@ -603,7 +603,7 @@ export function ConnectProviderContent({
             )}
 
             {filteredProviders.length === 0 && !search.toLowerCase().startsWith('custom') && (
-              <div className="text-sm text-center py-8 text-muted-foreground/60">No providers found</div>
+              <div className="text-sm text-center py-8 text-muted-foreground/60">未找到提供商</div>
             )}
           </div>
         </>
@@ -620,27 +620,27 @@ export function ConnectProviderContent({
           </p>
             <div className="space-y-4 rounded-2xl border border-border/50 bg-muted/20 p-4">
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Provider ID</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">提供商 ID</label>
                <Input type="text" placeholder="my-provider" value={customForm.providerID} onChange={(e) => setCustomForm((f) => ({ ...f, providerID: e.target.value }))} className="h-9 rounded-xl border-border/50 bg-background text-sm" autoFocus />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Display Name</label>
-               <Input type="text" placeholder="My Provider" value={customForm.name} onChange={(e) => setCustomForm((f) => ({ ...f, name: e.target.value }))} className="h-9 rounded-xl border-border/50 bg-background text-sm" />
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">显示名称</label>
+               <Input type="text" placeholder="我的提供商" value={customForm.name} onChange={(e) => setCustomForm((f) => ({ ...f, name: e.target.value }))} className="h-9 rounded-xl border-border/50 bg-background text-sm" />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Base URL</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">接口地址</label>
                <Input type="text" placeholder="https://api.example.com/v1" value={customForm.baseURL} onChange={(e) => setCustomForm((f) => ({ ...f, baseURL: e.target.value }))} className="h-9 rounded-xl border-border/50 bg-background text-sm" />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">API Key <span className="font-normal text-muted-foreground/50">(optional)</span></label>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">API 密钥 <span className="font-normal text-muted-foreground/50">(optional)</span></label>
                <Input placeholder="sk-..." type="password" value={customForm.apiKey} onChange={(e) => setCustomForm((f) => ({ ...f, apiKey: e.target.value }))} className="h-9 rounded-xl border-border/50 bg-background text-sm" />
               <p className="text-[11px] text-muted-foreground/50 mt-1.5">Use {'{env:VAR_NAME}'} to read from environment</p>
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Model</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">模型</label>
               <div className="flex gap-2">
-                 <Input type="text" placeholder="Model ID" value={customForm.modelId} onChange={(e) => setCustomForm((f) => ({ ...f, modelId: e.target.value }))} className="h-9 flex-1 rounded-xl border-border/50 bg-background text-sm" />
-                 <Input type="text" placeholder="Display Name" value={customForm.modelName} onChange={(e) => setCustomForm((f) => ({ ...f, modelName: e.target.value }))} className="h-9 flex-1 rounded-xl border-border/50 bg-background text-sm" />
+                 <Input type="text" placeholder="模型 ID" value={customForm.modelId} onChange={(e) => setCustomForm((f) => ({ ...f, modelId: e.target.value }))} className="h-9 flex-1 rounded-xl border-border/50 bg-background text-sm" />
+                 <Input type="text" placeholder="显示名称" value={customForm.modelName} onChange={(e) => setCustomForm((f) => ({ ...f, modelName: e.target.value }))} className="h-9 flex-1 rounded-xl border-border/50 bg-background text-sm" />
               </div>
             </div>
           </div>
@@ -651,7 +651,7 @@ export function ConnectProviderContent({
             </div>
           )}
           <Button type="submit" disabled={saving} size="sm" className="px-4">
-            {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Connecting...</> : 'Connect'}
+            {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />连接中...</> : '连接'}
           </Button>
         </form>
       )}
@@ -699,8 +699,8 @@ export function ConnectProviderContent({
                 Enter your {selectedProviderData?.name || view.providerID} API key.
               </p>
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">API Key</label>
-                <Input placeholder="Enter API key..." type="text" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="h-9 rounded-xl border-border/50 bg-background text-sm" autoFocus />
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">API 密钥</label>
+                <Input placeholder="输入 API 密钥..." type="text" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="h-9 rounded-xl border-border/50 bg-background text-sm" autoFocus />
               </div>
               {error && (
                 <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/5 rounded-lg px-3 py-2">
@@ -709,7 +709,7 @@ export function ConnectProviderContent({
                 </div>
               )}
               <Button type="submit" disabled={saving} size="sm" className="px-4 ">
-                {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Connecting...</> : 'Connect'}
+                {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />连接中...</> : '连接'}
               </Button>
             </form>
           )}
@@ -717,7 +717,7 @@ export function ConnectProviderContent({
           {showOAuthPending && (
             <div className="flex items-center gap-2.5 py-6 justify-center">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Starting authorization...</span>
+              <span className="text-sm text-muted-foreground">启动授权中...</span>
             </div>
           )}
 
@@ -730,19 +730,19 @@ export function ConnectProviderContent({
                 <div className="space-y-2 text-sm text-muted-foreground">
                   <div className="flex items-start gap-2">
                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center mt-0.5">1</span>
-                    <span>Click the button below to open the authorization page</span>
+                    <span>点击下方按钮打开授权页面</span>
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center mt-0.5">2</span>
-                    <span>Sign in and authorize access</span>
+                    <span>登录并授权访问</span>
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center mt-0.5">3</span>
-                    <span>After redirect, copy the full URL from your browser&apos;s address bar (starts with <code className="text-xs bg-muted px-1 py-0.5 rounded">http://localhost...</code>)</span>
+                    <span>回跳后，从浏览器地址栏复制完整 URL（以 <code className="text-xs bg-muted px-1 py-0.5 rounded">http://localhost...</code> 开头）</span>
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center mt-0.5">4</span>
-                    <span>Paste it below and click Connect</span>
+                    <span>把回跳链接粘贴到下方，然后点击"连接"</span>
                   </div>
                 </div>
               </div>
@@ -755,12 +755,12 @@ export function ConnectProviderContent({
                 onClick={() => window.open(oauthUrl, '_blank')}
               >
                 <ExternalLink className="h-4 w-4" />
-                Open Authorization Page
+                打开授权页
               </Button>
 
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                  Paste the redirect URL here
+                  把回跳地址粘贴到这里
                 </label>
                 <Input placeholder="http://localhost:.../callback?code=..." type="text" value={oauthCode} onChange={(e) => setOauthCode(e.target.value)} className="h-9 rounded-xl border-border/50 bg-background text-sm" autoFocus />
               </div>
@@ -771,7 +771,7 @@ export function ConnectProviderContent({
                 </div>
               )}
               <Button type="submit" disabled={saving || !oauthCode.trim()} size="sm" className="w-full ">
-                {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Connecting...</> : 'Connect'}
+                {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />连接中...</> : '连接'}
               </Button>
             </form>
           )}
@@ -794,11 +794,11 @@ export function ConnectProviderContent({
                 onClick={() => window.open(oauthUrl, '_blank')}
               >
                 <ExternalLink className="h-4 w-4" />
-                Open Authorization Page
+                打开授权页
               </Button>
               <div className="flex items-center gap-2.5 text-sm text-muted-foreground justify-center">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>Waiting for authorization...</span>
+                <span>等待授权中...</span>
               </div>
             </div>
           )}
@@ -807,10 +807,10 @@ export function ConnectProviderContent({
             <div className="space-y-3">
               <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/5 rounded-lg px-4 py-3">
                 <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                <span>{error || 'Authorization failed'}</span>
+                <span>{error || '授权失败'}</span>
               </div>
               <Button variant="outline" size="sm" className="" onClick={() => { setOauthState('idle'); setMethodIndex(undefined); setError(''); }}>
-                Try again
+                重试
               </Button>
             </div>
           )}

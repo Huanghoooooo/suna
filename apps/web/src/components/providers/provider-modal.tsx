@@ -65,9 +65,9 @@ export type { ProviderModalTab };
 type Provider = NonNullable<ProviderListResponse['all']>[number];
 
 const TAB_CONFIG: { id: ProviderModalTab; label: string }[] = [
-  { id: 'providers', label: 'Add Provider' },
-  { id: 'connected', label: 'Connected' },
-  { id: 'models', label: 'Models' },
+  { id: 'providers', label: '添加提供商' },
+  { id: 'connected', label: '已连接' },
+  { id: 'models', label: '模型' },
 ];
 
 // ─── Shared cmdk overrides for modal context ─────────────────────────────────
@@ -149,7 +149,7 @@ function ConnectedTabContent({
         toast.success(`${PROVIDER_LABELS[providerID] || providerID} disconnected`);
         onDisconnected?.();
       } catch {
-        toast.error('Failed to disconnect provider');
+        toast.error('断开提供商失败');
       } finally {
         setDisconnecting(null);
       }
@@ -162,7 +162,7 @@ function ConnectedTabContent({
       <Command shouldFilter={false} className={MODAL_CMDK_CLASSES}>
         <CommandInput
           compact
-          placeholder="Search connected providers..."
+          placeholder="搜索已连接的提供商..."
           value={search}
           onValueChange={setSearch}
           rightElement={
@@ -181,8 +181,8 @@ function ConnectedTabContent({
         <CommandList className="flex-1 max-h-none px-1.5 py-1.5">
           {filteredProviders.length === 0 ? (
             <EmptyState
-              message={connectedProviders.length === 0 ? 'No providers connected yet' : 'No match'}
-              action={{ label: 'Connect provider', onClick: onAddProvider }}
+              message={connectedProviders.length === 0 ? '还未连接任何提供商' : '没有匹配项'}
+              action={{ label: '接入提供商', onClick: onAddProvider }}
             />
           ) : (
             <CommandGroup forceMount>
@@ -231,7 +231,7 @@ function ConnectedTabContent({
                           variant="ghost"
                           size="icon-sm"
                           className="text-muted-foreground/40 hover:bg-destructive/10 hover:text-destructive"
-                          title="Disconnect"
+                          title="断开连接"
                         >
                           {isDisconnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unplug className="h-3.5 w-3.5" />}
                         </Button>
@@ -274,7 +274,7 @@ function ConnectedTabContent({
       <AlertDialog open={!!confirmDisconnect} onOpenChange={(open) => !open && setConfirmDisconnect(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Disconnect provider?</AlertDialogTitle>
+            <AlertDialogTitle>断开此提供商？</AlertDialogTitle>
             <AlertDialogDescription className="text-xs">
               {confirmDisconnect && (
                 <>
@@ -285,9 +285,9 @@ function ConnectedTabContent({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={() => confirmDisconnect && doDisconnect(confirmDisconnect)} className="bg-destructive text-white hover:bg-destructive/90">
-              Disconnect
+              断开连接
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -346,7 +346,7 @@ function ModelsTabContent({
       <Command shouldFilter={false} className={MODAL_CMDK_CLASSES}>
         <CommandInput
           compact
-          placeholder="Search models..."
+          placeholder="搜索模型..."
           value={search}
           onValueChange={setSearch}
           rightElement={
@@ -364,7 +364,7 @@ function ModelsTabContent({
 
         <CommandList className="flex-1 max-h-none px-1.5 py-1.5">
           {grouped.length === 0 ? (
-            <EmptyState message="No models found" />
+            <EmptyState message="未找到模型" />
           ) : (
             grouped.map(([providerID, providerModels]) => (
               <CommandGroup
@@ -465,9 +465,9 @@ export function ProviderModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="!grid h-[min(80vh,680px)] w-[calc(100vw-2rem)] max-w-[520px] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden p-0 gap-0">
         <DialogHeader className="px-5 pb-2 pt-5">
-          <DialogTitle className="text-sm font-semibold">LLM Providers</DialogTitle>
+          <DialogTitle className="text-sm font-semibold">模型提供商</DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground/60">
-            Connect providers and manage which models appear in chat.
+            接入提供商并管理对话中可见的模型。
           </DialogDescription>
         </DialogHeader>
 

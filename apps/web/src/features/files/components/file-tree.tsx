@@ -327,7 +327,7 @@ function TreeNode({
         <ContextMenuContent className="w-48">
           <ContextMenuItem onClick={handleClick}>
             <ChevronRight className="mr-2 h-4 w-4" />
-            {isDir ? 'Open folder' : 'Open file'}
+            {isDir ? '打开文件夹' : 'Open file'}
           </ContextMenuItem>
           {!isDir && (
             <ContextMenuItem onClick={() => {
@@ -339,13 +339,13 @@ function TreeNode({
               });
             }}>
               <ExternalLink className="mr-2 h-4 w-4" />
-              Open in new tab
+              在新标签页中打开
             </ContextMenuItem>
           )}
           {!isDir && (
             <ContextMenuItem onClick={() => downloadFile(node.path, node.name)}>
               <Download className="mr-2 h-4 w-4" />
-              Download
+              下载
             </ContextMenuItem>
           )}
           {isDir && (
@@ -380,14 +380,14 @@ function TreeNode({
               </ContextMenuItem>
               <ContextMenuItem onClick={() => onUploadToDir(node.path)}>
                 <Upload className="mr-2 h-4 w-4" />
-                Upload file
+                上传文件
               </ContextMenuItem>
             </>
           )}
           <ContextMenuSeparator />
           <ContextMenuItem onClick={() => onCopy(node)}>
             <ClipboardCopy className="mr-2 h-4 w-4" />
-            Copy
+            复制
           </ContextMenuItem>
           <ContextMenuItem onClick={() => onCut(node)}>
             <Scissors className="mr-2 h-4 w-4" />
@@ -909,13 +909,13 @@ export function FileTree() {
           Explorer
         </span>
         <div className="flex items-center gap-0.5">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setNewFileName('untitled.txt'); setIsCreatingFile(true); }} title="New file">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setNewFileName('untitled.txt'); setIsCreatingFile(true); }} title="新建文件">
             <FilePlus className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setNewFolderName('New Folder'); setIsCreatingFolder(true); }} title="New folder">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setNewFolderName('New Folder'); setIsCreatingFolder(true); }} title="新建文件夹">
             <FolderPlus className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleUpload()} title="Upload">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleUpload()} title="上传">
             <Upload className="h-3.5 w-3.5" />
           </Button>
           {clipboard && (
@@ -933,7 +933,7 @@ export function FileTree() {
             variant="ghost"
             size="icon"
             className="h-5 w-5 shrink-0 text-muted-foreground/50 hover:text-foreground"
-            title="Back to /workspace"
+            title="回到 /workspace"
             onClick={() => navigateToPath('/workspace')}
           >
             <Home className="h-3 w-3" />
@@ -961,7 +961,7 @@ export function FileTree() {
         ) : (
           <button
             className="flex-1 text-left text-xs font-mono text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30 rounded px-1.5 py-0.5 truncate transition-colors cursor-pointer min-w-0"
-            title="Click to navigate to path"
+            title="点击跳转到该路径"
             onClick={() => {
               setPathInputValue(currentPath);
               setPathInputActive(true);
@@ -1034,10 +1034,10 @@ export function FileTree() {
       {clipboard && (
         <div className="flex items-center justify-between gap-1.5 px-3 py-1.5 border-t border-border/50 bg-muted/20 text-xs text-muted-foreground shrink-0">
           <span className="truncate">
-            {clipboard.operation === 'cut' ? 'Move' : 'Copy'}: <span className="font-medium text-foreground/80">{clipboard.name}</span>
+            {clipboard.operation === 'cut' ? 'Move' : '复制'}: <span className="font-medium text-foreground/80">{clipboard.name}</span>
           </span>
           <Button onClick={clearClipboard} variant="muted" size="xs">
-            Cancel
+            取消
           </Button>
         </div>
       )}
@@ -1055,7 +1055,7 @@ export function FileTree() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutationHook.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutationHook.isPending}>取消</AlertDialogCancel>
             <AlertDialogAction
               ref={deleteButtonRef}
               onClick={(e) => { e.preventDefault(); confirmDelete(); }}

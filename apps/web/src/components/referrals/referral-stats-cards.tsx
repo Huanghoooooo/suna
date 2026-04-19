@@ -1,7 +1,6 @@
 'use client';
 
 import { Users, Coins } from 'lucide-react';
-import { useTranslations } from 'next-intl';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -16,8 +15,6 @@ interface ReferralStatsCardsProps {
 }
 
 export function ReferralStatsCards({ stats, isLoading, compact = false }: ReferralStatsCardsProps) {
-  const t = useTranslations('settings.referrals');
-
   if (isLoading) {
     return (
       <div className={cn(
@@ -42,14 +39,14 @@ export function ReferralStatsCards({ stats, isLoading, compact = false }: Referr
         <div className="p-6 rounded-lg border border-border bg-muted/30">
           <div className="flex items-center gap-1.5 mb-1">
             <Users className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">{t('stats.totalReferrals')}</span>
+            <span className="text-xs text-muted-foreground">{'总推荐数'}</span>
           </div>
           <p className="text-xl font-semibold">{stats?.total_referrals || 0}</p>
         </div>
         <div className="p-6 rounded-lg border border-border bg-muted/30">
           <div className="flex items-center gap-1.5 mb-1">
             <Coins className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">{t('stats.creditsEarned')}</span>
+            <span className="text-xs text-muted-foreground">{'已获积分'}</span>
           </div>
           <p className="text-xl font-semibold">
             {Math.round(stats?.total_credits_earned || 0).toLocaleString()}
@@ -70,7 +67,7 @@ export function ReferralStatsCards({ stats, isLoading, compact = false }: Referr
             <p className="text-2xl font-semibold">
               {stats?.total_referrals || 0}
             </p>
-            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.totalReferrals')}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{'总推荐数'}</p>
           </div>
         </div>
       </div>
@@ -83,7 +80,7 @@ export function ReferralStatsCards({ stats, isLoading, compact = false }: Referr
             <p className="text-2xl font-semibold">
               {Math.round(stats?.total_credits_earned || 0).toLocaleString()}
             </p>
-            <p className="text-xs sm:text-sm text-muted-foreground">{t('stats.creditsEarned')}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{'已获积分'}</p>
           </div>
         </div>
       </div>

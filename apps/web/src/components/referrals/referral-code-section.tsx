@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Copy, Share2, Check } from 'lucide-react';
 import { toast } from '@/lib/toast';
-import { useTranslations } from 'next-intl';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useState } from 'react';
 
@@ -17,7 +16,6 @@ interface ReferralCodeSectionProps {
 }
 
 export function ReferralCodeSection({ referralCode, isLoading }: ReferralCodeSectionProps) {
-  const t = useTranslations('settings.referrals');
   const [copiedLink, setCopiedLink] = useState(false);
 
   const copyToClipboard = async (text: string) => {
@@ -25,7 +23,7 @@ export function ReferralCodeSection({ referralCode, isLoading }: ReferralCodeSec
       await navigator.clipboard.writeText(text);
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
-      toast.success(t('linkCopied'));
+      toast.success('推荐链接已复制到剪贴板');
     } catch (error) {
       console.error('Failed to copy:', error);
       toast.error('Failed to copy');
@@ -69,7 +67,7 @@ export function ReferralCodeSection({ referralCode, isLoading }: ReferralCodeSec
     <div className="space-y-3">
       <div>
         <label className="text-xs sm:text-sm font-medium text-foreground mb-2 block">
-          {t('referralLink')}
+          {'推荐链接'}
         </label>
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -95,7 +93,7 @@ export function ReferralCodeSection({ referralCode, isLoading }: ReferralCodeSec
             onClick={shareReferralLink}
           >
             <Share2 className="h-4 w-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">{t('share')}</span>
+            <span className="hidden sm:inline">{'分享'}</span>
           </Button>
         </div>
       </div>

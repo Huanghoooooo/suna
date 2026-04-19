@@ -6,8 +6,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Maximize2, X, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { KortixLoader } from '@/components/ui/kortix-loader';
-import { useTranslations } from 'next-intl';
-
 // Global cache for rendered Mermaid diagrams
 const mermaidCache = new Map<string, string>();
 let mermaidInstance: any = null;
@@ -44,7 +42,6 @@ export const MermaidRenderer: React.FC<MermaidRendererProps> = React.memo(({
   className,
   enableFullscreen = true
 }) => {
-  const t = useTranslations('common');
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -623,7 +620,7 @@ export const MermaidRenderer: React.FC<MermaidRendererProps> = React.memo(({
                 e.stopPropagation();
                 handleFullscreenOpen();
               }}
-              title={t('viewFullscreen')}
+              title={'全屏查看'}
             >
               <Maximize2 className="h-4 w-4" />
             </Button>
@@ -651,7 +648,7 @@ export const MermaidRenderer: React.FC<MermaidRendererProps> = React.memo(({
                   size="sm"
                   onClick={handleZoomOut}
                   className="h-8 w-8 p-0"
-                  title={t('zoomOut')}
+                  title={'缩小'}
                 >
                   <ZoomOut className="h-4 w-4" />
                 </Button>
@@ -660,7 +657,7 @@ export const MermaidRenderer: React.FC<MermaidRendererProps> = React.memo(({
                   size="sm"
                   onClick={handleResetView}
                   className="h-8 w-8 p-0"
-                  title={t('resetView')}
+                  title={'重置视图'}
                 >
                   <RotateCcw className="h-4 w-4" />
                 </Button>
@@ -669,7 +666,7 @@ export const MermaidRenderer: React.FC<MermaidRendererProps> = React.memo(({
                   size="sm"
                   onClick={handleZoomIn}
                   className="h-8 w-8 p-0"
-                  title={t('zoomIn')}
+                  title={'放大'}
                 >
                   <ZoomIn className="h-4 w-4" />
                 </Button>
@@ -678,7 +675,7 @@ export const MermaidRenderer: React.FC<MermaidRendererProps> = React.memo(({
                   size="sm"
                   onClick={handleFitToViewport}
                   className="h-8 px-3"
-                  title={t('fitToViewport')}
+                  title={'适应视口'}
                 >
                   Fit
                 </Button>

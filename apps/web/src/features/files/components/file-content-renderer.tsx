@@ -391,7 +391,7 @@ export function FileContentRenderer({
       setSaveFlash(true);
       setTimeout(() => setSaveFlash(false), 2000);
       onSaved?.();
-      toast.success('File saved');
+      toast.success('文件已保存');
     } catch (err) {
       toast.error(`Failed to save: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
@@ -505,13 +505,13 @@ export function FileContentRenderer({
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
                 </span>
-                <span className="font-semibold">Edited</span>
+                <span className="font-semibold">已修改</span>
               </div>
             )}
             {!readOnly && saveFlash && !hasUnsavedChanges && (
               <div className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-500 px-2 py-0.5 bg-green-50 dark:bg-green-900/20 rounded-md shrink-0">
                 <Check className="h-3 w-3" />
-                <span className="font-semibold">Saved</span>
+                <span className="font-semibold">已保存</span>
               </div>
             )}
             {readOnly && (
@@ -548,7 +548,7 @@ export function FileContentRenderer({
                   className="h-7 px-3 text-xs gap-1.5 font-medium"
                   onClick={() => handleSave(latestContentRef.current)}
                   disabled={isSaving}
-                  title="Save (⌘S)"
+                  title="保存 (⌘S)"
                 >
                   {isSaving ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -562,7 +562,7 @@ export function FileContentRenderer({
                   size="icon"
                   className="h-7 w-7 text-muted-foreground hover:text-destructive"
                   onClick={handleDiscard}
-                  title="Discard changes"
+                  title="放弃更改"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                 </Button>
@@ -625,7 +625,7 @@ export function FileContentRenderer({
               className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
               onClick={handleDownload}
               disabled={!fileContent && !blobUrl && !rawBlob}
-              title="Download"
+              title="下载"
             >
               <Download className="h-4 w-4" />
             </Button>
@@ -766,7 +766,7 @@ export function FileContentRenderer({
             {(serverHealth === 'checking' || !authenticatedPreviewUrl) && (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin opacity-40" />
-                <p className="text-xs opacity-50">Starting preview server…</p>
+                <p className="text-xs opacity-50">正在启动预览服务…</p>
               </div>
             )}
 
@@ -809,7 +809,7 @@ export function FileContentRenderer({
               </p>
               <Button variant="outline" size="sm" className="" onClick={handleDownload}>
                 <Download className="h-3.5 w-3.5 mr-1.5" />
-                Download
+                下载
               </Button>
             </div>
           )}

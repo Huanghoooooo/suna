@@ -136,7 +136,7 @@ function CompactCommitDiff({ filePath, commitHash }: { filePath: string; commitH
   const { data: diff, isLoading, error } = useFileCommitDiff(filePath, commitHash);
 
   if (isLoading) return <div className="p-2"><Skeleton className="h-16 w-full" /></div>;
-  if (error || !diff) return <div className="p-2 text-[10px] text-muted-foreground">Failed to load diff</div>;
+  if (error || !diff) return <div className="p-2 text-[10px] text-muted-foreground">加载差异失败</div>;
 
   const statusIcon = {
     added: <FilePlus2 className="size-3 text-emerald-500" />,
@@ -166,7 +166,7 @@ function CompactCommitDiff({ filePath, commitHash }: { filePath: string; commitH
           <CompactDiffLines patch={patchContent} filename={filePath} />
         </div>
       ) : (
-        <div className="p-2 text-[10px] text-muted-foreground text-center">No diff</div>
+        <div className="p-2 text-[10px] text-muted-foreground text-center">无差异</div>
       )}
     </div>
   );
@@ -215,7 +215,7 @@ function CompactCommitRow({ commit, filePath }: { commit: GitCommit; filePath: s
           variant="muted"
           size="xs"
           className="font-mono shrink-0"
-          title="Copy hash"
+          title="复制哈希"
         >
           {copied ? <Check className="size-2.5 text-emerald-500" /> : <Copy className="size-2.5" />}
           {commit.shortHash}
@@ -281,7 +281,7 @@ export function FileHistoryPopoverContent({ filePath, onClose }: FileHistoryPopo
         {!isLoading && !error && totalCommits === 0 && (
           <div className="flex flex-col items-center justify-center gap-2 p-6 text-center">
             <GitCommitHorizontal className="h-6 w-6 text-muted-foreground/20" />
-            <p className="text-xs text-muted-foreground">No commit history</p>
+            <p className="text-xs text-muted-foreground">没有提交历史</p>
           </div>
         )}
 

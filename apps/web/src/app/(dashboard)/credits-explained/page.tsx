@@ -7,20 +7,16 @@ import {
   CardHeader,
 } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useTranslations } from 'next-intl';
-
 export default function CreditsPage() {
-  const t = useTranslations('billing.creditsExplainedPage');
-
   return (
     <div className="container mx-auto max-w-4xl px-3 sm:px-4 py-4 sm:py-8 md:py-12">
       {/* Header Section */}
       <div className="space-y-2 sm:space-y-3 mb-6 sm:mb-10">
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-medium tracking-tight text-foreground">
-          {t('title')}
+          {'积分说明'}
         </h1>
         <p className="text-base sm:text-lg text-muted-foreground">
-          {t('subtitle')}
+          {'关于 Kortix 积分工作原理你需要知道的一切'}
         </p>
       </div>
 
@@ -29,10 +25,10 @@ export default function CreditsPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">{t('understandingCredits.title')}</h2>
+            <h2 className="text-xl font-semibold">{'了解积分'}</h2>
           </div>
           <p className="text-muted-foreground leading-relaxed text-base">
-            {t('understandingCredits.description')}
+            {'积分是 Kortix 平台操作的通用货币。你的 AI Workers 执行的每个操作——从分析数据到生成代码——都会根据任务的复杂性和所需资源消耗积分。'}
           </p>
         </div>
 
@@ -40,11 +36,11 @@ export default function CreditsPage() {
         <div className="space-y-6">
           <div className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">{t('howCreditsWork.title')}</h2>
+            <h2 className="text-xl font-semibold">{'积分如何工作'}</h2>
           </div>
           
           <p className="text-muted-foreground leading-relaxed">
-            {t('howCreditsWork.description')}
+            {'积分根据你的 AI Workers 使用的资源消耗：'}
           </p>
 
           <Card>
@@ -106,7 +102,7 @@ export default function CreditsPage() {
         <div className="space-y-6">
           <div className="flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">{t('howCreditsWork.pricingModel.title')}</h2>
+            <h2 className="text-xl font-semibold">{'定价'}</h2>
           </div>
           
           <p className="text-muted-foreground leading-relaxed">
@@ -149,7 +145,7 @@ export default function CreditsPage() {
         <div className="space-y-6">
           <div className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">{t('typesOfCredits.title')}</h2>
+            <h2 className="text-xl font-semibold">{'积分类型'}</h2>
           </div>
 
           <p className="text-muted-foreground leading-relaxed">

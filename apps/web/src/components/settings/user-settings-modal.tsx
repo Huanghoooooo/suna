@@ -90,7 +90,6 @@ import { cancelSandbox, reactivateSandbox } from '@/lib/platform-client';
 
 import { formatCredits } from '@kortix/shared';
 import { LanguageSwitcher } from './language-switcher';
-import { useTranslations } from 'next-intl';
 // import { ReferralsTab } from '@/components/referrals/referrals-tab';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Keyboard, CheckCircle2, HelpCircle, ShieldCheck, Volume2, EyeOff, Globe } from 'lucide-react';
@@ -299,8 +298,6 @@ export function UserSettingsModal({
 
 
 function GeneralTab({ onClose }: { onClose: () => void }) {
-    const t = useTranslations('settings.general');
-    const tCommon = useTranslations('common');
     const [userName, setUserName] = useState('');
     const [userEmail, setUserEmail] = useState('');
     const [avatarUrl, setAvatarUrl] = useState('');
@@ -353,12 +350,12 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
         if (file) {
             // Validate file type
             if (!file.type.startsWith('image/')) {
-                toast.error(t('profilePicture.invalidType'));
+                toast.error('请选择图片文件');
                 return;
             }
             // Validate file size (max 5MB)
             if (file.size > 5 * 1024 * 1024) {
-                toast.error(t('profilePicture.tooLarge'));
+                toast.error('图片必须小于5MB');
                 return;
             }
             setAvatarFile(file);
@@ -396,7 +393,7 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
             return publicUrl;
         } catch (error) {
             console.error('Avatar upload failed:', error);
-            toast.error(t('profilePicture.uploadFailed'));
+            toast.error('上传头像失败');
             return null;
         } finally {
             setIsUploadingAvatar(false);
@@ -437,14 +434,14 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
             setAvatarFile(null);
             setAvatarUrl(newAvatarUrl);
 
-            toast.success(t('profileUpdated'));
+            toast.success('个人资料更新成功');
 
             setTimeout(() => {
                 window.location.reload();
             }, 500);
         } catch (error) {
             console.error('Error updating profile:', error);
-            toast.error(t('profileUpdateFailed'));
+            toast.error('更新个人资料失败');
         } finally {
             setIsSaving(false);
         }
@@ -498,16 +495,16 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
     return (
         <div className="p-4 sm:p-6 pb-12 sm:pb-6 space-y-5 sm:space-y-6 min-w-0 max-w-full overflow-x-hidden">
             <div>
-                <h3 className="text-lg font-semibold mb-1">{t('title')}</h3>
+                <h3 className="text-lg font-semibold mb-1">{'个人资料设置'}</h3>
                 <p className="text-sm text-muted-foreground">
-                    {t('description')}
+                    {'管理你的账户信息'}
                 </p>
             </div>
 
             <div className="space-y-4">
                 {/* Profile Picture Section */}
                 <div className="space-y-3">
-                    <Label>{t('profilePicture.title')}</Label>
+                    <Label>{'头像'}</Label>
                     <div className="flex items-center gap-4">
                         <div className="relative group">
                             <Avatar className="h-16 w-16 border-2 border-border">
@@ -549,28 +546,28 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                                 className="w-full sm:w-auto"
                             >
                                 <Upload className="h-4 w-4 mr-1.5" />
-                                {t('profilePicture.upload')}
+                                {'上传头像'}
                             </Button>
                             <p className="text-xs text-muted-foreground">
-                                {t('profilePicture.hint')}
+                                {'JPG、PNG或GIF。最大5MB。'}
                             </p>
                         </div>
                     </div>
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="name">{t('name')}</Label>
+                    <Label htmlFor="name">{'姓名'}</Label>
                     <Input type="text"
                         id="name"
                         value={userName}
                         onChange={(e) => setUserName(e.target.value)}
-                        placeholder={t('namePlaceholder')}
+                        placeholder={'输入你的姓名'}
                         className="shadow-none"
                     />
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="email">{t('email')}</Label>
+                    <Label htmlFor="email">{'邮箱'}</Label>
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Input type="text"
@@ -581,7 +578,7 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                             />
                         </TooltipTrigger>
                         <TooltipContent>
-                            {t('emailCannotChange')}
+                            {'邮箱无法从此处更改'}
                         </TooltipContent>
                     </Tooltip>
                 </div>
@@ -597,14 +594,14 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                     onClick={onClose}
                     className="w-full sm:w-auto"
                 >
-                    {tCommon('cancel')}
+                    {'取消'}
                 </Button>
                 <Button
                     onClick={handleSave}
                     disabled={isSaving}
                     className="w-full sm:w-auto"
                 >
-                    {isSaving ? tCommon('saving') : t('saveChanges')}
+                    {isSaving ? '保存中...' : '保存更改'}
                 </Button>
             </div>
 
@@ -612,9 +609,9 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                 <>
                     <div className="pt-8 space-y-4">
                         <div>
-                            <h3 className="text-base font-medium mb-1">{t('deleteAccount.title')}</h3>
+                            <h3 className="text-base font-medium mb-1">{'删除账户'}</h3>
                             <p className="text-sm text-muted-foreground">
-                                {t('deleteAccount.description')}
+                                {'永久删除你的账户和所有相关数据'}
                             </p>
                         </div>
 
@@ -623,14 +620,12 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                                 <Clock className="h-4 w-4 text-amber-600" />
                                 <AlertDescription>
                                     <div className="text-sm">
-                                        <strong className="text-foreground">{t('deleteAccount.scheduled')}</strong>
+                                        <strong className="text-foreground">{'已安排删除'}</strong>
                                         <p className="mt-1 text-muted-foreground">
-                                            {t('deleteAccount.scheduledDescription', {
-                                                date: formatDate(deletionStatus.deletion_scheduled_for)
-                                            })}
+                                            {`你的账户将在 ${formatDate(deletionStatus.deletion_scheduled_for)} 永久删除。`}
                                         </p>
                                         <p className="mt-2 text-muted-foreground">
-                                            {t('deleteAccount.canCancel')}
+                                            {'你可以在删除日期之前随时取消此请求。'}
                                         </p>
                                     </div>
                                 </AlertDescription>
@@ -641,7 +636,7 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                                         onClick={() => setShowCancelDialog(true)}
                                         disabled={cancelDeletion.isPending}
                                     >
-                                        {t('deleteAccount.cancelButton')}
+                                        {'取消删除请求'}
                                     </Button>
                                 </div>
                             </Alert>
@@ -651,7 +646,7 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                                 onClick={() => setShowDeleteDialog(true)}
                                 className="text-muted-foreground hover:text-foreground"
                             >
-                                {t('deleteAccount.button')}
+                                {'删除账户'}
                             </Button>
                         )}
                     </div>
@@ -665,7 +660,7 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                     }}>
                         <DialogContent className="max-w-md max-h-[90vh] sm:max-h-[85vh] overflow-y-auto p-4 sm:p-6">
                             <DialogHeader>
-                                <DialogTitle className="text-base sm:text-lg">{t('deleteAccount.dialogTitle')}</DialogTitle>
+                                <DialogTitle className="text-base sm:text-lg">{'删除账户'}</DialogTitle>
                             </DialogHeader>
                             <div className="space-y-4">
                                 <Alert className={cn(
@@ -681,39 +676,39 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                                     <AlertDescription>
                                         <strong className="text-foreground text-sm sm:text-base">
                                             {deletionType === 'immediate' 
-                                                ? t('deleteAccount.warningImmediate')
-                                                : t('deleteAccount.warningGracePeriod')}
+                                                ? '此操作无法撤销'
+                                                : '此操作在30天后无法撤销'}
                                         </strong>
                                     </AlertDescription>
                                 </Alert>
                                 
                                 <div>
                                     <p className="text-sm font-medium mb-2">
-                                        {t('deleteAccount.whenDelete')}
+                                        {'当你删除账户时：'}
                                     </p>
                                     <ul className="text-xs sm:text-sm text-muted-foreground space-y-1.5 pl-4 sm:pl-5 list-disc">
-                                        <li>{t('deleteAccount.agentsDeleted')}</li>
-                                        <li>{t('deleteAccount.threadsDeleted')}</li>
-                                        <li>{t('deleteAccount.credentialsRemoved')}</li>
-                                        <li>{t('deleteAccount.subscriptionCancelled')}</li>
-                                        <li>{t('deleteAccount.billingRemoved')}</li>
+                                        <li>{'你的所有 Workers 和 Worker 版本将被删除'}</li>
+                                        <li>{'你的所有线程和对话将被删除'}</li>
+                                        <li>{'你的所有凭据和集成将被移除'}</li>
+                                        <li>{'你的订阅将被取消'}</li>
+                                        <li>{'所有账单数据将被移除'}</li>
                                         {deletionType === 'grace-period' && (
-                                            <li>{t('deleteAccount.scheduled30Days')}</li>
+                                            <li>{'你的账户将在30天后安排删除'}</li>
                                         )}
                                     </ul>
                                 </div>
 
                                 <div className="space-y-3">
-                                    <Label className="text-sm">{t('deleteAccount.chooseDeletionType')}</Label>
+                                    <Label className="text-sm">{'选择删除类型：'}</Label>
                                     <RadioGroup value={deletionType} onValueChange={(value) => setDeletionType(value as 'grace-period' | 'immediate')}>
                                         <div className="flex items-start gap-2 sm:gap-3 rounded-md border p-3 sm:p-4">
                                             <RadioGroupItem value="grace-period" id="grace-period" className="mt-0.5 flex-shrink-0" />
                                             <div className="space-y-1 flex-1 min-w-0">
                                                 <Label htmlFor="grace-period" className="font-medium cursor-pointer text-sm sm:text-base block">
-                                                    {t('deleteAccount.gracePeriodOption')}
+                                                    {'30天宽限期'}
                                                 </Label>
                                                 <p className="text-xs sm:text-sm text-muted-foreground">
-                                                    {t('deleteAccount.gracePeriodDescription')}
+                                                    {'你的账户将在30天后安排删除。你可以在宽限期内随时取消此请求。'}
                                                 </p>
                                             </div>
                                         </div>
@@ -721,10 +716,10 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                                             <RadioGroupItem value="immediate" id="immediate" className="mt-0.5 flex-shrink-0" />
                                             <div className="space-y-1 flex-1 min-w-0">
                                                 <Label htmlFor="immediate" className="font-medium cursor-pointer text-sm sm:text-base text-red-600 block">
-                                                    {t('deleteAccount.immediateOption')}
+                                                    {'立即删除'}
                                                 </Label>
                                                 <p className="text-xs sm:text-sm text-muted-foreground">
-                                                    {t('deleteAccount.immediateDescription')}
+                                                    {'你的账户和所有数据将立即永久删除。此操作无法撤销。'}
                                                 </p>
                                             </div>
                                         </div>
@@ -733,13 +728,13 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                                 
                                 <div className="space-y-2">
                                     <Label htmlFor="delete-confirm" className="text-sm">
-                                        {t('deleteAccount.confirmText')}
+                                        {'输入删除以确认'}
                                     </Label>
                                     <Input type="text"
                                         id="delete-confirm"
                                         value={deleteConfirmText}
                                         onChange={(e) => setDeleteConfirmText(e.target.value)}
-                                        placeholder={t('deleteAccount.confirmPlaceholder')}
+                                        placeholder={'delete'}
                                         className="shadow-none text-sm sm:text-base"
                                         autoComplete="off"
                                     />
@@ -751,7 +746,7 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                                         setDeleteConfirmText('');
                                         setDeletionType('grace-period');
                                     }} className="w-full sm:w-auto">
-                                        {t('deleteAccount.keepAccount')}
+                                        {'保留账户'}
                                     </Button>
                                     <Button 
                                         variant="destructive" 
@@ -763,8 +758,8 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                                         className="w-full sm:w-auto"
                                     >
                                         {(requestDeletion.isPending || deleteImmediately.isPending) 
-                                            ? tCommon('processing') 
-                                            : t('deleteAccount.button')}
+                                            ? '处理中...' 
+                                            : '删除账户'}
                                     </Button>
                                 </div>
                             </div>
@@ -774,22 +769,22 @@ function GeneralTab({ onClose }: { onClose: () => void }) {
                     <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
                         <AlertDialogContent className="max-w-md p-4 sm:p-6">
                             <AlertDialogHeader>
-                                <AlertDialogTitle className="text-base sm:text-lg">{t('deleteAccount.cancelDeletionTitle')}</AlertDialogTitle>
+                                <AlertDialogTitle className="text-base sm:text-lg">{'取消账户删除'}</AlertDialogTitle>
                             </AlertDialogHeader>
                             <div className="space-y-4">
                                 <AlertDialogDescription className="text-xs sm:text-sm text-muted-foreground">
-                                    {t('deleteAccount.cancelDeletionDescription')}
+                                    {'你确定要取消账户删除吗？你的账户和所有数据将被保留。'}
                                 </AlertDialogDescription>
                                 <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end pt-2">
                                     <Button variant="outline" onClick={() => setShowCancelDialog(false)} className="w-full sm:w-auto">
-                                        {tCommon('back')}
+                                        {'返回'}
                                     </Button>
                                     <Button 
                                         onClick={handleCancelDeletion} 
                                         disabled={cancelDeletion.isPending}
                                         className="w-full sm:w-auto"
                                     >
-                                        {cancelDeletion.isPending ? tCommon('processing') : t('deleteAccount.cancelDeletion')}
+                                        {cancelDeletion.isPending ? '处理中...' : '取消删除'}
                                     </Button>
                                 </div>
                             </div>

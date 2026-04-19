@@ -129,10 +129,10 @@ export function DriveToolbar({
   );
 
   const sortLabel: Record<SortField, string> = {
-    name: 'Name',
-    modified: 'Last modified',
-    size: 'File size',
-    type: 'Type',
+    name: '名称',
+    modified: '最近修改',
+    size: '文件大小',
+    type: '类型',
   };
 
   return (
@@ -160,7 +160,7 @@ export function DriveToolbar({
           <nav
             className="flex items-center gap-0.5 min-w-0 flex-1 overflow-x-auto"
             onDoubleClick={handleDoubleClick}
-            title="Double-click to edit path"
+            title="双击编辑路径"
           >
             {/* Home / root */}
             <Button
@@ -226,18 +226,18 @@ export function DriveToolbar({
               variant="ghost"
               size="icon"
               className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              title="Sort"
+              title="排序"
             >
               <ArrowUpDown className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuLabel className="text-xs text-muted-foreground">Sort by</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs text-muted-foreground">排序方式</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={sortBy} onValueChange={(v) => setSortBy(v as SortField)}>
-              <DropdownMenuRadioItem value="name">Name</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="modified">Last modified</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="size">File size</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="type">Type</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="name">名称</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="modified">最近修改</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="size">文件大小</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="type">类型</DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={toggleSortOrder}>
@@ -267,7 +267,7 @@ export function DriveToolbar({
           size="icon"
           className="h-8 w-8 text-muted-foreground hover:text-foreground"
           onClick={toggleSearch}
-          title="Search files (Ctrl+P)"
+          title="搜索文件 (Ctrl+P)"
         >
           <Search className="h-4 w-4" />
         </Button>
@@ -278,7 +278,7 @@ export function DriveToolbar({
           size="icon"
           className="h-8 w-8 text-muted-foreground hover:text-foreground"
           onClick={() => invalidateFileList()}
-          title="Refresh"
+          title="刷新"
         >
           <RefreshCw className="h-4 w-4" />
         </Button>
@@ -290,7 +290,7 @@ export function DriveToolbar({
           className="h-8 w-8 text-muted-foreground hover:text-foreground"
           onClick={onDownloadDir}
           disabled={isDownloading}
-          title="Download directory as zip"
+          title="下载当前目录为 zip"
         >
           {isDownloading ? (
             <RefreshCw className="h-4 w-4 animate-spin" />
@@ -306,7 +306,7 @@ export function DriveToolbar({
               variant="ghost"
               size="icon"
               className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              title="New file or folder"
+              title="新建文件或文件夹"
             >
               <Plus className="h-4 w-4" />
             </Button>
@@ -314,11 +314,11 @@ export function DriveToolbar({
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem onClick={onNewFolder}>
               <FolderPlus className="mr-2 h-4 w-4" />
-              New folder
+              新建文件夹
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onNewFile}>
               <FilePlus className="mr-2 h-4 w-4" />
-              New file
+              新建文件
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onUpload}>

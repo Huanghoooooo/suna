@@ -100,19 +100,19 @@ export const PROVIDER_LABELS: Record<string, string> = {
 };
 
 export const PROVIDER_HINTS: Record<string, string> = {
-  anthropic: 'Pro/Max or API key',
-  openai: 'Pro/Plus or API key',
-  'github-copilot': 'Use existing subscription',
+  anthropic: 'Pro/Max 或 API 密钥',
+  openai: 'Pro/Plus 或 API 密钥',
+  'github-copilot': '使用已有订阅',
 };
 
 export const PROVIDER_NOTES: Record<string, string> = {
-  opencode: 'One key for many hosted models',
-  anthropic: 'Claude Pro/Max subscription or your own API key',
-  openai: 'ChatGPT Pro/Plus subscription or your own API key',
-  'github-copilot': 'Reuse your existing Copilot plan',
-  google: 'Gemini models from Google AI Studio',
-  openrouter: 'Route across many providers',
-  vercel: 'Use Vercel AI Gateway credentials',
+  opencode: '一把密钥，调用多家托管模型',
+  anthropic: 'Claude Pro/Max 订阅或你自己的 API 密钥',
+  openai: 'ChatGPT Pro/Plus 订阅或你自己的 API 密钥',
+  'github-copilot': '复用你现有的 Copilot 订阅',
+  google: 'Google AI Studio 的 Gemini 模型',
+  openrouter: '跨多家提供商路由',
+  vercel: '使用 Vercel AI Gateway 凭据',
 };
 
 const PROVIDER_ICON_MAP: Record<string, { src?: string; fallback: string }> = {

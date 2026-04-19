@@ -7,7 +7,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useReferralCode, useReferralStats } from '@/hooks/referrals/use-referrals';
-import { useTranslations } from 'next-intl';
 import { useReferralDialog } from '@/stores/referral-dialog';
 import { ReferralCodeSection } from './referral-code-section';
 import { ReferralStatsCards } from './referral-stats-cards';
@@ -21,7 +20,6 @@ interface ReferralDialogProps {
 }
 
 export function ReferralDialog({ open: controlledOpen, onOpenChange: controlledOnOpenChange }: ReferralDialogProps) {
-  const t = useTranslations('settings.referrals');
   const storeState = useReferralDialog();
   const open = controlledOpen ?? storeState.isOpen;
   const onOpenChange = controlledOnOpenChange ?? ((isOpen: boolean) => isOpen ? storeState.openDialog() : storeState.closeDialog());
@@ -40,10 +38,10 @@ export function ReferralDialog({ open: controlledOpen, onOpenChange: controlledO
               <KortixLogo size={24} variant="symbol" />
             </div>
             <DialogTitle className="text-base sm:text-xl font-semibold text-foreground">
-              {t('title')}
+              {'推荐计划'}
             </DialogTitle>
             <p className="text-xs sm:text-sm text-muted-foreground mt-1 sm:mt-2 px-2">
-              {t('description')}
+              {'与朋友分享您的推荐链接。当他们注册并创建账户时，您将获得'}
             </p>
           </div>
 
@@ -51,15 +49,15 @@ export function ReferralDialog({ open: controlledOpen, onOpenChange: controlledO
           <div className="bg-muted/30 rounded-lg sm:rounded-xl p-6 mb-3 sm:mb-5 border border-border/50">
             <div className="flex items-center justify-between gap-4 sm:gap-6">
               <div className="flex-1 flex flex-col items-start">
-                <p className="text-xs sm:text-sm text-muted-foreground mb-2">{t('youEarn')}</p>
-                <p className="text-xl sm:text-2xl font-semibold text-foreground">{t('creditsPerReferral')}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground mb-2">{'您获得'}</p>
+                <p className="text-xl sm:text-2xl font-semibold text-foreground">{'100个永久积分'}</p>
               </div>
               <div className="flex-shrink-0">
                 <Handshake className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground" />
               </div>
               <div className="flex-1 flex flex-col items-end">
-                <p className="text-xs sm:text-sm text-muted-foreground mb-2">{t('friendGets')}</p>
-                <p className="text-xl sm:text-2xl font-semibold text-foreground">{t('creditsPerReferral')}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground mb-2">{'您的朋友获得'}</p>
+                <p className="text-xl sm:text-2xl font-semibold text-foreground">{'100个永久积分'}</p>
               </div>
             </div>
           </div>

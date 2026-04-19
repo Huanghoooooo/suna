@@ -3,7 +3,6 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { normalizeAppPathname } from '@/lib/instance-routes';
-import { useTranslations } from 'next-intl';
 import {
   ArrowUp,
   ArrowDown,
@@ -1407,7 +1406,6 @@ export function SessionChatInput({
   onQuestionAction,
   escCount = 0,
 }: SessionChatInputProps) {
-  const t = useTranslations('common');
   const placeholderVariants = useMemo(
     () => [
       placeholder,
@@ -2184,7 +2182,7 @@ export function SessionChatInput({
                       type="button"
                       onClick={onClearReply}
                       className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
-                      aria-label={t('clearReply')}
+                      aria-label={'清除回复'}
                     >
                       <X className="size-3" />
                     </button>
@@ -2224,7 +2222,7 @@ export function SessionChatInput({
                   type="button"
                   onClick={() => { setStagedCommand(null); setText(''); }}
                   className="ml-0.5 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={t('cancelCommand')}
+                  aria-label={'取消命令'}
                 >
                   <X className="size-3" />
                 </button>

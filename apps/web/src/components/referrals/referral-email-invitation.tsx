@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Mail, X, Check } from 'lucide-react';
 import { KortixLoader } from '@/components/ui/kortix-loader';
 import { useSendReferralEmails } from '@/hooks/referrals/use-referrals';
-import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 
@@ -22,7 +21,6 @@ interface EmailStatus {
 const MAX_EMAILS = 3;
 
 export function ReferralEmailInvitation({ className }: ReferralEmailProps) {
-  const t = useTranslations('settings.referrals');
   const sendEmailsMutation = useSendReferralEmails();
   
   const [inputValue, setInputValue] = React.useState('');
@@ -128,7 +126,7 @@ export function ReferralEmailInvitation({ className }: ReferralEmailProps) {
   return (
     <div className={cn('space-y-2', className)}>
       <label className="text-xs sm:text-sm font-medium text-foreground block">
-        {t('inviteByEmail')}
+        {'通过邮箱邀请'}
       </label>
 
       <div className="flex gap-2">
@@ -182,7 +180,7 @@ export function ReferralEmailInvitation({ className }: ReferralEmailProps) {
                 addEmail(inputValue);
               }
             }}
-            placeholder={emails.length === 0 ? t('emailPlaceholder') : ''}
+            placeholder={emails.length === 0 ? '输入邮箱地址（按回车、空格或逗号）' : ''}
             disabled={emails.length >= MAX_EMAILS}
             className="flex-1 min-w-[120px] bg-transparent outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
           />
@@ -200,7 +198,7 @@ export function ReferralEmailInvitation({ className }: ReferralEmailProps) {
             <Mail className="h-4 w-4 sm:mr-1.5" />
           )}
           <span className="hidden sm:inline">
-            {isSending ? t('sending') : t('send')}
+            {isSending ? '发送中...' : '发送'}
           </span>
         </Button>
       </div>
@@ -208,10 +206,10 @@ export function ReferralEmailInvitation({ className }: ReferralEmailProps) {
       {emails.length > 0 && (
         <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
           <span>
-            {emails.length} / {MAX_EMAILS} {t('emailsAdded')}
+            {emails.length} / {MAX_EMAILS} {'邮箱'}
           </span>
           <span>
-            {emails.filter(e => e.status === 'sent').length} {t('sent')}
+            {emails.filter(e => e.status === 'sent').length} {'已发送'}
           </span>
         </div>
       )}

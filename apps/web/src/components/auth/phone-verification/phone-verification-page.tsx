@@ -3,7 +3,6 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
 import { PhoneInput } from './phone-input';
 import { OtpVerification } from './otp-verification';
 import {
@@ -32,7 +31,6 @@ interface PhoneVerificationPageProps {
 export function PhoneVerificationPage({
   onSuccess,
 }: PhoneVerificationPageProps) {
-  const t = useTranslations('auth.phoneVerification');
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [factorId, setFactorId] = useState('');
@@ -98,7 +96,7 @@ export function PhoneVerificationPage({
       });
 
       setChallengeId(challengeResponse.id);
-      setSuccess(t('verificationCodeSent'));
+      setSuccess('验证码已发送至您的手机');
     } catch (err) {
       console.error('❌ Failed to create challenge for existing factor:', err);
     }
@@ -114,7 +112,7 @@ export function PhoneVerificationPage({
       setPhoneNumber('');
       setChallengeId('');
       setHasExistingFactor(false);
-      setSuccess(t('phoneNumberRemoved'));
+      setSuccess('手机号码已删除。您现在可以添加新号码。');
     } catch (err) {
       console.error('❌ Failed to unenroll factor:', err);
     }
@@ -140,7 +138,7 @@ export function PhoneVerificationPage({
       setChallengeId(challengeResponse.id);
       setStep('otp');
       setHasExistingFactor(false);
-      setSuccess(t('verificationCodeSent'));
+      setSuccess('验证码已发送至您的手机');
     } catch (err) {
       console.error('❌ Phone submission failed:', err);
 
@@ -171,7 +169,7 @@ export function PhoneVerificationPage({
         timestamp: new Date().toISOString(),
       });
 
-      setSuccess(t('phoneNumberVerified'));
+      setSuccess('手机号码验证成功！');
 
       // Wait a bit for cache invalidation, then redirect
       setTimeout(() => {
@@ -194,7 +192,7 @@ export function PhoneVerificationPage({
       });
 
       setChallengeId(challengeResponse.id);
-      setSuccess(t('newVerificationCodeSent'));
+      setSuccess('新验证码已发送');
     } catch (err) {
       console.error('❌ Resend failed:', err);
     }
@@ -267,7 +265,7 @@ export function PhoneVerificationPage({
             <LogOut className="h-4 w-4" />
           )}
           <span className="hidden sm:inline">
-            {signOutMutation.isPending ? t('signingOut') : t('signOut')}
+            {signOutMutation.isPending ? '退出中...' : '退出登录'}
           </span>
         </Button>
       </div>
@@ -281,10 +279,10 @@ export function PhoneVerificationPage({
               </div>
             </div>
             <h1 className="text-2xl font-semibold tracking-tight">
-              {step === 'phone' ? t('title') : t('titleOtp')}
+              {step === 'phone' ? '验证您的手机号码' : '输入验证码'}
             </h1>
             <p className="text-muted-foreground text-sm">
-              {step === 'phone' ? t('description') : t('descriptionOtp')}
+              {step === 'phone' ? '通过双因素认证保护您的账户' : '我们已向您的手机号码发送验证码'}
             </p>
           </div>
 

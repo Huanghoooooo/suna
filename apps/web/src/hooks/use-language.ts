@@ -2,6 +2,7 @@
 
 import { locales, defaultLocale, type Locale } from '@/i18n/config';
 import { useCallback, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { detectBestLocale } from '@/lib/utils/geo-detection';
 import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase/client';
@@ -51,6 +52,7 @@ const LOCALE_CHANGE_EVENT = 'locale-change';
 export function useLanguage() {
   // Use AuthProvider's user to avoid unnecessary getUser calls
   const { user } = useAuth();
+  const router = useRouter();
   const [locale, setLocale] = useState<Locale>(defaultLocale);
   const [isChanging, setIsChanging] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -124,12 +126,16 @@ export function useLanguage() {
     // Dispatch custom event to notify I18nProvider and other components
     const event = new CustomEvent(LOCALE_CHANGE_EVENT, { detail: newLocale });
     window.dispatchEvent(event);
-    
+
+    // Trigger SSR re-render so next-intl server config picks up the new cookie
+    // Without this, server components keep rendering the old (English) messages
+    router.refresh();
+
     // Reset changing state after a brief delay
     setTimeout(() => {
       setIsChanging(false);
     }, 100);
-  }, [locale, user]);
+  }, [locale, user, router]);
 
   return {
     locale,

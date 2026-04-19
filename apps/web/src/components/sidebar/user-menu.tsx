@@ -36,7 +36,6 @@ import { transitionFromElement } from '@/lib/view-transition';
 import { clearUserLocalStorage } from '@/lib/utils/clear-local-storage';
 import { UserSettingsModal } from '@/components/settings/user-settings-modal';
 
-import { useTranslations } from 'next-intl';
 import { useReferralDialog } from '@/stores/referral-dialog';
 import { ReferralDialog } from '@/components/referrals/referral-dialog';
 import { ServerSelector } from '@/components/sidebar/server-selector';
@@ -68,7 +67,6 @@ type SettingsTab = SettingsTabId;
 // ============================================================================
 
 export function UserMenu({ user }: UserMenuProps) {
-  const t = useTranslations('sidebar');
   const router = useRouter();
   const { isMobile } = useSidebar();
   const billingActive = isBillingEnabled();
@@ -176,11 +174,11 @@ export function UserMenu({ user }: UserMenuProps) {
               <DropdownMenuGroup>
                 <DropdownMenuItem onClick={() => openSettings('billing')} className="gap-2 p-2 cursor-pointer">
                   <CreditCard className="size-4" />
-                  <span>{t('billing')}</span>
+                  <span>{'账单'}</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => openSettings('general')} className="gap-2 p-2 cursor-pointer">
                   <SettingsIcon className="size-4" />
-                  <span>{t('settings')}</span>
+                  <span>{'设置'}</span>
                 </DropdownMenuItem>
               </DropdownMenuGroup>
 
@@ -223,7 +221,7 @@ export function UserMenu({ user }: UserMenuProps) {
                   onClick={handleLogout}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer px-2 py-1"
                 >
-                  {t('logout')}
+                  {'退出登录'}
                 </button>
               </div>
             </DropdownMenuContent>

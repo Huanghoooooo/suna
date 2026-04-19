@@ -8,8 +8,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useTranslations } from 'next-intl';
-
 interface ReferralCodeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -18,8 +16,6 @@ interface ReferralCodeDialogProps {
 }
 
 export function ReferralCodeDialog({ open, onOpenChange, referralCode = '', onCodeChange }: ReferralCodeDialogProps) {
-  const t = useTranslations('settings.referrals');
-  const tCommon = useTranslations('common');
   const [code, setCode] = React.useState(referralCode);
 
   React.useEffect(() => {
@@ -40,10 +36,10 @@ export function ReferralCodeDialog({ open, onOpenChange, referralCode = '', onCo
           {/* Header */}
           <div className="mb-4">
             <DialogTitle className="text-sm font-medium text-foreground/85 tracking-tight">
-              {t('yourReferralCode')}
+              {'您的推荐码'}
             </DialogTitle>
             <p className="text-xs text-foreground/40 mt-0.5">
-              {t('enterCodeDescription')}
+              {'输入推荐码以赚取积分'}
             </p>
           </div>
 
@@ -51,7 +47,7 @@ export function ReferralCodeDialog({ open, onOpenChange, referralCode = '', onCo
           <Input type="text"
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
-            placeholder={t('enterCode')}
+            placeholder={'输入代码'}
             maxLength={8}
             className="font-mono text-center text-[15px] font-medium tracking-widest h-10 bg-foreground/[0.04] border-foreground/[0.07] rounded-xl shadow-none mb-4"
             autoFocus
@@ -66,7 +62,7 @@ export function ReferralCodeDialog({ open, onOpenChange, referralCode = '', onCo
               className="flex-1 text-[13px] text-foreground/40 hover:text-foreground/70 "
               onClick={() => onOpenChange(false)}
             >
-              {tCommon('cancel')}
+              {'取消'}
             </Button>
             <Button
               variant="default"
@@ -74,7 +70,7 @@ export function ReferralCodeDialog({ open, onOpenChange, referralCode = '', onCo
               className="flex-1 text-[13px] shadow-none"
               onClick={handleSave}
             >
-              {tCommon('save')}
+              {'保存'}
             </Button>
           </div>
         </div>

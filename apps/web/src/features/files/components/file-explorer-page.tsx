@@ -446,7 +446,7 @@ export function FileExplorerPage() {
           const normalizedSourceDir = sourceDir === '' ? '.' : sourceDir;
           const normalizedDestDir = destDir === '' ? '.' : destDir;
           if (normalizedSourceDir === normalizedDestDir) {
-            toast.error('Item is already in this directory');
+            toast.error('该项已在此目录中');
             return;
           }
         }
@@ -543,7 +543,7 @@ export function FileExplorerPage() {
       <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center bg-background">
         <ServerOff className="h-12 w-12 text-muted-foreground/30" />
         <div>
-          <h3 className="text-base font-medium text-foreground">Server not reachable</h3>
+          <h3 className="text-base font-medium text-foreground">服务器不可达</h3>
           <p className="text-sm text-muted-foreground mt-1.5">
             Could not connect to{' '}
             <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{serverUrl}</code>
@@ -601,7 +601,7 @@ export function FileExplorerPage() {
                 }}
                 onBlur={handleCreateFolder}
                 className="flex-1 text-sm bg-transparent border border-border rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-primary"
-                placeholder="Folder name"
+                placeholder="文件夹名称"
               />
             </div>
           )}
@@ -619,7 +619,7 @@ export function FileExplorerPage() {
                 }}
                 onBlur={handleCreateFile}
                 className="flex-1 text-sm bg-transparent border border-border rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-primary"
-                placeholder="File name"
+                placeholder="文件名"
               />
             </div>
           )}
@@ -663,7 +663,7 @@ export function FileExplorerPage() {
         {/* Error */}
         {error && !isLoading && (
           <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
-            <p className="text-sm text-muted-foreground">Failed to load files</p>
+            <p className="text-sm text-muted-foreground">加载文件失败</p>
             <p className="text-xs text-muted-foreground max-w-sm">
               {error instanceof Error ? error.message : 'Unknown error'}
             </p>
@@ -742,7 +742,7 @@ export function FileExplorerPage() {
               <Upload className="h-8 w-8 text-primary" />
             </div>
             <div>
-              <p className="text-base font-medium text-foreground">Drop files to upload</p>
+              <p className="text-base font-medium text-foreground">拖放文件以上传</p>
               <p className="text-sm text-muted-foreground mt-1">
                 Files will be uploaded to the current directory
               </p>
@@ -775,7 +775,7 @@ export function FileExplorerPage() {
               onClick={clearClipboard}
               className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
-              Cancel
+              取消
             </button>
           </div>
         </div>
@@ -811,7 +811,7 @@ export function FileExplorerPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>取消</AlertDialogCancel>
             <AlertDialogAction
               ref={deleteButtonRef}
               onClick={(e) => { e.preventDefault(); confirmDelete(); }}

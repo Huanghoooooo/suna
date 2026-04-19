@@ -247,18 +247,18 @@ function ListRow({
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
         <ContextMenuItem onClick={onClick}>
-          {isDir ? 'Open folder' : 'Preview'}
+          {isDir ? '打开文件夹' : 'Preview'}
         </ContextMenuItem>
         {!isDir && onOpenInTab && (
           <ContextMenuItem onClick={() => onOpenInTab(node)}>
             <ExternalLink className="mr-2 h-4 w-4" />
-            Open in tab
+            在标签页中打开
           </ContextMenuItem>
         )}
         {onDownload && (
           <ContextMenuItem onClick={() => onDownload(node)} disabled={isDownloadingItem}>
             {isDownloadingItem ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            {isDownloadingItem ? 'Zipping...' : isDir ? 'Download as zip' : 'Download'}
+            {isDownloadingItem ? 'Zipping...' : isDir ? 'Download as zip' : '下载'}
           </ContextMenuItem>
         )}
         {!isDir && onHistory && (
@@ -271,7 +271,7 @@ function ListRow({
         {onCopy && (
           <ContextMenuItem onClick={() => onCopy(node)}>
             <ClipboardCopy className="mr-2 h-4 w-4" />
-            Copy
+            复制
           </ContextMenuItem>
         )}
         {onCut && (
@@ -379,7 +379,7 @@ export function DriveListView({
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <FolderOpen className="h-16 w-16 text-muted-foreground/20 mb-4" />
-        <p className="text-sm text-muted-foreground">This folder is empty</p>
+        <p className="text-sm text-muted-foreground">此文件夹为空</p>
         <p className="text-xs text-muted-foreground/60 mt-1">
           Drop files here or use the New button to get started
         </p>
@@ -397,7 +397,7 @@ export function DriveListView({
           size="xs"
           className="text-muted-foreground uppercase tracking-wider justify-start"
         >
-          Name
+          名称
           <SortIcon field="name" />
         </Button>
         <Button
@@ -406,7 +406,7 @@ export function DriveListView({
           size="xs"
           className="text-muted-foreground uppercase tracking-wider"
         >
-          Type
+          类型
           <SortIcon field="type" />
         </Button>
         <Button
@@ -443,7 +443,7 @@ export function DriveListView({
               </span>
             )}
           </div>
-          <span className="text-[11px] text-primary/50 font-medium">System</span>
+          <span className="text-[11px] text-primary/50 font-medium">系统</span>
           <span className="text-[11px] text-muted-foreground/40">—</span>
           <span />
         </div>

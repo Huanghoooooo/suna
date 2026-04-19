@@ -24,9 +24,9 @@ export default function ProvidersPage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg sm:text-xl font-semibold">LLM Providers</h1>
+            <h1 className="text-lg sm:text-xl font-semibold">模型提供商</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Connect model providers that power your agent.
+              接入为你的 Agent 提供能力的模型提供商。
             </p>
           </div>
           <Button
@@ -35,7 +35,7 @@ export default function ProvidersPage() {
             onClick={() => openProviderModal('providers')}
           >
             <Plus className="h-4 w-4" />
-            Add Provider
+            添加提供商
           </Button>
         </div>
 
@@ -51,14 +51,14 @@ export default function ProvidersPage() {
           />
         ) : (
           <div className="rounded-2xl border border-dashed border-border/60 py-16 flex flex-col items-center gap-4">
-            <p className="text-sm text-muted-foreground/60">No providers connected yet</p>
+            <p className="text-sm text-muted-foreground/60">还未连接任何提供商</p>
             <Button
               variant="outline"
               size="sm"
               onClick={() => openProviderModal('providers')}
             >
               <Plus className="h-4 w-4" />
-              Connect your first provider
+              接入第一个提供商
             </Button>
           </div>
         )}

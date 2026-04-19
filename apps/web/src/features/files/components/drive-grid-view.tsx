@@ -207,7 +207,7 @@ function FolderCard({
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
-        <ContextMenuItem onClick={onClick}>Open folder</ContextMenuItem>
+        <ContextMenuItem onClick={onClick}>打开文件夹</ContextMenuItem>
         {onDownload && (
           <ContextMenuItem onClick={() => onDownload(node)} disabled={isDownloadingItem}>
             <Download className="mr-2 h-4 w-4" />
@@ -218,7 +218,7 @@ function FolderCard({
         {onCopy && (
           <ContextMenuItem onClick={() => onCopy(node)}>
             <ClipboardCopy className="mr-2 h-4 w-4" />
-            Copy
+            复制
           </ContextMenuItem>
         )}
         {onCut && (
@@ -389,13 +389,13 @@ function FileCard({
         {onOpenInTab && (
           <ContextMenuItem onClick={() => onOpenInTab(node)}>
             <ExternalLink className="mr-2 h-4 w-4" />
-            Open in tab
+            在标签页中打开
           </ContextMenuItem>
         )}
         {onDownload && (
           <ContextMenuItem onClick={() => onDownload(node)}>
             <Download className="mr-2 h-4 w-4" />
-            Download
+            下载
           </ContextMenuItem>
         )}
         {onHistory && (
@@ -408,7 +408,7 @@ function FileCard({
         {onCopy && (
           <ContextMenuItem onClick={() => onCopy(node)}>
             <ClipboardCopy className="mr-2 h-4 w-4" />
-            Copy
+            复制
           </ContextMenuItem>
         )}
         {onCut && (
@@ -497,7 +497,7 @@ export function DriveGridView({
         <div>
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3 px-1 flex items-center gap-1.5">
             <Sparkles className="h-3 w-3 text-primary/60" />
-            System
+            系统
           </h3>
           <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
             {elevatedDirs.map((node) => {
@@ -592,7 +592,7 @@ export function DriveGridView({
       {dirs.length === 0 && files.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <FolderOpen className="h-16 w-16 text-muted-foreground/20 mb-4" />
-          <p className="text-sm text-muted-foreground">This folder is empty</p>
+          <p className="text-sm text-muted-foreground">此文件夹为空</p>
           <p className="text-xs text-muted-foreground/60 mt-1">
             Drop files here or use the New button to get started
           </p>

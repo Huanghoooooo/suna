@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { referralsApi, ReferralCodeResponse, ReferralStats, ReferralListResponse, ValidateReferralCodeResponse, ReferralEmailResponse } from '@/lib/api/referrals';
 import { toast } from '@/lib/toast';
-import { useTranslations } from 'next-intl';
-
 export const REFERRALS_QUERY_KEYS = {
   code: ['referrals', 'code'] as const,
   stats: ['referrals', 'stats'] as const,
@@ -21,17 +19,15 @@ export function useReferralCode(options?: { enabled?: boolean }) {
 
 export function useRefreshReferralCode() {
   const queryClient = useQueryClient();
-  const t = useTranslations('settings.referrals');
-  
   return useMutation({
     mutationFn: () => referralsApi.refreshReferralCode(),
     onSuccess: (data) => {
       queryClient.setQueryData(REFERRALS_QUERY_KEYS.code, data);
       queryClient.invalidateQueries({ queryKey: REFERRALS_QUERY_KEYS.stats });
-      toast.success(t('codeRefreshed'));
+      toast.success('推荐码刷新成功');
     },
     onError: () => {
-      toast.error(t('refreshFailed'));
+      toast.error('刷新推荐码失败');
     },
   });
 }
@@ -90,8 +86,6 @@ export function useCopyReferralLink() {
 }
 
 export function useSendReferralEmails() {
-  const t = useTranslations('settings.referrals');
-  
   return useMutation({
     mutationFn: (emails: string[]) => referralsApi.sendReferralEmails(emails),
     onSuccess: (data) => {
@@ -102,7 +96,7 @@ export function useSendReferralEmails() {
           toast.warning(`Sent ${data.success_count} out of ${data.total_count} invitations`);
         }
       } else {
-        toast.success(t('emailSent'));
+        toast.success('推荐邀请发送成功');
       }
     },
     onError: (error: any) => {

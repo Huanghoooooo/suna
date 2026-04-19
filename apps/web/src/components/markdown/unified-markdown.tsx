@@ -20,8 +20,6 @@ import { wrapChildrenWithPaths } from '@/components/common/clickable-path';
 import { looksLikeFilePath as sharedLooksLikeFilePath } from '@/lib/utils/path-detection';
 import { stripKortixSystemTags } from '@/lib/utils/kortix-system-tags';
 import { toast } from '@/lib/toast';
-import { useTranslations } from 'next-intl';
-
 // ---------------------------------------------------------------------------
 // LaTeX / KaTeX support: custom remark + rehype plugin overrides
 // ---------------------------------------------------------------------------
@@ -138,8 +136,6 @@ function handleHashClick(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
 // Copy button component for code blocks
 function CopyButton({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
-  const t = useTranslations('common');
-
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(code);
@@ -162,7 +158,7 @@ function CopyButton({ code }: { code: string }) {
         "shadow-sm hover:shadow",
         "outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
       )}
-      aria-label={copied ? t('copied') : t('copyCode')}
+      aria-label={copied ? '已复制！' : '复制代码'}
     >
       {copied ? (
         <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-green-400" />

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,7 +43,6 @@ export function OtpVerification({
   showExistingOptions = false,
   challengeId,
 }: OtpVerificationProps) {
-  const t = useTranslations('auth.phoneVerification');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [localError, setLocalError] = useState<string | null>(null);
   const [canResend, setCanResend] = useState(false);
@@ -121,7 +119,7 @@ export function OtpVerification({
     const otpCode = otp.join('');
 
     if (otpCode.length !== 6) {
-      setLocalError(t('pleaseEnterSixDigitCode'));
+      setLocalError('请输入6位数字验证码');
       return;
     }
 
@@ -172,7 +170,7 @@ export function OtpVerification({
         {phoneNumber && (
           <div className="mb-6 text-center">
             <p className="text-sm text-muted-foreground">
-              {t('codeSentTo')}
+              {'验证码已发送至'}
             </p>
             <p className="text-sm font-medium mt-1">{phoneNumber}</p>
           </div>
@@ -181,7 +179,7 @@ export function OtpVerification({
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-4">
             <Label htmlFor="otp" className="text-sm font-medium text-center block">
-              {t('enterSixDigitCode')}
+              {'输入6位数字验证码'}
             </Label>
             <div className="flex gap-2 justify-center">
               {otp.map((digit, index) => (
@@ -214,12 +212,12 @@ export function OtpVerification({
                 {isLoading ? (
                   <>
                     <KortixLoader size="small" />
-                    {t('verifying')}
+                    {'验证中...'}
                   </>
                 ) : (
                   <>
                     <Shield className="h-4 w-4" />
-                    {t('verifyCode')}
+                    {'验证'}
                   </>
                 )}
               </Button>
@@ -233,7 +231,7 @@ export function OtpVerification({
                   className="text-sm text-muted-foreground hover:text-foreground"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
-                  {canResend ? t('resendCode') : t('resendInSeconds', { seconds: countdown })}
+                  {canResend ? '重新发送验证码' : `${countdown}秒后重新发送`}
                 </Button>
               </div>
             </>
@@ -249,12 +247,12 @@ export function OtpVerification({
                   {isLoading ? (
                     <>
                       <KortixLoader size="small" />
-                      {t('sending')}
+                      {'发送中...'}
                     </>
                   ) : (
                     <>
                       <MessageSquare className="h-4 w-4" />
-                      {t('sendVerificationCode')}
+                      {'发送验证码'}
                     </>
                   )}
                 </Button>
@@ -269,7 +267,7 @@ export function OtpVerification({
                   className="w-full h-10 text-sm"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                  {t('removePhoneNumber')}
+                  {'删除手机号码'}
                 </Button>
               )}
             </div>

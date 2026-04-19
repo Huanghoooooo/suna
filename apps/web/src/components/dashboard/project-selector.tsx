@@ -29,8 +29,6 @@ import {
   type KortixProject,
 } from '@/hooks/kortix/use-kortix-projects';
 import { openTabAndNavigate } from '@/stores/tab-store';
-import { useTranslations } from 'next-intl';
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function projectRecency(p: KortixProject): number {
@@ -80,7 +78,6 @@ export function ProjectSelector({
   selectedProjectId,
   onSelect,
 }: ProjectSelectorProps) {
-  const t = useTranslations('dashboard.projectSelector');
   const { data: projects, isLoading } = useKortixProjects();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -111,7 +108,7 @@ export function ProjectSelector({
     [sorted, selectedProjectId],
   );
 
-  const displayName = selected?.name ?? t('defaultProject');
+  const displayName = selected?.name ?? '默认项目';
   const hasProjects = sorted.length > 0;
 
   const handleOpenProject = (project: KortixProject) => {
@@ -155,7 +152,7 @@ export function ProjectSelector({
             </CommandPopoverTrigger>
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">
-            <p>{t('chooseProject')}</p>
+            <p>{'为此会话选择项目'}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -167,7 +164,7 @@ export function ProjectSelector({
         >
           <CommandInput
             compact
-            placeholder={t('searchProjects')}
+            placeholder={'搜索项目...'}
             value={search}
             onValueChange={setSearch}
           />
@@ -184,9 +181,9 @@ export function ProjectSelector({
                   }}
                 >
                   <div className="flex-1 min-w-0">
-                    <span className="font-medium truncate">{t('defaultProject')}</span>
+                    <span className="font-medium truncate">{'默认项目'}</span>
                     <p className="text-[11px] text-muted-foreground/50 leading-snug mt-0.5 line-clamp-1">
-                      {t('defaultProjectDescription')}
+                      {'使用当前工作目录'}
                     </p>
                   </div>
                   {!selectedProjectId && (
@@ -197,7 +194,7 @@ export function ProjectSelector({
             )}
 
             {filtered.length > 0 && (
-              <CommandGroup heading={t('recentProjects')} forceMount>
+              <CommandGroup heading={'最近项目'} forceMount>
                 {filtered.map((project) => {
                   const isSelected = selectedProjectId === project.id;
                   const recency = projectRecency(project);
@@ -225,7 +222,7 @@ export function ProjectSelector({
                       <span
                         role="button"
                         tabIndex={-1}
-                        aria-label={t('openProject', { name: project.name })}
+                        aria-label={`打开 ${project.name} 页面`}
                         onMouseDown={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -243,7 +240,7 @@ export function ProjectSelector({
                           'transition-opacity duration-150',
                         )}
                       >
-                        {t('open')}
+                        {'打开 ↗'}
                       </span>
                       {isSelected && (
                         <Check className="size-3.5 text-foreground shrink-0" />
@@ -257,12 +254,12 @@ export function ProjectSelector({
             {/* Empty states */}
             {filtered.length === 0 && search.trim() && (
               <div className="py-8 text-center text-xs text-muted-foreground/50">
-                {t('noProjectsMatch', { query: search.trim() })}
+                {`没有匹配 "${search.trim()}" 的项目`}
               </div>
             )}
             {!hasProjects && !search.trim() && !isLoading && (
               <div className="py-6 text-center text-xs text-muted-foreground/50">
-                {t('noProjectsYet')}
+                {'暂无项目'}
               </div>
             )}
           </CommandList>
@@ -271,11 +268,11 @@ export function ProjectSelector({
             <div className="flex items-center gap-1">
               <ArrowUp className="h-3 w-3" />
               <ArrowDown className="h-3 w-3" />
-              <span>{t('navigate')}</span>
+              <span>{'导航'}</span>
             </div>
             <div className="flex items-center gap-1">
               <CornerDownLeft className="h-3 w-3" />
-              <span>{t('select')}</span>
+              <span>{'选择'}</span>
             </div>
           </CommandFooter>
         </CommandPopoverContent>

@@ -9,7 +9,6 @@ import { useIsMobile } from '@/hooks/utils';
 import { cn } from '@/lib/utils';
 import { ToolView } from '../tool-views/wrapper';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTranslations } from 'next-intl';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { useDocumentModalStore } from '@/stores/use-document-modal-store';
 import { 
@@ -99,7 +98,6 @@ export const KortixComputer = memo(function KortixComputer({
   hideTopBar = false,
   headerSlot,
 }: KortixComputerProps) {
-  const t = useTranslations('thread');
   const [dots, setDots] = useState('');
   const [internalIndex, setInternalIndex] = useState(0);
   const [navigationMode, setNavigationMode] = useState<NavigationMode>('live');
@@ -533,7 +531,7 @@ export const KortixComputer = memo(function KortixComputer({
   const renderToolsView = () => {
     // If no tool calls at all, show empty state
     if (toolCallSnapshots.length === 0) {
-      return <EmptyState t={t} />;
+      return <EmptyState />;
     }
 
     // Find the tool to display - prefer displayToolCall, fallback to latest streaming tool
@@ -561,7 +559,7 @@ export const KortixComputer = memo(function KortixComputer({
 
     // Still no tool to show - shouldn't happen but fallback to empty state
     if (!toolToShow || !toolToShow.toolCall) {
-      return <EmptyState t={t} />;
+      return <EmptyState />;
     }
 
     const toolSuccess = toolIsStreaming ? true : (toolToShow.toolResult?.success ?? toolToShow.isSuccess ?? true);

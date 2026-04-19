@@ -298,7 +298,7 @@ export function FileTreeItem({ node, onClick, onDownload, onRename, onDelete, on
       <ContextMenuContent className="w-48">
         <ContextMenuItem onClick={onClick}>
           <ChevronRight className="mr-2 h-4 w-4" />
-          {node.type === 'directory' ? 'Open folder' : 'Open file'}
+          {node.type === 'directory' ? '打开文件夹' : 'Open file'}
         </ContextMenuItem>
 
         {onDownload && (
@@ -312,7 +312,7 @@ export function FileTreeItem({ node, onClick, onDownload, onRename, onDelete, on
               ? 'Zipping…'
               : node.type === 'directory'
               ? 'Download as zip'
-              : 'Download'}
+              : '下载'}
           </ContextMenuItem>
         )}
 
@@ -330,7 +330,7 @@ export function FileTreeItem({ node, onClick, onDownload, onRename, onDelete, on
             onClick={() => onCopy(node)}
           >
             <ClipboardCopy className="mr-2 h-4 w-4" />
-            Copy
+            复制
           </ContextMenuItem>
         )}
 

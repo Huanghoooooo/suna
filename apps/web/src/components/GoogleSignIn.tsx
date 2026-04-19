@@ -5,8 +5,6 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from '@/lib/toast';
 import { KortixLoader } from '@/components/ui/kortix-loader';
 import { Button } from '@/components/ui/button';
-import { useTranslations } from 'next-intl';
-
 function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
@@ -38,8 +36,6 @@ interface GoogleSignInProps {
 export default function GoogleSignIn({ returnUrl, referralCode }: GoogleSignInProps) {
   const [isLoading, setIsLoading] = useState(false);
   const supabase = createClient();
-  const t = useTranslations('auth');
-
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true);
@@ -81,7 +77,7 @@ export default function GoogleSignIn({ returnUrl, referralCode }: GoogleSignInPr
         <GoogleIcon className="w-4 h-4" />
       )}
       <span>
-        {isLoading ? t('signingIn') : t('continueWithGoogle')}
+        {isLoading ? '登录中...' : '使用 Google 继续'}
       </span>
     </Button>
   );

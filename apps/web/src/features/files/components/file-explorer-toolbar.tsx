@@ -86,7 +86,7 @@ export function FileExplorerToolbar() {
           size="icon"
           className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
           onClick={toggleSearch}
-          title="Search files"
+          title="搜索文件"
         >
           <Search className="h-4 w-4" />
         </Button>
@@ -95,7 +95,7 @@ export function FileExplorerToolbar() {
           size="icon"
           className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
           onClick={() => invalidateFileList()}
-          title="Refresh"
+          title="刷新"
         >
           <RefreshCw className="h-4 w-4" />
         </Button>

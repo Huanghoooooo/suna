@@ -485,7 +485,7 @@ export function FileBrowser() {
           const normalizedSourceDir = sourceDir === '' ? '.' : sourceDir;
           const normalizedDestDir = destDir === '' ? '.' : destDir;
           if (normalizedSourceDir === normalizedDestDir) {
-            toast.error('Item is already in this directory');
+            toast.error('该项已在此目录中');
             return;
           }
         }
@@ -552,7 +552,7 @@ export function FileBrowser() {
       <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
         <ServerOff className="h-12 w-12 text-muted-foreground" />
         <div>
-          <h3 className="text-lg font-medium">Server not reachable</h3>
+          <h3 className="text-lg font-medium">服务器不可达</h3>
           <p className="text-sm text-muted-foreground mt-1">
             Could not connect to the OpenCode server at{' '}
             <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
@@ -584,7 +584,7 @@ export function FileBrowser() {
             className="h-7 w-7"
             onClick={handleUpload}
             disabled={uploadMutation.isPending}
-            title="Upload file"
+            title="上传文件"
           >
             <Upload className="h-3.5 w-3.5" />
           </Button>
@@ -597,7 +597,7 @@ export function FileBrowser() {
               setNewFileName('untitled.txt');
             }}
             disabled={createMutation.isPending}
-            title="New file"
+            title="新建文件"
           >
             <FilePlus className="h-3.5 w-3.5" />
           </Button>
@@ -610,7 +610,7 @@ export function FileBrowser() {
               setNewFolderName('New Folder');
             }}
             disabled={mkdirMutation.isPending}
-            title="New folder"
+            title="新建文件夹"
           >
             <FolderPlus className="h-3.5 w-3.5" />
           </Button>
@@ -631,7 +631,7 @@ export function FileBrowser() {
             size="icon"
             className="h-7 w-7"
             onClick={toggleSearch}
-            title="Search files (Ctrl+P)"
+            title="搜索文件 (Ctrl+P)"
           >
             <Search className="h-3.5 w-3.5" />
           </Button>
@@ -640,7 +640,7 @@ export function FileBrowser() {
             size="icon"
             className="h-7 w-7"
             onClick={() => refetch()}
-            title="Refresh"
+            title="刷新"
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
@@ -654,7 +654,7 @@ export function FileBrowser() {
               downloadDir(dirPath, dirName);
             }}
             disabled={isDirDownloading(isRootPath ? '/workspace' : currentPath)}
-            title="Download current directory as zip"
+            title="下载当前目录为 zip"
           >
             {isDirDownloading(isRootPath ? '/workspace' : currentPath) ? (
               <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -691,7 +691,7 @@ export function FileBrowser() {
         {error && !isLoading && (
           <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
             <p className="text-sm text-muted-foreground">
-              Failed to load files
+              加载文件失败
             </p>
             <p className="text-xs text-muted-foreground max-w-sm">
               {error instanceof Error ? error.message : 'Unknown error'}
@@ -889,7 +889,7 @@ export function FileBrowser() {
                     <Clipboard className="mr-2 h-4 w-4" />
                     Paste{' '}
                     <span className="ml-auto text-xs text-muted-foreground">
-                      {clipboard.operation === 'cut' ? 'Move' : 'Copy'}
+                      {clipboard.operation === 'cut' ? 'Move' : '复制'}
                     </span>
                   </ContextMenuItem>
                 </>
@@ -897,7 +897,7 @@ export function FileBrowser() {
               <ContextMenuSeparator />
               <ContextMenuItem onClick={() => refetch()}>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Refresh
+                刷新
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
@@ -915,7 +915,7 @@ export function FileBrowser() {
             onClick={clearClipboard}
             className="text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer"
           >
-            Cancel
+            取消
           </button>
         </div>
       )}
@@ -943,7 +943,7 @@ export function FileBrowser() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteMutation.isPending}>
-              Cancel
+              取消
             </AlertDialogCancel>
             <AlertDialogAction
               ref={deleteButtonRef}

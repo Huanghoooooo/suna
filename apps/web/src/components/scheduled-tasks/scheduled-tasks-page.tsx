@@ -27,11 +27,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { TaskConfigDialog } from './task-config-dialog';
 import { TaskDetailPanel } from './task-detail-panel';
 import { toast } from 'sonner';
-import { useTranslations } from 'next-intl';
-
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-type TFunc = ReturnType<typeof useTranslations<'triggers'>>;
 
 function describeCron(expr: string): string {
   try {
@@ -87,24 +83,24 @@ function describeCron(expr: string): string {
   }
 }
 
-function formatRelativeTime(dateStr: string | null, t: TFunc): string {
-  if (!dateStr) return t('never');
+function formatRelativeTime(dateStr: string | null): string {
+  if (!dateStr) return '从未';
   const date = new Date(dateStr);
   const now = new Date();
   const diffMs = date.getTime() - now.getTime();
   const absDiff = Math.abs(diffMs);
 
-  if (absDiff < 60_000) return diffMs > 0 ? t('inLessThan1m') : t('lessThan1mAgo');
+  if (absDiff < 60_000) return diffMs > 0 ? '不到1分钟后' : '不到1分钟前';
   if (absDiff < 3_600_000) {
     const mins = Math.round(absDiff / 60_000);
-    return diffMs > 0 ? t('inMinutes', { n: mins }) : t('minutesAgo', { n: mins });
+    return diffMs > 0 ? `${mins}分钟后` : `${mins}分钟前`;
   }
   if (absDiff < 86_400_000) {
     const hrs = Math.round(absDiff / 3_600_000);
-    return diffMs > 0 ? t('inHours', { n: hrs }) : t('hoursAgo', { n: hrs });
+    return diffMs > 0 ? `${hrs}小时后` : `${hrs}小时前`;
   }
   const days = Math.round(absDiff / 86_400_000);
-  return diffMs > 0 ? t('inDays', { n: days }) : t('daysAgo', { n: days });
+  return diffMs > 0 ? `${days}天后` : `${days}天前`;
 }
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
@@ -115,14 +111,12 @@ const TaskListItem = ({
   isSelected,
   onDelete,
   isDeleting,
-  t,
 }: {
   trigger: Trigger;
   onClick: () => void;
   isSelected: boolean;
   onDelete: (e: React.MouseEvent) => void;
   isDeleting: boolean;
-  t: TFunc;
 }) => {
   const actionType = trigger.action_type ?? 'prompt';
   const actionIcon = actionType === 'command' ? <Terminal className="h-3 w-3" /> : actionType === 'http' ? <Globe className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />;
@@ -143,7 +137,7 @@ const TaskListItem = ({
             <div className="flex items-center gap-2 mb-0.5">
               <h3 className="font-medium text-foreground truncate">{trigger.name}</h3>
               <Badge variant={trigger.isActive ? "highlight" : "secondary"} className="text-xs">
-                {trigger.isActive ? t('enable') : t('paused')}
+                {trigger.isActive ? '启用' : '已暂停'}
               </Badge>
               <Badge variant="outline" className="text-xs flex items-center gap-1">
                 {actionIcon}
@@ -161,12 +155,12 @@ const TaskListItem = ({
           <div className="flex-col items-end gap-1 hidden sm:flex">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                <span>{trigger.type === 'cron' ? t('next', { time: trigger.isActive ? formatRelativeTime(trigger.nextRunAt, t) : '--' }) : t('onDemand')}</span>
+                <span>{trigger.type === 'cron' ? `下次：${trigger.isActive ? formatRelativeTime(trigger.nextRunAt) : '--'}` : '按需触发'}</span>
               </div>
             {trigger.lastRunAt && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                <span>{t('last', { time: formatRelativeTime(trigger.lastRunAt, t) })}</span>
+                <span>{`上次：${formatRelativeTime(trigger.lastRunAt)}`}</span>
               </div>
             )}
           </div>
@@ -180,7 +174,7 @@ const TaskListItem = ({
               "text-muted-foreground hover:text-red-500 hover:bg-red-500/10",
               isDeleting && "opacity-100 text-red-500"
             )}
-            title={t('deleteTriggerTitle')}
+            title={'删除触发器'}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -190,18 +184,18 @@ const TaskListItem = ({
   );
 };
 
-const EmptyState = ({ onCreateClick, t }: { onCreateClick: () => void; t: TFunc }) => (
+const EmptyState = ({ onCreateClick }: { onCreateClick: () => void }) => (
   <div className="bg-muted/20 rounded-3xl border flex flex-col items-center justify-center py-16 px-4">
     <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mb-4">
       <Calendar className="h-6 w-6 text-muted-foreground" />
     </div>
-    <h3 className="text-base font-semibold text-foreground mb-2">{t('createTrigger')}</h3>
+    <h3 className="text-base font-semibold text-foreground mb-2">{'创建触发器'}</h3>
     <p className="text-sm text-muted-foreground text-center max-w-sm mb-6">
-      {t('automateDescription')}
+      {'使用触发器自动化。安排定时任务、设置 Webhook、运行命令或调用 HTTP 端点——一切尽在一处。'}
     </p>
     <Button onClick={onCreateClick} size="sm">
       <Plus className="h-4 w-4 mr-2" />
-      {t('addTrigger')}
+      {'添加触发器'}
     </Button>
   </div>
 );
@@ -226,7 +220,6 @@ const LoadingSkeleton = () => (
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export function ScheduledTasksPage() {
-  const t = useTranslations('triggers');
   const { data: triggers = [], isLoading, error } = useTriggers();
   const [selectedTrigger, setSelectedTrigger] = useState<Trigger | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -279,15 +272,15 @@ export function ScheduledTasksPage() {
   const handleDelete = async (e: React.MouseEvent, trigger: Trigger) => {
     e.stopPropagation();
     if (!trigger.id) return;
-    if (!confirm(t('deleteTriggerConfirm', { name: trigger.name }))) return;
+    if (!confirm(`删除 "${trigger.name}"？此操作无法撤销。`)) return;
     try {
       await deleteMutation.mutateAsync(trigger.id);
-      toast.success(t('triggerDeleted'));
+      toast.success('触发器已删除');
       if (selectedTrigger?.id === trigger.id) {
         setSelectedTrigger(null);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('failedToDelete'));
+      toast.error(err instanceof Error ? err.message : '删除失败');
     }
   };
 
@@ -313,7 +306,7 @@ export function ScheduledTasksPage() {
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-               {t('failedToLoadTriggers')}
+               {'加载触发器失败，请刷新页面重试。'}
             </AlertDescription>
           </Alert>
         </div>
@@ -361,7 +354,7 @@ export function ScheduledTasksPage() {
                 <PageSearchBar
                   value={searchQuery}
                   onChange={setSearchQuery}
-                  placeholder={t('searchTriggers')}
+                  placeholder={'搜索触发器...'}
                   className="max-w-md"
                 />
                 <FilterBar className="hidden sm:inline-flex">
@@ -384,8 +377,8 @@ export function ScheduledTasksPage() {
                 onClick={() => setShowCreateDialog(true)}
               >
                 <Plus className="h-4 w-4" />
-                <span className="hidden xs:inline">{t('addTrigger')}</span>
-                <span className="xs:hidden">{t('addTrigger')}</span>
+                <span className="hidden xs:inline">{'添加触发器'}</span>
+                <span className="xs:hidden">{'添加触发器'}</span>
               </Button>
             </div>
           </div>
@@ -396,7 +389,7 @@ export function ScheduledTasksPage() {
               {isLoading ? (
                 <LoadingSkeleton />
               ) : filteredTriggers.length === 0 ? (
-                <EmptyState onCreateClick={() => setShowCreateDialog(true)} t={t} />
+                <EmptyState onCreateClick={() => setShowCreateDialog(true)} />
               ) : (
                 <div className="space-y-4">
                   {filteredTriggers.map((trigger) => (
@@ -407,7 +400,6 @@ export function ScheduledTasksPage() {
                       onClick={() => handleTriggerClick(trigger)}
                       onDelete={(e) => handleDelete(e, trigger)}
                       isDeleting={deleteMutation.isPending}
-                      t={t}
                     />
                   ))}
                 </div>

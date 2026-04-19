@@ -21,8 +21,6 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTunnelConnection, type TunnelConnection } from '@/hooks/tunnel/use-tunnel';
 import { TunnelPermissionManager } from './tunnel-permission-manager';
 import { TunnelAuditTable } from './tunnel-audit-table';
-import { useTranslations } from 'next-intl';
-
 interface TunnelSettingsDialogProps {
   tunnel: TunnelConnection | null;
   open: boolean;
@@ -174,7 +172,6 @@ export function TunnelSettingsDialog({ tunnel, open, onOpenChange }: TunnelSetti
 // ─── Connection Info Tab ────────────────────────────────────────────────────
 
 function ConnectionInfoTab({ connection }: { connection: TunnelConnection }) {
-  const t = useTranslations('common');
   const [copied, setCopied] = React.useState(false);
   const machineInfo = connection.machineInfo as Record<string, string> | undefined;
   const isOnline = connection.isLive;
@@ -242,7 +239,7 @@ function ConnectionInfoTab({ connection }: { connection: TunnelConnection }) {
               <button
                 onClick={handleCopy}
                 className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-border/60 bg-background hover:bg-muted transition-colors cursor-pointer"
-                aria-label={t('copyTunnelId')}
+                aria-label={'复制隧道 ID'}
                 type="button"
               >
                 {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}

@@ -38,7 +38,7 @@ export function FileViewer() {
                 href: `/files/${encodeURIComponent(selectedFilePath)}`,
               });
             }}
-            title="Open in new tab"
+            title="在新标签页中打开"
           >
             <ExternalLink className="h-4 w-4" />
           </Button>
@@ -47,7 +47,7 @@ export function FileViewer() {
             size="icon"
             className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
             onClick={() => openHistory(selectedFilePath)}
-            title="History"
+            title="历史"
           >
             <History className="h-4 w-4" />
           </Button>

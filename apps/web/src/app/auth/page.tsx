@@ -15,7 +15,6 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import { useAuth } from '@/components/AuthProvider';
 import { useAuthMethodTracking } from '@/stores/auth-tracking';
 import { toast } from '@/lib/toast';
-import { useTranslations } from 'next-intl';
 import { KortixLogo } from '@/components/sidebar/kortix-logo';
 import { ReferralCodeDialog } from '@/components/referrals/referral-code-dialog';
 import { isElectron, getAuthOrigin } from '@/lib/utils/is-electron';
@@ -161,8 +160,6 @@ function LoginContent() {
   const expiredEmail = searchParams.get('email') || '';
   const referralCodeParam = searchParams.get('ref') || '';
   const isPasswordMode = searchParams.get('auth') === 'password';
-  const t = useTranslations('auth');
-
   const [phase, setPhase] = useState<AuthPhase>('lock');
   const [referralCode, setReferralCode] = useState(referralCodeParam);
   const [showReferralDialog, setShowReferralDialog] = useState(false);
@@ -292,7 +289,7 @@ function LoginContent() {
         }
       }
       if ('message' in result) {
-        toast.error(t('signUpFailed'), { description: result.message as string, duration: 5000 });
+        toast.error('注册失败，请重试', { description: result.message as string, duration: 5000 });
         return {};
       }
     }
@@ -318,7 +315,7 @@ function LoginContent() {
 
   const handleVerifyOtp = async (prevState: unknown, formData: FormData) => {
     const email = expiredEmailState || registrationEmail || formData.get('email') as string;
-    if (!email) { toast.error(t('pleaseEnterValidEmail')); return {}; }
+    if (!email) { toast.error('请输入有效的邮箱地址'); return {}; }
     formData.set('email', email);
     formData.set('token', otpCode);
     formData.set('returnUrl', returnUrl || '/instances');
@@ -343,7 +340,7 @@ function LoginContent() {
     trackSendAuthLink();
     markEmailAsUsed();
     const email = expiredEmailState || formData.get('email') as string;
-    if (!email) { toast.error(t('pleaseEnterValidEmail')); return {}; }
+    if (!email) { toast.error('请输入有效的邮箱地址'); return {}; }
     try {
       const response = await sendOtpCodeForEmail(email);
       if (response && typeof response === 'object' && 'success' in response && response.success) {
@@ -380,7 +377,7 @@ function LoginContent() {
         <div className="relative z-10 flex flex-col items-center justify-center h-full px-4 gap-6">
           <KortixLogo size={28} />
           <h1 className="text-[36px] font-extralight tracking-tight text-foreground/80 leading-none">
-            {t('checkYourEmail')}
+            {'查看邮箱'}
           </h1>
           <p className="text-[15px] text-foreground/50 text-center">
             We sent a magic link to{' '}
@@ -408,7 +405,7 @@ function LoginContent() {
               onClick={() => setRegistrationSuccess(false)}
               className="text-xs text-foreground/30 hover:text-foreground/50 transition-colors text-center"
             >
-              {t('didntReceiveEmail')} <span className="underline underline-offset-2">{t('resend')}</span>
+              {'没有收到邮件？'} <span className="underline underline-offset-2">{'重新发送'}</span>
             </button>
           </div>
         </div>
@@ -553,7 +550,7 @@ function LoginContent() {
                 {provider && (
                   <Button asChild variant="outline" className="w-full h-11">
                     <a href={provider.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                      <ExternalLink className="size-4" />{t('openProvider', { provider: provider.name })}
+                      <ExternalLink className="size-4" />{`打开 ${provider.name}`}
                     </a>
                   </Button>
                 )}
@@ -588,14 +585,14 @@ function LoginContent() {
                 <Clock className="h-6 w-6 text-amber-500" />
               </div>
               <div className="text-center space-y-1">
-                <h1 className="text-[28px] font-extralight tracking-tight text-foreground/80">{t('magicLinkExpired')}</h1>
+                <h1 className="text-[28px] font-extralight tracking-tight text-foreground/80">{'此链接已过期'}</h1>
                 <p className="text-sm text-foreground/50 max-w-[260px]">
-                  {autoSendError ? "We couldn't send a code automatically. Try again below." : t('magicLinkExpiredDescription')}
+                  {autoSendError ? "We couldn't send a code automatically. Try again below." : '您点击的魔法链接已过期。出于安全原因，魔法链接会在1小时后过期。'}
                 </p>
               </div>
               <form className="w-full space-y-3">
                 {!expiredEmailState && (
-                  <Input name="email" type="email" placeholder={t('emailAddress')} required onChange={(e) => setResendEmail(e.target.value)} className="h-11" />
+                  <Input name="email" type="email" placeholder={'邮箱地址'} required onChange={(e) => setResendEmail(e.target.value)} className="h-11" />
                 )}
                 <SubmitButton formAction={handleSendOtpCode} className="w-full h-11 text-sm" pendingText="Sending…" disabled={!expiredEmailState && !resendEmail}>
                   Send verification code

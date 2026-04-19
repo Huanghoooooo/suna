@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -95,7 +94,6 @@ interface PhoneInputFormProps {
 }
 
 export function PhoneInput({ onSubmit, isLoading = false, error = null }: PhoneInputFormProps) {
-  const t = useTranslations('auth.phoneVerification');
   const [phoneNumber, setPhoneNumber] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [defaultCountry] = useState<string>(() => getUserCountryCode());
@@ -106,13 +104,13 @@ export function PhoneInput({ onSubmit, isLoading = false, error = null }: PhoneI
 
     // Basic validation
     if (!phoneNumber.trim()) {
-      setLocalError(t('pleaseEnterPhoneNumber'));
+      setLocalError('请输入手机号码');
       return;
     }
 
     const phoneRegex = /^\+?[1-9]\d{1,14}$/;
     if (!phoneRegex.test(phoneNumber.replace(/\s/g, ""))) {
-      setLocalError(t('pleaseEnterValidPhoneNumber'));
+      setLocalError('请输入有效的手机号码');
       return;
     }
 
@@ -125,17 +123,17 @@ export function PhoneInput({ onSubmit, isLoading = false, error = null }: PhoneI
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-3">
             <Label htmlFor="phone" className="text-sm font-medium">
-              {t('phoneNumber')}
+              {'手机号码'}
             </Label>
             <PhoneInputComponent
               value={phoneNumber}
               onChange={(value) => setPhoneNumber(value || "")}
               defaultCountry={defaultCountry as any}
-              placeholder={t('phoneNumberPlaceholder')}
+              placeholder={'输入您的手机号码'}
               disabled={isLoading}
             />
             <p className="text-xs text-muted-foreground">
-              {t('sixDigitCodeHint')}
+              {'我们将通过短信向您发送6位数字验证码'}
             </p>
           </div>
 
@@ -155,12 +153,12 @@ export function PhoneInput({ onSubmit, isLoading = false, error = null }: PhoneI
             {isLoading ? (
               <>
                 <KortixLoader size="small" className="mr-2" />
-                {t('sendingCode')}
+                {'发送中...'}
               </>
             ) : (
               <>
                 <Phone className="mr-2 h-4 w-4" />
-                {t('sendVerificationCode')}
+                {'发送验证码'}
               </>
             )}
           </Button>
