@@ -785,6 +785,17 @@ export const menuRegistry: MenuItemDef[] = [
   // ADMIN
   // ──────────────────────────────────────────────────────────────────────────
   {
+    id: 'admin-accounts',
+    label: 'Admin: 账号与角色 | Accounts & Roles',
+    icon: Users,
+    group: 'admin',
+    showIn: ['userMenu', 'commandPalette'],
+    kind: 'navigate',
+    href: '/admin/accounts',
+    requiresAdmin: true,
+    keywords: 'admin accounts roles platform role super_admin promote 账号 角色 提权',
+  },
+  {
     id: 'admin-access-requests',
     label: 'Admin: Access Requests',
     icon: UserPlus,
