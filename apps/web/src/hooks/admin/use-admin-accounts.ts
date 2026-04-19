@@ -154,6 +154,38 @@ export function useRemoveMember() {
   });
 }
 
+interface CreateAccountMemberArgs {
+  accountId: string;
+  email: string;
+  password: string;
+  accountRole: AccountRole;
+}
+
+export function useCreateAccountMember() {
+  const qc = useQueryClient();
+  return useMutation<
+    { ok: boolean; userId: string; email: string; accountId: string; accountRole: AccountRole },
+    Error,
+    CreateAccountMemberArgs
+  >({
+    mutationFn: async ({ accountId, email, password, accountRole }) => {
+      const response = await backendApi.post<{
+        ok: boolean;
+        userId: string;
+        email: string;
+        accountId: string;
+        accountRole: AccountRole;
+      }>('/admin/api/users', { email, password, accountId, accountRole });
+      if (response.error) throw new Error(response.error.message);
+      return response.data!;
+    },
+    onSuccess: (_d, { accountId }) => {
+      qc.invalidateQueries({ queryKey: ['admin', 'accounts', 'detail', accountId] });
+      qc.invalidateQueries({ queryKey: ['admin', 'accounts', 'list'] });
+    },
+  });
+}
+
 // List all explicit platform roles (accounts that are admin or super_admin).
 export interface PlatformRoleEntry {
   accountId: string;

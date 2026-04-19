@@ -7,6 +7,7 @@ import {
   useSetPlatformRole,
   useSetMemberRole,
   useRemoveMember,
+  useCreateAccountMember,
 } from '@/hooks/admin';
 import { openTabAndNavigate } from '@/stores/tab-store';
 import type {
@@ -16,6 +17,8 @@ import type {
 } from '@/hooks/admin/use-admin-accounts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -27,8 +30,12 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader,
+  DialogTitle, DialogTrigger,
+} from '@/components/ui/dialog';
 import { toast } from '@/lib/toast';
-import { ArrowLeft, ShieldCheck, UserMinus, Crown } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, UserMinus, Crown, UserPlus } from 'lucide-react';
 
 function formatDateTime(s: string | null) {
   if (!s) return '—';
@@ -129,6 +136,142 @@ function MemberRoleSelect({
   );
 }
 
+function CreateMemberDialog({ accountId }: { accountId: string }) {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [role, setRole] = useState<AccountRole>('member');
+  const createMember = useCreateAccountMember();
+
+  const passwordMismatch = password.length > 0 && confirm.length > 0 && password !== confirm;
+  const canSubmit =
+    email.includes('@') &&
+    password.length >= 8 &&
+    password === confirm &&
+    !createMember.isPending;
+
+  const reset = () => {
+    setEmail('');
+    setPassword('');
+    setConfirm('');
+    setRole('member');
+  };
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+    createMember.mutate(
+      { accountId, email: email.trim().toLowerCase(), password, accountRole: role },
+      {
+        onSuccess: (d) => {
+          toast.success(`已创建 ${d.email}（角色: ${d.accountRole}）`);
+          reset();
+          setOpen(false);
+        },
+        onError: (e) => {
+          toast.error(e.message || '创建失败');
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) reset();
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button size="sm" className="gap-1.5">
+          <UserPlus className="w-3.5 h-3.5" />
+          新建成员 Add member
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>新建成员 Create member</DialogTitle>
+          <DialogDescription>
+            管理员直接建账号并指定初始密码。新用户会以指定角色加入当前账号，首次登录
+            建议让他自行修改密码。
+            <br />
+            The admin provisions the account and sets the initial password. The user
+            is added to this account with the chosen role; have them rotate the
+            password on first login.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="new-member-email">邮箱 Email</Label>
+            <Input
+              id="new-member-email"
+              type="email"
+              autoComplete="off"
+              placeholder="employee@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="new-member-password">初始密码 Password（≥ 8 字符）</Label>
+            <Input
+              id="new-member-password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="new-member-confirm">再次输入密码 Confirm password</Label>
+            <Input
+              id="new-member-confirm"
+              type="password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              aria-invalid={passwordMismatch || undefined}
+            />
+            {passwordMismatch && (
+              <p className="text-[11px] text-red-500">两次输入不一致 Passwords do not match</p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>账号内角色 Role</Label>
+            <Select value={role} onValueChange={(v) => setRole(v as AccountRole)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="member">member（默认）</SelectItem>
+                <SelectItem value="admin">admin</SelectItem>
+                <SelectItem value="owner">owner</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              owner 不可逆地拥有删除账号的权限，谨慎使用。owner has destructive rights; grant sparingly.
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={createMember.isPending}>
+            取消 Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={!canSubmit}>
+            {createMember.isPending ? '创建中… Creating…' : '创建 Create'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function MembersTable({
   accountId,
   members,
@@ -171,14 +314,17 @@ function MembersTable({
 
   return (
     <section className="rounded-lg border">
-      <div className="p-4 border-b">
-        <h2 className="text-base font-semibold flex items-center gap-2">
-          <Crown className="w-4 h-4" /> 账号成员 Members
-        </h2>
-        <p className="text-xs text-muted-foreground mt-1">
-          管理该账号内的角色（owner / admin / member）。不能移除或降级最后一个 owner。
-          Manage in-account roles. The last owner cannot be removed or demoted.
-        </p>
+      <div className="p-4 border-b flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-base font-semibold flex items-center gap-2">
+            <Crown className="w-4 h-4" /> 账号成员 Members
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            管理该账号内的角色（owner / admin / member）。不能移除或降级最后一个 owner。
+            Manage in-account roles. The last owner cannot be removed or demoted.
+          </p>
+        </div>
+        <CreateMemberDialog accountId={accountId} />
       </div>
       <Table>
         <TableHeader>
