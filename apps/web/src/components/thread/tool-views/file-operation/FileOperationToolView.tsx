@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils';
 // Lazy load SpreadsheetViewer as it imports Syncfusion (~1-2 MB)
 const SpreadsheetViewer = dynamic(
   () => import('../spreadsheet/SpreadsheetViewer').then((mod) => mod.SpreadsheetViewer),
-  { ssr: false, loading: () => <div className="p-4 text-muted-foreground">Loading spreadsheet...</div> }
+  { ssr: false, loading: () => <div className="p-4 text-muted-foreground">加载表格中...</div> }
 );
 import { useTheme } from 'next-themes';
 import { constructHtmlPreviewUrl } from '@/lib/utils/url';
@@ -891,7 +891,7 @@ export function FileOperationToolView({
         <div className="flex items-center justify-center h-full p-12 bg-white dark:bg-zinc-900">
           <div className="text-center">
             <FileIcon className="h-12 w-12 mx-auto mb-4 text-zinc-400" />
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">No content to preview</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">无可预览内容</p>
           </div>
         </div>
       );
@@ -965,7 +965,7 @@ export function FileOperationToolView({
         <Icon className={cn("h-10 w-10", config.color)} />
       </div>
       <h3 className="text-xl font-semibold mb-6 text-zinc-900 dark:text-zinc-100">
-        File Deleted
+        文件已删除
       </h3>
       <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 w-full max-w-md text-center mb-4 shadow-sm">
         <code className="text-sm font-mono text-zinc-700 dark:text-zinc-300 break-all">
@@ -973,7 +973,7 @@ export function FileOperationToolView({
         </code>
       </div>
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        This file has been permanently removed
+        此文件已永久移除
       </p>
     </div>
   );
@@ -984,7 +984,7 @@ export function FileOperationToolView({
         <div className="flex items-center justify-center h-full p-12 bg-white dark:bg-zinc-900">
           <div className="text-center">
             <FileIcon className="h-12 w-12 mx-auto mb-4 text-zinc-400" />
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">No source code to display</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">暂无源代码可显示</p>
           </div>
         </div>
       );
@@ -1154,7 +1154,7 @@ export function FileOperationToolView({
                     <Icon className={cn("h-10 w-10", config.color)} />
                   </div>
                   <h3 className="text-xl font-semibold mb-6 text-zinc-900 dark:text-zinc-100">
-                    Delete Operation
+                    删除操作
                   </h3>
                   <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 w-full max-w-md text-center">
                     <code className="text-sm font-mono text-zinc-700 dark:text-zinc-300 break-all">
@@ -1212,7 +1212,7 @@ export function FileOperationToolView({
                     <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 mx-auto bg-gradient-to-b from-zinc-100 to-zinc-50 dark:from-zinc-800/40 dark:to-zinc-900/60">
                       <FileDiff className="h-8 w-8 text-zinc-500 dark:text-zinc-400" />
                     </div>
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400">Processing changes...</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">正在处理更改...</p>
                   </div>
                 </div>
               ) : (
@@ -1268,7 +1268,7 @@ export function FileOperationToolView({
                   {isStreaming && oldStr && newStr && (
                     <div className="px-4 py-2 bg-zinc-50 dark:bg-zinc-950/30 border-t border-zinc-200 dark:border-zinc-700 flex items-center gap-2">
                       <KortixLoader customSize={14} />
-                      <span className="text-xs text-zinc-600 dark:text-zinc-400">Streaming changes...</span>
+                      <span className="text-xs text-zinc-600 dark:text-zinc-400">正在流式输出更改...</span>
                     </div>
                   )}
                 </>

@@ -4,16 +4,16 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 
 const THINKING_MESSAGES = [
-  'Considering next steps...',
-  'Analyzing the problem...',
-  'Working through the details...',
-  'Piecing it together...',
-  'Processing information...',
-  'Forming a response...',
-  'Reasoning through this...',
-  'Evaluating options...',
-  'Connecting the dots...',
-  'Building on context...',
+  '思考下一步...',
+  '分析问题...',
+  '梳理细节...',
+  '整理思路...',
+  '处理信息...',
+  '组织回答...',
+  '推理中...',
+  '评估方案...',
+  '建立关联...',
+  '结合上下文...',
 ];
 
 const TYPING_SPEED = 24;       // ms per character

@@ -97,7 +97,7 @@ export function OcTodoToolView({
                 </div>
               ))
             ) : (
-              <div className="text-sm text-muted-foreground">No tasks defined.</div>
+              <div className="text-sm text-muted-foreground">未定义任务。</div>
             )}
           </div>
         </ScrollArea>

@@ -92,7 +92,7 @@ export function OcSkillToolView({
                 <UnifiedMarkdown content={markdownContent} />
               </div>
             ) : (
-              <div className="text-sm text-muted-foreground">No skill content available.</div>
+              <div className="text-sm text-muted-foreground">暂无 Skill 内容。</div>
             )}
 
             {files.length > 0 && (

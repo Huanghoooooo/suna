@@ -69,7 +69,7 @@ export function OcTaskToolView({
               <div className="text-sm text-muted-foreground">{description}</div>
             ) : (
               <div className="text-sm text-muted-foreground">
-                Delegating to sub-agent...
+                委派给子 Agent 中...
               </div>
             )}
           </div>

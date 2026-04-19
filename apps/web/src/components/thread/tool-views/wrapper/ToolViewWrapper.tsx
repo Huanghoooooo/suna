@@ -60,7 +60,7 @@ export function ToolViewWrapper({
             {isStreaming && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted border border-border">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                <span className="text-[10px] font-medium text-muted-foreground">Running</span>
+                <span className="text-[10px] font-medium text-muted-foreground">运行中</span>
               </div>
             )}
             {headerContent}
@@ -87,8 +87,8 @@ export function ToolViewWrapper({
                 )}
                 <span>
                   {isSuccess
-                    ? customStatus?.success || "Completed successfully"
-                    : customStatus?.failure || "Execution failed"}
+                    ? customStatus?.success || "执行成功"
+                    : customStatus?.failure || "执行失败"}
                 </span>
               </div>
             )}
@@ -96,7 +96,7 @@ export function ToolViewWrapper({
             {isStreaming && showStatus && (
               <div className="flex items-center gap-2">
                 <KortixLoader customSize={14} />
-                <span>{customStatus?.streaming || "Processing..."}</span>
+                <span>{customStatus?.streaming || "处理中..."}</span>
               </div>
             )}
 

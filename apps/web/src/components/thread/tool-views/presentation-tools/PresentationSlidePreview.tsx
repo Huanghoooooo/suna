@@ -121,7 +121,7 @@ export function PresentationSlidePreview({
     return (
       <div className={cn('flex flex-col items-center justify-center p-8 bg-muted/30 rounded-lg border', className)}>
         <KortixLoader customSize={24} className="mb-2" />
-        <span className="text-sm text-muted-foreground">Loading presentation...</span>
+        <span className="text-sm text-muted-foreground">加载演示中...</span>
         {retryCount > 0 && (
           <span className="text-xs text-muted-foreground/70 mt-1">
             Attempt {retryCount + 1}

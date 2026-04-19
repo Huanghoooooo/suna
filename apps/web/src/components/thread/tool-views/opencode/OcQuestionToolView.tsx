@@ -131,7 +131,7 @@ export function OcQuestionToolView({
                   {/* Custom answer (not from options) */}
                   {hasAnswer && q.options && !q.options.some(o => answer.includes(o.label)) && (
                     <div className="px-2.5 py-1.5 rounded-lg bg-muted">
-                      <span className="text-[10px] text-muted-foreground">Custom answer</span>
+                      <span className="text-[10px] text-muted-foreground">自定义回答</span>
                       <p className="text-xs text-foreground">{answer.join(', ')}</p>
                     </div>
                   )}
@@ -151,7 +151,7 @@ export function OcQuestionToolView({
             })}
 
             {questions.length === 0 && (
-              <p className="text-xs text-muted-foreground">No questions to display.</p>
+              <p className="text-xs text-muted-foreground">暂无问题可显示。</p>
             )}
           </div>
         </ScrollArea>

@@ -213,7 +213,7 @@ export function GenericToolView({
       <Card className="gap-0 flex border-0 shadow-none p-0 py-0 rounded-none flex-col h-full overflow-hidden bg-card">
         <CardHeader className="h-14 bg-muted/50 backdrop-blur-sm border-b p-2 px-4">
           <CardTitle className="text-base font-medium text-foreground">
-            Tool View Error
+            工具视图错误
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4">
@@ -349,7 +349,7 @@ export function GenericToolView({
               <Wrench className="h-5 w-5 text-muted-foreground" />
             </div>
             <h3 className="text-sm font-medium mb-1 text-foreground">
-              No Content Available
+              暂无内容
             </h3>
             <p className="text-xs text-muted-foreground text-center max-w-md">
               This tool execution did not produce any input or output content to display.
@@ -511,7 +511,7 @@ function GenericStructuredOutputDisplay({ sections }: { sections: OutputSectionT
                       showTrace && 'rotate-90',
                     )}
                   />
-                  <span className="text-xs font-medium">Stack trace</span>
+                  <span className="text-xs font-medium">堆栈跟踪</span>
                   <span className="text-[10px] text-muted-foreground/40 font-mono ml-1">
                     {section.lines.length} lines
                   </span>
@@ -696,7 +696,7 @@ function GenericToolErrorDisplay({
               </div>
               {issue.values && issue.values.length > 0 && (
                 <div className="ml-5">
-                  <div className="text-[10px] text-muted-foreground/50 mb-1">Expected one of:</div>
+                  <div className="text-[10px] text-muted-foreground/50 mb-1">期望以下之一：</div>
                   <div className="flex flex-wrap gap-1">
                     {issue.values.map((val, vi) => (
                       <span
@@ -755,7 +755,7 @@ function GenericToolErrorDisplay({
           >
             <ChevronRight className={cn('h-3 w-3 transition-transform', showTrace ? 'rotate-90' : '')} />
             <span className="text-[10px] font-medium">
-              {traceback.includes('Traceback') ? 'Stack trace' : 'Full output'}
+              {traceback.includes('Traceback') ? '堆栈跟踪' : 'Full output'}
             </span>
           </button>
           {showTrace && (

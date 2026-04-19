@@ -366,7 +366,7 @@ export function OcWebSearchToolView({
         ) : (
           <div className="flex flex-col items-center justify-center h-full py-12 px-6">
             <Search className="h-8 w-8 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No results found</p>
+            <p className="text-sm text-muted-foreground">未找到结果</p>
           </div>
         )}
       </CardContent>

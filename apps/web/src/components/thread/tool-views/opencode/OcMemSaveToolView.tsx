@@ -126,7 +126,7 @@ export function OcMemSaveToolView({
             {parsed.id && !isError && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground/60">
                 <CheckCircle className="size-3.5 text-emerald-500" />
-                <span>Stored as memory <span className="font-mono">#{parsed.id}</span></span>
+                <span>已存入记忆 <span className="font-mono">#{parsed.id}</span></span>
               </div>
             )}
           </div>

@@ -115,7 +115,7 @@ export function OcBatchToolView({
               ))
             ) : (
               <div className="text-sm text-muted-foreground py-4 text-center">
-                No tool calls recorded.
+                无工具调用记录。
               </div>
             )}
           </div>

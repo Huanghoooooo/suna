@@ -233,7 +233,7 @@ export function OcSearchToolView({
             <div className="p-3">
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                 <FolderOpen className="h-8 w-8 mb-2 opacity-40" />
-                <span className="text-sm">No results found</span>
+                <span className="text-sm">未找到结果</span>
               </div>
             </div>
           )}

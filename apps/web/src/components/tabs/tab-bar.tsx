@@ -500,8 +500,8 @@ function TabItem({
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs">
             {pendingCount > 0
-              ? `${pendingCount} ${pendingCount === 1 ? 'question' : 'questions'} waiting for your input`
-              : 'Working on it\u2026'}
+              ? `${pendingCount} 个问题等待你回复`
+              : '正在处理\u2026'}
           </TooltipContent>
         </Tooltip>
       ) : isDashboard ? (

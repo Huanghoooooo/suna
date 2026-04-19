@@ -234,8 +234,8 @@ export function SpreadsheetViewer({
             <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />
           </div>
           <div>
-            <h3 className="text-lg font-medium text-foreground">No file path provided</h3>
-            <p className="text-xs text-muted-foreground">FilePath is required to load the spreadsheet</p>
+            <h3 className="text-lg font-medium text-foreground">未提供文件路径</h3>
+            <p className="text-xs text-muted-foreground">加载表格需要提供 FilePath</p>
           </div>
         </div>
       </div>
@@ -250,7 +250,7 @@ export function SpreadsheetViewer({
             <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />
           </div>
           <div>
-            <h3 className="text-lg font-medium text-foreground">Failed to load spreadsheet</h3>
+            <h3 className="text-lg font-medium text-foreground">加载表格失败</h3>
             <p className="text-xs text-muted-foreground">{syncState.errorMessage || 'Unknown error'}</p>
             {resolvedFilePath && (
               <p className="text-xs text-muted-foreground mt-1">Path: {resolvedFilePath}</p>

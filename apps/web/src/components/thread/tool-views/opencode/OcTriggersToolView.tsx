@@ -101,7 +101,7 @@ const actionMeta: Record<TriggerAction, { icon: typeof Zap; label: string; loadi
   create: { icon: Plus, label: 'Trigger Created', loadingLabel: 'Creating trigger...' },
   list:   { icon: List, label: 'Triggers', loadingLabel: 'Listing triggers...' },
   get:    { icon: Settings, label: 'Trigger Details', loadingLabel: 'Fetching trigger...' },
-  delete: { icon: Trash2, label: 'Trigger Deleted', loadingLabel: 'Deleting trigger...' },
+  delete: { icon: Trash2, label: '触发器已删除', loadingLabel: 'Deleting trigger...' },
   update: { icon: Settings, label: 'Trigger Updated', loadingLabel: 'Updating trigger...' },
   test:   { icon: Play, label: 'Trigger Tested', loadingLabel: 'Testing trigger...' },
   pause:  { icon: Pause, label: 'Trigger Paused', loadingLabel: 'Pausing trigger...' },
@@ -153,7 +153,7 @@ function ListContent({ output }: { output: string }) {
     return (
       <div className="flex flex-col items-center justify-center h-full py-12 px-6">
         <Zap className="h-8 w-8 text-muted-foreground/30 mb-3" />
-        <p className="text-sm text-muted-foreground">No triggers configured</p>
+        <p className="text-sm text-muted-foreground">未配置触发器</p>
       </div>
     );
   }
@@ -246,7 +246,7 @@ function DeleteContent({ output, args }: { output: string; args: Record<string, 
           <div className="p-3 rounded-full bg-muted mb-3">
             <Trash2 className="h-6 w-6 text-muted-foreground" />
           </div>
-          <p className="text-sm font-medium text-foreground mb-1">Trigger Deleted</p>
+          <p className="text-sm font-medium text-foreground mb-1">触发器已删除</p>
           {args.trigger_id && (
             <p className="text-xs text-muted-foreground font-mono">{args.trigger_id}</p>
           )}

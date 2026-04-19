@@ -411,7 +411,7 @@ export function OcEditToolView({
           ) : (
             <div className="p-3">
               <div className="text-sm text-muted-foreground">
-                File edited: <span className="font-mono text-foreground">{displayPath}</span>
+                已编辑文件： <span className="font-mono text-foreground">{displayPath}</span>
               </div>
             </div>
           )}

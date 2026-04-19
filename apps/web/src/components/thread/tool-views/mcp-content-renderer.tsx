@@ -151,7 +151,7 @@ function SearchResultsRenderer({ data, metadata }: { data: any; metadata?: any }
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Copy URL</p>
+                          <p>复制链接</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -229,7 +229,7 @@ function JsonRenderer({ data }: { data: any }) {
       <div className="flex items-center gap-2 mb-3">
         <Database className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm font-medium text-foreground">
-          Structured Data
+          结构化数据
         </span>
       </div>
       <ScrollArea className="max-h-96">
@@ -243,7 +243,7 @@ function JsonRenderer({ data }: { data: any }) {
 
 // Renderer for key-value pairs
 function KeyValueRenderer({ content }: { content: string }) {
-  if (!content || typeof content !== 'string') return <div>No content available</div>;
+  if (!content || typeof content !== 'string') return <div>暂无内容</div>;
   
   const lines = content.split('\n').filter(line => line.includes(':'));
   const pairs = lines.map(line => {
@@ -312,7 +312,7 @@ function ErrorRenderer({ content }: { content: string }) {
     <div className="p-3">
       <div className="flex items-center gap-2 mb-2 text-muted-foreground">
         <AlertTriangle className="h-3.5 w-3.5" />
-        <span className="text-xs font-medium">Error Details</span>
+        <span className="text-xs font-medium">错误详情</span>
       </div>
       <div className="p-3 bg-muted/30 rounded border border-border/40">
         <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono">
@@ -360,7 +360,7 @@ export function MCPContentRenderer({ detectionResult, rawContent }: MCPContentRe
           <div className="flex items-center gap-2 mb-3">
             <BookOpen className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium text-foreground">
-              Markdown Content
+              Markdown 内容
             </span>
           </div>
           <UnifiedMarkdown content={contentStr} />
@@ -385,7 +385,7 @@ export function MCPContentRenderer({ detectionResult, rawContent }: MCPContentRe
           <div className="flex items-center gap-2 mb-3">
             <FileCode className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium text-foreground">
-              Code Output
+              代码输出
             </span>
           </div>
           <ScrollArea className="max-h-96">

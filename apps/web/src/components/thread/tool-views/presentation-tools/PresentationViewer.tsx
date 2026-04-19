@@ -852,10 +852,10 @@ export function PresentationViewer({
               <AlertTriangle className="h-10 w-10 text-zinc-500 dark:text-zinc-400" />
             </div>
             <h3 className="text-xl font-semibold mb-2 text-zinc-900 dark:text-zinc-100">
-              Tool Execution Error
+              工具执行错误
             </h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-md mb-4">
-              The presentation tool encountered an error during execution:
+              演示工具执行时遇到错误：
             </p>
             <div className="w-full max-w-2xl">
               <CodeBlockCode 
@@ -888,10 +888,10 @@ export function PresentationViewer({
               <Presentation className="h-10 w-10 text-zinc-500 dark:text-zinc-400" />
             </div>
             <h3 className="text-xl font-semibold mb-2 text-zinc-900 dark:text-zinc-100">
-              No slides found
+              未找到幻灯片
             </h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-md">
-              This presentation doesn't have any slides yet.
+              此演示还没有任何幻灯片。
             </p>
           </div>
         ) : (

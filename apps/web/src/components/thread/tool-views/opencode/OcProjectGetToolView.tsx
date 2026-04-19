@@ -180,7 +180,7 @@ export function OcProjectGetToolView({
                   {data.contextExists ? (
                     <>
                       <CheckSquare className="size-3.5 text-emerald-500" />
-                      <span className="text-emerald-600 dark:text-emerald-400">Context file ready</span>
+                      <span className="text-emerald-600 dark:text-emerald-400">上下文文件就绪</span>
                       <span className="text-muted-foreground/50 font-mono truncate ml-1" title={data.contextPath}>
                         {data.contextPath}
                       </span>
@@ -188,7 +188,7 @@ export function OcProjectGetToolView({
                   ) : (
                     <>
                       <Square className="size-3.5 text-muted-foreground/40" />
-                      <span className="text-muted-foreground/60">No context file yet</span>
+                      <span className="text-muted-foreground/60">暂无上下文文件</span>
                     </>
                   )}
                 </div>
@@ -209,7 +209,7 @@ export function OcProjectGetToolView({
         ) : (
           <div className="flex flex-col items-center justify-center h-full py-12 px-6">
             <Folder className="h-8 w-8 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No project data</p>
+            <p className="text-sm text-muted-foreground">无项目数据</p>
           </div>
         )}
       </CardContent>

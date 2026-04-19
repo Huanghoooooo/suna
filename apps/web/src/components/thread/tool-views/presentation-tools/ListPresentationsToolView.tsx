@@ -127,7 +127,7 @@ export function ListPresentationsToolView({
               <Presentation className="h-10 w-10 text-zinc-500 dark:text-zinc-400" />
             </div>
             <h3 className="text-xl font-semibold mb-2 text-zinc-900 dark:text-zinc-100">
-              No presentations found
+              未找到演示
             </h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-md">
               You haven't created any presentations yet. Use the create_slide tool to start building your first presentation.

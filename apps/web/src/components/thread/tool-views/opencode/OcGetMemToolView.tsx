@@ -163,7 +163,7 @@ export function OcGetMemToolView({
                       </div>
                       {report.filesRead.length > 0 && (
                         <div className="space-y-1">
-                          <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Files read</p>
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">已读取的文件</p>
                           <div className="flex flex-wrap gap-1.5">
                             {report.filesRead.map((file) => (
                               <span

@@ -296,7 +296,7 @@ export function OcSessionGetToolView({
               {/* No conversation */}
               {!data.conversation && !data.todos.length && (
                 <div className="text-center py-6">
-                  <p className="text-xs text-muted-foreground/50 italic">No messages in this session</p>
+                  <p className="text-xs text-muted-foreground/50 italic">此会话无消息</p>
                 </div>
               )}
             </div>
@@ -315,7 +315,7 @@ export function OcSessionGetToolView({
         ) : (
           <div className="flex flex-col items-center justify-center h-full py-12 px-6">
             <BookOpen className="h-8 w-8 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No session data</p>
+            <p className="text-sm text-muted-foreground">无会话数据</p>
           </div>
         )}
       </CardContent>

@@ -83,7 +83,7 @@ export function OcWriteToolView({
               />
             ) : (
               <div className="text-sm text-muted-foreground">
-                File written: <span className="font-mono text-foreground">{displayPath}</span>
+                已写入文件： <span className="font-mono text-foreground">{displayPath}</span>
               </div>
             )}
           </div>

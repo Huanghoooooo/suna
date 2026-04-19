@@ -56,7 +56,7 @@ export function LoadingState({
         {showProgress && (
           <div className="space-y-1.5">
             <Progress value={Math.min(progress, 100)} className="w-full h-0.5" />
-            <p className="text-[10px] text-muted-foreground/50">Processing...</p>
+            <p className="text-[10px] text-muted-foreground/50">处理中...</p>
           </div>
         )}
       </div>

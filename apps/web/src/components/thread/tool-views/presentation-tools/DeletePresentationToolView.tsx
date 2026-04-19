@@ -86,7 +86,7 @@ export function DeletePresentationToolView({
                                    'Unknown';
         }
         if (!deleteData.message && typeof output === 'object') {
-          deleteData.message = (output as any).message || 'Presentation deleted successfully';
+          deleteData.message = (output as any).message || '演示已删除';
         }
       }
     } else {
@@ -96,7 +96,7 @@ export function DeletePresentationToolView({
                            toolCall.arguments.path || 
                            'Unknown';
         deleteData = {
-          message: 'Presentation deleted successfully',
+          message: '演示已删除',
           deleted_path: deletedPath,
         };
       }
@@ -157,7 +157,7 @@ export function DeletePresentationToolView({
               <CheckCircle className="h-10 w-10 text-zinc-500 dark:text-zinc-400" />
             </div>
             <h3 className="text-xl font-semibold mb-2 text-zinc-900 dark:text-zinc-100">
-              Presentation deleted successfully
+              演示已删除
             </h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-md mb-6">
               {deleteData.message}
@@ -170,7 +170,7 @@ export function DeletePresentationToolView({
                 </div>
                 <div className="flex-1">
                   <h4 className="font-medium text-zinc-900 dark:text-zinc-100 mb-1">
-                    Deleted Path
+                    已删除路径
                   </h4>
                   <p className="text-sm text-zinc-600 dark:text-zinc-400 font-mono">
                     {deleteData.deleted_path}
@@ -180,7 +180,7 @@ export function DeletePresentationToolView({
             </Card>
             
             <p className="text-xs text-zinc-400 dark:text-zinc-500 text-center mt-4">
-              All slides and metadata have been permanently removed
+              所有幻灯片和元数据已永久移除
             </p>
           </div>
         )}

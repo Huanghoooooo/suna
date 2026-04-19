@@ -96,7 +96,7 @@ export function OcProjectSelectToolView({
             </div>
             <div>
               <p className="text-sm font-medium text-foreground">{data.name}</p>
-              <p className="text-xs text-muted-foreground">Project selected for this session</p>
+              <p className="text-xs text-muted-foreground">已为此会话选择项目</p>
             </div>
           </div>
 
@@ -111,7 +111,7 @@ export function OcProjectSelectToolView({
           {/* Next step hint */}
           <div className="flex items-center gap-2 text-xs text-muted-foreground/60 bg-muted/20 rounded-lg p-3">
             <ArrowRight className="size-3.5 flex-shrink-0" />
-            <span>You can now use file, bash, and edit tools</span>
+            <span>现在可以使用 file、bash、edit 工具</span>
           </div>
         </div>
       </CardContent>
@@ -123,7 +123,7 @@ export function OcProjectSelectToolView({
       >
         {!isStreaming && data.success && (
           <Badge variant="outline" className="h-6 py-0.5 bg-muted">
-            Project active
+            项目已激活
           </Badge>
         )}
       </ToolViewFooter>

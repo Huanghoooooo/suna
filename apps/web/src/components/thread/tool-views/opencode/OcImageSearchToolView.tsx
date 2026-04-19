@@ -271,10 +271,10 @@ export function OcImageSearchToolView({
             {!isError && !isStreaming && currentImages.length === 0 && (
               <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
                 <ImageIcon className="size-8 opacity-40" />
-                <span className="text-xs">No images found</span>
+                <span className="text-xs">未找到图片</span>
                 {query && (
                   <span className="text-[10px] opacity-60">
-                    Try a different search query
+                    换个搜索词试试
                   </span>
                 )}
               </div>

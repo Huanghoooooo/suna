@@ -85,7 +85,7 @@ export function OcConnectorSetupToolView({
         ) : (
           <div className="flex flex-col items-center justify-center h-full py-12 px-6">
             <Plug className="h-8 w-8 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">Setting up connectors...</p>
+            <p className="text-sm text-muted-foreground">配置连接器中...</p>
           </div>
         )}
       </CardContent>

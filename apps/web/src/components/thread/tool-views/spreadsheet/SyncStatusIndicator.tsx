@@ -106,7 +106,7 @@ export function SyncStatusIndicator({
             onClick={() => onResolveConflict?.(false)}
             className="h-6 px-2 text-xs"
           >
-            Load External
+            加载外部
           </Button>
           <Button
             variant="ghost"
@@ -114,7 +114,7 @@ export function SyncStatusIndicator({
             onClick={() => onResolveConflict?.(true)}
             className="h-6 px-2 text-xs"
           >
-            Keep Mine
+            保留我的
           </Button>
         </div>
       </div>
@@ -141,7 +141,7 @@ export function SyncStatusIndicator({
           <div className="flex flex-col gap-1">
             <span>{config.label}</span>
             {pendingChanges && status !== 'syncing' && (
-              <span className="text-amber-400">Unsaved changes</span>
+              <span className="text-amber-400">未保存的更改</span>
             )}
             {status === 'error' && onRefresh && (
               <Button

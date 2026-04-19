@@ -254,7 +254,7 @@ export function OcPtySpawnToolView({
             <div className="rounded-lg border border-border overflow-hidden bg-card">
               <div className="divide-y divide-border">
                 {workdir && (
-                  <InfoRow icon={FolderOpen} label="Working Directory" value={workdir} mono />
+                  <InfoRow icon={FolderOpen} label="工作目录" value={workdir} mono />
                 )}
                 {description && title && (
                   <InfoRow icon={Type} label="Description" value={description} />
@@ -388,7 +388,7 @@ export function OcPtyReadToolView({
 
             {!parsed.content && !isError && (
               <div className="text-sm text-muted-foreground px-1">
-                No output available.
+                暂无输出。
               </div>
             )}
           </div>
@@ -490,7 +490,7 @@ export function OcPtyWriteToolView({
 
             {!ptyInput && !isError && (
               <div className="text-sm text-muted-foreground px-1">
-                Empty input sent.
+                发送了空输入。
               </div>
             )}
           </div>
@@ -598,7 +598,7 @@ export function OcPtyKillToolView({
 
             {!ptyId && !cleanOutput && !isError && (
               <div className="text-sm text-muted-foreground px-1">
-                Process terminated.
+                进程已终止。
               </div>
             )}
           </div>

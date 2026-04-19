@@ -98,7 +98,7 @@ export function ListPresentationTemplatesToolView({
           <div className="flex flex-row items-center justify-between">
             <ToolViewIconTitle 
               icon={Palette} 
-              title={template?.name.replace(/_/g, " ") || selectedTemplate.replace(/_/g, " ") || "Template Preview"} 
+              title={template?.name.replace(/_/g, " ") || selectedTemplate.replace(/_/g, " ") || "模板预览"} 
             />
             {showBackButton && (
               <Button
@@ -131,7 +131,7 @@ export function ListPresentationTemplatesToolView({
 
         <div className="px-4 py-2 h-9 bg-zinc-50/30 dark:bg-zinc-900/30 border-t border-zinc-200/30 dark:border-zinc-800/30 flex justify-between items-center">
           <div className="text-xs text-zinc-400 dark:text-zinc-500">
-            <span className="font-mono">Template Preview</span>
+            <span className="font-mono">模板预览</span>
           </div>
           <div className="text-xs text-zinc-400 dark:text-zinc-500">
             {formatTimestamp(toolTimestamp)}
@@ -165,7 +165,7 @@ export function ListPresentationTemplatesToolView({
               <AlertTriangle className="h-10 w-10 text-rose-400 dark:text-rose-600" />
             </div>
             <h3 className="text-xl font-semibold mb-2 text-zinc-900 dark:text-zinc-100">
-              No templates available
+              暂无模板
             </h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-md">
               {error || templatesData?.message || "Check back soon for new presentation templates"}

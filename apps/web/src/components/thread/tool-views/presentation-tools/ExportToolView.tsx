@@ -213,7 +213,7 @@ export function ExportToolView({
         {/* Show message if no exports available */}
         {!hasPdf && !hasPptx && (
           <p className="text-sm text-muted-foreground text-center mt-3">
-            No export files available yet
+            暂无导出文件
           </p>
         )}
       </CardContent>

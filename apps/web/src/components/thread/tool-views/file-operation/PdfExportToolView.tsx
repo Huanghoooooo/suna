@@ -163,7 +163,7 @@ export function PdfExportToolView({
               ) : (
                 <>
                   <Download className="h-4 w-4 mr-2" />
-                  <span>Download PDF</span>
+                  <span>下载 PDF</span>
                 </>
               )}
             </Button>

@@ -28,22 +28,22 @@ import { UnifiedMarkdown } from '@/components/markdown/unified-markdown';
 /** Map tool function name → display config */
 const TOOL_CONFIG: Record<string, { icon: typeof Cpu; label: string; verb: string }> = {
   // Canonical task orchestration system
-  task_create:       { icon: Cpu,            label: 'Task Create',     verb: 'Spawning worker' },
-  task_update:       { icon: Pencil,         label: 'Task Update',     verb: 'Updating task' },
-  task_list:         { icon: ListTodo,       label: 'Task List',       verb: 'Listing tasks' },
-  task_get:          { icon: CircleDot,      label: 'Task Details',    verb: 'Reading task' },
+  task_create:       { icon: Cpu,            label: '创建任务',  verb: '正在派发 Worker' },
+  task_update:       { icon: Pencil,         label: '更新任务',  verb: '正在更新任务' },
+  task_list:         { icon: ListTodo,       label: '任务列表',  verb: '正在列出任务' },
+  task_get:          { icon: CircleDot,      label: '任务详情',  verb: '正在读取任务' },
   // Compatibility aliases
-  agent_task:        { icon: Cpu,            label: 'Agent Task',      verb: 'Spawning worker' },
-  agent_task_update: { icon: Pencil,         label: 'Task Update',     verb: 'Updating task' },
-  agent_task_list:   { icon: ListTodo,       label: 'Task List',       verb: 'Listing tasks' },
-  agent_task_get:    { icon: CircleDot,      label: 'Task Details',    verb: 'Reading task' },
+  agent_task:        { icon: Cpu,            label: 'Agent 任务', verb: '正在派发 Worker' },
+  agent_task_update: { icon: Pencil,         label: '任务更新',  verb: '正在更新任务' },
+  agent_task_list:   { icon: ListTodo,       label: '任务列表',  verb: '正在列出任务' },
+  agent_task_get:    { icon: CircleDot,      label: '任务详情',  verb: '正在读取任务' },
   // Legacy agent tools (still appear in old sessions)
-  agent_spawn:       { icon: Cpu,            label: 'Agent Spawn',     verb: 'Spawning worker' },
-  agent_message:     { icon: MessageSquare,  label: 'Agent Message',   verb: 'Messaging worker' },
-  agent_stop:        { icon: XCircle,        label: 'Agent Stop',      verb: 'Stopping worker' },
-  agent_status:      { icon: ListTodo,       label: 'Agent Status',    verb: 'Checking workers' },
+  agent_spawn:       { icon: Cpu,            label: '派发 Agent', verb: '正在派发 Worker' },
+  agent_message:     { icon: MessageSquare,  label: 'Agent 消息', verb: '正在向 Worker 发送消息' },
+  agent_stop:        { icon: XCircle,        label: '停止 Agent', verb: '正在停止 Worker' },
+  agent_status:      { icon: ListTodo,       label: 'Agent 状态', verb: '正在检查 Worker' },
   // Legacy task tools
-  task:              { icon: Cpu,            label: 'Sub-Agent Task',  verb: 'Running task' },
+  task:              { icon: Cpu,            label: '子 Agent 任务', verb: '正在执行任务' },
 };
 
 function getToolName(toolCall: any): string {
@@ -60,7 +60,7 @@ export function OcKortixTaskToolView({
   isStreaming = false,
 }: ToolViewProps) {
   const toolName = getToolName(toolCall);
-  const config = TOOL_CONFIG[toolName] || { icon: Cpu, label: 'Agent Task', verb: 'Processing' };
+  const config = TOOL_CONFIG[toolName] || { icon: Cpu, label: 'Agent 任务', verb: '处理中' };
   const Icon = config.icon;
 
   const args = toolCall?.arguments || {};

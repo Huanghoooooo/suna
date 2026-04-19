@@ -140,8 +140,8 @@ function SessionRow({
             </TooltipTrigger>
             <TooltipContent side="right" className="text-xs">
               {pendingCount > 0
-                ? `${pendingCount} ${pendingCount === 1 ? 'question' : 'questions'} waiting`
-                : 'Working…'}
+                ? `${pendingCount} 个问题待回复`
+                : '进行中…'}
             </TooltipContent>
           </Tooltip>
         ) : null}

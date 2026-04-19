@@ -279,7 +279,7 @@ export function CanvasToolView({
               <AlertTriangle className="h-8 w-8 text-zinc-500 dark:text-zinc-400" />
             </div>
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
-              Operation Failed
+              操作失败
             </h3>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 text-center max-w-md">
               {error || 'An error occurred during the canvas operation'}
@@ -305,10 +305,10 @@ export function CanvasToolView({
               <Layout className="h-8 w-8 text-zinc-400 dark:text-zinc-600" />
             </div>
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
-              Canvas Empty
+              画布为空
             </h3>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 text-center max-w-md">
-              This canvas doesn't have any content yet.
+              此画布还没有内容。
             </p>
           </div>
         )}

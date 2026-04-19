@@ -150,7 +150,7 @@ function SidePanelIframePreview({ url, title }: { url: string; title?: string })
               <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="top">Refresh</TooltipContent>
+          <TooltipContent side="top">刷新</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -158,12 +158,12 @@ function SidePanelIframePreview({ url, title }: { url: string; title?: string })
               <ExternalLink className="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="top">Open in browser</TooltipContent>
+          <TooltipContent side="top">在浏览器中打开</TooltipContent>
         </Tooltip>
         {proxy && (
           <Button variant="subtle" size="xs" onClick={navigateToPreviewTab}>
             <MonitorPlay className="h-3 w-3" />
-            Open Tab
+            打开标签页
           </Button>
         )}
       </div>
@@ -180,7 +180,7 @@ function SidePanelIframePreview({ url, title }: { url: string; title?: string })
         {hasError && (
           <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
             <div className="text-center text-muted-foreground">
-              <p className="text-sm">Failed to load preview</p>
+              <p className="text-sm">预览加载失败</p>
               <Button type="button" onClick={handleRefresh} variant="link" size="sm" className="mt-1 h-auto p-0 text-xs">Retry</Button>
             </div>
           </div>
@@ -342,7 +342,7 @@ export function OcShowUserToolView({
       return (
         <Badge variant="outline" className="h-6 py-0.5 bg-muted">
           <CheckCircle className="h-3 w-3 text-muted-foreground" />
-          Live Preview
+          实时预览
         </Badge>
       );
     }

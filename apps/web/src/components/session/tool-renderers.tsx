@@ -299,7 +299,7 @@ function InlineServicePreview({ url, label }: { url: string; label?: string }) {
               />
             </button>
           </TooltipTrigger>
-          <TooltipContent side="top">Refresh</TooltipContent>
+          <TooltipContent side="top">刷新</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -317,7 +317,7 @@ function InlineServicePreview({ url, label }: { url: string; label?: string }) {
               <ExternalLink className="h-3 w-3" />
             </button>
           </TooltipTrigger>
-          <TooltipContent side="top">Open in browser</TooltipContent>
+          <TooltipContent side="top">在浏览器中打开</TooltipContent>
         </Tooltip>
         {proxy && (
           <Tooltip>
@@ -333,7 +333,7 @@ function InlineServicePreview({ url, label }: { url: string; label?: string }) {
                 Preview
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Open as tab</TooltipContent>
+            <TooltipContent side="top">作为标签打开</TooltipContent>
           </Tooltip>
         )}
       </div>
@@ -348,14 +348,14 @@ function InlineServicePreview({ url, label }: { url: string; label?: string }) {
           <div className="absolute inset-0 flex items-center justify-center bg-background/60 z-10">
             <div className="flex items-center gap-2 text-muted-foreground">
               <RefreshCw className="h-4 w-4 animate-spin" />
-              <span className="text-xs">Loading preview...</span>
+              <span className="text-xs">加载预览中...</span>
             </div>
           </div>
         )}
         {hasError && (
           <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
             <div className="text-center text-muted-foreground">
-              <p className="text-xs">Failed to load</p>
+              <p className="text-xs">加载失败</p>
               <button
                 type="button"
                 onClick={handleRefresh}
@@ -616,7 +616,7 @@ function getAgentCardLabel(input: Record<string, unknown>): string {
   const agentId = firstMeaningfulLine(input.agent_id, 40);
   if (agentId) return `Agent ${agentId}`;
 
-  return 'Worker task';
+  return 'Worker 任务';
 }
 
 // ============================================================================
@@ -1357,7 +1357,7 @@ function StructuredOutput({ sections }: { sections: OutputSection[] }) {
                       showTrace && 'rotate-90',
                     )}
                   />
-                  <span className="text-[10px] font-medium">Stack trace</span>
+                  <span className="text-[10px] font-medium">堆栈跟踪</span>
                   <span className="text-[10px] text-muted-foreground/40 font-mono ml-1">
                     {section.lines.length} lines
                   </span>
@@ -1448,7 +1448,7 @@ function GetMemTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
     <BasicTool
       icon={<Brain className="size-3.5 flex-shrink-0" />}
       trigger={{
-        title: 'Get Mem',
+        title: '读取内存',
         subtitle: memoryId ? `#${memoryId}` : undefined,
       }}
       defaultOpen={defaultOpen}
@@ -2212,7 +2212,7 @@ function BashTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
           {
             title: 'Shell',
             subtitle:
-              description || (isWaiting ? 'Preparing command...' : undefined),
+              description || (isWaiting ? '准备命令中...' : undefined),
           }
         )
       }
@@ -2227,12 +2227,12 @@ function BashTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
             <div className="rounded-md border border-border/40 bg-background/50 px-2.5 py-2">
               <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
                 <Loader2 className="size-3 animate-spin" />
-                <span>Preparing command...</span>
+                <span>准备命令中...</span>
               </div>
             </div>
           ) : isStalePending ? (
             <div className="px-3 py-2 text-muted-foreground/60 text-[11px] italic">
-              Preparing command...
+              准备命令中...
             </div>
           ) : (
             <HighlightedCode code={`$ ${command}`} language="bash">
@@ -2309,7 +2309,7 @@ function PtySpawnTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
   return (
     <BasicTool
       icon={<Terminal className="size-3.5 flex-shrink-0" />}
-      trigger={{ title: 'Spawn', subtitle: title || command }}
+      trigger={{ title: '启动进程', subtitle: title || command }}
       defaultOpen={defaultOpen}
       forceOpen={forceOpen}
       locked={locked}
@@ -2472,7 +2472,7 @@ function PtyWriteTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
   return (
     <BasicTool
       icon={<Terminal className="size-3.5 flex-shrink-0" />}
-      trigger={{ title: 'Terminal Input', subtitle: ptyId }}
+      trigger={{ title: '终端输入', subtitle: ptyId }}
       defaultOpen={defaultOpen}
       forceOpen={forceOpen}
       locked={locked}
@@ -2511,7 +2511,7 @@ function PtyKillTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
     <BasicTool
       icon={<Terminal className="size-3.5 flex-shrink-0" />}
       trigger={{
-        title: 'Kill Process',
+        title: '结束进程',
         subtitle: ptyId,
       }}
       defaultOpen={defaultOpen}
@@ -2571,7 +2571,7 @@ function EditTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
     <BasicTool
       icon={<FileCode2 className="size-3.5 flex-shrink-0" />}
       trigger={{
-        title: 'Edit',
+        title: '编辑',
         subtitle: filename,
         args: directory ? [directory] : undefined,
       }}
@@ -2643,8 +2643,8 @@ function WriteTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
     <BasicTool
       icon={<FileCode2 className="size-3.5 flex-shrink-0" />}
       trigger={{
-        title: 'Write',
-        subtitle: filename || (isStalePending ? 'Working...' : undefined),
+        title: '写入',
+        subtitle: filename || (isStalePending ? '进行中...' : undefined),
         args: directory ? [directory] : undefined,
       }}
       onSubtitleClick={filePath ? () => openPreview(filePath) : undefined}
@@ -2704,7 +2704,7 @@ function ReadTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
     <>
       <BasicTool
         icon={<Glasses className="size-3.5 flex-shrink-0" />}
-        trigger={{ title: 'Read', subtitle: filename, args }}
+        trigger={{ title: '读取', subtitle: filename, args }}
         defaultOpen={defaultOpen}
         forceOpen={forceOpen}
         locked={locked}
@@ -2974,7 +2974,7 @@ function GlobTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
     <BasicTool
       icon={<Search className="size-3.5 flex-shrink-0" />}
       trigger={{
-        title: 'Glob',
+        title: '文件匹配',
         subtitle: directory,
         args: [
           ...args,
@@ -3040,7 +3040,7 @@ function GrepTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
     <BasicTool
       icon={<Search className="size-3.5 flex-shrink-0" />}
       trigger={{
-        title: 'Grep',
+        title: '内容搜索',
         subtitle: directory,
         args: [
           ...args,
@@ -3094,7 +3094,7 @@ function ListTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
     <BasicTool
       icon={<ListTree className="size-3.5 flex-shrink-0" />}
       trigger={{
-        title: 'List',
+        title: '列出',
         subtitle: directory,
         args: hasResults
           ? [`${filePaths.length} ${filePaths.length === 1 ? 'file' : 'files'}`]
@@ -4035,7 +4035,7 @@ function VideoGenTool({ part, defaultOpen, forceOpen, locked }: ToolProps) {
   return (
     <BasicTool
       icon={<Cpu className="size-3.5 flex-shrink-0" />}
-      trigger={{ title: 'Video Gen', subtitle: prompt?.slice(0, 60) }}
+      trigger={{ title: '视频生成', subtitle: prompt?.slice(0, 60) }}
       defaultOpen={defaultOpen}
       forceOpen={forceOpen}
       locked={locked}
@@ -4119,7 +4119,7 @@ function PresentationGenTool({
     if (action === 'export_pdf') return `${presentationName} → PDF`;
     if (action === 'export_pptx') return `${presentationName} → PPTX`;
     if (action === 'list_slides') return presentationName;
-    if (action === 'list_presentations') return 'All presentations';
+    if (action === 'list_presentations') return '所有演示';
     if (action === 'delete_slide' || action === 'delete_presentation')
       return presentationName;
     if (action === 'validate_slide') return `Slide ${slideNumber || '?'}`;
@@ -4132,7 +4132,7 @@ function PresentationGenTool({
       create_slide: 'Create Slide',
       list_slides: 'List Slides',
       delete_slide: 'Delete Slide',
-      list_presentations: 'List',
+      list_presentations: '列出',
       delete_presentation: 'Delete',
       validate_slide: 'Validate',
       export_pdf: 'Export PDF',
@@ -6326,7 +6326,7 @@ function SessionSearchTool({
     <BasicTool
       icon={<Search className="size-3.5 flex-shrink-0" />}
       trigger={{
-        title: 'Session Search',
+        title: '会话搜索',
         subtitle: query ? `"${query}"` : '',
         args:
           hits.length > 0
@@ -6399,7 +6399,7 @@ function SessionMessageTool({ part }: ToolProps) {
     <BasicTool
       icon={<MessageCircle className="size-3.5 flex-shrink-0" />}
       trigger={{
-        title: 'Message → Session',
+        title: '发送到会话',
         subtitle: sid,
         args: isOk ? ['sent'] : status === 'error' ? ['failed'] : [],
       }}
@@ -6448,7 +6448,7 @@ function SessionLineageTool({
     <BasicTool
       icon={<ListTree className="size-3.5 flex-shrink-0" />}
       trigger={{
-        title: 'Session Lineage',
+        title: '会话脉络',
         subtitle: sid,
         args: sessionCount > 0 ? [`${sessionCount} sessions`] : [],
       }}
@@ -6481,7 +6481,7 @@ function SessionStatsTool({ part }: ToolProps) {
   return (
     <BasicTool
       icon={<Layers className="size-3.5 flex-shrink-0" />}
-      trigger={{ title: 'Session Stats', subtitle: '', args: [] }}
+      trigger={{ title: '会话统计', subtitle: '', args: [] }}
       defaultOpen={true}
     >
       {output && (
@@ -6538,7 +6538,7 @@ function SessionListBackgroundTool({
     <BasicTool
       icon={<Layers className="size-3.5 flex-shrink-0" />}
       trigger={{
-        title: 'Background Sessions',
+        title: '后台会话',
         subtitle: project || 'all projects',
         args:
           workers.length > 0
@@ -7126,7 +7126,7 @@ function AgentStatusTool({ part }: ToolProps) {
           <div className="flex items-center gap-2.5">
             <Layers className="size-4 text-muted-foreground flex-shrink-0" />
             <span className="text-[13px] font-medium text-foreground truncate flex-1">
-              Tasks
+              任务
             </span>
             {isRunning && (
               <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium flex-shrink-0 flex items-center gap-1">
@@ -7253,7 +7253,7 @@ function TaskListTool({ part }: ToolProps) {
   return (
     <BasicTool
       icon={<ListTodo className="size-3.5 flex-shrink-0" />}
-      trigger={{ title: 'Tasks', subtitle: '', args: [] }}
+      trigger={{ title: '任务', subtitle: '', args: [] }}
       defaultOpen={false}
     >
       {output && (
@@ -7299,7 +7299,7 @@ function TaskDeleteTool({ part }: ToolProps) {
   return (
     <div className="flex items-center gap-2 px-2.5 py-1 text-xs text-muted-foreground/40">
       <Trash2 className="size-3 flex-shrink-0" />
-      <span>Task removed</span>
+      <span>任务已移除</span>
     </div>
   );
 }
@@ -7511,7 +7511,7 @@ function ProjectListTool({ part, defaultOpen, forceOpen }: ToolProps) {
     <BasicTool
       icon={<Folder className="size-3.5 text-muted-foreground" />}
       trigger={{
-        title: 'Project List',
+        title: '项目列表',
         subtitle:
           projects.length > 0
             ? `${projects.length} project${projects.length !== 1 ? 's' : ''}`
@@ -7557,7 +7557,7 @@ function ProjectListTool({ part, defaultOpen, forceOpen }: ToolProps) {
           {output.slice(0, 2000)}
         </div>
       ) : (
-        <div className="p-3 text-xs text-muted-foreground">Loading...</div>
+        <div className="p-3 text-xs text-muted-foreground">加载中...</div>
       )}
     </BasicTool>
   );
@@ -7576,7 +7576,7 @@ function ProjectGetTool({ part, defaultOpen, forceOpen }: ToolProps) {
     <BasicTool
       icon={<Folder className="size-3.5 text-muted-foreground" />}
       trigger={{
-        title: 'Project Details',
+        title: '项目详情',
         subtitle: name || 'Fetching...',
       }}
       defaultOpen={defaultOpen}
@@ -7588,7 +7588,7 @@ function ProjectGetTool({ part, defaultOpen, forceOpen }: ToolProps) {
             {output}
           </div>
         ) : (
-          <div className="p-3 text-xs text-muted-foreground">Loading...</div>
+          <div className="p-3 text-xs text-muted-foreground">加载中...</div>
         )}
       </div>
     </BasicTool>
@@ -7747,7 +7747,7 @@ function ConnectorListTool({ part, defaultOpen, forceOpen }: ToolProps) {
     <BasicTool
       icon={<Plug className="size-3.5 text-muted-foreground" />}
       trigger={{
-        title: 'Connector List',
+        title: '连接器列表',
         subtitle: filter
           ? `Filter: ${filter}`
           : `${connectors.length} connector${connectors.length !== 1 ? 's' : ''}`,
@@ -7784,7 +7784,7 @@ function ConnectorListTool({ part, defaultOpen, forceOpen }: ToolProps) {
         </div>
       ) : (
         <div className="p-3 text-xs text-muted-foreground">
-          {output ? 'No connectors found' : 'Loading...'}
+          {output ? 'No connectors found' : '加载中...'}
         </div>
       )}
     </BasicTool>
@@ -7860,7 +7860,7 @@ function ConnectorGetTool({ part, defaultOpen, forceOpen }: ToolProps) {
             )}
           </div>
         ) : (
-          <div className="p-3 text-xs text-muted-foreground">Loading...</div>
+          <div className="p-3 text-xs text-muted-foreground">加载中...</div>
         )}
       </div>
     </BasicTool>
@@ -7880,7 +7880,7 @@ function ConnectorSetupTool({ part, defaultOpen, forceOpen }: ToolProps) {
     <BasicTool
       icon={<Plug className="size-3.5 text-muted-foreground" />}
       trigger={{
-        title: 'Connector Setup',
+        title: '配置连接器',
         subtitle: data
           ? `${data.count} connector${data.count !== 1 ? 's' : ''} configured`
           : 'Setting up...',
@@ -7935,7 +7935,7 @@ function TriggersTool({ part, defaultOpen, forceOpen }: ToolProps) {
         const sourceType = (input.source_type as string) || '';
         const created = output.match(/Trigger created:\s*(\S+)/)?.[1];
         return {
-          title: 'Create Trigger',
+          title: '创建触发器',
           subtitle: created || name || 'Creating...',
           icon: <Plus className="size-3.5 text-muted-foreground" />,
           args: sourceType ? [sourceType] : undefined,
@@ -7945,8 +7945,8 @@ function TriggersTool({ part, defaultOpen, forceOpen }: ToolProps) {
         const countMatch = output.match(/TRIGGERS\s*\((\d+)\)/);
         const count = countMatch ? countMatch[1] : undefined;
         return {
-          title: 'List Triggers',
-          subtitle: count ? `${count} trigger${count === '1' ? '' : 's'}` : output ? 'Loaded' : 'Loading...',
+          title: '触发器列表',
+          subtitle: count ? `${count} trigger${count === '1' ? '' : 's'}` : output ? 'Loaded' : '加载中...',
           icon: <ListTree className="size-3.5 text-muted-foreground" />,
           args: count ? [count] : undefined,
         };
@@ -7955,7 +7955,7 @@ function TriggersTool({ part, defaultOpen, forceOpen }: ToolProps) {
         const id = (input.trigger_id as string) || '';
         const deleted = output.toLowerCase().includes('deleted');
         return {
-          title: 'Delete Trigger',
+          title: '删除触发器',
           subtitle: deleted ? 'Deleted' : id ? id.slice(0, 8) + '...' : 'Deleting...',
           icon: <Trash2 className="size-3.5 text-muted-foreground" />,
           args: deleted ? ['deleted'] : undefined,
@@ -7964,8 +7964,8 @@ function TriggersTool({ part, defaultOpen, forceOpen }: ToolProps) {
       case 'get': {
         const id = (input.trigger_id as string) || (input.name as string) || '';
         return {
-          title: 'Trigger Details',
-          subtitle: id ? (id.length > 20 ? id.slice(0, 20) + '...' : id) : 'Loading...',
+          title: '触发器详情',
+          subtitle: id ? (id.length > 20 ? id.slice(0, 20) + '...' : id) : '加载中...',
           icon: <CalendarClock className="size-3.5 text-muted-foreground" />,
           args: undefined,
         };
@@ -7973,7 +7973,7 @@ function TriggersTool({ part, defaultOpen, forceOpen }: ToolProps) {
       case 'update': {
         const name = (input.name as string) || (input.trigger_id as string) || '';
         return {
-          title: 'Update Trigger',
+          title: '更新触发器',
           subtitle: name || 'Updating...',
           icon: <RefreshCw className="size-3.5 text-muted-foreground" />,
           args: output ? ['updated'] : undefined,
@@ -7982,7 +7982,7 @@ function TriggersTool({ part, defaultOpen, forceOpen }: ToolProps) {
       case 'test': {
         const name = (input.name as string) || (input.trigger_id as string) || '';
         return {
-          title: 'Test Trigger',
+          title: '测试触发器',
           subtitle: name || 'Testing...',
           icon: <MonitorPlay className="size-3.5 text-muted-foreground" />,
           args: output ? ['tested'] : undefined,
@@ -7991,7 +7991,7 @@ function TriggersTool({ part, defaultOpen, forceOpen }: ToolProps) {
       case 'pause': {
         const name = (input.name as string) || (input.trigger_id as string) || '';
         return {
-          title: 'Pause Trigger',
+          title: '暂停触发器',
           subtitle: name || 'Pausing...',
           icon: <Ban className="size-3.5 text-muted-foreground" />,
           args: output ? ['paused'] : undefined,
@@ -8000,7 +8000,7 @@ function TriggersTool({ part, defaultOpen, forceOpen }: ToolProps) {
       case 'resume': {
         const name = (input.name as string) || (input.trigger_id as string) || '';
         return {
-          title: 'Resume Trigger',
+          title: '恢复触发器',
           subtitle: name || 'Resuming...',
           icon: <RefreshCw className="size-3.5 text-muted-foreground" />,
           args: output ? ['resumed'] : undefined,
@@ -8008,7 +8008,7 @@ function TriggersTool({ part, defaultOpen, forceOpen }: ToolProps) {
       }
       default:
         return {
-          title: 'Triggers',
+          title: '触发器',
           subtitle: action,
           icon: <CalendarClock className="size-3.5 text-muted-foreground" />,
           args: undefined,
@@ -8102,7 +8102,7 @@ function TriggersTool({ part, defaultOpen, forceOpen }: ToolProps) {
               ? 'Creating trigger...'
               : action === 'delete'
                 ? 'Deleting trigger...'
-                : 'Loading...'}
+                : '加载中...'}
           </div>
         )}
 
@@ -8406,7 +8406,7 @@ export function ToolError({
                 showTrace && 'rotate-90',
               )}
             />
-            <span className="text-[10px] font-medium">Stack trace</span>
+            <span className="text-[10px] font-medium">堆栈跟踪</span>
           </button>
           {showTrace && (
             <div className="px-3 pb-2.5 max-h-64 overflow-auto">

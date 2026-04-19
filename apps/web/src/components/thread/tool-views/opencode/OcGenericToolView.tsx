@@ -248,7 +248,7 @@ export function OcGenericToolView({
 
             {!cleanArgs && !output && (
               <div className="text-sm text-muted-foreground px-1">
-                No content to display.
+                暂无内容可显示。
               </div>
             )}
           </div>
@@ -334,7 +334,7 @@ function StructuredOutputDisplay({ sections }: { sections: OutputSectionType[] }
                       showTrace && 'rotate-90',
                     )}
                   />
-                  <span className="text-xs font-medium">Stack trace</span>
+                  <span className="text-xs font-medium">堆栈跟踪</span>
                   <span className="text-[10px] text-muted-foreground/40 font-mono ml-1">
                     {section.lines.length} lines
                   </span>
@@ -504,7 +504,7 @@ function ObservationReportCard({ report }: { report: ObservationReport }) {
             </div>
             {report.filesRead.length > 0 && (
               <div className="space-y-1">
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Files read</p>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">已读取的文件</p>
                 <div className="flex flex-wrap gap-1.5">
                   {report.filesRead.map((file) => (
                     <span
@@ -588,7 +588,7 @@ function ErrorSection({ message }: { message: string }) {
             className="flex items-center gap-1.5 px-3 py-1.5 w-full text-left border-t border-red-500/10 text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
           >
             <ChevronRight className={cn('h-3 w-3 transition-transform', showTrace ? 'rotate-90' : '')} />
-            <span className="text-[10px] font-medium">Stack trace</span>
+            <span className="text-[10px] font-medium">堆栈跟踪</span>
           </button>
           {showTrace && (
             <div className="px-3 pb-2.5 max-h-64 overflow-auto">

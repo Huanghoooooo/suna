@@ -130,7 +130,7 @@ export function OcProjectCreateToolView({
             </div>
             <div>
               <p className="text-sm font-medium text-foreground">{data.name}</p>
-              <p className="text-xs text-muted-foreground">Project created successfully</p>
+              <p className="text-xs text-muted-foreground">项目创建成功</p>
             </div>
           </div>
 
@@ -163,7 +163,7 @@ export function OcProjectCreateToolView({
       >
         {!isStreaming && data.success && (
           <Badge variant="outline" className="h-6 py-0.5 bg-muted">
-            Project ready
+            项目就绪
           </Badge>
         )}
       </ToolViewFooter>

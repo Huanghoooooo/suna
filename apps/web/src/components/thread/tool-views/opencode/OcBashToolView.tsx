@@ -450,7 +450,7 @@ export function OcBashToolView({
           ) : metadata.some((m) => m.isTimeout) ? (
             <Badge variant="outline" className="h-6 py-0.5 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-300">
               <Clock className="h-3 w-3" />
-              Timed Out
+              超时
             </Badge>
           ) : (
             <Badge variant="outline" className="h-6 py-0.5 bg-muted">

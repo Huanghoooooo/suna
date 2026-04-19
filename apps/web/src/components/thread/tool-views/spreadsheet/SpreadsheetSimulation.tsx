@@ -129,7 +129,7 @@ export function SpreadsheetSimulation({ mode = 'max' }: SpreadsheetSimulationPro
             animate={{ opacity: [0.5, 1, 0.5] }}
             transition={{ duration: 1.5, repeat: Infinity }}
           >
-            Building spreadsheet...
+            构建表格中...
           </motion.p>
         </div>
       </div>

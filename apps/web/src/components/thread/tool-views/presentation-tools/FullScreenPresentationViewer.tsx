@@ -374,7 +374,7 @@ export function FullScreenPresentationViewer({
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <Presentation className="h-12 w-12 mx-auto mb-4 text-zinc-400" />
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">No slide content to preview</p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">无可预览的幻灯片内容</p>
             </div>
           </div>
         );
@@ -540,7 +540,7 @@ export function FullScreenPresentationViewer({
           <div className="text-center">
             <KortixLoader size="large" className="mx-auto mb-4" />
             <p className="text-zinc-700 dark:text-zinc-300">
-              {retryAttempt > 0 ? `Retrying... (attempt ${retryAttempt + 1})` : 'Loading presentation...'}
+              {retryAttempt > 0 ? `Retrying... (attempt ${retryAttempt + 1})` : '加载演示中...'}
             </p>
           </div>
         ) : currentSlideData ? (
@@ -618,7 +618,7 @@ export function FullScreenPresentationViewer({
           </div>
         ) : (
           <div className="text-center">
-            <p className="text-zinc-700 dark:text-zinc-300">No slide found</p>
+            <p className="text-zinc-700 dark:text-zinc-300">未找到幻灯片</p>
           </div>
         )}
       </div>

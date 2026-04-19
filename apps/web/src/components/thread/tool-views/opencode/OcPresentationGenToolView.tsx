@@ -217,7 +217,7 @@ export function OcPresentationGenToolView({
                       <Eye className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground">Open Presentation Viewer</p>
+                      <p className="text-sm font-medium text-foreground">打开演示查看器</p>
                       <p className="text-xs text-muted-foreground font-mono truncate">
                         localhost:3210
                       </p>

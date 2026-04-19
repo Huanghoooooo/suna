@@ -62,7 +62,7 @@ export function OcSessionSpawnToolView({
               <div className="text-sm text-muted-foreground">{prompt.slice(0, 200)}</div>
             ) : (
               <div className="text-sm text-muted-foreground">
-                Spawning worker session...
+                正在派发 Worker 会话...
               </div>
             )}
           </div>

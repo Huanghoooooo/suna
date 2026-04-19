@@ -87,7 +87,7 @@ export function DeleteSlideToolView({
               {error || 'Failed to delete slide'}
             </h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-md">
-              There was an error deleting the slide. Please try again.
+              删除幻灯片时出错，请重试。
             </p>
           </div>
         ) : (
@@ -96,7 +96,7 @@ export function DeleteSlideToolView({
               <CheckCircle className="h-10 w-10 text-zinc-500 dark:text-zinc-400" />
             </div>
             <h3 className="text-xl font-semibold mb-2 text-zinc-900 dark:text-zinc-100">
-              Slide deleted successfully
+              幻灯片已删除
             </h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-md mb-6">
               {deleteData.message}
@@ -106,7 +106,7 @@ export function DeleteSlideToolView({
               <Card className="p-4 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Hash className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Deleted Slide</span>
+                  <span className="text-sm font-medium">已删除幻灯片</span>
                 </div>
                 <p className="text-lg font-semibold text-red-600 dark:text-red-400">
                   #{deleteData.deleted_slide}

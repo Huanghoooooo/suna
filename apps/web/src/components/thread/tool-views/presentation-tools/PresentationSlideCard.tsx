@@ -101,7 +101,7 @@ export function PresentationSlideCard({
         <div className="flex items-center justify-center h-48 bg-muted/30">
           <div className="text-center">
             <Presentation className="h-12 w-12 mx-auto mb-4 text-zinc-400" />
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">No slide content to preview</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">无可预览的幻灯片内容</p>
           </div>
         </div>
       </div>
