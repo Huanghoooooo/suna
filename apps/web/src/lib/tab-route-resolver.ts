@@ -224,6 +224,12 @@ const STATIC_TAB_ROUTES: Record<string, TabDescriptor> = {
     type: 'page',
     href: '/admin/sandboxes',
   },
+  '/admin/accounts': {
+    id: 'page:/admin/accounts',
+    title: '账号与角色',
+    type: 'page',
+    href: '/admin/accounts',
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -338,6 +344,19 @@ const DYNAMIC_RESOLVERS: DynamicResolver[] = [
       title: name,
       type: 'project',
       href: `/projects/${m[1]}`,
+    };
+  },
+
+  // /admin/accounts/<id> — admin account detail page
+  (pathname) => {
+    const m = pathname.match(/^\/admin\/accounts\/([^/]+)$/);
+    if (!m) return null;
+    const accountId = decodeURIComponent(m[1]);
+    return {
+      id: `page:/admin/accounts/${accountId}`,
+      title: '账号详情',
+      type: 'page',
+      href: `/admin/accounts/${accountId}`,
     };
   },
 ];
