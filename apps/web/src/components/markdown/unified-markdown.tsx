@@ -607,7 +607,7 @@ export interface UnifiedMarkdownProps {
  * UNIFIED MARKDOWN RENDERER
  *
  * Single source of truth for all markdown rendering across the application.
- * Optimized for Kortix brand with Vercel-level UX/UI polish.
+ * Optimized for Wutong brand with Vercel-level UX/UI polish.
  *
  * Design principles:
  * - Clean, minimal aesthetic

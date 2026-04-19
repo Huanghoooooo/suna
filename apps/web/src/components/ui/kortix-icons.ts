@@ -1,11 +1,11 @@
 /**
- * Kortix brand icon layer.
+ * Wutong brand icon layer.
  *
  * All icon imports in feature code should flow through this file instead of
  * importing from `lucide-react` directly. Benefits:
  *
  *   1. Single-line icon library swap (lucide → geist / tabler / iconoir / …)
- *   2. Stable Kortix-semantic names (`IconStatus` not `CircleDot`)
+ *   2. Stable Wutong-semantic names (`IconStatus` not `CircleDot`)
  *   3. Enforces a small curated set — pages can't drift into 40 random icons
  *
  * Rule for new pages: if the icon you want isn't exported here, add it here

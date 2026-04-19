@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: { params: Promise<{ shareId: 
 
     const template = await response.json();
 
-    const title = `${template.name} - AI Worker Template | Kortix`;
+    const title = `${template.name} - AI Worker Template | Wutong`;
     const description = template.description || 'Discover and install this AI worker template to enhance your workflow with powerful automation capabilities.';
 
     const ogImage = `${appUrl}/api/og/template?shareId=${templateId}`;
@@ -46,10 +46,10 @@ export async function generateMetadata({ params }: { params: Promise<{ shareId: 
     };
   } catch (error) {
     return {
-      title: 'AI Worker Template | Kortix',
+      title: 'AI Worker Template | Wutong',
       description: 'Discover and install AI worker templates to enhance your workflow with powerful automation capabilities.',
       openGraph: {
-        title: 'AI Worker Template | Kortix',
+        title: 'AI Worker Template | Wutong',
         description: 'Discover and install AI worker templates to enhance your workflow with powerful automation capabilities.',
         type: 'website',
         url: `${appUrl}/templates/${templateId}`,
@@ -58,7 +58,7 @@ export async function generateMetadata({ params }: { params: Promise<{ shareId: 
             url: `${appUrl}/share-page/og-fallback.png`,
             width: 1200,
             height: 630,
-            alt: 'Kortix AI Worker Template',
+            alt: 'Wutong AI Worker Template',
           }
         ],
       },

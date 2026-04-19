@@ -290,7 +290,7 @@ export default function InstancesPage() {
           {/* Claim computer card for legacy paid users */}
           {canClaimComputer && !pageLoading && (
             <ComputerHeroCard
-              title="Kortix is now even better"
+              title="Wutong is now even better"
               description={
                 <>
                   Your plan now includes a dedicated cloud computer

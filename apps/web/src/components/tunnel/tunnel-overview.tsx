@@ -233,7 +233,7 @@ function ConnectGuide() {
         </div>
         <h3 className="text-lg font-semibold text-foreground mb-2">Connect your machine</h3>
         <p className="text-sm text-muted-foreground text-center leading-relaxed mb-6">
-          Run this command on any machine to connect it to Kortix. You&apos;ll approve the connection in your browser.
+          Run this command on any machine to connect it to Wutong. You&apos;ll approve the connection in your browser.
         </p>
 
         <button

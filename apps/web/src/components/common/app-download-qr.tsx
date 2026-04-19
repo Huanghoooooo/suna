@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 
-// Kortix symbol SVG
+// Wutong symbol SVG
 function KortixSymbol({ size = 24, className }: { size?: number; className?: string }) {
   return (
     <svg 
@@ -27,7 +27,7 @@ export interface AppDownloadQRProps {
   size?: number;
   /** Additional class names for the container */
   className?: string;
-  /** Whether to show the Kortix logo in the center */
+  /** Whether to show the Wutong logo in the center */
   showLogo?: boolean;
   /** Size of the center logo */
   logoSize?: number;
@@ -50,7 +50,7 @@ export function AppDownloadQR({
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img 
         src={qrUrl}
-        alt="Scan to download Kortix - redirects to App Store or Google Play based on your device"
+        alt="Scan to download Wutong - redirects to App Store or Google Play based on your device"
         width={size}
         height={size}
         className="block"

@@ -43,7 +43,7 @@ export default function PartnershipsPageClient() {
 
         <Reveal delay={0.08}>
           <p className="text-base text-muted-foreground leading-relaxed max-w-xl">
-            We work with a handful of selected companies to build autonomous operations — the same way we build them for ourselves. Kortix leadership and engineers, embedded with your team.
+            We work with a handful of selected companies to build autonomous operations — the same way we build them for ourselves. Wutong leadership and engineers, embedded with your team.
           </p>
         </Reveal>
 
@@ -63,7 +63,7 @@ export default function PartnershipsPageClient() {
               $20,000<span className="text-base font-normal text-muted-foreground">/month</span>
             </p>
             <p className="text-sm text-muted-foreground mt-2">
-              Kortix leadership and engineers embedded with your team. Cancel anytime.
+              Wutong leadership and engineers embedded with your team. Cancel anytime.
             </p>
           </div>
         </Reveal>
@@ -86,7 +86,7 @@ export default function PartnershipsPageClient() {
                 <p className="text-xs text-muted-foreground mb-1">Phase 2</p>
                 <p className="text-base font-medium text-foreground">Build & Deploy</p>
                 <p className="text-base text-muted-foreground leading-relaxed mt-1.5">
-                  We build autonomous operations on Kortix — agents, automations, autonomous teams — wired into your tools and data. Fully deployed, in production. This requires low politics, low bureaucracy, and real access. Credentials, systems, green lights. We need ownership to move. This is a partnership, not a consulting engagement.
+                  We build autonomous operations on Wutong — agents, automations, autonomous teams — wired into your tools and data. Fully deployed, in production. This requires low politics, low bureaucracy, and real access. Credentials, systems, green lights. We need ownership to move. This is a partnership, not a consulting engagement.
                 </p>
               </div>
               <div>

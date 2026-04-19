@@ -102,14 +102,14 @@ export function PipedreamSettingsDialog() {
             ) : (
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
                 <Shield className="h-2.5 w-2.5 mr-1" />
-                Kortix Default
+                Wutong Default
               </Badge>
             )}
           </div>
           <p className="text-xs text-muted-foreground mt-1.5">
             {isCustom
               ? 'Using your own Pipedream project. You can update or revert below.'
-              : 'Using Kortix\'s default Pipedream project — works out of the box. Add your own below to use a custom project.'}
+              : 'Using Wutong\'s default Pipedream project — works out of the box. Add your own below to use a custom project.'}
           </p>
         </div>
 

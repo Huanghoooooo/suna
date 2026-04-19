@@ -43,7 +43,7 @@ import {
 import { useSidebar } from '@/components/ui/sidebar';
 import {
   useOpenCodeSessions,
-  // useOpenCodeProjects — replaced by Kortix projects
+  // useOpenCodeProjects — replaced by Wutong projects
   useOpenCodeAgents,
   useOpenCodeProviders,
 } from '@/hooks/opencode/use-opencode-sessions';

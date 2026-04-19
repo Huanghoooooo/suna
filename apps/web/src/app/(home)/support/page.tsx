@@ -73,16 +73,16 @@ function SupportPageContent() {
             </h2>
             <div>
               <FAQItem
-                question="What is Kortix?"
+                question="What is Wutong?"
                 answer="A 24/7 cloud computer where AI agents do the actual work of running a company. You connect your tools, define your agents, set their schedules and triggers — and the machine operates whether you're there or not."
               />
               <FAQItem
-                question="How is Kortix different from other AI platforms?"
-                answer="Most AI platforms are chat interfaces that give you suggestions. Kortix is a persistent computer that runs agents autonomously — they browse the web, execute code, call APIs, manage files, and coordinate across your tools. They work while you sleep."
+                question="How is Wutong different from other AI platforms?"
+                answer="Most AI platforms are chat interfaces that give you suggestions. Wutong is a persistent computer that runs agents autonomously — they browse the web, execute code, call APIs, manage files, and coordinate across your tools. They work while you sleep."
               />
               <FAQItem
-                question="Can Kortix connect to my apps?"
-                answer="Yes. 3,000+ integrations via OAuth, MCP servers, REST APIs, CLI tools, and environment variables. If it has an interface, Kortix connects to it."
+                question="Can Wutong connect to my apps?"
+                answer="Yes. 3,000+ integrations via OAuth, MCP servers, REST APIs, CLI tools, and environment variables. If it has an interface, Wutong connects to it."
               />
               <FAQItem
                 question="How do I request a feature or report a bug?"

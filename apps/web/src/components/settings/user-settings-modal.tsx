@@ -1075,14 +1075,14 @@ function NotificationsTab() {
                                     <NotificationToggle
                                         icon={HelpCircle}
                                         label="Questions"
-                                        description="When Kortix needs your input to continue"
+                                        description="When Wutong needs your input to continue"
                                         enabled={preferences.onQuestion}
                                         onToggle={(v) => setPreference('onQuestion', v)}
                                     />
                                     <NotificationToggle
                                         icon={ShieldCheck}
                                         label="Permission Requests"
-                                        description="When Kortix needs permission to use a tool"
+                                        description="When Wutong needs permission to use a tool"
                                         enabled={preferences.onPermission}
                                         onToggle={(v) => setPreference('onPermission', v)}
                                     />
@@ -1195,7 +1195,7 @@ function InstancesSection({ accountState, onRefetch }: { accountState: any; onRe
                         onClick={() => window.location.href = '/instances'}
                     >
                         <Plus className="size-3 mr-1" />
-                        New Kortix
+                        New Wutong
                     </Button>
                 )}
             </div>
@@ -1570,7 +1570,7 @@ function TransactionsTab() {
             <div>
                 <h3 className="text-lg font-medium tracking-tight mb-0.5">Credit ledger</h3>
                 <p className="text-sm text-muted-foreground">
-                    Ledger-backed account events from the Kortix schema: purchases, grants, usage, expirations, refunds, and bonuses.
+                    Ledger-backed account events from the Wutong schema: purchases, grants, usage, expirations, refunds, and bonuses.
                 </p>
             </div>
             <CreditTransactions />

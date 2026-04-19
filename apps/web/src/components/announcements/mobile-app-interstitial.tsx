@@ -118,7 +118,7 @@ export function MobileAppInterstitial() {
               {/* Text */}
               <div className="flex-1 min-w-0">
                 <h3 className="text-base font-semibold text-neutral-900 dark:text-white mb-0.5">
-                  Get Kortix for Mobile
+                  Get Wutong for Mobile
                 </h3>
                 <p className="text-sm text-neutral-500 dark:text-neutral-400">
                   Your AI Worker, in your pocket

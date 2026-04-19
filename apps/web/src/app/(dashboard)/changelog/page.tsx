@@ -385,7 +385,7 @@ export default function ChangelogPage() {
                     )}
                   </>
                 ) : (
-                  'Version history for Kortix Computer'
+                  'Version history for Wutong Computer'
                 )}
                 {latestVersion && currentVersion && latestVersion !== currentVersion && (
                   <>

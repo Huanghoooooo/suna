@@ -12,7 +12,7 @@ export const lssSearchKeys = {
 
 /**
  * Semantic search over workspace files using LSS (BM25 + embeddings).
- * Uses the /lss/search endpoint on Kortix Master.
+ * Uses the /lss/search endpoint on Wutong Master.
  *
  * Enable only when the user has typed a query (debounce upstream).
  */

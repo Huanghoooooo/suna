@@ -25,7 +25,7 @@ export default function CountryError() {
 
           {/* Description */}
           <p className="text-sm sm:text-base text-foreground/60 text-center leading-relaxed px-2">
-            We're sorry, Kortix is currently unavailable in your country. We're
+            We're sorry, Wutong is currently unavailable in your country. We're
             working to expand our availability and hope to serve you soon.
           </p>
 

@@ -2407,7 +2407,7 @@ export function SessionChatInput({
 
               {isBusy && onStop && !lockForQuestion && (
                 <div className="relative flex items-center">
-                  {/* ESC hint — matches Kortix tooltip styling (bg-primary rounded-2xl) */}
+                  {/* ESC hint — matches Wutong tooltip styling (bg-primary rounded-2xl) */}
                   {escCount > 0 && (
                     <div
                       className="absolute bottom-full right-1/2 translate-x-1/2 mb-2 pointer-events-none animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-150"

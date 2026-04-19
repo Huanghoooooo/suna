@@ -16,7 +16,7 @@ export default function CreditsPage() {
           {'积分说明'}
         </h1>
         <p className="text-base sm:text-lg text-muted-foreground">
-          {'关于 Kortix 积分工作原理你需要知道的一切'}
+          {'关于 Wutong 积分工作原理你需要知道的一切'}
         </p>
       </div>
 
@@ -28,7 +28,7 @@ export default function CreditsPage() {
             <h2 className="text-xl font-semibold">{'了解积分'}</h2>
           </div>
           <p className="text-muted-foreground leading-relaxed text-base">
-            {'积分是 Kortix 平台操作的通用货币。你的 AI Workers 执行的每个操作——从分析数据到生成代码——都会根据任务的复杂性和所需资源消耗积分。'}
+            {'积分是 Wutong 平台操作的通用货币。你的 AI Workers 执行的每个操作——从分析数据到生成代码——都会根据任务的复杂性和所需资源消耗积分。'}
           </p>
         </div>
 
@@ -55,7 +55,7 @@ export default function CreditsPage() {
                 <li className="flex items-start gap-3">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
                   <div>
-                    <span className="font-medium text-foreground">Kortix computer:</span> The execution environment that powers code execution, browser automation, and interactive task processing.
+                    <span className="font-medium text-foreground">Wutong computer:</span> The execution environment that powers code execution, browser automation, and interactive task processing.
                   </div>
                 </li>
                 <li className="flex items-start gap-3">

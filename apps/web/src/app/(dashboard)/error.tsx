@@ -19,7 +19,7 @@ export default function DashboardError({
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    console.error('[Kortix Dashboard Error]', error);
+    console.error('[Wutong Dashboard Error]', error);
     Sentry.captureException(error);
   }, [error]);
 

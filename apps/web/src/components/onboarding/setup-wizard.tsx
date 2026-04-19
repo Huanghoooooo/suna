@@ -145,7 +145,7 @@ function CloudBadge({ text }: { text?: string }) {
   return (
     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-medium mx-auto w-fit">
       <Zap className="h-3 w-3" />
-      {text || 'Included with your Kortix credits'}
+      {text || 'Included with your Wutong credits'}
     </div>
   );
 }
@@ -155,7 +155,7 @@ function CloudBadge({ text }: { text?: string }) {
 function WelcomePane({ onNext }: { onNext: () => void }) {
   return (
     <div className="flex flex-col items-center text-center gap-10">
-      {/* Kortix logo — large, centered */}
+      {/* Wutong logo — large, centered */}
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -172,7 +172,7 @@ function WelcomePane({ onNext }: { onNext: () => void }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
         >
-          Welcome to your Kortix
+          Welcome to your Wutong
         </motion.h1>
         <motion.p
           className="text-sm text-muted-foreground/50 leading-relaxed max-w-xs mx-auto"
@@ -217,7 +217,7 @@ function HowItWorksPane({ onNext, onBack }: { onNext: () => void; onBack: () => 
         <div className="space-y-1.5">
           <h2 className="text-lg font-medium text-foreground/90">Connect Your AI</h2>
           <p className="text-sm text-muted-foreground/50 leading-relaxed max-w-xs mx-auto">
-            Kortix is designed to work with your own AI subscriptions. Here&apos;s how most people connect.
+            Wutong is designed to work with your own AI subscriptions. Here&apos;s how most people connect.
           </p>
         </div>
       </div>
@@ -254,7 +254,7 @@ function HowItWorksPane({ onNext, onBack }: { onNext: () => void; onBack: () => 
               <CreditCard className="h-3.5 w-3.5 text-foreground/40" />
             </div>
             <div className="text-left">
-              <p className="text-[13px] font-medium text-foreground/80">Kortix credits</p>
+              <p className="text-[13px] font-medium text-foreground/80">Wutong credits</p>
               <p className="text-[11px] text-foreground/40 leading-relaxed">
                 Don&apos;t have a key yet? We include a few free credits to get you started.
               </p>
@@ -312,14 +312,14 @@ function AutoTopupPane({ onNext, onBack }: { onNext: () => void; onBack: () => v
       </div>
 
       <div className="space-y-1.5">
-        <h2 className="text-lg font-medium text-foreground/90">Kortix Credits</h2>
+        <h2 className="text-lg font-medium text-foreground/90">Wutong Credits</h2>
         <p className="text-sm text-muted-foreground/50 leading-relaxed max-w-xs mx-auto">
           You start with a few free credits to try things out. Your agent can use these when no provider API key is available.
         </p>
       </div>
 
       <div className="rounded-xl border border-foreground/[0.06] bg-foreground/[0.02] p-3.5 text-[12.5px] text-muted-foreground/60 leading-relaxed">
-        Credits are used when your agent runs on Kortix-managed models instead of your own API keys.
+        Credits are used when your agent runs on Wutong-managed models instead of your own API keys.
         Most users connect their own provider and rarely use credits.
       </div>
 
@@ -395,7 +395,7 @@ function ProvidersPane({ onNext, onBack }: { onNext: () => void; onBack: () => v
           <p className="text-sm text-muted-foreground/50 leading-relaxed max-w-xs mx-auto">
             {hasLLM
               ? 'Your agent is ready to use these models.'
-              : 'Log in with your coding subscription, paste an API key, or skip to use Kortix credits.'}
+              : 'Log in with your coding subscription, paste an API key, or skip to use Wutong credits.'}
           </p>
         </div>
       </div>
@@ -665,7 +665,7 @@ function ToolKeysPane({ onNext, onBack }: { onNext: () => void; onBack: () => vo
               Your agent uses tools like web search, scraping, and image generation to complete tasks.
             </p>
           </div>
-          {isCloud && <CloudBadge text="Included with your Kortix credits" />}
+          {isCloud && <CloudBadge text="Included with your Wutong credits" />}
         </div>
 
         {/* Info box */}
@@ -723,7 +723,7 @@ function ToolKeysPane({ onNext, onBack }: { onNext: () => void; onBack: () => vo
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground/50 leading-relaxed">
             {isCloud
-              ? 'These keys will override the default Kortix-managed keys for these tools.'
+              ? 'These keys will override the default Wutong-managed keys for these tools.'
               : 'Paste your API keys below. All fields are optional.'}
           </p>
           <div className="space-y-2">
@@ -843,7 +843,7 @@ function PipedreamPane({ onNext, onBack }: { onNext: () => void; onBack: () => v
               </a>.
             </p>
           </div>
-          {isCloud && <CloudBadge text="Included with your Kortix credits" />}
+          {isCloud && <CloudBadge text="Included with your Wutong credits" />}
         </div>
 
         {/* Info box */}
@@ -954,7 +954,7 @@ function GetStartedPane({ onNext, onBack }: { onNext: () => void; onBack: () => 
         <div className="space-y-1.5">
           <h2 className="text-lg font-medium text-foreground/90">You&apos;re all set</h2>
           <p className="text-sm text-muted-foreground/50 leading-relaxed max-w-xs mx-auto">
-            Your Kortix agent is configured and ready. We&apos;ll walk you through the basics in a quick guided conversation.
+            Your Wutong agent is configured and ready. We&apos;ll walk you through the basics in a quick guided conversation.
           </p>
         </div>
       </div>
@@ -985,7 +985,7 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
   const steps = useMemo<StepDef[]>(() => [
     { label: 'How It Works', icon: Key },
     { label: 'Providers', icon: Sparkles },
-    ...(showBilling ? [{ label: 'Kortix Credits', icon: CreditCard }] : []),
+    ...(showBilling ? [{ label: 'Wutong Credits', icon: CreditCard }] : []),
     { label: 'Default Model', icon: Bot },
     { label: 'Tools', icon: Wrench },
     { label: 'Integrations', icon: Link },

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Kortix <PageShell> — the one layout wrapper every management page uses.
+ * Wutong <PageShell> — the one layout wrapper every management page uses.
  *
  * Standardises max-width, horizontal padding, and scroll behavior so the
  * /triggers, /channels, /tunnel, /connectors, project About tab, etc. all
@@ -22,7 +22,7 @@ import type { ReactNode, HTMLAttributes } from 'react';
 
 type Width = 'reading' | 'default' | 'wide' | 'full';
 
-// Widths align with the canonical Kortix container. The
+// Widths align with the canonical Wutong container. The
 // `default` width matches the `container mx-auto max-w-7xl` used across
 // /scheduled-tasks, /channels, /tunnel, /connectors so PageShell-based
 // surfaces stack under the same rhythm as the rest of the app.

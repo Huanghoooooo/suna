@@ -21,43 +21,25 @@ export const WallpaperBackground = memo(function WallpaperBackground({
   const wallpaper = getWallpaperById(wallpaperId);
 
   // ── Variant 1: Brandmark ──────────────────────────────────────────────
-  // Full-bleed oversized Kortix symbol outline, faded
+  // Brandmark symbol removed per product direction — render a clean
+  // background with no watermark.
   if (wallpaper.type === 'svg') {
     return (
       <div
         className="absolute inset-0 pointer-events-none overflow-hidden"
         aria-hidden="true"
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={wallpaper.svgUrl}
-          alt=""
-          // Sized relative to the wallpaper container (not the viewport), so this
-          // looks identical whether rendered full-bleed on a real page or scaled
-          // inside an appearance-tab preview thumbnail.
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] sm:w-[160%] lg:w-[162%] h-auto object-contain select-none invert dark:invert-0"
-          draggable={false}
-        />
-      </div>
+      />
     );
   }
 
   // ── Variant 2: Symbol ─────────────────────────────────────────────────
-  // Tiny Kortix symbol, dead center, ghost-level opacity
+  // Symbol watermark removed — clean background only.
   if (wallpaper.type === 'symbol') {
     return (
       <div
-        className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center"
+        className="absolute inset-0 pointer-events-none overflow-hidden"
         aria-hidden="true"
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={wallpaper.symbolUrl}
-          alt=""
-          className="w-[80px] sm:w-[105px] md:w-[130px] h-auto object-contain select-none opacity-100 dark:invert translate-y-[10%]"
-          draggable={false}
-        />
-      </div>
+      />
     );
   }
 
@@ -128,16 +110,7 @@ export const WallpaperBackground = memo(function WallpaperBackground({
           }}
         />
 
-        {/* L2 — Kortix logomark, small, full opacity, dead center */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={wallpaper.svgUrl}
-            alt=""
-            className="w-[120px] sm:w-[150px] md:w-[170px] h-auto object-contain select-none invert dark:invert-0 translate-y-[10%]"
-            draggable={false}
-          />
-        </div>
+        {/* Wutong logomark removed — aurora now renders arcs only */}
 
       </div>
     );

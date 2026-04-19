@@ -13,7 +13,7 @@ const STORE_LINKS = {
   android: 'https://play.google.com/store/apps/details?id=com.kortix.app',
 };
 
-// Kortix symbol SVG (inline to avoid loading issues)
+// Wutong symbol SVG (inline to avoid loading issues)
 function KortixSymbol({ size = 24, className }: { size?: number; className?: string }) {
   return (
     <svg 
@@ -83,11 +83,11 @@ export default function AppDownloadPage() {
             </div>
             
             <h1 className="text-2xl md:text-3xl font-semibold text-foreground text-center tracking-tight mb-3">
-              Kortix for Mobile
+              Wutong for Mobile
             </h1>
             <p className="text-base text-muted-foreground text-center max-w-xl leading-relaxed">
               Your AI Worker, in your pocket.<br />
-              Download the app and take Kortix with you everywhere.
+              Download the app and take Wutong with you everywhere.
             </p>
           </motion.div>
 

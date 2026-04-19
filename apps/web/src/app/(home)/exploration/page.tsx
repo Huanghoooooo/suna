@@ -14,7 +14,7 @@ const stackStudies = [
     thesis: 'Best when the homepage needs to explain the system clearly.',
     rows: [
       ['Agents, skills, tools, MCP, browser', 'The visible surface area'],
-      ['Kortix orchestration', 'Memory, integrations, scheduling, tunnels'],
+      ['Wutong orchestration', 'Memory, integrations, scheduling, tunnels'],
       ['OpenCode engine', 'Sessions, execution, context, recovery'],
       ['Linux machine', 'Filesystem, bash, Chromium, Git, SSH'],
     ],
@@ -25,7 +25,7 @@ const stackStudies = [
     thesis: 'Best when the core message is that everything lives on the machine.',
     rows: [
       ['All state on the computer', 'Sessions, memory, credentials, projects'],
-      ['Kortix keeps it organized', 'Cron, routing, memory, integrations'],
+      ['Wutong keeps it organized', 'Cron, routing, memory, integrations'],
       ['OpenCode runs the agent', 'Tool calls, context injection, recovery'],
       ['Linux stores it in /workspace', 'One persistent volume, one machine'],
     ],
@@ -36,7 +36,7 @@ const stackStudies = [
     thesis: 'Best when the page needs to feel active and execution-oriented.',
     rows: [
       ['Signal', 'Human requests, cron, Slack, email'],
-      ['Kortix', 'Routes intent and keeps memory coherent'],
+      ['Wutong', 'Routes intent and keeps memory coherent'],
       ['OpenCode', 'Plans, calls tools, manages session state'],
       ['Tools', 'Browser, shell, CLI, MCP, direct API'],
       ['Filesystem', 'Logs, state, code, artifacts, memory'],
@@ -202,7 +202,7 @@ export default function ExplorationPage() {
                 Exploration
               </p>
               <h1 className="mt-4 max-w-4xl text-4xl font-medium tracking-tight text-foreground sm:text-5xl md:text-6xl">
-                A calmer way to evaluate how Kortix should explain itself.
+                A calmer way to evaluate how Wutong should explain itself.
               </h1>
               <p className="mt-5 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
                 This page is a working wall: architecture studies, filesystem proof,

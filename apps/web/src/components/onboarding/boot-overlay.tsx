@@ -10,7 +10,7 @@ const SYMBOL =
 const BIOS_LINES: { text: string; bold?: boolean }[] = [
   { text: 'KORTIX BIOS v2.0.1', bold: true },
   { text: '' },
-  { text: 'CPU: Kortix Inference Engine X1 @ 3.80 GHz' },
+  { text: 'CPU: Wutong Inference Engine X1 @ 3.80 GHz' },
   { text: 'Memory test................. OK' },
   { text: 'Neural cores............... 8/8 online' },
   { text: 'Agent runtime.............. initialized' },

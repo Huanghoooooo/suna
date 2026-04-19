@@ -303,7 +303,7 @@ export function SelfHostedForm({ returnUrl, installed }: SelfHostedFormProps) {
         window.location.href = returnUrl || '/instances';
         return;
       } else {
-        setErrorMessage('This instance still needs its initial owner account. Run the Kortix installer/CLI bootstrap first.');
+        setErrorMessage('This instance still needs its initial owner account. Run the Wutong installer/CLI bootstrap first.');
         setPending(false);
       }
     } catch (err: any) {
@@ -349,7 +349,7 @@ export function SelfHostedForm({ returnUrl, installed }: SelfHostedFormProps) {
     <div className="w-full max-w-sm">
       <div className="flex flex-col items-center mb-6">
         <h1 className="text-[17px] font-medium text-foreground/90 tracking-tight">
-          Sign in to Kortix
+          Sign in to Wutong
         </h1>
         <p className="text-[13px] text-foreground/40 mt-0.5">
           Your AI Computer
