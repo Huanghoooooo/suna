@@ -2032,7 +2032,14 @@ export function SessionChatInput({
       return;
     }
 
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // 跳过输入法组字阶段的回车（IME composition），避免候选词上屏时误发送
+    // Skip Enter while IME composition is active so selecting a candidate doesn't submit
+    if (
+      e.key === 'Enter' &&
+      !e.shiftKey &&
+      !e.nativeEvent.isComposing &&
+      e.keyCode !== 229
+    ) {
       e.preventDefault();
       handleSubmit();
     }
