@@ -115,8 +115,11 @@ ON CONFLICT (account_id) DO UPDATE SET role = 'super_admin';
 | `/v1/admin/api/platform-roles` | GET | 列出所有显式平台角色 List elevated platform-role accounts |
 | `/v1/admin/api/platform-roles/:accountId` | PUT | 设置角色（`user`/`admin`/`super_admin`） Set role |
 | `/v1/admin/api/platform-roles/:accountId` | DELETE | 撤销角色（降回隐式 `user`） Revoke role |
-| `/v1/admin/api/accounts` *(规划中)* | GET | 账号列表 |
-| `/v1/admin/api/accounts/:id/members` *(规划中)* | GET / PUT / DELETE | 账号内成员 |
+| `/v1/admin/api/accounts` | GET | 账号列表（支持 search/page/limit） |
+| `/v1/admin/api/accounts/:id` | GET | 账号详情 + 成员列表 + 平台角色 |
+| `/v1/admin/api/accounts/:id/members` | GET | 成员列表 |
+| `/v1/admin/api/accounts/:id/members/:userId` | PUT | 改账号内角色（owner/admin/member） |
+| `/v1/admin/api/accounts/:id/members/:userId` | DELETE | 移除成员 |
 
 所有路由在 `apps/api/src/admin/index.ts` 第 34 行统一挂 `supabaseAuth + requireAdmin` 中间件，
 无需每个路由重复校验。
@@ -137,8 +140,7 @@ apps/api/
     ├── admin/
     │   ├── index.ts                         # 管理员路由根（env/schema/instances/sandboxes）
     │   ├── platform-roles.ts                # 平台角色 CRUD（含等级制 + 末位超管保护）
-    │   ├── account-members.ts [规划中]      # 账号内成员 CRUD
-    │   └── accounts.ts        [规划中]      # 账号列表/详情
+    │   └── accounts.ts                      # 账号列表/详情 + 账号内成员 CRUD（含末位 owner 保护）
     ├── middleware/
     │   ├── auth.ts                          # supabaseAuth / combinedAuth
     │   └── require-admin.ts                 # 平台角色门禁 (admin/super_admin)

@@ -24,6 +24,7 @@ import { PROVIDER_REGISTRY, buildProviderKeySchema, LLM_PROVIDERS, TOOL_PROVIDER
 import { supabaseAuth } from '../middleware/auth';
 import { requireAdmin } from '../middleware/require-admin';
 import { platformRolesApp } from './platform-roles';
+import { accountsApp } from './accounts';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { execSync } from 'child_process';
@@ -266,6 +267,9 @@ function getAllAdminKeys(): string[] {
 
 // Role management: /v1/admin/api/platform-roles/*
 adminApp.route('/api/platform-roles', platformRolesApp);
+
+// Account browsing + in-account member management: /v1/admin/api/accounts/*
+adminApp.route('/api/accounts', accountsApp);
 
 /** GET /v1/admin/api/schema — key schema for the UI */
 adminApp.get('/api/schema', async (c) => {
