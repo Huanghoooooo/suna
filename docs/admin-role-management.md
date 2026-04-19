@@ -112,7 +112,9 @@ ON CONFLICT (account_id) DO UPDATE SET role = 'super_admin';
 | `/v1/admin/api/schema` | GET | Provider key schema |
 | `/v1/admin/api/instances` | GET | 沙盒清单 |
 | `/v1/admin/api/sandboxes` | GET / DELETE | 沙盒管理 |
-| `/v1/admin/api/platform-roles` *(规划中)* | GET / PUT / DELETE | 平台角色分配 |
+| `/v1/admin/api/platform-roles` | GET | 列出所有显式平台角色 List elevated platform-role accounts |
+| `/v1/admin/api/platform-roles/:accountId` | PUT | 设置角色（`user`/`admin`/`super_admin`） Set role |
+| `/v1/admin/api/platform-roles/:accountId` | DELETE | 撤销角色（降回隐式 `user`） Revoke role |
 | `/v1/admin/api/accounts` *(规划中)* | GET | 账号列表 |
 | `/v1/admin/api/accounts/:id/members` *(规划中)* | GET / PUT / DELETE | 账号内成员 |
 
@@ -134,7 +136,7 @@ apps/api/
 └── src/
     ├── admin/
     │   ├── index.ts                         # 管理员路由根（env/schema/instances/sandboxes）
-    │   ├── platform-roles.ts  [规划中]      # 平台角色 CRUD
+    │   ├── platform-roles.ts                # 平台角色 CRUD（含等级制 + 末位超管保护）
     │   ├── account-members.ts [规划中]      # 账号内成员 CRUD
     │   └── accounts.ts        [规划中]      # 账号列表/详情
     ├── middleware/
