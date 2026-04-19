@@ -32,8 +32,8 @@ interface Tutorial {
 const tutorials: Tutorial[] = [
   {
     id: 'introduction-to-kortix',
-    title: 'Introduction to Kortix',
-    description: 'Get a comprehensive overview of Kortix and discover the different AI-powered content generation modes available to supercharge your workflow.',
+    title: 'Introduction to Wutong',
+    description: 'Get a comprehensive overview of Wutong and discover the different AI-powered content generation modes available to supercharge your workflow.',
     duration: '3 min',
     icon: Sparkles,
     embedCode: `<div style="position: relative; padding-bottom: calc(57.3684% + 41px); height: 0px; width: 100%;"><iframe src="https://demo.arcade.software/iG83WENBBNvLFbzIf8kE?embed&embed_mobile=tab&embed_desktop=inline&show_copy_link=true" title="Explore Templates and AI-Powered Content Generation Modes" frameborder="0" loading="lazy" webkitallowfullscreen mozallowfullscreen allowfullscreen allow="clipboard-write" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color-scheme: light;" ></iframe></div>`,
@@ -41,23 +41,23 @@ const tutorials: Tutorial[] = [
   {
     id: 'getting-started-first-task',
     title: 'Getting Started: Your First Task',
-    description: 'Learn the basics of creating and completing your first task with Kortix. This tutorial walks you through the essential workflow to get you productive right away.',
+    description: 'Learn the basics of creating and completing your first task with Wutong. This tutorial walks you through the essential workflow to get you productive right away.',
     duration: '4 min',
     icon: Rocket,
-    embedCode: `<div style="position: relative; padding-bottom: calc(57.3684% + 41px); height: 0px; width: 100%;"><iframe src="https://demo.arcade.software/8tC4UfBbqMpsUo6CM30i?embed&embed_mobile=tab&embed_desktop=inline&show_copy_link=true" title="Your first task with Kortix" frameborder="0" loading="lazy" webkitallowfullscreen mozallowfullscreen allowfullscreen allow="clipboard-write" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color-scheme: light;" ></iframe></div>`,
+    embedCode: `<div style="position: relative; padding-bottom: calc(57.3684% + 41px); height: 0px; width: 100%;"><iframe src="https://demo.arcade.software/8tC4UfBbqMpsUo6CM30i?embed&embed_mobile=tab&embed_desktop=inline&show_copy_link=true" title="Your first task with Wutong" frameborder="0" loading="lazy" webkitallowfullscreen mozallowfullscreen allowfullscreen allow="clipboard-write" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color-scheme: light;" ></iframe></div>`,
   },
   {
     id: 'create-export-presentations',
     title: 'How to Create and Export Presentations',
-    description: 'Discover how to create stunning presentations with Kortix and export them in various formats for sharing and presenting.',
+    description: 'Discover how to create stunning presentations with Wutong and export them in various formats for sharing and presenting.',
     duration: '4 min',
     icon: Presentation,
     embedCode: `<div style="position: relative; padding-bottom: calc(57.3684% + 41px); height: 0px; width: 100%;"><iframe src="https://demo.arcade.software/p1ot4ZaAhDZYY61npOrT?embed&embed_mobile=tab&embed_desktop=inline&show_copy_link=true" title="Create a Q4 Business Review Presentation with Slide Templates" frameborder="0" loading="lazy" webkitallowfullscreen mozallowfullscreen allowfullscreen allow="clipboard-write" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color-scheme: light;" ></iframe></div>`,
   },
   {
     id: 'create-manage-files',
-    title: 'How to Create and Manage Files with Kortix',
-    description: 'Learn how to create, organize, and manage files with Kortix. This tutorial covers downloading data, exporting to different formats like Excel, and more.',
+    title: 'How to Create and Manage Files with Wutong',
+    description: 'Learn how to create, organize, and manage files with Wutong. This tutorial covers downloading data, exporting to different formats like Excel, and more.',
     duration: '3 min',
     icon: FolderOpen,
     embedCode: `<div style="position: relative; padding-bottom: calc(57.3684% + 41px); height: 0px; width: 100%;"><iframe src="https://demo.arcade.software/8augEzFC6kfwzfGxGg7H?embed&embed_mobile=tab&embed_desktop=inline&show_copy_link=true" title="Download Tesla Market Share Data to Excel" frameborder="0" loading="lazy" webkitallowfullscreen mozallowfullscreen allowfullscreen allow="clipboard-write" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color-scheme: light;" ></iframe></div>`,
@@ -65,7 +65,7 @@ const tutorials: Tutorial[] = [
   {
     id: 'create-videos-images',
     title: 'Create Videos and Images',
-    description: 'Explore the powerful media creation capabilities of Kortix. Learn how to generate videos and images using AI to enhance your projects.',
+    description: 'Explore the powerful media creation capabilities of Wutong. Learn how to generate videos and images using AI to enhance your projects.',
     duration: '3 min',
     icon: Video,
     embedCode: `<div style="position: relative; padding-bottom: calc(57.3684% + 41px); height: 0px; width: 100%;"><iframe src="https://demo.arcade.software/0FLRZoBUHFwGEbpIfUnP?embed&embed_mobile=tab&embed_desktop=inline&show_copy_link=true" title="Generate a Photorealistic Image and Adventure Video" frameborder="0" loading="lazy" webkitallowfullscreen mozallowfullscreen allowfullscreen allow="clipboard-write" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color-scheme: light;" ></iframe></div>`,
@@ -260,14 +260,14 @@ export default function TutorialsPage() {
                 <BookOpen className="w-6 h-6 text-primary" />
               </div>
               <span className="text-sm font-medium text-muted-foreground">
-                Learn Kortix
+                Learn Wutong
               </span>
             </div>
             <h1 className="text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-foreground mb-4">
               Tutorials
             </h1>
             <p className="text-lg text-muted-foreground leading-relaxed">
-              Step-by-step interactive tutorials to help you get the most out of Kortix. 
+              Step-by-step interactive tutorials to help you get the most out of Wutong. 
               From getting started to advanced workflows, master every feature.
             </p>
           </motion.div>
@@ -297,7 +297,7 @@ export default function TutorialsPage() {
                 More tutorials coming soon
               </h3>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                We&apos;re always adding new tutorials to help you get the most out of Kortix. 
+                We&apos;re always adding new tutorials to help you get the most out of Wutong. 
                 Check back regularly for fresh content and tips.
               </p>
             </motion.div>

@@ -44,7 +44,7 @@ const BOT_NAMES = [
 function defaultBotName(seed: string): string {
   let hash = 0;
   for (const char of seed) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return `Kortix ${BOT_NAMES[hash % BOT_NAMES.length]}`;
+  return `Wutong ${BOT_NAMES[hash % BOT_NAMES.length]}`;
 }
 
 export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
@@ -212,7 +212,7 @@ export function SlackSetupWizard({ onCreated, onBack }: SlackSetupWizardProps) {
               <Label htmlFor="slack-bot-name">Bot Name</Label>
               <Input
                 id="slack-bot-name"
-                placeholder="Kortix Agent"
+                placeholder="Wutong Agent"
                 value={botName}
                 onChange={(e) => setBotName(e.target.value)}
               />

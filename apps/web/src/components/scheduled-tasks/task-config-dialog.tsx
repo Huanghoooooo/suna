@@ -265,7 +265,7 @@ export function TaskConfigDialog({ open, onOpenChange, onCreated }: TaskConfigDi
                     <p className="text-xs text-muted-foreground mt-1">
                       Send a <span className="font-mono">POST</span> request to this URL to fire the trigger.
                       {webhookSecret ? ' Include the secret in the ' : ' Optionally protect with a secret via '}
-                      <code className="text-xs font-mono">X-Kortix-Trigger-Secret</code> header.
+                      <code className="text-xs font-mono">X-Wutong-Trigger-Secret</code> header.
                     </p>
                   </div>
 

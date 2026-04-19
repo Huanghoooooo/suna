@@ -365,7 +365,7 @@ export function SSHKeyDialog({ open, onOpenChange }: SSHKeyDialogProps) {
             SSH Access
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Connect to your Kortix instance via your IDE so it feels like home.
+            Connect to your Wutong instance via your IDE so it feels like home.
           </DialogDescription>
         </DialogHeader>
 

@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * Kortix <InlineMeta> — the `a · b · c · d` metadata strip.
+ * Wutong <InlineMeta> — the `a · b · c · d` metadata strip.
  *
  * Used wherever you want to surface a handful of small facts about a
  * resource (path, count, date, owner) in a single line. Children are
- * automatically separated by the Kortix dot.
+ * automatically separated by the Wutong dot.
  *
  *   <InlineMeta>
  *     <span className="font-mono">/workspace/foo</span>

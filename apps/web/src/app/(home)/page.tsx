@@ -103,7 +103,7 @@ export default function Home() {
                 className="h-12 px-8 text-sm rounded-full transition-colors"
                 onClick={handleLaunch}
               >
-                Launch Your Kortix<ArrowRight className="ml-1.5 size-3.5" />
+                Launch Your Wutong<ArrowRight className="ml-1.5 size-3.5" />
               </Button>
               <button
                 onClick={handleCopy}
@@ -152,7 +152,7 @@ export default function Home() {
               <div className="relative aspect-video bg-black">
                 <iframe
                   src="https://www.youtube.com/embed/Eu5mYMavctM"
-                  title="Kortix launch video"
+                  title="Wutong launch video"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
                   className="absolute inset-0 w-full h-full"
@@ -177,7 +177,7 @@ export default function Home() {
           </Reveal>
           <Reveal delay={0.15}>
           <p className="mt-3 text-base sm:text-lg text-muted-foreground leading-relaxed max-w-2xl">
-            A Kortix <em>is</em> a company. One shared machine where every agent sees the same filesystem, the same databases, the same history. Context isn&apos;t siloed per tool or per session — it&apos;s shared across the entire system, compounding over time. Coding agents operating inside a full Linux environment are the optimal harness for all knowledge work — not just engineering, but sales, finance, ops, legal, support, and everything in between. We&apos;re building this as our own internal operating system to run our own companies, and open-sourcing the whole thing.
+            A Wutong <em>is</em> a company. One shared machine where every agent sees the same filesystem, the same databases, the same history. Context isn&apos;t siloed per tool or per session — it&apos;s shared across the entire system, compounding over time. Coding agents operating inside a full Linux environment are the optimal harness for all knowledge work — not just engineering, but sales, finance, ops, legal, support, and everything in between. We&apos;re building this as our own internal operating system to run our own companies, and open-sourcing the whole thing.
           </p>
           </Reveal>
         </section>
@@ -241,7 +241,7 @@ export default function Home() {
                 <span className="text-sm font-semibold text-foreground">Connect everything</span>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed mb-4 max-w-xl">
-                Every tool your company uses — OAuth apps, MCP servers, REST APIs, CLI tools, environment variables. If it has an interface, Kortix connects to it. 3,000+ integrations available, and custom ones are trivial to add.
+                Every tool your company uses — OAuth apps, MCP servers, REST APIs, CLI tools, environment variables. If it has an interface, Wutong connects to it. 3,000+ integrations available, and custom ones are trivial to add.
               </p>
               <div className="flex flex-wrap gap-2">
                 <IntegrationPill domain="gmail.com" name="Gmail" />
@@ -353,7 +353,7 @@ export default function Home() {
             className="px-5 text-xs rounded-full font-medium"
             onClick={handleLaunch}
           >
-            Launch Your Kortix<ArrowRight className="ml-1.5 size-3" />
+            Launch Your Wutong<ArrowRight className="ml-1.5 size-3" />
           </Button>
         </div>
       </div>

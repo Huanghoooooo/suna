@@ -94,7 +94,7 @@ export function getToolTitle(toolName: string): string {
     'delete-agent-scheduled-trigger': 'Delete Scheduled Trigger',
     'toggle-agent-scheduled-trigger': 'Toggle Scheduled Trigger',
 
-    // Kortix session tools
+    // Wutong session tools
     'session_spawn': 'Spawn Session',
     'session-spawn': 'Spawn Session',
     'session_start_background': 'Start Background Session',
@@ -120,7 +120,7 @@ export function getToolTitle(toolName: string): string {
     'session_context': 'Session Context',
     'session-context': 'Session Context',
 
-    // Kortix trigger tools (unified `triggers` tool with action param)
+    // Wutong trigger tools (unified `triggers` tool with action param)
     'triggers': 'Triggers',
     'trigger_create': 'Create Trigger',
     'trigger-create': 'Create Trigger',

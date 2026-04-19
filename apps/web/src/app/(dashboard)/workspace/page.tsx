@@ -411,7 +411,7 @@ export default function WorkspacePage() {
     }
   }, [createSession]);
 
-  // Data — Kortix projects are the source of truth
+  // Data — Wutong projects are the source of truth
   const { data: projects,  isLoading: lProjects, error: projectsError  } = useKortixProjects();
   // Debug: log to browser console if projects fail to load
   if (typeof window !== 'undefined') {

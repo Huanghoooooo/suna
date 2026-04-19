@@ -7,13 +7,9 @@ import Link from 'next/link';
 function DocsLogo() {
   return (
     <Link href="/docs" className="flex items-center gap-2.5 no-underline">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/kortix-symbol.svg"
-        alt="Kortix"
-        className="dark:invert flex-shrink-0"
-        style={{ width: 18, height: 18 }}
-      />
+      <span className="font-sans font-bold tracking-tight text-sm text-fd-foreground">
+        Wutong
+      </span>
       <span className="font-medium text-sm tracking-[-0.01em] text-fd-foreground/80">
         Docs
       </span>

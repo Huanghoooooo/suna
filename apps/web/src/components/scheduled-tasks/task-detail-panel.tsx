@@ -325,7 +325,7 @@ export function TaskDetailPanel({ trigger, onClose }: TaskDetailPanelProps) {
                   </code>
                   <div className="text-xs font-medium text-muted-foreground pt-1">Example curl</div>
                   <code className="text-[11px] font-mono text-foreground/70 break-all block select-all whitespace-pre-wrap">
-{`curl -X POST "${webhookBaseUrl}${trigger.webhook?.path || webhookPath}"${trigger.webhook?.secretProtected ? ` \\\n  -H "X-Kortix-Trigger-Secret: <secret>"` : ''} \\
+{`curl -X POST "${webhookBaseUrl}${trigger.webhook?.path || webhookPath}"${trigger.webhook?.secretProtected ? ` \\\n  -H "X-Wutong-Trigger-Secret: <secret>"` : ''} \\
   -H "Content-Type: application/json" \\
   -d '{"key": "value"}'`}
                   </code>

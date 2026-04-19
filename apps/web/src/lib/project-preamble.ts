@@ -88,7 +88,7 @@ export function buildProjectRefsBlock(
 ): string {
   if (!projects.length) return '';
   const refs = projects.map(buildProjectRef).join('\n');
-  return `Referenced projects (the user's active Kortix project context — treat the first one as "the project" unless told otherwise):\n${refs}`;
+  return `Referenced projects (the user's active Wutong project context — treat the first one as "the project" unless told otherwise):\n${refs}`;
 }
 
 export function buildFileRefsBlock(

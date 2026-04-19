@@ -34,7 +34,7 @@ export function CreditsExplainedModal({ open, onOpenChange }: CreditsExplainedMo
               <h2 className="text-lg font-semibold">Understanding Credits</h2>
             </div>
             <p className="text-muted-foreground leading-relaxed">
-              Credits are the universal currency that powers everything you do on Kortix. 
+              Credits are the universal currency that powers everything you do on Wutong. 
               They're consumed when your AI agents work on tasks, and the cost varies based 
               on the complexity and resources required.
             </p>
@@ -63,7 +63,7 @@ export function CreditsExplainedModal({ open, onOpenChange }: CreditsExplainedMo
                   <li className="flex items-start gap-3">
                     <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
                     <div>
-                      <span className="font-medium text-foreground">Kortix computer:</span> Code execution, browser automation, and interactive task processing.
+                      <span className="font-medium text-foreground">Wutong computer:</span> Code execution, browser automation, and interactive task processing.
                     </div>
                   </li>
                   <li className="flex items-start gap-3">

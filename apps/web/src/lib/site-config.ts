@@ -10,11 +10,11 @@ export const siteConfig = {
   },
   hero: {
     description:
-      'Kortix – the open-source operating system for running autonomous companies.',
+      'Wutong – the open-source operating system for running autonomous companies.',
   },
   footerLinks: [
     {
-      title: 'Kortix',
+      title: 'Wutong',
       links: [
         { id: 1, title: 'About', url: '/about' },
         { id: 2, title: 'Careers', url: '/careers' },

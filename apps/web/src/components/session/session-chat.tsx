@@ -549,7 +549,7 @@ function HighlightMentions({
     return result;
   }, [cleanText, agentNames, projectNames, sessions, projects]);
 
-  // Uniform monochrome mention style — Kortix brand is strictly neutral, so
+  // Uniform monochrome mention style — Wutong brand is strictly neutral, so
   // every mention kind (file / agent / session / project) renders identically
   // as an underlined foreground chip. Kind is distinguished by click target.
   const mentionClass =
@@ -3211,7 +3211,7 @@ function SessionTurn({
   //
   // Structure:
   //   1. User message + actions
-  //   2. Kortix logo
+  //   2. Wutong logo
   //   3. Steps trigger (spinner/chevron + status + duration) — if working || hasSteps
   //   4. Collapsible steps (if expanded): all parts EXCEPT response part
   //   5. Answered question parts (if collapsed + has answered questions)
@@ -3360,15 +3360,10 @@ function SessionTurn({
         </div>
       )}
 
-      {/* Kortix logo header */}
+      {/* Wutong logo header */}
       {(working || hasSteps || hasReasoning) && (
         <div className="flex items-center gap-2 mt-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/kortix-logomark-white.svg"
-            alt="Kortix"
-            className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
-          />
+          <span aria-label="Wutong" className="font-sans font-bold tracking-tight leading-none text-foreground select-none text-[14px]">Wutong</span>
         </div>
       )}
 
@@ -3522,18 +3517,18 @@ function SessionTurn({
           </div>
         )}
 
-      {/* Kortix logo — shown when there are no steps and not working (otherwise logo is already above the steps trigger) */}
+      {/* Wutong logo — shown when there are no steps and not working (otherwise logo is already above the steps trigger) */}
       {!hasSteps &&
         !hasReasoning &&
         !working &&
         (response || answeredQuestionParts.length > 0 || turnError) && (
           <div className="flex items-center gap-2 mt-3 mb-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/kortix-logomark-white.svg"
-              alt="Kortix"
-              className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
-            />
+            <span
+              aria-label="Wutong"
+              className="font-sans font-bold tracking-tight leading-none text-foreground select-none text-[14px]"
+            >
+              Wutong
+            </span>
           </div>
         )}
 
@@ -6070,12 +6065,7 @@ export function SessionChat({
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src="/kortix-logomark-white.svg"
-                        alt="Kortix"
-                        className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
-                      />
+                      <span aria-label="Wutong" className="font-sans font-bold tracking-tight leading-none text-foreground select-none text-[14px]">Wutong</span>
                       {isRetrying && (
                         <span className="text-xs text-amber-500">
                           Retrying connection...
@@ -6098,12 +6088,7 @@ export function SessionChat({
                       <div className="flex-1 h-px bg-border" />
                     </div>
                     <div className="flex items-center gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src="/kortix-logomark-white.svg"
-                        alt="Kortix"
-                        className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
-                      />
+                      <span aria-label="Wutong" className="font-sans font-bold tracking-tight leading-none text-foreground select-none text-[14px]">Wutong</span>
                       <div className="text-sm text-muted-foreground">
                         Compacting session...
                       </div>
@@ -6172,12 +6157,7 @@ export function SessionChat({
                 )}
                 {!showOptimistic && isBusy && turns.length === 0 && (
                   <div className="flex items-center gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src="/kortix-logomark-white.svg"
-                      alt="Kortix"
-                      className="dark:invert-0 invert flex-shrink-0 h-[14px] w-auto"
-                    />
+                    <span aria-label="Wutong" className="font-sans font-bold tracking-tight leading-none text-foreground select-none text-[14px]">Wutong</span>
                   </div>
                 )}
               </div>

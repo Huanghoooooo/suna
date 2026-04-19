@@ -6625,7 +6625,7 @@ ToolRegistry.register('oc-project_delete', ProjectDeleteTool);
 ToolRegistry.register('oc-project-delete', ProjectDeleteTool);
 
 // ============================================================================
-// AgentSpawnTool — Kortix agent delegation (replaces native task tool)
+// AgentSpawnTool — Wutong agent delegation (replaces native task tool)
 // Same UX as TaskTool: compact card, live shimmer, SubSessionModal
 // ============================================================================
 
@@ -7490,7 +7490,7 @@ function SkillTool({ part, forceOpen }: ToolProps) {
 ToolRegistry.register('skill', SkillTool);
 
 // ============================================================================
-// Project Tools — Kortix Orchestrator project management
+// Project Tools — Wutong Orchestrator project management
 // ============================================================================
 
 import {
@@ -7724,7 +7724,7 @@ ToolRegistry.register('oc-project_create', ProjectCreateTool);
 ToolRegistry.register('oc-project-create', ProjectCreateTool);
 
 // ============================================================================
-// Connector Tools — Kortix Connectors plugin
+// Connector Tools — Wutong Connectors plugin
 // ============================================================================
 
 import {
@@ -7919,7 +7919,7 @@ ToolRegistry.register('oc-connector_setup', ConnectorSetupTool);
 ToolRegistry.register('oc-connector-setup', ConnectorSetupTool);
 
 // ============================================================================
-// TriggersTool — Kortix trigger management (create, list, delete, etc.)
+// TriggersTool — Wutong trigger management (create, list, delete, etc.)
 // ============================================================================
 
 function TriggersTool({ part, defaultOpen, forceOpen }: ToolProps) {

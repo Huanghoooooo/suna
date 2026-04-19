@@ -534,7 +534,7 @@ export function GlobalProviderModal() {
     if (!providers) return [];
     const connectedIds = new Set(providers.connected ?? []);
     // If kortix provider is connected, it serves all models — hide redundant
-    // built-in providers so users see a clean Kortix-only model list.
+    // built-in providers so users see a clean Wutong-only model list.
     const KORTIX_SUPERSEDED = ['anthropic', 'openai', 'google', 'xai', 'moonshotai', 'minimax', 'zhipuai'];
     const kortixConnected = connectedIds.has('kortix');
     const result: FlatModel[] = [];

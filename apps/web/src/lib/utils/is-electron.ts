@@ -9,7 +9,7 @@ export function isElectron(): boolean {
     return false;
   }
 
-  // Check user agent for Electron (we append "Electron/Kortix-Desktop" in main.js)
+  // Check user agent for Electron (we append "Electron/Wutong-Desktop" in main.js)
   if (typeof navigator !== 'undefined' && navigator.userAgent) {
     return navigator.userAgent.toLowerCase().includes('electron');
   }

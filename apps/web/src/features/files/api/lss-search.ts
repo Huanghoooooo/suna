@@ -1,7 +1,7 @@
 /**
- * LSS (Local Semantic Search) API — semantic search via the Kortix Master endpoint.
+ * LSS (Local Semantic Search) API — semantic search via the Wutong Master endpoint.
  *
- * Calls the `/lss/search` route on Kortix Master, which spawns the `lss` CLI
+ * Calls the `/lss/search` route on Wutong Master, which spawns the `lss` CLI
  * (BM25 + embeddings) and returns JSON results with file paths, scores, and snippets.
  */
 
@@ -26,7 +26,7 @@ export async function searchLss(
 ): Promise<LssHit[]> {
   const serverUrl = getActiveOpenCodeUrl();
 
-  // Build search URL — the server URL points to Kortix Master (port 8000),
+  // Build search URL — the server URL points to Wutong Master (port 8000),
   // and the /lss/search route is mounted directly on it.
   const params = new URLSearchParams({ q: query });
   if (options?.limit) params.set('k', String(options.limit));

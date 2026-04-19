@@ -1,5 +1,5 @@
 /**
- * Shared parsing utilities for Kortix Orchestrator tool outputs.
+ * Shared parsing utilities for Wutong Orchestrator tool outputs.
  * These are used by both inline renderers and side panel tool views.
  */
 

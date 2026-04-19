@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Kortix <DefinitionList> — key:value pair list.
+ * Wutong <DefinitionList> — key:value pair list.
  *
  * Used for:
  *   • Project About → Details panel

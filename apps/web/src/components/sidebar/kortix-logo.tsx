@@ -8,31 +8,25 @@ interface KortixLogoProps {
   className?: string;
 }
 
+// Brand wordmark: renders "Wutong" as text (Inter/Geist Bold, tight tracking).
+// The original SVG symbol/logomark has been removed per product direction.
+// `size` is interpreted as the font-size in px so existing callers keep their
+// visual rhythm; `variant` is accepted for API compatibility but both render
+// the same wordmark.
 export function KortixLogo({ size = 24, variant = 'symbol', className }: KortixLogoProps) {
-  // For logomark variant, use logomark-white.svg which is already white
-  // and invert it for light mode using CSS (no JS needed)
-  if (variant === 'logomark') {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src="/logomark-white.svg"
-        alt="Kortix"
-        className={cn('invert dark:invert-0 flex-shrink-0', className)}
-        style={{ height: `${size}px`, width: 'auto' }}
-        suppressHydrationWarning
-      />
-    );
-  }
-
-  // Default symbol variant behavior - invert for dark mode
+  void variant;
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src="/kortix-symbol.svg"
-      alt="Kortix"
-      className={cn('dark:invert flex-shrink-0', className)}
-      style={{ width: `${size}px`, height: `${size}px` }}
+    <span
+      aria-label="Wutong"
+      className={cn(
+        'inline-block font-sans font-bold tracking-tight leading-none select-none',
+        'text-foreground',
+        className,
+      )}
+      style={{ fontSize: `${size}px` }}
       suppressHydrationWarning
-    />
+    >
+      Wutong
+    </span>
   );
 }

@@ -252,7 +252,7 @@ export const ocToolViewRegistrations: Record<string, ToolViewComponent> = {
   'oc-mem_save': OcMemSaveToolView,
   'oc-mem-save': OcMemSaveToolView,
 
-  // Session tools (Kortix session surfaces)
+  // Session tools (Wutong session surfaces)
   'oc-session_list': OcSessionListToolView,
   'oc-session-list': OcSessionListToolView,
   'session_list': OcSessionListToolView,
@@ -281,7 +281,7 @@ export const ocToolViewRegistrations: Record<string, ToolViewComponent> = {
   'oc-session-list-spawned': OcSessionListToolView,
   'session_list_spawned': OcSessionListToolView,
 
-  // Project tools (Kortix project surfaces)
+  // Project tools (Wutong project surfaces)
   'oc-project_list': OcProjectListToolView,
   'oc-project-list': OcProjectListToolView,
   'project_list': OcProjectListToolView,
@@ -318,7 +318,7 @@ export const ocToolViewRegistrations: Record<string, ToolViewComponent> = {
   'get_mem': OcGetMemToolView,
   'get-mem': OcGetMemToolView,
 
-  // Trigger tools (Kortix trigger management)
+  // Trigger tools (Wutong trigger management)
   'oc-triggers': OcTriggersToolView,
   'triggers': OcTriggersToolView,
   'oc-trigger_create': OcTriggersToolView,

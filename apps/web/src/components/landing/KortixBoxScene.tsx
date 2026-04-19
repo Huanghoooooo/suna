@@ -184,7 +184,7 @@ function KortixBoxModel({ progressRef, isOn, setIsOn }: KortixBoxModelProps) {
       }
     }
     
-    // Start front-on (LED visible), tilt to reveal top (Kortix engraving) on scroll
+    // Start front-on (LED visible), tilt to reveal top (Wutong engraving) on scroll
     const scrollRX = t * 0.55;
     const scrollRY = t * 1.8;
     const scrollY = -t * 0.5;

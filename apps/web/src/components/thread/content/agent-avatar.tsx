@@ -58,13 +58,13 @@ export const AgentAvatar: React.FC<AgentAvatarProps> = ({
         )}
         style={{ width: size, height: size, ...borderRadiusStyle }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/kortix-symbol.svg"
-          alt="Kortix"
-          className="flex-shrink-0 invert dark:invert-0"
-          style={{ width: `${size * 0.5}px`, height: `${size * 0.5}px` }}
-        />
+        <span
+          aria-label="Wutong"
+          className="font-sans font-bold tracking-tight leading-none text-white dark:text-black select-none"
+          style={{ fontSize: `${size * 0.55}px` }}
+        >
+          W
+        </span>
       </div>
     );
   }
@@ -127,7 +127,7 @@ interface AgentNameProps {
 
 export const AgentName: React.FC<AgentNameProps> = ({
   name,
-  fallback = "Kortix"
+  fallback = "Wutong"
 }) => {
   return <span>{name || fallback}</span>;
 };

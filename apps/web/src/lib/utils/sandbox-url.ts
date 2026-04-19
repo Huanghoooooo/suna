@@ -81,8 +81,8 @@ const SUBDOMAIN_URL_REGEX =
  */
 const EXCLUDED_PORTS = new Set([
   22, // SSH daemon — never preview/probe as HTTP
-  4096, // OpenCode API (proxied by Kortix Master)
-  parseInt(SANDBOX_PORTS.KORTIX_MASTER, 10), // Kortix Master itself
+  4096, // OpenCode API (proxied by Wutong Master)
+  parseInt(SANDBOX_PORTS.KORTIX_MASTER, 10), // Wutong Master itself
 ]);
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ function extractLocalhostCandidate(text: string): string | null {
 // ── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Regex to detect Kortix Master proxy URLs: localhost:8000/proxy/{port}/...
+ * Regex to detect Wutong Master proxy URLs: localhost:8000/proxy/{port}/...
  * The agent inside the sandbox sees these URLs; the frontend needs to
  * extract the real service port and remaining path.
  */
@@ -170,7 +170,7 @@ export function isAppRouteUrl(rawUrl: string | undefined): boolean {
  * Parse a localhost URL in one place so all consumers share identical rules.
  *
  * Handles a special case: `http://localhost:8000/proxy/{port}/{path}` URLs
- * from inside the sandbox (Kortix Master). These are rewritten to appear as
+ * from inside the sandbox (Wutong Master). These are rewritten to appear as
  * `localhost:{port}/{path}` so they get proxied correctly.
  */
 export function parseLocalhostUrl(
@@ -207,7 +207,7 @@ export function parseLocalhostUrl(
 
     let pathStr = `${parsed.pathname || '/'}${parsed.search}${parsed.hash}`;
 
-    // Special case: localhost:8000/proxy/{port}/... (Kortix Master proxy URL).
+    // Special case: localhost:8000/proxy/{port}/... (Wutong Master proxy URL).
     // Extract the real port and remaining path so detection/rewriting works.
     const kortixMasterPort = parseInt(SANDBOX_PORTS.KORTIX_MASTER, 10);
     if (port === kortixMasterPort) {
@@ -564,10 +564,10 @@ export function isPreviewUrl(url: string): boolean {
 const WEB_PROXY_PATH_PREFIX = '/web-proxy/';
 
 /**
- * Build a web proxy URL that routes through the Kortix Master (port 8000)
+ * Build a web proxy URL that routes through the Wutong Master (port 8000)
  * which hosts the /web-proxy/ forward proxy.
  *
- * The web proxy lives on Kortix Master, NOT the OpenCode server, so we
+ * The web proxy lives on Wutong Master, NOT the OpenCode server, so we
  * construct a URL targeting port 8000 via the standard sandbox preview proxy.
  */
 export function buildWebProxyUrl(
