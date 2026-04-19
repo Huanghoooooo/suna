@@ -25,6 +25,7 @@ import { supabaseAuth } from '../middleware/auth';
 import { requireAdmin } from '../middleware/require-admin';
 import { platformRolesApp } from './platform-roles';
 import { accountsApp } from './accounts';
+import { usersApp } from './users';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { execSync } from 'child_process';
@@ -270,6 +271,9 @@ adminApp.route('/api/platform-roles', platformRolesApp);
 
 // Account browsing + in-account member management: /v1/admin/api/accounts/*
 adminApp.route('/api/accounts', accountsApp);
+
+// Admin-created users (provision + assign to account): /v1/admin/api/users
+adminApp.route('/api/users', usersApp);
 
 /** GET /v1/admin/api/schema — key schema for the UI */
 adminApp.get('/api/schema', async (c) => {
