@@ -919,6 +919,8 @@ const VISIBLE_IDS = new Set<string>([
   'pref-general',
   'account-billing',
   'logout',
+  // 管理员（再经 requiresAdmin 过滤）
+  'admin-accounts',
 ]);
 
 /** 菜单项显示标签的中文覆盖（保留条目 id → 中文）。 */
@@ -935,6 +937,7 @@ const ZH_LABELS: Record<string, string> = {
   'pref-appearance': '外观',
   'account-billing': '账单',
   'logout': '退出登录',
+  'admin-accounts': '账号与角色',
 };
 
 function localizeItem(item: MenuItemDef): MenuItemDef {

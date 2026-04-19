@@ -1,7 +1,6 @@
 'use client';
 
 import { use, useState } from 'react';
-import Link from 'next/link';
 import {
   useAdminAccountDetail,
   useAdminRole,
@@ -9,6 +8,7 @@ import {
   useSetMemberRole,
   useRemoveMember,
 } from '@/hooks/admin';
+import { openTabAndNavigate } from '@/stores/tab-store';
 import type {
   AccountRole,
   PlatformRole,
@@ -302,12 +302,20 @@ export default function AdminAccountDetailPage({
 
   return (
     <div className="flex flex-col gap-4 p-6">
-      <Link
-        href="/admin/accounts"
-        className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 w-fit"
+      <button
+        type="button"
+        onClick={() =>
+          openTabAndNavigate({
+            id: 'page:/admin/accounts',
+            title: '账号与角色',
+            type: 'page',
+            href: '/admin/accounts',
+          })
+        }
+        className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 w-fit bg-transparent border-0 p-0 cursor-pointer"
       >
         <ArrowLeft className="w-3 h-3" /> 返回账号列表 Back to accounts
-      </Link>
+      </button>
 
       <header className="flex items-start justify-between gap-4">
         <div>

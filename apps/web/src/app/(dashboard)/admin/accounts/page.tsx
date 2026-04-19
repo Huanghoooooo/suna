@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { useAdminAccounts, useAdminRole } from '@/hooks/admin';
 import type { AdminAccountSummary, PlatformRole } from '@/hooks/admin/use-admin-accounts';
+import { openTabAndNavigate } from '@/stores/tab-store';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -130,38 +130,40 @@ export default function AdminAccountsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              accounts.map((a: AdminAccountSummary) => (
-                <TableRow key={a.accountId} className="hover:bg-muted/40">
-                  <TableCell>
-                    <Link
-                      href={`/admin/accounts/${a.accountId}`}
-                      className="font-medium hover:underline"
-                    >
-                      {a.name}
-                    </Link>
-                    {a.personalAccount && (
-                      <Badge variant="secondary" className="ml-2 text-xs">personal</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {a.ownerEmail ?? '—'}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{a.memberCount}</TableCell>
-                  <TableCell><PlatformRoleBadge role={a.platformRole} /></TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {formatDate(a.createdAt)}
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/admin/accounts/${a.accountId}`}
-                      className="text-muted-foreground hover:text-foreground"
-                      aria-label="详情 Detail"
-                    >
-                      <ArrowRight className="w-4 h-4" />
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))
+              accounts.map((a: AdminAccountSummary) => {
+                const openDetail = () =>
+                  openTabAndNavigate({
+                    id: `page:/admin/accounts/${a.accountId}`,
+                    title: a.name || '账号详情',
+                    type: 'page',
+                    href: `/admin/accounts/${a.accountId}`,
+                  });
+                return (
+                  <TableRow
+                    key={a.accountId}
+                    className="hover:bg-muted/40 cursor-pointer"
+                    onClick={openDetail}
+                  >
+                    <TableCell>
+                      <span className="font-medium">{a.name}</span>
+                      {a.personalAccount && (
+                        <Badge variant="secondary" className="ml-2 text-xs">personal</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {a.ownerEmail ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{a.memberCount}</TableCell>
+                    <TableCell><PlatformRoleBadge role={a.platformRole} /></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDate(a.createdAt)}
+                    </TableCell>
+                    <TableCell>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
