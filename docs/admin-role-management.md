@@ -206,6 +206,24 @@ ORDER BY pr.role DESC, a.name;
 All operations can be done in the `/admin/accounts/[id]` UI; SQL listed here
 for emergencies or scripting.
 
+### 新建一个员工账号 | Create an employee account
+
+UI 路径：`/admin/accounts` → 进目标账号详情 → 成员表头右侧 **"新建成员"** →
+填邮箱 + 初始密码（≥8 字符）+ 账号内角色（默认 `member`）→ 创建。
+新用户立即可用该邮箱 + 密码登录（`email_confirm: true` 跳过邮件验证），
+建议首登后让他自行修改密码。
+
+UI: `/admin/accounts` → open the target account → click **Create member**
+in the members section → fill in email, initial password (≥ 8 chars) and
+in-account role (default `member`) → submit. The user can sign in
+immediately (Supabase `email_confirm: true` skips verification email);
+have them rotate the password on first login.
+
+**行为细节 | Behaviour notes**:
+- 邮箱已存在 → 409 `"already exists"`，UI 弹红 toast
+- 目标账号不存在 → 404
+- `kortix.account_members` upsert 失败时会回滚 auth.users 创建，不留孤儿
+
 ### 新增一个 admin | Add an admin
 
 UI 路径：`/admin/accounts` → 搜用户 → 进详情 → 平台角色下拉选 `admin`。
@@ -268,13 +286,15 @@ disable them:
 
 1. Supabase Studio (`http://127.0.0.1:64323` 本地 / 生产对应 URL)
 2. Authentication → Providers → Email（或其他）→ **Enable signup** 关掉
-3. 关掉之后只有两种路径产生用户：
-   - **方案 A（当前不支持）**：管理员在 Suna UI 里"邀请成员"——需要新建接口调
-     `supabase.auth.admin.inviteUserByEmail`，目前后端没写，属于下一阶段需求。
+3. 关掉之后通过以下路径产生用户：
+   - **方案 A（推荐，已实现）**：管理员在 `/admin/accounts/[id]` 详情页点
+     **"新建成员"**，填邮箱 + 初始密码 + 账号内角色 → 后端调
+     `supabase.auth.admin.createUser(email_confirm: true)` 并写入
+     `kortix.account_members`。员工拿到凭据直接登录。见 §5 "新建员工账号"。
    - **方案 B（现成）**：Supabase Dashboard → Authentication → Users → "Invite user"
-     发邀请邮件。适合用户量少的试点期。
+     发邀请邮件。用户自设密码，更安全但需要 SMTP；适合用户量少的试点期。
    - **方案 C（现成）**：`/admin/access-requests` 页面走审批流——员工自己填申请，
-     管理员批准。属于 Suna 自带能力，后端已有，适合半开放场景。
+     管理员批准。Suna 自带能力，适合半开放场景。
 
 ### 首个管理员优先 | Bootstrap before opening the door
 
@@ -354,7 +374,8 @@ apps/api/
 │   ├── admin/
 │   │   ├── index.ts                           # 管理员路由根
 │   │   ├── platform-roles.ts                  # 平台角色 CRUD + 等级制
-│   │   └── accounts.ts                        # 账号列表/详情 + 成员 CRUD
+│   │   ├── accounts.ts                        # 账号列表/详情 + 成员 CRUD
+│   │   └── users.ts                           # 新建用户（admin.createUser + account_members）
 │   ├── middleware/require-admin.ts            # 权限门
 │   └── shared/platform-roles.ts               # getPlatformRole / isPlatformAdmin
 └── .env.example                               # INITIAL_SUPER_ADMIN_EMAIL 说明
@@ -364,7 +385,7 @@ apps/web/
 │   ├── app/(dashboard)/admin/accounts/
 │   │   ├── page.tsx                           # 账号列表 UI
 │   │   └── [id]/page.tsx                      # 账号详情 + 角色管理 UI
-│   ├── hooks/admin/use-admin-accounts.ts      # 五个 React Query hook
+│   ├── hooks/admin/use-admin-accounts.ts      # 六个 React Query hook（含新建成员）
 │   ├── lib/menu-registry.ts                   # 菜单 + 白名单
 │   ├── lib/tab-route-resolver.ts              # tab 路由解析
 │   └── components/tabs/page-tab-content.tsx   # tab → 组件映射
