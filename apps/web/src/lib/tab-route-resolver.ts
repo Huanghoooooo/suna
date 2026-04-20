@@ -230,6 +230,12 @@ const STATIC_TAB_ROUTES: Record<string, TabDescriptor> = {
     type: 'page',
     href: '/admin/accounts',
   },
+  '/team': {
+    id: 'page:/team',
+    title: '团队管理',
+    type: 'page',
+    href: '/team',
+  },
 };
 
 // ---------------------------------------------------------------------------

@@ -116,6 +116,9 @@ const AdminAccountsPage = lazy(() =>
 const AdminAccountDetailPage = lazy(() =>
 	import('@/app/(dashboard)/admin/accounts/[id]/page'),
 );
+const TeamPage = lazy(() =>
+	import('@/app/(dashboard)/team/page'),
+);
 
 const LegacyThreadPage = lazy(() =>
 	import('@/app/(dashboard)/legacy/[threadId]/page'),
@@ -167,6 +170,7 @@ const PAGE_COMPONENTS: Record<string, ComponentType> = {
 	'/admin/access-requests': AdminAccessRequestsPage,
 	'/admin/sandboxes': AdminSandboxesPage,
 	'/admin/accounts': AdminAccountsPage,
+	'/team': TeamPage,
 };
 
 function resolveComponent(routeKey: string): { Component: ComponentType<any>; params?: Record<string, string> } | null {
