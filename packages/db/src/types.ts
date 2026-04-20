@@ -1,4 +1,4 @@
-import { sandboxes, deployments, kortixApiKeys, integrationCredentials, integrations, sandboxIntegrations, serverEntries, accounts, accountMembers, creditAccounts, tunnelConnections, tunnelPermissions, tunnelPermissionRequests, tunnelAuditLogs } from './schema/kortix';
+import { sandboxes, deployments, kortixApiKeys, integrationCredentials, integrations, sandboxIntegrations, serverEntries, accounts, accountMembers, creditAccounts, tunnelConnections, tunnelPermissions, tunnelPermissionRequests, tunnelAuditLogs, auditLogs } from './schema/kortix';
 import { apiKeys, accountUser } from './schema/public';
 
 // Select types (what you get back from queries)
@@ -37,6 +37,9 @@ export type TunnelPermissionRequest = typeof tunnelPermissionRequests.$inferSele
 export type NewTunnelPermissionRequest = typeof tunnelPermissionRequests.$inferInsert;
 export type TunnelAuditLog = typeof tunnelAuditLogs.$inferSelect;
 export type NewTunnelAuditLog = typeof tunnelAuditLogs.$inferInsert;
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type NewAuditLog = typeof auditLogs.$inferInsert;
 
 // Aliases
 export type SandboxSelect = Sandbox;

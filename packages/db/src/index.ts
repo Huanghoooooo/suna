@@ -69,6 +69,10 @@ export {
   platformSettings,
   accessAllowlist,
   accessRequests,
+  // Audit (enterprise append-only log)
+  auditLogCategoryEnum,
+  auditLogs,
+  auditLogsRelations,
   // Pool
   poolResources,
   poolSandboxes,
@@ -118,4 +122,6 @@ export type {
   NewTunnelPermissionRequest,
   TunnelAuditLog,
   NewTunnelAuditLog,
+  AuditLog,
+  NewAuditLog,
 } from './types';

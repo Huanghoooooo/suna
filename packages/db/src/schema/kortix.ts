@@ -908,3 +908,50 @@ export const accessRequests = kortixSchema.table(
   ],
 );
 
+// ─── Enterprise audit log (append-only, hash-chained per account) ───────────
+// Per Wutong Agent requirements: tamper-evident audit trail for login, business
+// actions, permission changes, agent tool traces, etc.
+
+export const auditLogCategoryEnum = kortixSchema.enum('audit_log_category', [
+  'business',
+  'system',
+  'agent_trace',
+]);
+
+export const auditLogs = kortixSchema.table(
+  'audit_logs',
+  {
+    logId: uuid('log_id').defaultRandom().primaryKey(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.accountId, { onDelete: 'cascade' }),
+    chainSeq: bigint('chain_seq', { mode: 'number' }).notNull(),
+    category: auditLogCategoryEnum('category').notNull(),
+    action: varchar('action', { length: 160 }).notNull(),
+    actorUserId: uuid('actor_user_id'),
+    resourceType: varchar('resource_type', { length: 128 }),
+    resourceId: text('resource_id'),
+    summary: text('summary').notNull(),
+    metadata: jsonb('metadata').default({}).$type<Record<string, unknown>>().notNull(),
+    requestId: varchar('request_id', { length: 128 }),
+    ipAddress: varchar('ip_address', { length: 64 }),
+    userAgent: text('user_agent'),
+    prevRecordHash: varchar('prev_record_hash', { length: 64 }).notNull(),
+    recordHash: varchar('record_hash', { length: 64 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('idx_audit_logs_account_chain_seq').on(table.accountId, table.chainSeq),
+    index('idx_audit_logs_account_created').on(table.accountId, table.createdAt),
+    index('idx_audit_logs_account_category').on(table.accountId, table.category),
+    index('idx_audit_logs_action').on(table.action),
+  ],
+);
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  account: one(accounts, {
+    fields: [auditLogs.accountId],
+    references: [accounts.accountId],
+  }),
+}));
+

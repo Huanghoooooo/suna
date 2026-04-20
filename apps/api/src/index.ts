@@ -49,6 +49,8 @@ import { adminApp } from './admin';
 import { sandboxPoolAdminApp } from './platform/routes/sandbox-pool-admin';
 import { memberSelfServiceApp } from './accounts/member-self-service';
 import { oauthApp } from './oauth';
+import { hasDatabase } from './shared/db';
+import { createAuditApp } from './audit';
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `"'"'`)}'`;
@@ -401,6 +403,12 @@ app.route('/v1/servers', serversApp);        // /v1/servers, /v1/servers/:id, /v
 
 app.use('/v1/queue/*', combinedAuth);
 app.route('/v1/queue', queueApp);            // /v1/queue/sessions/:id, /v1/queue/messages/:id, /v1/queue/all, /v1/queue/status
+
+// Enterprise audit log (append-only hash chain per account) — Wutong Agent requirements
+if (hasDatabase) {
+  app.use('/v1/audit/*', combinedAuth);
+  app.route('/v1/audit', createAuditApp()); // GET/POST /v1/audit/events, GET /v1/audit/verify-chain
+}
 
 // Public device-auth endpoints (no auth — CLI uses these)
 import { createDeviceAuthPublicRouter } from './tunnel/routes/device-auth';
