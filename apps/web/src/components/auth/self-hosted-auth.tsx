@@ -31,13 +31,13 @@ function InstallerForm({ onSuccess, onError }: InstallerFormProps) {
     onError('');
 
     if (password !== confirmPassword) {
-      onError('Passwords do not match');
+      onError('两次输入的密码不一致');
       setPending(false);
       return;
     }
 
     if (password.length < 6) {
-      onError('Password must be at least 6 characters');
+      onError('密码至少需要 6 位');
       setPending(false);
       return;
     }
@@ -55,11 +55,11 @@ function InstallerForm({ onSuccess, onError }: InstallerFormProps) {
         resetClient();
         onSuccess();
       } else {
-        onError(result.message || 'Failed to create owner account');
+        onError(result.message || '创建管理员账号失败');
       }
     } catch (err: any) {
       console.error('[InstallerForm] Error:', err);
-      onError(err?.message || 'An unexpected error occurred');
+      onError(err?.message || '发生未知错误');
     } finally {
       setPending(false);
     }
@@ -71,7 +71,7 @@ function InstallerForm({ onSuccess, onError }: InstallerFormProps) {
         id="install-email"
         name="email"
         type="email"
-        placeholder="Email address"
+        placeholder="邮箱地址"
         required
         autoComplete="email"
         value={email}
@@ -82,7 +82,7 @@ function InstallerForm({ onSuccess, onError }: InstallerFormProps) {
         id="install-password"
         name="password"
         type="password"
-        placeholder="Password"
+        placeholder="密码"
         required
         autoComplete="new-password"
         value={password}
@@ -93,7 +93,7 @@ function InstallerForm({ onSuccess, onError }: InstallerFormProps) {
         id="install-confirm-password"
         name="confirmPassword"
         type="password"
-        placeholder="Confirm password"
+        placeholder="确认密码"
         required
         autoComplete="new-password"
         value={confirmPassword}
@@ -106,7 +106,7 @@ function InstallerForm({ onSuccess, onError }: InstallerFormProps) {
         disabled={pending}
         className="w-full h-11 text-[13px] rounded-xl shadow-none"
       >
-        {pending ? 'Creating account…' : 'Create owner account'}
+        {pending ? '创建账号中…' : '创建管理员账号'}
       </Button>
     </form>
   );
@@ -227,13 +227,13 @@ export function SelfHostedForm({ returnUrl, installed }: SelfHostedFormProps) {
     const password = (form.elements.namedItem('password') as HTMLInputElement).value;
 
     if (!email || !email.includes('@')) {
-      setErrorMessage('Please enter a valid email address');
+      setErrorMessage('请输入有效的邮箱地址');
       setPending(false);
       return;
     }
 
     if (!password || password.length < 6) {
-      setErrorMessage('Password must be at least 6 characters');
+      setErrorMessage('密码至少需要 6 位');
       setPending(false);
       return;
     }
@@ -303,11 +303,11 @@ export function SelfHostedForm({ returnUrl, installed }: SelfHostedFormProps) {
         window.location.href = returnUrl || '/instances';
         return;
       } else {
-        setErrorMessage('This instance still needs its initial owner account. Run the Wutong installer/CLI bootstrap first.');
+        setErrorMessage('当前实例尚未创建管理员账号，请先运行梧桐安装程序或 CLI 引导。');
         setPending(false);
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || 'An unexpected error occurred');
+      setErrorMessage(err?.message || '发生未知错误');
       setPending(false);
     }
   };
@@ -318,10 +318,10 @@ export function SelfHostedForm({ returnUrl, installed }: SelfHostedFormProps) {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-6">
           <h1 className="text-[17px] font-medium text-foreground/90 tracking-tight">
-            Create owner account
+            创建管理员账号
           </h1>
           <p className="text-[13px] text-foreground/40 mt-0.5">
-            Set up the first admin account for this instance
+            为当前实例设置首个管理员账号
           </p>
         </div>
 
@@ -349,10 +349,10 @@ export function SelfHostedForm({ returnUrl, installed }: SelfHostedFormProps) {
     <div className="w-full max-w-sm">
       <div className="flex flex-col items-center mb-6">
         <h1 className="text-[17px] font-medium text-foreground/90 tracking-tight">
-          Sign in to Wutong
+          登录梧桐
         </h1>
         <p className="text-[13px] text-foreground/40 mt-0.5">
-          Your AI Computer
+          你的 AI 电脑
         </p>
       </div>
 
@@ -368,7 +368,7 @@ export function SelfHostedForm({ returnUrl, installed }: SelfHostedFormProps) {
           id="email"
           name="email"
           type="email"
-          placeholder="Email address"
+          placeholder="邮箱地址"
           required
           autoComplete="email"
           className="h-11 text-[15px] bg-foreground/[0.04] border-foreground/[0.08] shadow-none"
@@ -377,7 +377,7 @@ export function SelfHostedForm({ returnUrl, installed }: SelfHostedFormProps) {
           id="password"
           name="password"
           type="password"
-          placeholder="Password"
+          placeholder="密码"
           required
           autoComplete="current-password"
           className="h-11 text-[15px] bg-foreground/[0.04] border-foreground/[0.08] shadow-none"
@@ -388,7 +388,7 @@ export function SelfHostedForm({ returnUrl, installed }: SelfHostedFormProps) {
           disabled={pending}
           className="w-full h-11 text-[13px] rounded-xl shadow-none"
         >
-          {pending ? 'Signing in…' : 'Sign in'}
+          {pending ? '登录中…' : '登录'}
         </Button>
       </form>
     </div>

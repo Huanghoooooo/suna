@@ -107,7 +107,7 @@ export default function InstancesPage() {
         router.replace(`/instances/${sandbox.sandbox_id}`);
       })
       .catch((err) => {
-        const message = err instanceof Error ? err.message : 'Failed to create instance';
+        const message = err instanceof Error ? err.message : '创建实例失败';
         console.error('[InstancesPage] auto ensureSandbox failed:', err);
         sonnerToast.error(message);
       })
@@ -137,16 +137,16 @@ export default function InstancesPage() {
   const restartMutation = useMutation({
     mutationFn: (sandboxId: string) => restartSandbox(sandboxId),
     onMutate: (sandboxId) => {
-      sonnerToast.loading('Restarting instance…', { id: `restart-${sandboxId}` });
+      sonnerToast.loading('正在重启实例…', { id: `restart-${sandboxId}` });
     },
     onSuccess: (_data, sandboxId) => {
-      sonnerToast.success('Instance restarted', { id: `restart-${sandboxId}` });
+      sonnerToast.success('实例已重启', { id: `restart-${sandboxId}` });
       setRestartTarget(null);
       // Refresh the list so the status pill + version reflect reality.
       queryClient.invalidateQueries({ queryKey: ['platform', 'sandbox', 'list'] });
     },
     onError: (error, sandboxId) => {
-      const msg = error instanceof Error ? error.message : 'Failed to restart instance';
+      const msg = error instanceof Error ? error.message : '重启实例失败';
       sonnerToast.error(msg, { id: `restart-${sandboxId}` });
       setRestartTarget(null);
     },
@@ -205,7 +205,7 @@ export default function InstancesPage() {
           router.push(`/instances/${sandbox.sandbox_id}`);
         })
         .catch((err) => {
-          const message = err instanceof Error ? err.message : 'Failed to create instance';
+          const message = err instanceof Error ? err.message : '创建实例失败';
           console.error('[InstancesPage] ensureSandbox failed:', err);
           sonnerToast.error(message);
         })
@@ -249,7 +249,7 @@ export default function InstancesPage() {
         <div className="w-full max-w-lg">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-baseline gap-2.5">
-              <h1 className="text-xl font-semibold text-foreground">Instances</h1>
+              <h1 className="text-xl font-semibold text-foreground">实例</h1>
               {visible.length > 0 && (
                 <span className="text-xs font-medium text-muted-foreground tabular-nums">
                   {visible.length}
@@ -268,7 +268,7 @@ export default function InstancesPage() {
                 ) : (
                   <Plus className="h-3.5 w-3.5" />
                 )}
-                {autoCreating ? 'Creating…' : 'New Instance'}
+                {autoCreating ? '创建中…' : '新建实例'}
               </Button>
             )}
           </div>
@@ -278,11 +278,11 @@ export default function InstancesPage() {
             <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 flex items-center gap-3">
               <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-destructive font-medium">Failed to load instances</p>
+                <p className="text-sm text-destructive font-medium">加载实例失败</p>
                 <p className="text-xs text-destructive/70 mt-0.5">{(error as Error).message}</p>
               </div>
               <Button variant="outline" size="sm" onClick={() => refetch()}>
-                Retry
+                重试
               </Button>
             </div>
           )}
@@ -290,40 +290,40 @@ export default function InstancesPage() {
           {/* Claim computer card for legacy paid users */}
           {canClaimComputer && !pageLoading && (
             <ComputerHeroCard
-              title="Wutong is now even better"
+              title="梧桐变得更强了"
               description={
                 <>
-                  Your plan now includes a dedicated cloud computer
+                  你的套餐现已包含专属云电脑
                   {accountState?.tier?.monthly_credits ? (
                     <>
-                      {' '}with{' '}
+                      ，并赠送{' '}
                       <span className="text-foreground font-medium">
-                        ${accountState.tier.monthly_credits}/mo
+                        ${accountState.tier.monthly_credits}/月
                       </span>{' '}
-                      in credits
+                      额度
                     </>
                   ) : ''}
-                  . Always on, runs while you sleep, full root access.
+                  。始终在线，你休息时也在运行，完整 root 权限。
                 </>
               }
-              ctaLabel="Claim Computer"
-              ctaLoadingLabel="Setting up…"
+              ctaLabel="领取云电脑"
+              ctaLoadingLabel="设置中…"
               onCta={handleClaimComputer}
               loading={claiming}
-              features={['Included in your plan', 'Always on', 'Persistent storage']}
+              features={['套餐已包含', '始终在线', '持久化存储']}
             />
           )}
 
           {/* Get your computer card for users with no instances (non-legacy) */}
           {!pageLoading && !error && visible.length === 0 && fallbackServers.length === 0 && !canClaimComputer && (
             <ComputerHeroCard
-              title="Get Your Cloud Computer"
-              description="A dedicated cloud computer that's always on, runs while you sleep, with full root access and persistent storage."
-              ctaLabel="Get Started"
-              ctaLoadingLabel="Setting up…"
+              title="获取你的云电脑"
+              description="专属云电脑，始终在线，你休息时也在运行，拥有完整 root 权限与持久化存储。"
+              ctaLabel="开始使用"
+              ctaLoadingLabel="设置中…"
               onCta={handleCreateInstance}
               loading={autoCreating}
-              features={['Always on', 'Full root access', 'Persistent storage']}
+              features={['始终在线', '完整 root 权限', '持久化存储']}
             />
           )}
 
@@ -374,18 +374,17 @@ export default function InstancesPage() {
         onOpenChange={(open) => {
           if (!open && !restartMutation.isPending) setRestartTarget(null);
         }}
-        title="Restart this instance?"
+        title="要重启该实例吗？"
         description={
           <>
-            This will stop and start{' '}
+            这将停止并重新启动{' '}
             <span className="font-medium text-foreground">
-              {restartTarget?.name || restartTarget?.sandbox_id || 'the instance'}
+              {restartTarget?.name || restartTarget?.sandbox_id || '该实例'}
             </span>
-            . Any unsaved in-memory state will be lost, but files on the
-            persistent volume are safe.
+            。未保存的内存状态会丢失，但持久化卷上的文件不受影响。
           </>
         }
-        confirmLabel="Restart"
+        confirmLabel="重启"
         onConfirm={confirmRestart}
         isPending={restartMutation.isPending}
       />

@@ -26,12 +26,12 @@ export interface StatusConfig {
 }
 
 const STATUS_CONFIG: Record<string, StatusConfig> = {
-  active: { label: 'Active', color: 'text-emerald-500', dotColor: 'bg-emerald-500' },
-  provisioning: { label: 'Provisioning', color: 'text-amber-500', dotColor: 'bg-amber-400' },
-  stopped: { label: 'Stopped', color: 'text-muted-foreground', dotColor: 'bg-muted-foreground/40' },
-  error: { label: 'Error', color: 'text-red-400', dotColor: 'bg-red-400' },
-  available: { label: 'Available', color: 'text-blue-500', dotColor: 'bg-blue-500' },
-  archived: { label: 'Archived', color: 'text-muted-foreground/50', dotColor: 'bg-muted-foreground/20' },
+  active: { label: '运行中', color: 'text-emerald-500', dotColor: 'bg-emerald-500' },
+  provisioning: { label: '配置中', color: 'text-amber-500', dotColor: 'bg-amber-400' },
+  stopped: { label: '已停止', color: 'text-muted-foreground', dotColor: 'bg-muted-foreground/40' },
+  error: { label: '错误', color: 'text-red-400', dotColor: 'bg-red-400' },
+  available: { label: '可用', color: 'text-blue-500', dotColor: 'bg-blue-500' },
+  archived: { label: '已归档', color: 'text-muted-foreground/50', dotColor: 'bg-muted-foreground/20' },
 };
 
 export function getStatusConfig(status: string): StatusConfig {
@@ -214,7 +214,7 @@ export function InstanceCard({
               {showRestart && (
                 <CardAction
                   icon={RotateCw}
-                  label={sandbox.status === 'stopped' ? 'Start' : 'Restart'}
+                  label={sandbox.status === 'stopped' ? '启动' : '重启'}
                   onClick={onRestart!}
                   loading={restarting}
                 />
@@ -222,14 +222,14 @@ export function InstanceCard({
               {showChangelog && (
                 <CardAction
                   icon={ArrowDownToLine}
-                  label="Changelog & Update"
+                  label="更新日志与升级"
                   onClick={onChangelog!}
                 />
               )}
               {showBackups && (
                 <CardAction
                   icon={Archive}
-                  label="Backups"
+                  label="备份"
                   onClick={onBackups!}
                 />
               )}
@@ -238,7 +238,7 @@ export function InstanceCard({
           <button
             type="button"
             onClick={onClick}
-            aria-label="Open instance"
+            aria-label="打开实例"
             className="flex items-center justify-center h-8 w-6 rounded-md cursor-pointer"
           >
             <ChevronAffordance />
@@ -277,7 +277,7 @@ export function FallbackInstanceCard({
             </span>
             {isActive && (
               <span className="px-1.5 py-px text-[0.5625rem] font-medium rounded-full uppercase tracking-wider leading-none text-primary bg-primary/10">
-                current
+当前
               </span>
             )}
           </div>

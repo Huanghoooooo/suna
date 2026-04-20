@@ -48,10 +48,10 @@ function formatDate(iso: string): string {
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
 
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
+  if (mins < 1) return '刚刚';
+  if (mins < 60) return `${mins} 分钟前`;
+  if (hours < 24) return `${hours} 小时前`;
+  if (days < 7) return `${days} 天前`;
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
 }
 
@@ -83,7 +83,7 @@ function BackupRow({
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-medium text-foreground truncate">
-            {backup.description || `Backup ${backup.id}`}
+            {backup.description || `备份 ${backup.id}`}
           </p>
           <div className="flex items-center gap-3 mt-1.5">
             <span className="flex items-center gap-1 text-[11px] text-muted-foreground/60">
@@ -106,7 +106,7 @@ function BackupRow({
                   : 'text-amber-500/80 bg-amber-500/10',
               )}
             >
-              {backup.status}
+              {backup.status === 'available' ? '可用' : backup.status === 'pending' ? '进行中' : backup.status}
             </span>
           </div>
         </div>
@@ -116,7 +116,7 @@ function BackupRow({
             type="button"
             onClick={onRestore}
             disabled={isRestoring || backup.status !== 'available'}
-            title="Restore from this backup"
+            title="从此备份恢复"
             className="flex items-center justify-center h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {isRestoring ? (
@@ -129,7 +129,7 @@ function BackupRow({
             type="button"
             onClick={onDelete}
             disabled={isDeleting}
-            title="Delete this backup"
+            title="删除此备份"
             className="flex items-center justify-center h-8 w-8 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {isDeleting ? (
@@ -176,9 +176,9 @@ export default function BackupsPage() {
     try {
       await create.mutateAsync(description || undefined);
       setDescription('');
-      sonnerToast.success('Backup started');
+      sonnerToast.success('备份已开始');
     } catch (err: any) {
-      sonnerToast.error(err?.message || 'Failed to create backup');
+      sonnerToast.error(err?.message || '创建备份失败');
     }
   }
 
@@ -186,9 +186,9 @@ export default function BackupsPage() {
     setConfirmRestore(null);
     try {
       await restore.mutateAsync(backupId);
-      sonnerToast.success('Restore initiated. Your machine will reboot with the backup data.');
+      sonnerToast.success('恢复已启动，机器将使用备份数据重启。');
     } catch (err: any) {
-      sonnerToast.error(err?.message || 'Failed to restore backup');
+      sonnerToast.error(err?.message || '恢复备份失败');
     }
   }
 
@@ -196,9 +196,9 @@ export default function BackupsPage() {
     setConfirmDelete(null);
     try {
       await remove.mutateAsync(backupId);
-      sonnerToast.success('Backup deleted');
+      sonnerToast.success('备份已删除');
     } catch (err: any) {
-      sonnerToast.error(err?.message || 'Failed to delete backup');
+      sonnerToast.error(err?.message || '删除备份失败');
     }
   }
 
@@ -222,7 +222,7 @@ export default function BackupsPage() {
             className="h-8 gap-1.5 px-2 text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Instances
+            实例
           </Button>
         }
       />
@@ -233,11 +233,11 @@ export default function BackupsPage() {
           <div className="mb-6">
             <h1 className="text-xl font-semibold text-foreground flex items-center gap-2">
               <Archive className="h-5 w-5 text-muted-foreground" />
-              Backups
+              备份
               {backupsEnabled && (
                 <span className="ml-1 flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-500/90">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  Auto
+                  自动
                 </span>
               )}
             </h1>
@@ -253,7 +253,7 @@ export default function BackupsPage() {
             <div className="flex items-center gap-2">
               <input
                 type="text"
-                placeholder="Backup description (optional)"
+                placeholder="备份描述（可选）"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 onKeyDown={(e) =>
@@ -271,7 +271,7 @@ export default function BackupsPage() {
                 ) : (
                   <Plus className="h-4 w-4" />
                 )}
-                Backup Now
+                立即备份
               </Button>
             </div>
           </div>
@@ -290,11 +290,11 @@ export default function BackupsPage() {
                 <HardDrive className="h-7 w-7 text-muted-foreground/40" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-medium text-foreground/80">No backups yet</p>
+                <p className="text-sm font-medium text-foreground/80">暂无备份</p>
                 <p className="text-xs text-muted-foreground/60 mt-1">
                   {backupsEnabled
-                    ? 'Your first automatic backup will appear here soon.'
-                    : 'Create a manual backup to get started.'}
+                    ? '首次自动备份即将在此显示。'
+                    : '创建一个手动备份开始使用。'}
                 </p>
               </div>
             </div>
@@ -319,7 +319,7 @@ export default function BackupsPage() {
           {/* Footer hint */}
           {!isLoading && backupsEnabled && backups.length > 0 && (
             <p className="text-[11px] text-muted-foreground/40 mt-4 text-center">
-              Automatic daily backups are enabled. The provider retains the latest backups.
+              已启用每日自动备份，供应商会保留最新的备份。
             </p>
           )}
         </div>
@@ -331,23 +331,23 @@ export default function BackupsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-500" />
-              Restore from Backup
+              从备份恢复
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This will rebuild your machine from the backup
-              {restoreTarget ? ` "${restoreTarget.description || `Backup ${restoreTarget.id}`}"` : ''}.
+              这将使用备份
+              {restoreTarget ? `“${restoreTarget.description || `备份 ${restoreTarget.id}`}”` : ''}重建你的机器。
               <span className="block mt-2 font-medium text-foreground/80">
-                All current data will be replaced with the backup contents. This cannot be undone.
+                当前所有数据都将被备份内容替换，此操作无法撤销。
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => confirmRestore && handleRestore(confirmRestore)}
               className="bg-amber-600 text-white hover:bg-amber-700"
             >
-              Restore
+              恢复
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -357,20 +357,20 @@ export default function BackupsPage() {
       <AlertDialog open={!!confirmDelete} onOpenChange={() => setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Backup</AlertDialogTitle>
+            <AlertDialogTitle>删除备份</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete
-              {deleteTarget ? ` "${deleteTarget.description || `Backup ${deleteTarget.id}`}"` : ' this backup'}?
-              This cannot be undone.
+              确定要删除
+              {deleteTarget ? `“${deleteTarget.description || `备份 ${deleteTarget.id}`}”` : '此备份'}吗？
+              此操作无法撤销。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => confirmDelete && handleDelete(confirmDelete)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              删除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -24,14 +24,14 @@ function ResetPasswordContent() {
   useEffect(() => {
     if (!code) {
       setErrorMessage(
-        'Invalid or missing reset code. Please request a new password reset link.',
+        '重置码无效或缺失，请重新申请密码重置链接。',
       );
     }
   }, [code]);
 
   const handleResetPassword = async (prevState: any, formData: FormData) => {
     if (!code) {
-      return { message: 'Invalid reset code' };
+      return { message: '重置码无效' };
     }
 
     const result = await resetPassword(prevState, formData);
@@ -65,12 +65,11 @@ function ResetPasswordContent() {
                   </div>
 
                   <h1 className="text-3xl md:text-4xl lg:text-5xl font-medium tracking-tighter text-center text-balance text-primary mb-4">
-                    Password Reset Complete
+                    密码重置完成
                   </h1>
 
                   <p className="text-base md:text-lg text-center text-muted-foreground font-medium text-balance leading-relaxed tracking-tight max-w-md mb-6">
-                    Your password has been successfully updated. You can now
-                    sign in with your new password.
+                    你的密码已成功更新，现在可以使用新密码登录。
                   </p>
 
                   <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
@@ -78,7 +77,7 @@ function ResetPasswordContent() {
                       href="/auth"
                       className="flex h-12 items-center justify-center w-full text-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-md"
                     >
-                      Go to sign in
+                      前往登录
                     </Link>
                   </div>
                 </div>
@@ -105,15 +104,15 @@ function ResetPasswordContent() {
               >
                 <ArrowLeft className="h-4 w-4 text-muted-foreground" />
                 <span className="font-medium text-muted-foreground text-xs tracking-wide">
-                  Back to sign in
+                  返回登录
                 </span>
               </Link>
 
               <h1 className="text-3xl md:text-4xl lg:text-5xl font-medium tracking-tighter text-center text-balance text-primary">
-                Reset Password
+                重置密码
               </h1>
               <p className="text-base md:text-lg text-center text-muted-foreground font-medium text-balance leading-relaxed tracking-tight mt-2 mb-6">
-                Create a new password for your account
+                为你的账号设置新密码
               </p>
             </div>
           </div>
@@ -135,7 +134,7 @@ function ResetPasswordContent() {
                       id="password"
                       name="password"
                       type="password"
-                      placeholder="New password"
+                      placeholder="新密码"
                       className="h-12 rounded-full bg-background border-border"
                       required
                     />
@@ -146,7 +145,7 @@ function ResetPasswordContent() {
                       id="confirmPassword"
                       name="confirmPassword"
                       type="password"
-                      placeholder="Confirm new password"
+                      placeholder="确认新密码"
                       className="h-12 rounded-full bg-background border-border"
                       required
                     />
@@ -156,9 +155,9 @@ function ResetPasswordContent() {
                     <SubmitButton
                       formAction={handleResetPassword}
                       className="w-full h-12 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-md"
-                      pendingText="Updating password..."
+                      pendingText="正在更新密码..."
                     >
-                      Reset Password
+                      重置密码
                     </SubmitButton>
                   </div>
                 </form>
@@ -170,7 +169,7 @@ function ResetPasswordContent() {
                     href="/auth"
                     className="flex h-12 px-6 items-center justify-center text-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-md"
                   >
-                    Return to sign in
+                    返回登录
                   </Link>
                 </div>
               )}
@@ -184,7 +183,7 @@ function ResetPasswordContent() {
 
 export default function ResetPassword() {
   return (
-    <Suspense fallback={<ConnectingScreen forceConnecting minimal title="Resetting password" />}>
+    <Suspense fallback={<ConnectingScreen forceConnecting minimal title="正在重置密码" />}>
       <ResetPasswordContent />
     </Suspense>
   );
