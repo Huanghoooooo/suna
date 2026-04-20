@@ -796,6 +796,27 @@ export const menuRegistry: MenuItemDef[] = [
     keywords: 'admin accounts roles platform role super_admin promote 账号 角色 提权',
   },
   {
+    id: 'team',
+    label: '团队管理 Team',
+    icon: Users,
+    group: 'account',
+    showIn: ['userMenu', 'commandPalette'],
+    kind: 'navigate',
+    href: '/team',
+    keywords: 'team members account role owner admin member 团队 成员 部门',
+  },
+  {
+    id: 'admin-skills',
+    label: 'Admin: Skill 管理 | Skills',
+    icon: Blocks,
+    group: 'admin',
+    showIn: ['userMenu', 'commandPalette'],
+    kind: 'navigate',
+    href: '/admin/skills',
+    requiresAdmin: true,
+    keywords: 'admin skills upload delete 技能 上传',
+  },
+  {
     id: 'admin-access-requests',
     label: 'Admin: Access Requests',
     icon: UserPlus,
@@ -921,6 +942,9 @@ const VISIBLE_IDS = new Set<string>([
   'logout',
   // 管理员（再经 requiresAdmin 过滤）
   'admin-accounts',
+  'admin-skills',
+  // 账号自治（任何登录用户可见，UI 内部按账号内角色过滤）
+  'team',
 ]);
 
 /** 菜单项显示标签的中文覆盖（保留条目 id → 中文）。 */

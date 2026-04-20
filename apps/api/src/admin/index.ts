@@ -26,6 +26,7 @@ import { requireAdmin } from '../middleware/require-admin';
 import { platformRolesApp } from './platform-roles';
 import { accountsApp } from './accounts';
 import { usersApp } from './users';
+import { skillsApp } from './skills';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { execSync } from 'child_process';
@@ -274,6 +275,9 @@ adminApp.route('/api/accounts', accountsApp);
 
 // Admin-created users (provision + assign to account): /v1/admin/api/users
 adminApp.route('/api/users', usersApp);
+
+// Skill management (super_admin only): /v1/admin/api/skills
+adminApp.route('/api/skills', skillsApp);
 
 /** GET /v1/admin/api/schema — key schema for the UI */
 adminApp.get('/api/schema', async (c) => {
