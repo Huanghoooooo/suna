@@ -1,17 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAdminAccounts, useAdminRole } from '@/hooks/admin';
+import { useAdminAccounts, useAdminRole, useCreateAccount } from '@/hooks/admin';
 import type { AdminAccountSummary, PlatformRole } from '@/hooks/admin/use-admin-accounts';
 import { openTabAndNavigate } from '@/stores/tab-store';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Search, ChevronLeft, ChevronRight, ShieldCheck, ArrowRight } from 'lucide-react';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader,
+  DialogTitle, DialogTrigger,
+} from '@/components/ui/dialog';
+import { toast } from '@/lib/toast';
+import {
+  Search, ChevronLeft, ChevronRight, ShieldCheck, ArrowRight, Plus,
+} from 'lucide-react';
 
 const PAGE_SIZE = 50;
 
@@ -48,8 +56,89 @@ function formatDate(s: string) {
   });
 }
 
+function CreateAccountDialog() {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const createAccount = useCreateAccount();
+
+  const canSubmit = name.trim().length > 0 && !createAccount.isPending;
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+    createAccount.mutate(
+      { name: name.trim() },
+      {
+        onSuccess: (acct) => {
+          toast.success(`已创建账号 "${acct.name}"，你是 owner`);
+          setName('');
+          setOpen(false);
+          openTabAndNavigate({
+            id: `page:/admin/accounts/${acct.accountId}`,
+            title: acct.name,
+            type: 'page',
+            href: `/admin/accounts/${acct.accountId}`,
+          });
+        },
+        onError: (e) => toast.error(e.message || '创建失败'),
+      },
+    );
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setName('');
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button size="sm" className="gap-1.5">
+          <Plus className="w-3.5 h-3.5" />
+          新建账号 New account
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>新建团队账号 Create team account</DialogTitle>
+          <DialogDescription>
+            一个账号通常对应一个部门或共享工作区。你将自动成为该账号的 owner，
+            之后可以拉人进来、再把 owner 转给实际负责人。
+            <br />
+            One account usually maps to a department or shared workspace. You
+            become the initial owner; add members and later transfer ownership
+            to the real lead.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="new-account-name">账号名 Name</Label>
+          <Input
+            id="new-account-name"
+            placeholder="销售部 / 研发部 / 客户 ACME"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && canSubmit) handleSubmit();
+            }}
+            autoFocus
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={createAccount.isPending}>
+            取消 Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={!canSubmit}>
+            {createAccount.isPending ? '创建中… Creating…' : '创建 Create'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function AdminAccountsPage() {
   const { data: roleData, isLoading: roleLoading } = useAdminRole();
+  const isSuperAdmin = roleData?.role === 'super_admin';
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebounce(search, 300);
@@ -79,7 +168,7 @@ export default function AdminAccountsPage() {
 
   return (
     <div className="flex flex-col gap-4 p-6">
-      <header className="flex items-center justify-between">
+      <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">账号管理 Accounts</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -87,6 +176,7 @@ export default function AdminAccountsPage() {
             Browse all accounts, assign platform roles, manage account members.
           </p>
         </div>
+        {isSuperAdmin && <CreateAccountDialog />}
       </header>
 
       <div className="flex items-center gap-2">

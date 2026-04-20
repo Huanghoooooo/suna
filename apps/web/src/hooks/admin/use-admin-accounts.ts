@@ -154,6 +154,30 @@ export function useRemoveMember() {
   });
 }
 
+export interface CreatedAccount {
+  accountId: string;
+  name: string;
+  personalAccount: boolean;
+  createdAt: string;
+}
+
+export function useCreateAccount() {
+  const qc = useQueryClient();
+  return useMutation<CreatedAccount, Error, { name: string }>({
+    mutationFn: async ({ name }) => {
+      const response = await backendApi.post<{ ok: boolean; account: CreatedAccount }>(
+        '/admin/api/accounts',
+        { name },
+      );
+      if (response.error) throw new Error(response.error.message);
+      return response.data!.account;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'accounts', 'list'] });
+    },
+  });
+}
+
 interface CreateAccountMemberArgs {
   accountId: string;
   email: string;
