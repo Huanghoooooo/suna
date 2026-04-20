@@ -47,6 +47,7 @@ import { legacyApp } from './legacy';
 // [channels v2] Old channel routes removed — channels now managed via sandbox CLI (kchannel, ktelegram, kslack)
 import { adminApp } from './admin';
 import { sandboxPoolAdminApp } from './platform/routes/sandbox-pool-admin';
+import { memberSelfServiceApp } from './accounts/member-self-service';
 import { oauthApp } from './oauth';
 
 function shellQuote(value: string): string {
@@ -380,6 +381,10 @@ if (config.isLocal()) {
 }
 app.route('/v1/admin', adminApp);          // /v1/admin/api/sandboxes, /v1/admin/api/env, /v1/admin/api/health, etc.
 app.route('/v1/admin/sandbox-pool', sandboxPoolAdminApp); // /v1/admin/sandbox-pool/health, /v1/admin/sandbox-pool/list, etc.
+
+// Account self-service member management (non-admin; for in-account owner/admin).
+app.use('/v1/account-membership/*', supabaseAuth);
+app.route('/v1/account-membership', memberSelfServiceApp);
 
 // OAuth2 provider — public token endpoint, auth on authorize/consent
 app.route('/v1/oauth', oauthApp);
