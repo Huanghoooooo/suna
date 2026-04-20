@@ -301,6 +301,30 @@ export async function uploadFile(
 }
 
 /**
+ * Overwrite a file with the given text content. Creates the file and any
+ * missing parent directories. Unlike `uploadFile`, this does NOT add a
+ * unique suffix on collision — it always writes to the exact target path.
+ */
+export async function writeFile(
+  filePath: string,
+  content: string,
+): Promise<UploadResult> {
+  const baseUrl = getActiveOpenCodeUrl();
+  const res = await authenticatedFetch(`${baseUrl}/file/content`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: filePath, content, encoding: 'utf-8' }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Write failed (${res.status}): ${text || res.statusText}`);
+  }
+
+  return res.json();
+}
+
+/**
  * Delete a file or directory (recursively).
  */
 export async function deleteFile(filePath: string): Promise<boolean> {

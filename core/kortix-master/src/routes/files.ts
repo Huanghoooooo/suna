@@ -429,6 +429,69 @@ filesRouter.post('/upload',
   },
 )
 
+// ─── PUT /content — overwrite file content ──────────────────────────────────
+
+/**
+ * Atomically overwrite `dest` with `buffer`. Writes to a sibling temp file
+ * first and then renames, so a crash mid-write cannot leave the target
+ * truncated or half-written. Creates parent directories as needed.
+ */
+async function writeFileAtomic(dest: string, buffer: Buffer): Promise<void> {
+  const absolute = resolvePath(dest)
+  await fs.mkdir(path.dirname(absolute), { recursive: true })
+  const tmp = `${absolute}.tmp-${uniqueSuffix()}`
+  try {
+    await fs.writeFile(tmp, buffer)
+    await fs.rename(tmp, absolute)
+  } catch (err) {
+    await fs.unlink(tmp).catch(() => {})
+    throw err
+  }
+}
+
+filesRouter.put('/content',
+  describeRoute({
+    tags: ['Files'],
+    summary: 'Write file content (overwrite)',
+    description: 'Atomically overwrite a file with the given content. Creates the file (and parent directories) if missing. Use `encoding: "base64"` for binary payloads.',
+    responses: {
+      200: { description: 'File written', content: { 'application/json': { schema: resolver(UploadResult) } } },
+      400: { description: 'Missing or invalid body', content: { 'application/json': { schema: resolver(ErrorResponse) } } },
+      403: { description: 'Access denied', content: { 'application/json': { schema: resolver(ErrorResponse) } } },
+    },
+  }),
+  async (c) => {
+    let body: any
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'Invalid JSON body' }, 400)
+    }
+
+    const filePath = typeof body?.path === 'string' ? body.path : ''
+    if (!filePath) return c.json({ error: 'Missing path in body' }, 400)
+    if (typeof body?.content !== 'string') {
+      return c.json({ error: 'Missing content in body' }, 400)
+    }
+
+    const resolved = validatePath(c, filePath)
+    if (!resolved) return c.json({ error: 'Access denied: path outside allowed directories' }, 403)
+
+    const encoding = body.encoding === 'base64' ? 'base64' : 'utf-8'
+    const buffer = encoding === 'base64'
+      ? Buffer.from(body.content, 'base64')
+      : Buffer.from(body.content, 'utf-8')
+
+    try {
+      await writeFileAtomic(filePath, buffer)
+    } catch (err: any) {
+      return c.json({ error: err?.message || 'Failed to write file' }, 500)
+    }
+
+    return c.json({ path: filePath, size: buffer.byteLength })
+  },
+)
+
 // ─── DELETE / — delete file or directory ─────────────────────────────────────
 
 filesRouter.delete('/',

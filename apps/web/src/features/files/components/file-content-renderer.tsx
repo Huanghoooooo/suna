@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useFileContent } from '../hooks';
-import { downloadFile, uploadFile } from '../api/opencode-files';
+import { downloadFile, writeFile } from '../api/opencode-files';
 import { useBinaryBlob } from '../hooks/use-binary-blob';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
@@ -379,10 +379,7 @@ export function FileContentRenderer({
     if (readOnly) return;
     setIsSaving(true);
     try {
-      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-      const file = new File([blob], fileName, { type: 'text/plain' });
-      const parentPath = filePath.substring(0, filePath.lastIndexOf('/'));
-      await uploadFile(file, parentPath || undefined);
+      await writeFile(filePath, content);
       // Refetch so fileContent.content (= originalContent for CodeEditor) updates.
       // CodeEditor's originalContent effect will then sync savedContent.current
       // to match localContent, clearing its internal hasChanges flag.
@@ -397,7 +394,7 @@ export function FileContentRenderer({
     } finally {
       setIsSaving(false);
     }
-  }, [filePath, fileName, refetch, onSaved, readOnly]);
+  }, [filePath, refetch, onSaved, readOnly]);
 
   // Discard handler — force-remounts CodeEditor so it re-initialises from fileContent.content.
   const handleDiscard = useCallback(() => {
