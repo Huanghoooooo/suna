@@ -16,11 +16,16 @@ import { z } from 'zod';
 import type { AppEnv } from '../types';
 import { db } from '../shared/db';
 import { accounts, accountMembers, platformUserRoles } from '@kortix/db';
+import type { PlatformRole } from '../shared/platform-roles';
 
 export const accountsApp = new Hono<AppEnv>();
 
 const accountRoleSchema = z.enum(['owner', 'admin', 'member']);
 const putMemberBody = z.object({ role: accountRoleSchema });
+
+const createAccountBody = z.object({
+  name: z.string().trim().min(1, 'name is required').max(255),
+});
 
 async function countOwners(accountId: string): Promise<number> {
   const [row] = await db
@@ -29,6 +34,68 @@ async function countOwners(accountId: string): Promise<number> {
     .where(and(eq(accountMembers.accountId, accountId), eq(accountMembers.accountRole, 'owner')));
   return row?.n ?? 0;
 }
+
+/**
+ * POST /v1/admin/api/accounts
+ * Body: { name }
+ *
+ * Creates a new non-personal ("team") account with the caller set as the
+ * initial owner. Intended for super_admin use to spin up departments or
+ * shared workspaces.
+ *
+ * Permission: super_admin only. Regular admin is NOT allowed — creating
+ * accounts is a platform-shape decision, not an operational one.
+ */
+accountsApp.post('/', async (c) => {
+  const callerRole = c.get('platformRole') as PlatformRole | undefined;
+  if (callerRole !== 'super_admin') {
+    return c.json({ error: 'Only super_admin can create accounts' }, 403);
+  }
+
+  const callerAccountId = c.get('userId') as string | undefined;
+  if (!callerAccountId) {
+    return c.json({ error: 'Authentication required' }, 401);
+  }
+
+  const parsed = createAccountBody.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) {
+    return c.json({ error: 'Invalid body', issues: parsed.error.issues }, 400);
+  }
+  const { name } = parsed.data;
+
+  // Transactional insert: account + owner membership. If the membership
+  // insert fails for any reason we want the account row rolled back so we
+  // don't leak an ownerless (ergo undeletable) account.
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(accounts)
+        .values({ name, personalAccount: false })
+        .returning({
+          accountId: accounts.accountId,
+          name: accounts.name,
+          personalAccount: accounts.personalAccount,
+          createdAt: accounts.createdAt,
+        });
+      if (!inserted) throw new Error('Account insert returned no row');
+
+      await tx.insert(accountMembers).values({
+        userId: callerAccountId,
+        accountId: inserted.accountId,
+        accountRole: 'owner',
+      });
+
+      return inserted;
+    });
+
+    return c.json({ ok: true, account: result }, 201);
+  } catch (err: any) {
+    return c.json(
+      { error: 'Failed to create account', details: err?.message || String(err) },
+      500,
+    );
+  }
+});
 
 /**
  * GET /v1/admin/api/accounts
