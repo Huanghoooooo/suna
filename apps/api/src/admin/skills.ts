@@ -47,19 +47,26 @@ function requireSuperAdmin(c: Parameters<Parameters<typeof skillsApp.get>[1]>[0]
 }
 
 /**
- * Find the monorepo root by walking up from cwd until we see the marker
- * `docker-compose.local.yml`. Same strategy as admin/index.ts:findRepoRoot.
+ * Find the monorepo root by walking up until we see one of the markers
+ * reliably found at the repo top level (pnpm-workspace.yaml or the core
+ * docker compose dir). Tolerant of where the API is started from (repo
+ * root, apps/api, or docker container with /app as root).
  */
 function findRepoRoot(): string | null {
+  const markers = ['pnpm-workspace.yaml', 'core/kortix-master/opencode/skills'];
   const candidates = [
+    process.env.KORTIX_REPO_ROOT,
     process.cwd(),
     resolve(process.cwd(), '..'),
     resolve(process.cwd(), '../..'),
+    resolve(process.cwd(), '../../..'),
     resolve(__dirname, '../../../..'),
-  ];
+    resolve(__dirname, '../../../../..'),
+  ].filter((v): v is string => !!v);
+
   for (const dir of candidates) {
-    if (existsSync(resolve(dir, 'docker-compose.local.yml'))) {
-      return dir;
+    for (const marker of markers) {
+      if (existsSync(resolve(dir, marker))) return dir;
     }
   }
   return null;
