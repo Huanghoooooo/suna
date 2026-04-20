@@ -308,27 +308,7 @@ function FullScreenShell({ children }: { children: React.ReactNode }) {
       <div className="relative z-10 flex w-full max-w-[420px] flex-col items-center gap-8 px-8">
         {children}
       </div>
-      <SupportFooter />
     </div>
-  );
-}
-
-/**
- * Support footer pinned to the bottom of the viewport. Lives outside the
- * centered flex column so it never affects the vertical rhythm of the main
- * content, yet stays visible on every variant.
- */
-function SupportFooter() {
-  return (
-    <p className="pointer-events-auto absolute bottom-7 left-0 right-0 text-center text-[12px] text-muted-foreground/60">
-      Having trouble? Contact{' '}
-      <a
-        href="mailto:support@kortix.com"
-        className="font-medium text-foreground/80 underline-offset-4 transition-colors hover:text-foreground hover:underline"
-      >
-        support@kortix.com
-      </a>
-    </p>
   );
 }
 

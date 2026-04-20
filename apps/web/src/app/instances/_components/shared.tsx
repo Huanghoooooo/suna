@@ -42,7 +42,7 @@ export function UserMenu({
 }) {
   const avatarUrl = user.user_metadata?.avatar_url as string | undefined;
   const displayName =
-    (user.user_metadata?.name as string | undefined) || user.email || 'Account';
+    (user.user_metadata?.name as string | undefined) || user.email || '账号';
   const initial = displayName.charAt(0).toUpperCase();
 
   return (
@@ -52,7 +52,7 @@ export function UserMenu({
           variant="ghost"
           size="sm"
           className="gap-1.5 h-9 pl-1 pr-2 text-muted-foreground hover:text-foreground"
-          aria-label="Account menu"
+          aria-label="账号菜单"
         >
           <Avatar className="h-7 w-7">
             {avatarUrl && <AvatarImage src={avatarUrl} alt={displayName} />}
@@ -77,11 +77,11 @@ export function UserMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onOpenSettings}>
           <Settings className="h-4 w-4" />
-          Settings
+          设置
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onLogout} variant="destructive">
           <LogOut className="h-4 w-4" />
-          Log out
+          退出登录
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

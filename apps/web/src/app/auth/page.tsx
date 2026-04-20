@@ -104,34 +104,34 @@ function AccessRequestForm({ email, onSubmitted, onBack }: { email: string; onSu
           <Mail className="h-5 w-5 text-foreground/50" />
         </div>
         <h1 className="text-[22px] font-semibold text-foreground/95 tracking-tight">
-          Get Early Access
+          申请抢先体验
         </h1>
         <p className="text-sm text-foreground/45 mt-1.5 text-center leading-relaxed">
-          We&apos;re onboarding new users in batches.
+          我们正在分批开放新用户。
           <br />
-          Reserve your spot and we&apos;ll notify you.
+          先预留席位，我们会在开放时通知你。
         </p>
       </div>
 
       <div className="bg-foreground/[0.04] border border-foreground/[0.08] rounded-xl px-4 py-3 mb-5">
-        <p className="text-[11px] text-foreground/35 mb-0.5">Requesting for</p>
+        <p className="text-[11px] text-foreground/35 mb-0.5">申请邮箱</p>
         <p className="text-[15px] text-foreground/80 font-medium">{email}</p>
       </div>
 
       <form className="space-y-3.5">
         <Input type="text"
           name="company"
-          placeholder="Company (optional)"
+          placeholder="公司（可选）"
           className="h-12 text-[15px] rounded-xl bg-foreground/[0.04] border-foreground/[0.08]"
         />
         <textarea
           name="useCase"
-          placeholder="What will you build with Wutong?"
+          placeholder="你打算用梧桐做什么？"
           rows={3}
           className="w-full rounded-xl bg-foreground/[0.04] border border-foreground/[0.08] text-[15px] text-foreground/80 placeholder:text-foreground/30 px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-foreground/10 focus:border-foreground/15 transition-colors"
         />
-        <SubmitButton formAction={handleRequestAccess} className="w-full h-10 text-[15px] font-medium rounded-xl shadow-none" pendingText="Submitting...">
-          Request Early Access
+        <SubmitButton formAction={handleRequestAccess} className="w-full h-10 text-[15px] font-medium rounded-xl shadow-none" pendingText="提交中...">
+          申请抢先体验
         </SubmitButton>
       </form>
 
@@ -141,7 +141,7 @@ function AccessRequestForm({ email, onSubmitted, onBack }: { email: string; onSu
           onClick={onBack}
           className="text-xs text-foreground/25 hover:text-foreground/45 transition-colors"
         >
-          &larr; Back to sign in
+          ← 返回登录
         </button>
       </div>
     </div>
@@ -301,7 +301,7 @@ function LoginContent() {
     const result = await signInWithPassword(prevState, formData);
     if (result && typeof result === 'object') {
       if ('message' in result) {
-        toast.error('Sign in failed', { description: result.message as string, duration: 5000 });
+        toast.error('登录失败', { description: result.message as string, duration: 5000 });
         return {};
       }
       if ('success' in result && result.success) {
@@ -322,7 +322,7 @@ function LoginContent() {
     const result = await verifyOtp(prevState, formData);
     if (result && typeof result === 'object') {
       if ('message' in result) {
-        toast.error('Verification failed', { description: result.message as string, duration: 5000 });
+        toast.error('验证失败', { description: result.message as string, duration: 5000 });
         return {};
       }
       if ('success' in result && result.success) {
@@ -351,11 +351,11 @@ function LoginContent() {
         setAutoSendError(false);
         return { success: true };
       } else {
-        toast.error('Failed to send code', { description: (response && typeof response === 'object' && 'message' in response ? response.message as string : 'Failed to send verification code'), duration: 5000 });
+        toast.error('发送验证码失败', { description: (response && typeof response === 'object' && 'message' in response ? response.message as string : '发送验证码失败'), duration: 5000 });
         return {};
       }
     } catch (error: unknown) {
-      toast.error('Failed to send code', { description: error instanceof Error ? error.message : 'An error occurred', duration: 5000 });
+      toast.error('发送验证码失败', { description: error instanceof Error ? error.message : '发生错误', duration: 5000 });
       return {};
     }
   };
@@ -380,8 +380,9 @@ function LoginContent() {
             {'查看邮箱'}
           </h1>
           <p className="text-[15px] text-foreground/50 text-center">
-            We sent a magic link to{' '}
+            已向{' '}
             <span className="text-foreground/80 font-medium">{registrationEmail}</span>
+            {' '}发送魔法登录链接
           </p>
           <div className="flex flex-col gap-3 w-full max-w-[320px]">
             {provider && (
@@ -392,14 +393,14 @@ function LoginContent() {
                 className="flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-foreground/[0.08] hover:bg-foreground/[0.12] border border-foreground/10 text-sm text-foreground/70 hover:text-foreground/90 transition-colors backdrop-blur-sm"
               >
                 <ExternalLink className="size-3.5" />
-                Open {provider.name}
+                打开 {provider.name}
               </a>
             )}
             <button
               onClick={() => { setOtpCode(''); setShowOtpModal(true); }}
               className="text-xs text-foreground/30 hover:text-foreground/50 transition-colors text-center"
             >
-              Or <span className="underline underline-offset-2">enter 6-digit code</span>
+              或 <span className="underline underline-offset-2">输入 6 位验证码</span>
             </button>
             <button
               onClick={() => setRegistrationSuccess(false)}
@@ -414,10 +415,10 @@ function LoginContent() {
         <Dialog open={showOtpModal} onOpenChange={setShowOtpModal}>
           <DialogContent className="!max-w-[300px] sm:!max-w-[300px] p-5 gap-0 rounded-2xl" hideCloseButton aria-describedby="otp-modal-desc">
             <DialogTitle className="text-sm font-medium text-foreground/70 text-center">
-              Enter code
+              输入验证码
             </DialogTitle>
             <DialogDescription id="otp-modal-desc" className="sr-only">
-              Enter the 6-digit verification code from your email
+              输入邮件中收到的 6 位验证码
             </DialogDescription>
             <form className="w-full space-y-2.5 mt-3">
               <Input
@@ -431,8 +432,8 @@ function LoginContent() {
                 onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 className="h-11 text-center text-lg font-mono tracking-[0.3em] bg-foreground/[0.03] border-foreground/[0.08] rounded-xl shadow-none focus-visible:border-foreground/20 transition-colors"
               />
-              <SubmitButton formAction={handleVerifyOtp} className="w-full h-10 text-[13px] font-medium rounded-xl shadow-none" pendingText="Verifying…" disabled={otpCode.length !== 6}>
-                Verify
+              <SubmitButton formAction={handleVerifyOtp} className="w-full h-10 text-[13px] font-medium rounded-xl shadow-none" pendingText="验证中…" disabled={otpCode.length !== 6}>
+                验证
               </SubmitButton>
             </form>
           </DialogContent>
@@ -469,17 +470,17 @@ function LoginContent() {
                   </div>
                   <div className="text-center">
                     <h1 className="text-[17px] font-medium text-foreground/90 tracking-tight">
-                      You&apos;re on the list
+                      你已进入等待列表
                     </h1>
                     <p className="text-[13px] text-foreground/40 mt-1.5 max-w-[260px] mx-auto">
-                      We&apos;ll email <span className="text-foreground/60 font-medium">{signupClosedEmail}</span> when your access is ready.
+                      开放访问时，我们会邮件通知 <span className="text-foreground/60 font-medium">{signupClosedEmail}</span>。
                     </p>
                   </div>
                   <button
                     onClick={() => { setSignupClosed(false); setAccessRequestSubmitted(false); }}
                     className="text-[11px] text-foreground/25 hover:text-foreground/45 transition-colors mt-1"
                   >
-                    &larr; Back to sign in
+                    ← 返回登录
                   </button>
                 </div>
               </div>
@@ -510,7 +511,7 @@ function LoginContent() {
             <div className="flex flex-col items-center gap-4">
               <KortixLogo size={28} />
               <KortixLoader size="medium" />
-              <p className="text-[15px] text-foreground/50">Sending a fresh code…</p>
+              <p className="text-[15px] text-foreground/50">正在发送新验证码…</p>
             </div>
           ) : newCodeSent ? (
             <div className="flex flex-col items-center gap-6 w-full max-w-[340px]">
@@ -519,8 +520,8 @@ function LoginContent() {
                 <MailCheck className="h-6 w-6 text-emerald-500" />
               </div>
               <div className="text-center space-y-1">
-                <h1 className="text-[28px] font-extralight tracking-tight text-foreground/80">Check your email</h1>
-                <p className="text-sm text-foreground/50">We sent a 6-digit code to <span className="text-foreground/70">{expiredEmailState || resendEmail}</span></p>
+                <h1 className="text-[28px] font-extralight tracking-tight text-foreground/80">查看邮箱</h1>
+                <p className="text-sm text-foreground/50">已向 <span className="text-foreground/70">{expiredEmailState || resendEmail}</span> 发送 6 位验证码</p>
               </div>
               <label htmlFor="otp-input" className="w-full cursor-text">
                 <div className="flex justify-center gap-2">
@@ -544,8 +545,8 @@ function LoginContent() {
                 />
               </label>
               <form className="w-full space-y-3">
-                <SubmitButton formAction={handleVerifyOtp} className="w-full h-11 text-sm" pendingText="Verifying…" disabled={otpCode.length !== 6}>
-                  Verify code
+                <SubmitButton formAction={handleVerifyOtp} className="w-full h-11 text-sm" pendingText="验证中…" disabled={otpCode.length !== 6}>
+                  验证验证码
                 </SubmitButton>
                 {provider && (
                   <Button asChild variant="outline" className="w-full h-11">
@@ -563,12 +564,12 @@ function LoginContent() {
                     const res = await sendOtpCodeForEmail(expiredEmailState || resendEmail);
                     if (res && typeof res === 'object' && 'success' in res && res.success) {
                       setOtpCode('');
-                      toast.success('New code sent!');
+                      toast.success('已发送新验证码！');
                     } else {
-                      toast.error('Failed to send code');
+                      toast.error('发送验证码失败');
                     }
                   } catch {
-                    toast.error('Failed to send code');
+                    toast.error('发送验证码失败');
                   } finally {
                     setAutoSendingCode(false);
                   }
@@ -587,15 +588,15 @@ function LoginContent() {
               <div className="text-center space-y-1">
                 <h1 className="text-[28px] font-extralight tracking-tight text-foreground/80">{'此链接已过期'}</h1>
                 <p className="text-sm text-foreground/50 max-w-[260px]">
-                  {autoSendError ? "We couldn't send a code automatically. Try again below." : '您点击的魔法链接已过期。出于安全原因，魔法链接会在1小时后过期。'}
+                  {autoSendError ? '自动发送验证码失败，请在下方重试。' : '您点击的魔法链接已过期。出于安全原因，魔法链接会在1小时后过期。'}
                 </p>
               </div>
               <form className="w-full space-y-3">
                 {!expiredEmailState && (
                   <Input name="email" type="email" placeholder={'邮箱地址'} required onChange={(e) => setResendEmail(e.target.value)} className="h-11" />
                 )}
-                <SubmitButton formAction={handleSendOtpCode} className="w-full h-11 text-sm" pendingText="Sending…" disabled={!expiredEmailState && !resendEmail}>
-                  Send verification code
+                <SubmitButton formAction={handleSendOtpCode} className="w-full h-11 text-sm" pendingText="发送中…" disabled={!expiredEmailState && !resendEmail}>
+                  发送验证码
                 </SubmitButton>
               </form>
             </div>
@@ -644,10 +645,10 @@ function LoginContent() {
             >
               <div className="flex flex-col items-center gap-1.5">
                 <p className="text-foreground/50 text-sm font-medium tracking-wide">
-                  Wutong
+                  梧桐
                 </p>
                 <p className="text-foreground/25 text-xs tracking-widest uppercase">
-                  Click or press Enter to sign in
+                  点击或按回车键登录
                 </p>
               </div>
               {/* Scroll indicator */}
@@ -694,7 +695,7 @@ function LoginContent() {
               <div className="bg-background/80 dark:bg-background/75 backdrop-blur-2xl border border-foreground/[0.06] rounded-[20px] px-7 py-8">
                 {/* Shared header */}
                 <p className="text-[11px] text-center text-foreground/30 tracking-[0.2em] uppercase mb-6">
-                  Sign in to Wutong
+                  登录梧桐
                 </p>
 
                 {isPasswordMode ? (
@@ -704,7 +705,7 @@ function LoginContent() {
                       id="email"
                       name="email"
                       type="email"
-                      placeholder="Email"
+                      placeholder="邮箱"
                       required
                       autoComplete="email"
                       className="h-11 text-sm rounded-xl bg-foreground/[0.03] border-foreground/[0.08] shadow-none focus-visible:border-foreground/20 transition-colors"
@@ -713,7 +714,7 @@ function LoginContent() {
                       id="password"
                       name="password"
                       type="password"
-                      placeholder="Password"
+                      placeholder="密码"
                       required
                       autoComplete="current-password"
                       className="h-11 text-sm rounded-xl bg-foreground/[0.03] border-foreground/[0.08] shadow-none focus-visible:border-foreground/20 transition-colors"
@@ -721,9 +722,9 @@ function LoginContent() {
                     <SubmitButton
                       formAction={handlePasswordAuth}
                       className="w-full h-11 text-[13px] font-medium rounded-xl shadow-none mt-1"
-                      pendingText="Signing in…"
+                      pendingText="登录中…"
                     >
-                      Sign in
+                      登录
                     </SubmitButton>
                   </form>
                 ) : (
@@ -740,7 +741,7 @@ function LoginContent() {
                         <div className="w-full border-t border-foreground/[0.06]" />
                       </div>
                       <div className="relative flex justify-center">
-                        <span className="px-3 bg-background/80 dark:bg-background/75 text-[10px] text-foreground/20 tracking-[0.15em] uppercase">or</span>
+                        <span className="px-3 bg-background/80 dark:bg-background/75 text-[10px] text-foreground/20 tracking-[0.15em] uppercase">或</span>
                       </div>
                     </div>
 
@@ -750,7 +751,7 @@ function LoginContent() {
                         id="email"
                         name="email"
                         type="email"
-                        placeholder="Email"
+                        placeholder="邮箱"
                         required
                         autoComplete="email"
                         className="h-11 text-sm rounded-xl bg-foreground/[0.03] border-foreground/[0.08] shadow-none focus-visible:border-foreground/20 transition-colors"
@@ -758,7 +759,7 @@ function LoginContent() {
 
                       {referralCodeParam && (
                         <div className="bg-foreground/[0.03] border border-foreground/[0.08] rounded-xl px-3 py-2">
-                          <p className="text-[10px] text-foreground/35 mb-0.5">Referral</p>
+                          <p className="text-[10px] text-foreground/35 mb-0.5">推荐码</p>
                           <p className="text-[13px] font-semibold">{referralCode}</p>
                         </div>
                       )}
@@ -774,13 +775,13 @@ function LoginContent() {
                           className="h-[14px] w-[14px] rounded-[4px] shrink-0"
                         />
                         <label htmlFor="gdprConsent" className="text-[11px] leading-[1.6] text-foreground/30 cursor-pointer select-none">
-                          I agree to the{' '}
+                          我同意{' '}
                           <a href="https://www.kortix.com/legal?tab=privacy" target="_blank" rel="noopener noreferrer" className="text-foreground/45 hover:text-foreground/65 transition-colors">
-                            Privacy Policy
+                            隐私政策
                           </a>
-                          {' & '}
+                          {' 和 '}
                           <a href="https://www.kortix.com/legal?tab=terms" target="_blank" rel="noopener noreferrer" className="text-foreground/45 hover:text-foreground/65 transition-colors">
-                            Terms
+                            服务条款
                           </a>
                         </label>
                       </div>
@@ -789,10 +790,10 @@ function LoginContent() {
                         <SubmitButton
                           formAction={handleAuth}
                           className="w-full h-11 text-[13px] font-medium rounded-xl shadow-none"
-                          pendingText="Sending…"
+                          pendingText="发送中…"
                           disabled={!acceptedTerms}
                         >
-                          Continue with email
+                          使用邮箱继续
                         </SubmitButton>
                         {wasEmailLastMethod && (
                           <div className="absolute -top-0.5 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-background shadow-sm">
@@ -810,7 +811,7 @@ function LoginContent() {
                           onClick={() => setShowReferralDialog(true)}
                           className="text-[11px] text-foreground/20 hover:text-foreground/40 transition-colors cursor-pointer"
                         >
-                          Have a referral code?
+                          有推荐码？
                         </button>
                       </div>
                     )}
@@ -869,7 +870,7 @@ function SelfHostedLoginContent() {
   }, [phase]);
 
   if (isLoading || statusLoading || (user && installed !== false)) {
-    return <ConnectingScreen forceConnecting minimal title="Signing in" />;
+    return <ConnectingScreen forceConnecting minimal title="登录中" />;
   }
 
   // Lock screen → frosted glass auth form
@@ -906,8 +907,8 @@ function SelfHostedLoginContent() {
               transition={{ duration: 0.7, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
             >
               <div className="flex flex-col items-center gap-1.5">
-                <p className="text-foreground/50 text-sm font-medium tracking-wide">Wutong</p>
-                <p className="text-foreground/25 text-xs tracking-widest uppercase">Click or press Enter to sign in</p>
+                <p className="text-foreground/50 text-sm font-medium tracking-wide">梧桐</p>
+                <p className="text-foreground/25 text-xs tracking-widest uppercase">点击或按回车键登录</p>
               </div>
               <motion.div
                 animate={{ y: [0, 5, 0] }}
@@ -966,7 +967,7 @@ function SelfHostedLoginContent() {
 export default function Login() {
   if (isSelfHosted()) {
     return (
-      <Suspense fallback={<ConnectingScreen forceConnecting minimal title="Signing in" />}>
+      <Suspense fallback={<ConnectingScreen forceConnecting minimal title="登录中" />}>
         <>
           <AuthBrowserNoiseGuard />
           <SelfHostedLoginContent />

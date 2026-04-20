@@ -62,7 +62,7 @@ function PasswordAuthContent() {
         return;
       }
       
-      const errorMsg = error?.message || 'An unexpected error occurred';
+      const errorMsg = error?.message || '发生未知错误';
       setErrorMessage(errorMsg);
       toast.error(errorMsg);
     }
@@ -89,7 +89,7 @@ function PasswordAuthContent() {
               >
                 <ArrowLeft className="h-4 w-4 text-muted-foreground" />
                 <span className="font-medium text-muted-foreground text-xs tracking-wide">
-                  Back to sign in
+                  返回登录
                 </span>
               </Link>
 
@@ -112,7 +112,7 @@ function PasswordAuthContent() {
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  Sign in
+                  登录
                 </button>
                 <button
                   type="button"
@@ -127,17 +127,17 @@ function PasswordAuthContent() {
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  Sign up
+                  注册
                 </button>
               </div>
 
               <h1 className="text-3xl md:text-4xl lg:text-5xl font-medium tracking-tighter text-center text-balance text-primary">
-                {isSignUp ? 'Create Account' : 'Sign in'}
+                {isSignUp ? '创建账号' : '登录'}
               </h1>
               <p className="text-base md:text-lg text-center text-muted-foreground font-medium text-balance leading-relaxed tracking-tight mt-2 mb-6">
-                {isSignUp 
-                  ? 'Enter your email and password to create your account'
-                  : 'Enter your email and password to access your account'
+                {isSignUp
+                  ? '输入邮箱和密码以创建账号'
+                  : '输入邮箱和密码登录账号'
                 }
               </p>
             </div>
@@ -159,7 +159,7 @@ function PasswordAuthContent() {
                     id="email"
                     name="email"
                     type="email"
-                    placeholder="Email address"
+                    placeholder="邮箱地址"
                     className="h-12 rounded-full bg-background border-border"
                     required
                     autoComplete="email"
@@ -171,7 +171,7 @@ function PasswordAuthContent() {
                     id="password"
                     name="password"
                     type="password"
-                    placeholder="Password"
+                    placeholder="密码"
                     className="h-12 rounded-full bg-background border-border"
                     required
                     autoComplete={isSignUp ? 'new-password' : 'current-password'}
@@ -184,7 +184,7 @@ function PasswordAuthContent() {
                       id="confirmPassword"
                       name="confirmPassword"
                       type="password"
-                      placeholder="Confirm password"
+                      placeholder="确认密码"
                       className="h-12 rounded-full bg-background border-border"
                       required
                       autoComplete="new-password"
@@ -201,9 +201,9 @@ function PasswordAuthContent() {
                   <SubmitButton
                     formAction={handleAuth}
                     className="w-full h-12 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-md"
-                    pendingText={isSignUp ? 'Creating account...' : 'Signing in...'}
+                    pendingText={isSignUp ? '创建账号中...' : '登录中...'}
                   >
-                    {isSignUp ? 'Create account' : 'Sign in'}
+                    {isSignUp ? '创建账号' : '登录'}
                   </SubmitButton>
                 </div>
               </form>
@@ -214,7 +214,7 @@ function PasswordAuthContent() {
                     href="/auth/reset-password"
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline"
                   >
-                    Forgot your password?
+                    忘记密码？
                   </Link>
                 </div>
               )}
@@ -223,7 +223,7 @@ function PasswordAuthContent() {
                 <p className="text-xs text-center text-muted-foreground">
                   {isSignUp ? (
                     <>
-                      Already have an account?{' '}
+                      已有账号？{' '}
                       <button
                         type="button"
                         onClick={() => {
@@ -232,12 +232,12 @@ function PasswordAuthContent() {
                         }}
                         className="text-primary hover:underline underline-offset-4"
                       >
-                        Sign in
+                        登录
                       </button>
                     </>
                   ) : (
                     <>
-                      Don't have an account?{' '}
+                      还没有账号？{' '}
                       <button
                         type="button"
                         onClick={() => {
@@ -246,7 +246,7 @@ function PasswordAuthContent() {
                         }}
                         className="text-primary hover:underline underline-offset-4"
                       >
-                        Sign up
+                        注册
                       </button>
                     </>
                   )}
@@ -262,7 +262,7 @@ function PasswordAuthContent() {
 
 export default function PasswordAuth() {
   return (
-    <Suspense fallback={<ConnectingScreen forceConnecting minimal title="Signing in" />}>
+    <Suspense fallback={<ConnectingScreen forceConnecting minimal title="登录中" />}>
       <PasswordAuthContent />
     </Suspense>
   );
