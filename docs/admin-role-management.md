@@ -206,6 +206,32 @@ ORDER BY pr.role DESC, a.name;
 All operations can be done in the `/admin/accounts/[id]` UI; SQL listed here
 for emergencies or scripting.
 
+### 新建一个团队账号（部门 / 共享工作区）| Create a team account
+
+**仅 super_admin 可操作**。UI：`/admin/accounts` → 右上角 **"新建账号"** →
+填名字 → 创建。创建后你自动成为 owner 并直接跳到该账号的详情 tab。
+
+**Super_admin only.** UI: `/admin/accounts` → **New account** top right →
+enter a name → create. You become the initial owner and land on the new
+account's detail tab.
+
+典型工作流：
+
+```
+1. 你（super_admin）建"销售部" → 你是 owner
+2. 进详情，点"新建成员"把销售总监招进来，初始角色设为 member 或 admin
+3. 把销售总监的角色提升到 owner（现在两个 owner）
+4. 把自己从成员列表移除（末位保护：两个 owner 才允许退一个）
+5. 销售部从此由销售总监管，你作为 super_admin 仍能在 /admin 审计
+```
+
+**权限细节**：普通 `admin` **不能**建账号——前端不显示按钮，后端直接
+403。这是平台形态决策而非日常运营。
+
+Regular `admin` cannot create accounts — the button is hidden and the
+backend returns 403. Creating an account is a platform-shape decision,
+not an operational task.
+
 ### 新建一个员工账号 | Create an employee account
 
 UI 路径：`/admin/accounts` → 进目标账号详情 → 成员表头右侧 **"新建成员"** →
@@ -374,7 +400,7 @@ apps/api/
 │   ├── admin/
 │   │   ├── index.ts                           # 管理员路由根
 │   │   ├── platform-roles.ts                  # 平台角色 CRUD + 等级制
-│   │   ├── accounts.ts                        # 账号列表/详情 + 成员 CRUD
+│   │   ├── accounts.ts                        # 账号列表/详情 + 成员 CRUD + 新建账号（super_admin 专属）
 │   │   └── users.ts                           # 新建用户（admin.createUser + account_members）
 │   ├── middleware/require-admin.ts            # 权限门
 │   └── shared/platform-roles.ts               # getPlatformRole / isPlatformAdmin
@@ -385,7 +411,7 @@ apps/web/
 │   ├── app/(dashboard)/admin/accounts/
 │   │   ├── page.tsx                           # 账号列表 UI
 │   │   └── [id]/page.tsx                      # 账号详情 + 角色管理 UI
-│   ├── hooks/admin/use-admin-accounts.ts      # 六个 React Query hook（含新建成员）
+│   ├── hooks/admin/use-admin-accounts.ts      # 七个 React Query hook（含新建账号与新建成员）
 │   ├── lib/menu-registry.ts                   # 菜单 + 白名单
 │   ├── lib/tab-route-resolver.ts              # tab 路由解析
 │   └── components/tabs/page-tab-content.tsx   # tab → 组件映射
