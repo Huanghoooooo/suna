@@ -73,10 +73,32 @@ export async function resolveProvider(externalId: string): Promise<{ provider: C
     const provider = sandbox.provider as CachedProviderName;
     const baseUrl = sandbox.baseUrl || '';
     const configJson = (sandbox.config || {}) as Record<string, unknown>;
-    const serviceKey = typeof configJson.serviceKey === 'string' ? configJson.serviceKey : '';
+    let serviceKey = typeof configJson.serviceKey === 'string' ? configJson.serviceKey : '';
     const metaJson = (sandbox.metadata || {}) as Record<string, unknown>;
     let proxyToken = typeof metaJson.justavpsProxyToken === 'string' ? metaJson.justavpsProxyToken : '';
     const slug = typeof metaJson.justavpsSlug === 'string' ? metaJson.justavpsSlug : '';
+
+    if (provider === 'local_docker' && !serviceKey) {
+      try {
+        const { LocalDockerProvider } = await import('../platform/providers/local-docker');
+        const localProvider = new LocalDockerProvider();
+        const containerEnv = await localProvider.getContainerEnv(externalId);
+        const recoveredServiceKey = containerEnv.INTERNAL_SERVICE_KEY || containerEnv.KORTIX_TOKEN || '';
+        if (recoveredServiceKey) {
+          serviceKey = recoveredServiceKey;
+          await db
+            .update(sandboxes)
+            .set({
+              config: { ...configJson, serviceKey: recoveredServiceKey },
+              updatedAt: new Date(),
+            })
+            .where(eq(sandboxes.externalId, externalId));
+          console.log(`[PREVIEW] Backfilled local sandbox serviceKey for ${externalId}`);
+        }
+      } catch (err) {
+        console.warn(`[PREVIEW] Failed to backfill local sandbox serviceKey for ${externalId}:`, err);
+      }
+    }
 
     // Refresh the JustAVPS proxy token if it's missing, legacy, or within the
     // refresh buffer of expiry. Shared helper in providers/justavps.ts handles

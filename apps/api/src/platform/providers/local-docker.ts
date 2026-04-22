@@ -289,6 +289,25 @@ export class LocalDockerProvider implements SandboxProvider {
     this.docker = getDocker();
   }
 
+  private getCurrentContainerName(containerName?: string): string {
+    return containerName || this._lastCreateOpts?.name || CONTAINER_NAME;
+  }
+
+  private getCurrentVolumeName(containerName?: string): string {
+    return `${this.getCurrentContainerName(containerName)}-data`;
+  }
+
+  private getCurrentPortBindings(containerName?: string): Record<string, { HostPort: string; HostIp: string }[]> {
+    const resolvedContainerName = this.getCurrentContainerName(containerName);
+    if (resolvedContainerName === CONTAINER_NAME) return PORT_BINDINGS;
+    return Object.fromEntries(
+      Object.keys(PORT_MAP).map((containerPort) => [
+        `${containerPort}/tcp`,
+        [{ HostPort: '', HostIp: '127.0.0.1' }],
+      ]),
+    );
+  }
+
   async ensure(): Promise<SandboxInfo> {
     const existing = await this.find();
 
@@ -326,9 +345,9 @@ export class LocalDockerProvider implements SandboxProvider {
     return this.getSandboxInfo();
   }
 
-  async find(): Promise<SandboxInfo | null> {
+  async find(containerName?: string): Promise<SandboxInfo | null> {
     try {
-      const container = this.docker.getContainer(CONTAINER_NAME);
+      const container = this.docker.getContainer(this.getCurrentContainerName(containerName));
       const info = await container.inspect();
       return this.toSandboxInfo(info);
     } catch (err: any) {
@@ -337,29 +356,38 @@ export class LocalDockerProvider implements SandboxProvider {
     }
   }
 
-  async getSandboxInfo(): Promise<SandboxInfo> {
-    const info = await this.find();
+  async getSandboxInfo(containerName?: string): Promise<SandboxInfo> {
+    const info = await this.find(containerName);
     if (!info) throw new Error('Sandbox container not found');
     return info;
   }
 
-  async start(): Promise<void> {
-    const container = this.docker.getContainer(CONTAINER_NAME);
-    await container.start();
+  async start(externalId: string): Promise<void> {
+    const containerName = this.getCurrentContainerName(externalId);
+    const container = this.docker.getContainer(containerName);
+    try {
+      await container.start();
+    } catch (err: any) {
+      const message = err?.message || String(err);
+      if (err?.statusCode !== 304 && !message.includes('already started')) {
+        throw err;
+      }
+    }
+    await this.syncCoreEnvVars(containerName);
   }
 
-  async stop(): Promise<void> {
-    const container = this.docker.getContainer(CONTAINER_NAME);
+  async stop(externalId: string): Promise<void> {
+    const container = this.docker.getContainer(this.getCurrentContainerName(externalId));
     await container.stop({ t: 10 });
   }
 
-  async restart(): Promise<void> {
-    const container = this.docker.getContainer(CONTAINER_NAME);
+  async restart(externalId: string): Promise<void> {
+    const container = this.docker.getContainer(this.getCurrentContainerName(externalId));
     await container.restart({ t: 10 });
   }
 
-  async remove(): Promise<void> {
-    const container = this.docker.getContainer(CONTAINER_NAME);
+  async remove(externalId: string): Promise<void> {
+    const container = this.docker.getContainer(this.getCurrentContainerName(externalId));
     try {
       await container.stop({ t: 5 });
     } catch {
@@ -419,7 +447,7 @@ export class LocalDockerProvider implements SandboxProvider {
       setUpdateStatus({ phase: 'stopping', progress: 50, message: 'Stopping sandbox...' });
       console.log(`[LOCAL-DOCKER] Stopping sandbox for update...`);
       try {
-        const container = this.docker.getContainer(CONTAINER_NAME);
+        const container = this.docker.getContainer(this.getCurrentContainerName());
         await container.stop({ t: 15 });
       } catch (err: any) {
         if (!err?.message?.includes('not running') && !err?.message?.includes('No such container')) {
@@ -430,7 +458,7 @@ export class LocalDockerProvider implements SandboxProvider {
       setUpdateStatus({ phase: 'removing', progress: 60, message: 'Removing old container...' });
       console.log(`[LOCAL-DOCKER] Removing old container (preserving volumes)...`);
       try {
-        const container = this.docker.getContainer(CONTAINER_NAME);
+        const container = this.docker.getContainer(this.getCurrentContainerName());
         await container.remove({ v: false, force: true });
       } catch (err: any) {
         if (err?.statusCode !== 404) {
@@ -449,7 +477,7 @@ export class LocalDockerProvider implements SandboxProvider {
             'echo "volume prepared"',
           ].join(' && ')],
           HostConfig: {
-            Binds: [`${CONTAINER_NAME}-data:/workspace`],
+            Binds: [`${this.getCurrentVolumeName()}:/workspace`],
           },
         });
         await cleanupContainer.start();
@@ -494,9 +522,9 @@ export class LocalDockerProvider implements SandboxProvider {
     }
   }
 
-  async getStatus(): Promise<SandboxStatus> {
+  async getStatus(externalId: string): Promise<SandboxStatus> {
     try {
-      const container = this.docker.getContainer(CONTAINER_NAME);
+      const container = this.docker.getContainer(this.getCurrentContainerName(externalId));
       const info = await container.inspect();
       if (info.State.Running) return 'running';
       if (info.State.Status === 'exited' || info.State.Status === 'stopped') return 'stopped';
@@ -524,9 +552,18 @@ export class LocalDockerProvider implements SandboxProvider {
   }
 
   async resolveEndpoint(externalId: string): Promise<ResolvedEndpoint> {
-    const url = config.SANDBOX_NETWORK
+    let url = config.SANDBOX_NETWORK
       ? `http://${externalId}:8000`
       : BASE_URL;
+
+    if (!config.SANDBOX_NETWORK) {
+      try {
+        const container = this.docker.getContainer(externalId || this.getCurrentContainerName());
+        const info = await container.inspect();
+        url = this.toSandboxInfo(info).baseUrl;
+      } catch {
+      }
+    }
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -540,16 +577,17 @@ export class LocalDockerProvider implements SandboxProvider {
   }
 
   async ensureRunning(_externalId: string): Promise<void> {
-    const info = await this.find();
+    const containerName = _externalId || this.getCurrentContainerName();
+    const info = await this.find(containerName);
     if (info && info.status === 'running') {
-      await this.syncCoreEnvVars();
+      await this.syncCoreEnvVars(containerName);
       return;
     }
     if (info) {
       console.log('[LOCAL-DOCKER] Container stopped, starting for cron execution...');
-      const container = this.docker.getContainer(CONTAINER_NAME);
+      const container = this.docker.getContainer(this.getCurrentContainerName(containerName));
       await container.start();
-      await this.syncCoreEnvVars();
+      await this.syncCoreEnvVars(containerName);
       return;
     }
     console.log('[LOCAL-DOCKER] No container found, creating for cron execution...');
@@ -571,10 +609,10 @@ export class LocalDockerProvider implements SandboxProvider {
    * Auth aliases (KORTIX_TOKEN / INTERNAL_SERVICE_KEY / TUNNEL_TOKEN) are
    * synced separately from the canonical sandbox service key in the DB.
    */
-  async syncCoreEnvVars(): Promise<void> {
+  async syncCoreEnvVars(containerName?: string): Promise<void> {
     if (this._serviceKeySynced) return;
 
-    const info = await this.find();
+    const info = await this.find(containerName);
     if (!info || info.status !== 'running') {
       console.log('[LOCAL-DOCKER] syncCoreEnvVars: no running container found, skipping');
       return;
@@ -595,13 +633,13 @@ export class LocalDockerProvider implements SandboxProvider {
 
     // Read current state from the live master env (s6 env dir) — NOT from
     // Docker inspect which only has stale creation-time values.
-    const authCandidates = getAuthCandidates(await this.getCanonicalServiceKey());
+    const authCandidates = getAuthCandidates(await this.getCanonicalServiceKey(containerName));
     let currentEnv: Record<string, string> = {};
     try {
-      currentEnv = await this.fetchMasterEnv(authCandidates);
+      currentEnv = await this.fetchMasterEnv(authCandidates, containerName);
     } catch {
       // Master not ready yet — fall back to Docker inspect for URL/key only
-      const containerEnv = await this.getContainerEnv();
+      const containerEnv = await this.getContainerEnv(containerName);
       currentEnv = {};
       for (const key of Object.keys(desired)) {
         currentEnv[key] = containerEnv[key] || '';
@@ -623,13 +661,13 @@ export class LocalDockerProvider implements SandboxProvider {
 
     console.log(`[LOCAL-DOCKER] Syncing ${Object.keys(stale).join(', ')} via secrets manager...`);
     try {
-      await this.postMasterEnv(stale, authCandidates);
+      await this.postMasterEnv(stale, authCandidates, containerName);
       this._serviceKeySynced = true;
       console.log(`[LOCAL-DOCKER] Core env vars synced: ${Object.keys(stale).join(', ')}`);
     } catch (err: any) {
       console.error('[LOCAL-DOCKER] Failed to sync core env vars via /env API, falling back to docker exec:', err.message || err);
       try {
-        this.syncCoreEnvVarsFallback(stale);
+        this.syncCoreEnvVarsFallback(stale, containerName);
         this._serviceKeySynced = true;
       } catch (fallbackErr: any) {
         console.error('[LOCAL-DOCKER] Fallback sync also failed:', fallbackErr.message || fallbackErr);
@@ -640,8 +678,9 @@ export class LocalDockerProvider implements SandboxProvider {
   /**
    * GET /env from kortix-master — returns all current env vars.
    */
-  private async fetchMasterEnv(authCandidates: string[]): Promise<Record<string, string>> {
-    const url = `http://localhost:${config.SANDBOX_PORT_BASE || 14000}/env`;
+  private async fetchMasterEnv(authCandidates: string[], containerName?: string): Promise<Record<string, string>> {
+    const info = await this.find(containerName);
+    const url = `${info?.baseUrl || BASE_URL}/env`;
     for (const token of authCandidates) {
       const res = await fetch(url, {
         headers: {
@@ -660,8 +699,9 @@ export class LocalDockerProvider implements SandboxProvider {
    * POST /env to kortix-master — sets env vars via the secrets manager.
    * No restart needed: getEnv() reads s6 env dir directly on every call.
    */
-  private async postMasterEnv(keys: Record<string, string>, authCandidates: string[]): Promise<void> {
-    const url = `http://localhost:${config.SANDBOX_PORT_BASE || 14000}/env`;
+  private async postMasterEnv(keys: Record<string, string>, authCandidates: string[], containerName?: string): Promise<void> {
+    const info = await this.find(containerName);
+    const url = `${info?.baseUrl || BASE_URL}/env`;
     for (const token of authCandidates) {
       const res = await fetch(url, {
         method: 'POST',
@@ -681,12 +721,12 @@ export class LocalDockerProvider implements SandboxProvider {
    * Fallback: write directly to s6 env dir via docker exec.
    * Used only when the /env API is unreachable (e.g. kortix-master not ready yet).
    */
-  private syncCoreEnvVarsFallback(stale: Record<string, string>): void {
+  private syncCoreEnvVarsFallback(stale: Record<string, string>, containerName?: string): void {
     const env = { ...process.env };
     delete env.DOCKER_HOST;
 
     const bashScript = buildDockerEnvWriteCommand(stale, '/run/s6/container_environment');
-    execFileSync('docker', ['exec', CONTAINER_NAME, 'bash', '-c', bashScript], {
+    execFileSync('docker', ['exec', this.getCurrentContainerName(containerName), 'bash', '-c', bashScript], {
       timeout: 15_000, stdio: 'pipe', env,
     });
     console.log(`[LOCAL-DOCKER] Core env vars synced via fallback (docker exec): ${Object.keys(stale).join(', ')}`);
@@ -699,8 +739,8 @@ export class LocalDockerProvider implements SandboxProvider {
    * new token in the DB but the container is already running with a stale one.
    * Uses the same /env API and docker-exec fallback as syncCoreEnvVars.
    */
-  private async syncTokenToContainer(token: string): Promise<void> {
-    const containerEnv = await this.getContainerEnv();
+  private async syncTokenToContainer(token: string, containerName?: string): Promise<void> {
+    const containerEnv = await this.getContainerEnv(containerName);
     if (
       containerEnv['KORTIX_TOKEN'] === token &&
       containerEnv['INTERNAL_SERVICE_KEY'] === token &&
@@ -715,11 +755,11 @@ export class LocalDockerProvider implements SandboxProvider {
       TUNNEL_TOKEN: token,
     };
     try {
-      await this.postMasterEnv(authBundle, authCandidates);
+      await this.postMasterEnv(authBundle, authCandidates, containerName);
       console.log('[LOCAL-DOCKER] Sandbox auth bundle synced to container via /env API');
     } catch {
       try {
-        this.syncCoreEnvVarsFallback(authBundle);
+        this.syncCoreEnvVarsFallback(authBundle, containerName);
         console.log('[LOCAL-DOCKER] Sandbox auth bundle synced to container via docker exec fallback');
       } catch (err: any) {
         console.error('[LOCAL-DOCKER] Failed to sync sandbox auth bundle into container:', err.message || err);
@@ -727,8 +767,8 @@ export class LocalDockerProvider implements SandboxProvider {
     }
   }
 
-  private async getCanonicalServiceKey(): Promise<string> {
-    const dbKey = await getSandboxServiceKeyByExternalId(CONTAINER_NAME);
+  private async getCanonicalServiceKey(containerName?: string): Promise<string> {
+    const dbKey = await getSandboxServiceKeyByExternalId(this.getCurrentContainerName(containerName));
     return dbKey || this._lastCreateOpts?.envVars?.KORTIX_TOKEN || '';
   }
 
@@ -909,7 +949,7 @@ export class LocalDockerProvider implements SandboxProvider {
       `INTERNAL_SERVICE_KEY=${serviceKey}`,
       `TUNNEL_API_URL=${sandboxApiBase}`,
       `TUNNEL_TOKEN=${authToken}`,
-      `SANDBOX_ID=${CONTAINER_NAME}`,
+      `SANDBOX_ID=${this.getCurrentContainerName()}`,
       // Inject the API's own version so the sandbox health endpoint reports correctly.
       // All components share one version (set by deploy-zero-downtime.sh from image tag).
       `SANDBOX_VERSION=${SANDBOX_VERSION}`,
@@ -929,17 +969,17 @@ export class LocalDockerProvider implements SandboxProvider {
 
     const container = await this.docker.createContainer({
       Image: image,
-      name: CONTAINER_NAME,
+      name: this.getCurrentContainerName(),
       Env: env,
       ExposedPorts: EXPOSED_PORTS,
       HostConfig: {
-        PortBindings: PORT_BINDINGS,
+        PortBindings: this.getCurrentPortBindings(),
         Privileged: true,
         ShmSize: 2 * 1024 * 1024 * 1024,
         RestartPolicy: { Name: 'unless-stopped' },
         Binds: [
-          `${CONTAINER_NAME}-data:/workspace`,
-          `${CONTAINER_NAME}-data:/config`,
+          `${this.getCurrentVolumeName()}:/workspace`,
+          `${this.getCurrentVolumeName()}:/config`,
         ],
         ...(config.SANDBOX_NETWORK ? { NetworkMode: config.SANDBOX_NETWORK } : {}),
       },
@@ -960,9 +1000,9 @@ export class LocalDockerProvider implements SandboxProvider {
    * Read environment variables from the running container via Docker inspect.
    * Returns a map of VAR_NAME → value.
    */
-  async getContainerEnv(): Promise<Record<string, string>> {
+  async getContainerEnv(containerName?: string): Promise<Record<string, string>> {
     try {
-      const container = this.docker.getContainer(CONTAINER_NAME);
+      const container = this.docker.getContainer(this.getCurrentContainerName(containerName));
       const info = await container.inspect();
       const envList = info.Config.Env || [];
       const result: Record<string, string> = {};
@@ -983,14 +1023,20 @@ export class LocalDockerProvider implements SandboxProvider {
       info.State.Running ? 'running' :
       info.State.Status === 'exited' || info.State.Status === 'created' ? 'stopped' :
       'unknown';
+    const mappedPorts: Record<string, string> = {};
+    for (const containerPort of Object.keys(PORT_MAP)) {
+      const binding = info.NetworkSettings?.Ports?.[`${containerPort}/tcp`]?.[0];
+      mappedPorts[containerPort] = binding?.HostPort || PORT_MAP[containerPort];
+    }
+    const containerName = info.Name?.replace(/^\//, '') || this.getCurrentContainerName();
 
     return {
       containerId: info.Id,
-      name: CONTAINER_NAME,
+      name: containerName,
       status,
       image: info.Config.Image || config.SANDBOX_IMAGE,
-      baseUrl: BASE_URL,
-      mappedPorts: { ...PORT_MAP },
+      baseUrl: `http://localhost:${mappedPorts['8000']}`,
+      mappedPorts,
       createdAt: info.Created,
     };
   }
@@ -1001,7 +1047,8 @@ export class LocalDockerProvider implements SandboxProvider {
    */
   private async waitForHealth(timeoutMs: number): Promise<void> {
     const start = Date.now();
-    const healthUrl = `http://localhost:${PORT_MAP['8000']}/kortix/health`;
+    const info = await this.find();
+    const healthUrl = `${info?.baseUrl || BASE_URL}/kortix/health`;
 
     while (Date.now() - start < timeoutMs) {
       try {

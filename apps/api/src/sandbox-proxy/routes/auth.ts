@@ -67,6 +67,16 @@ getAuthToken.post('/', async (c) => {
   return c.json({ ok: true });
 });
 
+getAuthToken.delete('/', async (c) => {
+  c.header(
+    'Set-Cookie',
+    `${PREVIEW_SESSION_COOKIE}=; Path=/v1/p/; HttpOnly; SameSite=Lax; Max-Age=0`,
+    { append: true },
+  );
+
+  return c.json({ ok: true });
+});
+
 // Also support OPTIONS for CORS preflight
 getAuthToken.options('/', (c) => {
   return new Response(null, { status: 204 });

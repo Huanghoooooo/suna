@@ -120,6 +120,16 @@ const STRIP_RESPONSE_HEADERS = new Set([
   'content-length',
 ]);
 
+function canSyncLocalSandboxAuth(baseUrlOverride?: string): boolean {
+  if (!baseUrlOverride) return true;
+  try {
+    const url = new URL(baseUrlOverride);
+    return url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Resolve the sandbox's Kortix Master URL.
  * Inside Docker: http://{sandboxId}:8000 (Docker DNS)
@@ -223,8 +233,11 @@ export async function proxyToSandbox(
   }
 
   // On 401 from sandbox: service key mismatch. Sync our key and retry once.
-  // Only attempt local docker exec sync for local_docker provider (no baseUrlOverride).
-  if (response.status === 401 && !_serviceKeySynced && !baseUrlOverride) {
+  // Local Docker now commonly uses a resolved host baseUrlOverride
+  // (for example http://localhost:32797), so we must not treat the mere
+  // presence of baseUrlOverride as "not local". Restrict the auto-heal to
+  // local-loopback targets where docker exec can actually reach the container.
+  if (response.status === 401 && !_serviceKeySynced && canSyncLocalSandboxAuth(baseUrlOverride)) {
     const synced = trySyncServiceKey(serviceKey);
     if (synced) {
       // Retry the request with the same key (now the sandbox should accept it)
