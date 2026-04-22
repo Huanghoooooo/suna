@@ -303,7 +303,7 @@ export function SelfHostedForm({ returnUrl, installed }: SelfHostedFormProps) {
         window.location.href = returnUrl || '/instances';
         return;
       } else {
-        setErrorMessage('当前实例尚未创建管理员账号，请先运行梧桐安装程序或 CLI 引导。');
+        setErrorMessage('当前实例尚未创建管理员账号，请先运行五通安装程序或 CLI 引导。');
         setPending(false);
       }
     } catch (err: any) {
@@ -349,7 +349,7 @@ export function SelfHostedForm({ returnUrl, installed }: SelfHostedFormProps) {
     <div className="w-full max-w-sm">
       <div className="flex flex-col items-center mb-6">
         <h1 className="text-[17px] font-medium text-foreground/90 tracking-tight">
-          登录梧桐
+          登录五通
         </h1>
         <p className="text-[13px] text-foreground/40 mt-0.5">
           你的 AI 电脑

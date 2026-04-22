@@ -290,7 +290,7 @@ export default function InstancesPage() {
           {/* Claim computer card for legacy paid users */}
           {canClaimComputer && !pageLoading && (
             <ComputerHeroCard
-              title="梧桐变得更强了"
+              title="五通变得更强了"
               description={
                 <>
                   你的套餐现已包含专属云电脑

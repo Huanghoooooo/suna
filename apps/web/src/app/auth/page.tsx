@@ -126,7 +126,7 @@ function AccessRequestForm({ email, onSubmitted, onBack }: { email: string; onSu
         />
         <textarea
           name="useCase"
-          placeholder="你打算用梧桐做什么？"
+          placeholder="你打算用五通做什么？"
           rows={3}
           className="w-full rounded-xl bg-foreground/[0.04] border border-foreground/[0.08] text-[15px] text-foreground/80 placeholder:text-foreground/30 px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-foreground/10 focus:border-foreground/15 transition-colors"
         />
@@ -645,7 +645,7 @@ function LoginContent() {
             >
               <div className="flex flex-col items-center gap-1.5">
                 <p className="text-foreground/50 text-sm font-medium tracking-wide">
-                  梧桐
+                  五通
                 </p>
                 <p className="text-foreground/25 text-xs tracking-widest uppercase">
                   点击或按回车键登录
@@ -695,7 +695,7 @@ function LoginContent() {
               <div className="bg-background/80 dark:bg-background/75 backdrop-blur-2xl border border-foreground/[0.06] rounded-[20px] px-7 py-8">
                 {/* Shared header */}
                 <p className="text-[11px] text-center text-foreground/30 tracking-[0.2em] uppercase mb-6">
-                  登录梧桐
+                  登录五通
                 </p>
 
                 {isPasswordMode ? (
@@ -907,7 +907,7 @@ function SelfHostedLoginContent() {
               transition={{ duration: 0.7, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
             >
               <div className="flex flex-col items-center gap-1.5">
-                <p className="text-foreground/50 text-sm font-medium tracking-wide">梧桐</p>
+                <p className="text-foreground/50 text-sm font-medium tracking-wide">五通</p>
                 <p className="text-foreground/25 text-xs tracking-widest uppercase">点击或按回车键登录</p>
               </div>
               <motion.div
