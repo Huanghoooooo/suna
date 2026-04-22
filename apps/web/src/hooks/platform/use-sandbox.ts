@@ -79,7 +79,7 @@ export function useSandbox() {
   const pathname = usePathname();
 
   const query = useQuery({
-    queryKey: ['platform', 'sandbox'],
+    queryKey: ['platform', 'sandbox', user?.id],
     queryFn: async () => {
       // Just fetch the current sandbox. Creation is handled by /instances page.
       return await getSandbox();

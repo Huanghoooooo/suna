@@ -6,6 +6,7 @@ import { detectBestLocaleFromHeaders } from '@/lib/utils/geo-detection-server';
 import { KORTIX_SUPABASE_AUTH_COOKIE } from '@/lib/supabase/constants';
 import {
   ACTIVE_INSTANCE_COOKIE,
+  ACTIVE_INSTANCE_OWNER_COOKIE,
   buildInstancePath,
   extractInstanceRoute,
   isInstanceDetailPath,
@@ -104,6 +105,7 @@ export async function middleware(request: NextRequest) {
   const isInstanceScopedRoute = !!instanceRoute && !!instanceRoute.innerPath && isInstanceScopedAppPath(instanceRoute.innerPath);
   const effectivePathname = isInstanceScopedRoute ? instanceRoute.innerPath : pathname;
   const activeInstanceId = request.cookies.get(ACTIVE_INSTANCE_COOKIE)?.value || null;
+  const activeInstanceOwner = request.cookies.get(ACTIVE_INSTANCE_OWNER_COOKIE)?.value || null;
 
   // Block access to WIP /thread/new route - redirect to dashboard
   if (pathname.includes('/thread/new')) {
@@ -255,9 +257,20 @@ export async function middleware(request: NextRequest) {
   // FAST PATH: Authenticated users hitting the homepage get an instant 302
   // to /dashboard. This avoids the old client-side redirect chain that caused
   // a white flash (render null → useAuth resolves → router.replace → skeleton).
+  const activeInstanceIdForUser = user && activeInstanceOwner === user.id ? activeInstanceId : null;
+  if (user && activeInstanceId && activeInstanceOwner !== user.id) {
+    supabaseResponse.cookies.delete(ACTIVE_INSTANCE_COOKIE);
+    supabaseResponse.cookies.delete(ACTIVE_INSTANCE_OWNER_COOKIE);
+  }
+
   if (pathname === '/' && user) {
-    const target = activeInstanceId ? buildInstancePath(activeInstanceId, '/dashboard') : '/instances';
-    return NextResponse.redirect(new URL(target, request.url));
+    const target = activeInstanceIdForUser ? buildInstancePath(activeInstanceIdForUser, '/dashboard') : '/instances';
+    const response = NextResponse.redirect(new URL(target, request.url));
+    if (activeInstanceId && activeInstanceOwner !== user.id) {
+      response.cookies.delete(ACTIVE_INSTANCE_COOKIE);
+      response.cookies.delete(ACTIVE_INSTANCE_OWNER_COOKIE);
+    }
+    return response;
   }
 
   // Auto-redirect based on geo-detection for marketing pages
@@ -331,6 +344,7 @@ export async function middleware(request: NextRequest) {
       rewriteUrl.pathname = effectivePathname;
       const response = NextResponse.rewrite(rewriteUrl);
       response.cookies.set(ACTIVE_INSTANCE_COOKIE, instanceRoute.instanceId, { path: '/', sameSite: 'lax' });
+      response.cookies.set(ACTIVE_INSTANCE_OWNER_COOKIE, user.id, { path: '/', sameSite: 'lax' });
       return response;
     }
 
@@ -340,6 +354,7 @@ export async function middleware(request: NextRequest) {
     }
     if (instanceRoute?.instanceId && instanceRoute.innerPath === '/onboarding') {
       supabaseResponse.cookies.set(ACTIVE_INSTANCE_COOKIE, instanceRoute.instanceId, { path: '/', sameSite: 'lax' });
+      supabaseResponse.cookies.set(ACTIVE_INSTANCE_OWNER_COOKIE, user.id, { path: '/', sameSite: 'lax' });
       return supabaseResponse;
     }
 
@@ -348,8 +363,13 @@ export async function middleware(request: NextRequest) {
     // otherwise send to /instances to pick one.
     if (isInstanceScopedAppPath(pathname)) {
       const url = request.nextUrl.clone();
-      url.pathname = activeInstanceId ? buildInstancePath(activeInstanceId, pathname) : '/instances';
-      return NextResponse.redirect(url);
+      url.pathname = activeInstanceIdForUser ? buildInstancePath(activeInstanceIdForUser, pathname) : '/instances';
+      const response = NextResponse.redirect(url);
+      if (activeInstanceId && activeInstanceOwner !== user.id) {
+        response.cookies.delete(ACTIVE_INSTANCE_COOKIE);
+        response.cookies.delete(ACTIVE_INSTANCE_OWNER_COOKIE);
+      }
+      return response;
     }
 
     // ── Billing-related routes (subscription, activate-trial, etc.) ──────

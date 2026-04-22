@@ -8,7 +8,11 @@ import { useAuth } from '@/components/AuthProvider';
 import { ConnectingScreen } from '@/components/dashboard/connecting-screen';
 import { authenticatedFetch } from '@/lib/auth-token';
 import { getEnv } from '@/lib/env-config';
-import { buildInstancePath } from '@/lib/instance-routes';
+import {
+  ACTIVE_INSTANCE_COOKIE,
+  ACTIVE_INSTANCE_OWNER_COOKIE,
+  buildInstancePath,
+} from '@/lib/instance-routes';
 import { getSandboxById } from '@/lib/platform-client';
 import { markProvisioningVerified } from '@/stores/sandbox-connection-store';
 import { switchToInstanceAsync } from '@/stores/server-store';
@@ -36,13 +40,23 @@ export default function InstanceDetailPage() {
   }, [authLoading, user, router]);
 
   const { data: sandbox, isLoading, refetch } = useQuery({
-    queryKey: ['platform', 'sandbox', 'detail', id],
+    queryKey: ['platform', 'sandbox', 'detail', user?.id, id],
     queryFn: () => getSandboxById(id!),
     enabled: !!user && !!id,
     staleTime: 0,
     refetchInterval: (query) =>
       query.state.data?.status === 'provisioning' ? 5_000 : false,
   });
+
+  useEffect(() => {
+    if (authLoading || !user || isLoading || sandbox) return;
+    try {
+      document.cookie = `${ACTIVE_INSTANCE_COOKIE}=; Max-Age=0; path=/; SameSite=Lax`;
+      document.cookie = `${ACTIVE_INSTANCE_OWNER_COOKIE}=; Max-Age=0; path=/; SameSite=Lax`;
+    } catch {
+    }
+    router.replace('/instances');
+  }, [authLoading, user, isLoading, sandbox, router]);
 
   // Cloud provisioning poller (SSE stream from backend).
   const isLocalDocker = sandbox?.provider === 'local_docker';
@@ -206,4 +220,3 @@ export default function InstanceDetailPage() {
     />
   );
 }
-

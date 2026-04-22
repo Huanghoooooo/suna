@@ -61,7 +61,7 @@ export default function InstancesPage() {
   }, [authLoading, user, router]);
 
   const { data: sandboxes, isLoading, error, refetch } = useQuery({
-    queryKey: ['platform', 'sandbox', 'list'],
+    queryKey: ['platform', 'sandbox', 'list', user?.id],
     queryFn: listSandboxes,
     enabled: !!user,
     refetchInterval: (query) => {
@@ -88,8 +88,8 @@ export default function InstancesPage() {
   // When the user has at least one active instance again, allow a future auto-ensure
   // (e.g. they removed all instances and land back on an empty list).
   useEffect(() => {
-    const active = sandboxes?.filter((s) => s.status !== 'archived') ?? [];
-    if (active.length > 0) {
+    const usable = sandboxes?.filter((s) => s.status !== 'archived' && s.status !== 'error') ?? [];
+    if (usable.length > 0) {
       autoEnsureAttemptedRef.current = false;
     }
   }, [sandboxes]);
@@ -98,7 +98,8 @@ export default function InstancesPage() {
   // Only 1 instance allowed in local mode.
   useEffect(() => {
     if (!user || isLoading || autoCreating || isCloud) return;
-    if (!sandboxes || sandboxes.length > 0) return;
+    const usable = sandboxes?.filter((s) => s.status !== 'archived' && s.status !== 'error') ?? [];
+    if (!sandboxes || usable.length > 0) return;
     if (autoEnsureAttemptedRef.current) return;
     autoEnsureAttemptedRef.current = true;
     setAutoCreating(true);
@@ -117,7 +118,7 @@ export default function InstancesPage() {
   // Auto-redirect: if there's exactly 1 instance (local mode typical), go straight to it.
   useEffect(() => {
     if (isLoading || !sandboxes) return;
-    const active = sandboxes.filter((s) => s.status !== 'archived');
+    const active = sandboxes.filter((s) => s.status !== 'archived' && s.status !== 'error');
     if (active.length === 1 && !isCloud) {
       router.replace(`/instances/${active[0].sandbox_id}`);
     }
@@ -125,7 +126,7 @@ export default function InstancesPage() {
 
   // Filter out archived — user shouldn't see those
   const visible = sandboxes?.filter((s) => s.status !== 'archived') ?? [];
-  const fallbackServers = servers.filter((s) => !!s.provider || !!s.url);
+  const fallbackServers = servers.filter((s) => !!s.url || (!!s.provider && !!s.sandboxId));
 
   // ── Per-card action handlers ──
   //

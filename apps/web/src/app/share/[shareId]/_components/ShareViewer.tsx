@@ -2,7 +2,6 @@
 
 import { cn } from '@/lib/utils';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { getEnv } from '@/lib/env-config';
 import { UnifiedMarkdown } from '@/components/markdown/unified-markdown';
 import { KortixLoader } from '@/components/ui/kortix-loader';
 import {
@@ -66,13 +65,13 @@ interface ShareData {
 
 import { getActiveOpenCodeUrl } from '@/stores/server-store';
 
-const FALLBACK_BASE_URL = `${getEnv().BACKEND_URL.replace(/\/+$/, '')}/p/kortix-sandbox/8000`;
-
 function getOpenCodeBaseUrl(): string {
   // Use the active server URL if available (resolves correct sandboxId).
-  // Only fall back to the local default for self-hosted / local mode.
   const active = getActiveOpenCodeUrl();
-  return active || FALLBACK_BASE_URL;
+  if (!active) {
+    throw new Error('No active sandbox is available for this share');
+  }
+  return active;
 }
 
 async function fetchShareData(shareId: string): Promise<ShareData> {
