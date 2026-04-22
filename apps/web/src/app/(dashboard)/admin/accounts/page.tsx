@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAdminAccounts, useAdminRole, useCreateAccount } from '@/hooks/admin';
+import { useAdminAccounts, useAdminRole, useCreateUser } from '@/hooks/admin';
 import type { AdminAccountSummary, PlatformRole } from '@/hooks/admin/use-admin-accounts';
 import { openTabAndNavigate } from '@/stores/tab-store';
 import { Input } from '@/components/ui/input';
@@ -56,27 +56,42 @@ function formatDate(s: string) {
   });
 }
 
-function CreateAccountDialog() {
+function CreateUserDialog() {
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState('');
-  const createAccount = useCreateAccount();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const createUser = useCreateUser();
 
-  const canSubmit = name.trim().length > 0 && !createAccount.isPending;
+  const canSubmit =
+    email.trim().includes('@') &&
+    password.length >= 8 &&
+    !createUser.isPending;
+
+  const reset = () => {
+    setEmail('');
+    setPassword('');
+    setDisplayName('');
+  };
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    createAccount.mutate(
-      { name: name.trim() },
+    createUser.mutate(
       {
-        onSuccess: (acct) => {
-          toast.success(`已创建账号 "${acct.name}"，你是 owner`);
-          setName('');
+        email: email.trim().toLowerCase(),
+        password,
+        displayName: displayName.trim() || undefined,
+      },
+      {
+        onSuccess: (user) => {
+          toast.success(`已创建用户 ${user.email}`);
+          reset();
           setOpen(false);
           openTabAndNavigate({
-            id: `page:/admin/accounts/${acct.accountId}`,
-            title: acct.name,
+            id: `page:/admin/accounts/${user.accountId}`,
+            title: user.email,
             type: 'page',
-            href: `/admin/accounts/${acct.accountId}`,
+            href: `/admin/accounts/${user.accountId}`,
           });
         },
         onError: (e) => toast.error(e.message || '创建失败'),
@@ -89,46 +104,67 @@ function CreateAccountDialog() {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setName('');
+        if (!next) reset();
       }}
     >
       <DialogTrigger asChild>
         <Button size="sm" className="gap-1.5">
           <Plus className="w-3.5 h-3.5" />
-          新建账号 New account
+          新建用户 New user
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>新建团队账号 Create team account</DialogTitle>
+          <DialogTitle>新建用户 Create user</DialogTitle>
           <DialogDescription>
-            一个账号通常对应一个部门或共享工作区。你将自动成为该账号的 owner，
-            之后可以拉人进来、再把 owner 转给实际负责人。
+            每个用户会自动获得一个独立账号与沙箱边界。填写邮箱和初始密码，
+            用户首次登录后可自行修改密码。
             <br />
-            One account usually maps to a department or shared workspace. You
-            become the initial owner; add members and later transfer ownership
-            to the real lead.
+            Each user gets a dedicated account boundary. Provide an email and
+            initial password; the user can rotate it after first login.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="new-account-name">账号名 Name</Label>
-          <Input
-            id="new-account-name"
-            placeholder="销售部 / 研发部 / 客户 ACME"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && canSubmit) handleSubmit();
-            }}
-            autoFocus
-          />
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="new-user-email">邮箱 Email</Label>
+            <Input
+              id="new-user-email"
+              type="email"
+              placeholder="employee@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="new-user-password">初始密码 Password（≥ 8 字符）</Label>
+            <Input
+              id="new-user-password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="new-user-display-name">显示名（可选）Display name</Label>
+            <Input
+              id="new-user-display-name"
+              placeholder="张三 / 默认使用邮箱"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && canSubmit) handleSubmit();
+              }}
+            />
+          </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={createAccount.isPending}>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={createUser.isPending}>
             取消 Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={!canSubmit}>
-            {createAccount.isPending ? '创建中… Creating…' : '创建 Create'}
+            {createUser.isPending ? '创建中… Creating…' : '创建 Create'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -172,11 +208,11 @@ export default function AdminAccountsPage() {
         <div>
           <h1 className="text-2xl font-semibold">账号管理 Accounts</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            浏览平台上的所有账号、分配平台角色、管理账号内成员。
-            Browse all accounts, assign platform roles, manage account members.
+            浏览 1:1 用户账号、创建新用户、分配平台角色。
+            Browse 1:1 user accounts, create users, assign platform roles.
           </p>
         </div>
-        {isSuperAdmin && <CreateAccountDialog />}
+        {isSuperAdmin && <CreateUserDialog />}
       </header>
 
       <div className="flex items-center gap-2">
@@ -200,7 +236,7 @@ export default function AdminAccountsPage() {
             <TableRow>
               <TableHead>账号 Account</TableHead>
               <TableHead>Owner 邮箱</TableHead>
-              <TableHead className="text-right">成员</TableHead>
+              <TableHead className="text-right">用户数</TableHead>
               <TableHead>平台角色</TableHead>
               <TableHead>创建时间</TableHead>
               <TableHead className="w-[40px]"></TableHead>

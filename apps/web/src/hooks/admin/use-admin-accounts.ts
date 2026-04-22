@@ -185,21 +185,46 @@ interface CreateAccountMemberArgs {
   accountRole: AccountRole;
 }
 
+interface CreateUserArgs {
+  email: string;
+  password: string;
+  displayName?: string;
+}
+
+interface CreatedUser {
+  ok: boolean;
+  userId: string;
+  email: string;
+  accountId: string;
+  accountRole: 'owner';
+}
+
+export function useCreateUser() {
+  const qc = useQueryClient();
+  return useMutation<CreatedUser, Error, CreateUserArgs>({
+    mutationFn: async ({ email, password, displayName }) => {
+      const response = await backendApi.post<CreatedUser>('/admin/api/users', {
+        email,
+        password,
+        ...(displayName ? { displayName } : {}),
+      });
+      if (response.error) throw new Error(response.error.message);
+      return response.data!;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'accounts', 'list'] });
+    },
+  });
+}
+
 export function useCreateAccountMember() {
   const qc = useQueryClient();
-  return useMutation<
-    { ok: boolean; userId: string; email: string; accountId: string; accountRole: AccountRole },
-    Error,
-    CreateAccountMemberArgs
-  >({
-    mutationFn: async ({ accountId, email, password, accountRole }) => {
-      const response = await backendApi.post<{
-        ok: boolean;
-        userId: string;
-        email: string;
-        accountId: string;
-        accountRole: AccountRole;
-      }>('/admin/api/users', { email, password, accountId, accountRole });
+  return useMutation<CreatedUser, Error, CreateAccountMemberArgs>({
+    mutationFn: async ({ email, password }) => {
+      const response = await backendApi.post<CreatedUser>('/admin/api/users', {
+        email,
+        password,
+      });
       if (response.error) throw new Error(response.error.message);
       return response.data!;
     },
