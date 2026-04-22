@@ -169,8 +169,8 @@ export function SidebarRight() {
             side="right"
           >
             <SheetHeader className="sr-only">
-              <SheetTitle>Quick Actions</SheetTitle>
-              <SheetDescription>Quick actions and navigation</SheetDescription>
+              <SheetTitle>快捷操作</SheetTitle>
+              <SheetDescription>快捷操作与导航</SheetDescription>
             </SheetHeader>
             <div className="flex h-full w-full flex-col">
               {/* ====== HEADER ====== */}
@@ -178,7 +178,7 @@ export function SidebarRight() {
                 <div className="relative flex h-[32px] items-center px-3 justify-between">
                   <div className="flex items-center justify-between w-full">
                     <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider select-none px-1">
-                      Quick Actions
+                      快捷操作
                     </span>
                   </div>
                 </div>
@@ -205,7 +205,7 @@ export function SidebarRight() {
                             const Icon = item.icon;
                             const isTerminal = item.actionId === 'newTerminal';
                             const isDisabled = isTerminal && createPty.isPending;
-                            const label = isTerminal && createPty.isPending ? 'Creating...' : item.label;
+                            const label = isTerminal && createPty.isPending ? '正在创建…' : item.label;
                             return (
                               <button
                                 key={item.id}
@@ -330,7 +330,7 @@ export function SidebarRight() {
                 state === 'collapsed' ? 'opacity-0 pointer-events-none' : 'opacity-100',
               )}>
                 <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider select-none px-1">
-                  Quick Actions
+                  快捷操作
                 </span>
                 <button
                   className="flex items-center justify-center h-7 w-7 rounded-lg transition-colors duration-150 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent"
@@ -447,7 +447,7 @@ export function SidebarRight() {
                           const Icon = item.icon;
                           const isTerminal = item.actionId === 'newTerminal';
                           const isDisabled = isTerminal && createPty.isPending;
-                          const label = isTerminal && createPty.isPending ? 'Creating...' : item.label;
+                          const label = isTerminal && createPty.isPending ? '正在创建…' : item.label;
                           return (
                             <button
                               key={item.id}

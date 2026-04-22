@@ -19,11 +19,11 @@ export function KortixLogo({ size = 24, variant = 'symbol', className }: KortixL
     <span
       aria-label="Wutong"
       className={cn(
-        'inline-block font-sans font-bold tracking-tight leading-none select-none',
-        'text-foreground',
+        'inline-block font-sans font-bold tracking-tight leading-tight select-none',
+        'text-foreground align-middle',
         className,
       )}
-      style={{ fontSize: `${size}px` }}
+      style={{ fontSize: `${size}px`, lineHeight: 1.2 }}
       suppressHydrationWarning
     >
       Wutong

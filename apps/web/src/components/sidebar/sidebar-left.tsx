@@ -228,7 +228,7 @@ function SessionsFlyout({ collapsed }: { collapsed?: boolean }) {
   return (
     <div className="overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
       {rootSessions.length === 0 ? (
-        <div className="px-3 py-8 text-center text-xs text-muted-foreground">No sessions yet</div>
+        <div className="px-3 py-8 text-center text-xs text-muted-foreground">暂无会话</div>
       ) : (
         rootSessions.map((session) => {
           const active = pathname === `/sessions/${session.id}`;
@@ -829,7 +829,7 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
       const session = await createSession.mutateAsync();
       openTabAndNavigate({
         id: session.id,
-        title: 'New session',
+        title: '新会话',
         type: 'session',
         href: `/sessions/${session.id}`,
         serverId: useServerStore.getState().activeServerId,
@@ -903,7 +903,7 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
     >
       {/* ====== HEADER: Logo + collapse/expand ====== */}
       <SidebarHeader className="pt-3 pb-0 overflow-visible">
-        <div className="relative flex h-[32px] items-center px-3 justify-between">
+        <div className="relative flex min-h-[32px] items-center px-3 py-0.5 justify-between">
           {/* Collapsed: Wutong symbol (always visible), chevron on hover */}
           {effectiveState === 'collapsed' && (
             <div
@@ -935,7 +935,7 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
             </div>
           )}
           <div className={cn(
-            'flex items-center transition-opacity duration-200',
+            'flex items-center transition-opacity duration-200 min-w-0',
             effectiveState === 'collapsed' && 'opacity-0 pointer-events-none'
           )}>
             <Link href="/dashboard" onClick={(e) => {
@@ -947,10 +947,10 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
                 href: '/dashboard',
               }, router);
               if (isMobile) setOpenMobile(false);
-            }} className="flex items-center">
+            }} className="flex items-center pl-0.5">
               <KortixLogo
                 variant="logomark"
-                size={16}
+                size={18}
                 className="flex-shrink-0"
               />
             </Link>
@@ -979,13 +979,13 @@ export function SidebarLeft({ ...props }: React.ComponentProps<typeof Sidebar>) 
         )}>
           <CollapsedIconButton
             icon={<SquarePen className="h-4 w-4" />}
-            label="New session"
+            label="新会话"
             onClick={handleNewSession}
             disabled={createSession.isPending}
           />
           <CollapsedIconButton
             icon={<Search className="h-4 w-4" />}
-            label="Search"
+            label="搜索"
             onClick={() => {
               document.dispatchEvent(
                 new KeyboardEvent('keydown', {

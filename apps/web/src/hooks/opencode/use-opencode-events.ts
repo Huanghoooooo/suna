@@ -14,7 +14,6 @@ import { getSupabaseAccessToken, invalidateTokenCache } from "@/lib/auth-token";
 import { logger } from "@/lib/logger";
 import { getClient, resetClient } from "@/lib/opencode-sdk";
 import { authenticatedFetch } from "@/lib/auth-token";
-import { toast } from "@/lib/toast";
 import {
 	notifyPermissionRequest,
 	notifyQuestion,
@@ -969,11 +968,9 @@ export function useOpenCodeEventStream() {
 					const versionStr = installProps.version
 						? ` (v${installProps.version})`
 						: "";
-					toast.info(
-						`Installation updated${versionStr}. Restart to apply changes.`,
-						{
-							duration: 10_000,
-						},
+					// No in-app toast: session UI was being interrupted; log for debugging.
+					console.info(
+						`[opencode] Installation updated${versionStr}. Restart to apply changes.`,
 					);
 					break;
 				}
@@ -983,11 +980,8 @@ export function useOpenCodeEventStream() {
 					const versionLabel = updateProps.version
 						? `v${updateProps.version}`
 						: "A new version";
-					toast.info(
-						`${versionLabel} is available. Update when you're ready.`,
-						{
-							duration: 15_000,
-						},
+					console.info(
+						`[opencode] ${versionLabel} is available. Update when you're ready.`,
 					);
 					break;
 				}

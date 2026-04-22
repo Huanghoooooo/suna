@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import { useRouter } from 'next/navigation';
@@ -248,44 +247,13 @@ export interface ConnectingScreenProps {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Toast hook — unchanged behaviour, still exported for layout-content.tsx.
+// Connection toasts (removed): reconnect/disconnect is reflected in the main UI;
+// sonner toasts here were noisy during normal sandbox flakiness.
+// layout-content still mounts this hook as a no-op to avoid churning call sites.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useConnectionToasts() {
-  const status = useSandboxConnectionStore((s) => s.status);
-  const wasConnected = useSandboxConnectionStore((s) => s.wasConnected);
-  const initialCheckDone = useSandboxConnectionStore(
-    (s) => s.initialCheckDone,
-  );
-
-  const prevStatusRef = useRef<SandboxConnectionStatus | null>(null);
-
-  useEffect(() => {
-    if (!initialCheckDone) return;
-
-    const prev = prevStatusRef.current;
-    prevStatusRef.current = status;
-
-    if (prev === null) return;
-
-    if (
-      prev === 'connected' &&
-      (status === 'unreachable' || status === 'connecting') &&
-      wasConnected
-    ) {
-      toast.error('Instance connection lost. Reconnecting…', {
-        duration: 4000,
-      });
-    }
-
-    if (
-      (prev === 'unreachable' || prev === 'connecting') &&
-      status === 'connected' &&
-      wasConnected
-    ) {
-      toast.success('Instance reconnected!', { duration: 3000 });
-    }
-  }, [status, wasConnected, initialCheckDone]);
+  // no-op
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

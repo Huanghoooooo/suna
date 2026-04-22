@@ -152,8 +152,8 @@ export type NavSubGroup =
 /** Human-readable labels for sub-groups (used in expanded sidebar) */
 export const navSubGroupLabels: Record<NavSubGroup, string> = {
   tools: '',
-  services: 'Services',
-  security: 'Security',
+  services: '服务',
+  security: '安全',
 };
 
 export interface MenuItemDef {

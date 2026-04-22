@@ -296,7 +296,7 @@ export const SessionLayout = memo(function SessionLayout({
                 hideTopBar={true}
                 headerSlot={
                   <div className="flex-shrink-0 flex items-center justify-between pl-4 pr-1.5 pt-1.5">
-                    <span className="text-xs font-medium text-muted-foreground tracking-wide uppercase select-none">Actions</span>
+                    <span className="text-xs font-medium text-muted-foreground tracking-wide uppercase select-none">操作</span>
                     <button
                       onClick={handleSidePanelClose}
                       className="inline-flex items-center justify-center h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"

@@ -32,6 +32,7 @@ import {
 	getCurrentInstanceIdFromPathname,
 } from "@/lib/instance-routes";
 import { cn } from "@/lib/utils";
+import { isSelfHosted } from "@/lib/config";
 import { useSandboxConnectionStore } from "@/stores/sandbox-connection-store";
 import { useOnboardingModeStore } from "@/stores/onboarding-mode-store";
 import { getActiveOpenCodeUrl, useServerStore, switchToInstance, switchToInstanceAsync } from "@/stores/server-store";
@@ -528,11 +529,11 @@ export default function DashboardLayoutContent({
 
 	const activeServerId = useServerStore((s) => s.activeServerId);
 
-	// Seed `onboardingChecked` from localStorage so users who have already
-	// completed onboarding on this instance skip the 100-300 ms round-trip
-	// on every subsequent cold load. The real check still runs in the
-	// background and flips this to its authoritative value.
+	// Self-hosted mode: skip onboarding entirely — go straight to dashboard.
+	const selfHosted = isSelfHosted();
+
 	const [onboardingChecked, setOnboardingChecked] = useState(() => {
+		if (selfHosted) return true;
 		if (typeof window === "undefined") return false;
 		try {
 			return (

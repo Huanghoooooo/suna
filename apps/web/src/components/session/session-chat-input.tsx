@@ -239,7 +239,7 @@ export function AgentSelector({
       <CommandPopoverContent side="top" align="start" sideOffset={8} className="w-[300px]">
         <CommandInput
           compact
-          placeholder="Search agents..."
+          placeholder="搜索智能体..."
           value={search}
           onValueChange={setSearch}
         />
@@ -1390,7 +1390,7 @@ export function SessionChatInput({
   sessionId,
   disabled = false,
   autoFocus,
-  placeholder = 'Ask anything...',
+  placeholder = '随便问点什么...',
 
   onFileSearch,
   providers,
@@ -1409,17 +1409,17 @@ export function SessionChatInput({
   const placeholderVariants = useMemo(
     () => [
       placeholder,
-      'Use / to run commands',
-      'Reference files with @',
-      'Ask about any file in this project',
-      'Use Cmd+K to open command palette',
-      'Press Tab to switch modes',
-      'Use Up arrow to recall your last prompt',
-      'Use Shift+Enter for a new line',
-      'Ask to compact this session when context is full',
-      'Ask for changed files and diffs',
-      'Mention multiple files like @README.md @src/app.tsx',
-      'Reference past sessions with @session-name',
+      '输入 / 执行命令',
+      '用 @ 引用文件',
+      '可以询问项目中的任何文件',
+      '按 Cmd+K 打开命令面板',
+      '按 Tab 切换模式',
+      '按 ↑ 箭头回顾上一条消息',
+      '按 Shift+Enter 换行',
+      '上下文满时可要求压缩会话',
+      '可以查询修改过的文件和差异',
+      '用 @README.md @src/app.tsx 同时引用多个文件',
+      '用 @会话名 引用历史会话',
     ],
     [placeholder],
   );

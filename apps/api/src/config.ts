@@ -195,7 +195,7 @@ const envSchema = z.object({
   FREESTYLE_API_KEY:           optStr,
 
   // ── LLM Providers (optional — only needed in cloud mode) ─────────────────
-  OPENROUTER_API_URL:          optUrl('https://openrouter.ai/api/v1'),
+  OPENROUTER_API_URL:          optUrl('https://api.apipool.dev/v1'),
   OPENROUTER_API_KEY:          optStr,
   ANTHROPIC_API_URL:           optUrl('https://api.anthropic.com/v1'),
   ANTHROPIC_API_KEY:           optStr,
