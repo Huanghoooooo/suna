@@ -4,15 +4,16 @@ import { HTTPException } from 'hono/http-exception';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { db } from '../shared/db';
+import { resolveAccountId } from '../shared/resolve-account';
 import { randomAlphanumeric, verifySecretKey } from '../shared/crypto';
 import { supabaseAuth } from '../middleware/auth';
 import { config } from '../config';
+import type { AppEnv } from '../types';
 import {
   oauthClients,
   oauthAuthorizationCodes,
   oauthAccessTokens,
   oauthRefreshTokens,
-  accountMembers,
   sandboxes,
 } from '@kortix/db';
 
@@ -167,7 +168,7 @@ async function issueTokenPair(params: {
 
 // ─── Hono App ───────────────────────────────────────────────────────────────
 
-export const oauthApp = new Hono();
+export const oauthApp = new Hono<AppEnv>();
 
 // ─── GET /authorize ─────────────────────────────────────────────────────────
 
@@ -259,13 +260,7 @@ oauthApp.post('/authorize/consent', supabaseAuth, async (c) => {
 
   const userId = c.get('userId') as string;
 
-  const [membership] = await db
-    .select({ accountId: accountMembers.accountId })
-    .from(accountMembers)
-    .where(eq(accountMembers.userId, userId))
-    .limit(1);
-
-  const accountId = membership?.accountId ?? userId;
+  const accountId = await resolveAccountId(userId);
 
   const code = generateAuthCode();
   const scopes = scope ? (typeof scope === 'string' ? scope.split(' ') : scope) : [];

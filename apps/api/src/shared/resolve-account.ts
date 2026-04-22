@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 import { accounts, accountMembers, accountUser, billingCustomers, creditAccounts } from '@kortix/db';
 import { db } from './db';
 
@@ -77,7 +77,9 @@ export async function resolveAccountId(userId: string): Promise<string> {
     const [membership] = await db
       .select({ accountId: accountMembers.accountId })
       .from(accountMembers)
+      .innerJoin(accounts, eq(accountMembers.accountId, accounts.accountId))
       .where(eq(accountMembers.userId, userId))
+      .orderBy(desc(accounts.personalAccount), asc(accounts.createdAt), asc(accountMembers.joinedAt))
       .limit(1);
 
     if (membership) return membership.accountId;

@@ -1,4 +1,5 @@
 export const ACTIVE_INSTANCE_COOKIE = 'kortix-active-instance';
+export const ACTIVE_INSTANCE_OWNER_COOKIE = 'kortix-active-instance-owner';
 
 export const INSTANCE_SCOPED_ROUTES = [
   '/dashboard',

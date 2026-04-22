@@ -1,100 +1,32 @@
 /**
- * Account browsing & in-account member management.
+ * Account browsing for the admin panel.
  *
  * Mounted at /v1/admin/api/accounts/*, inheriting supabaseAuth + requireAdmin.
  *
- * Platform admins (admin / super_admin) can manage members of any account.
- * Account-internal roles are: owner / admin / member.
- *
- * Safety rails:
- *   - Removing or demoting the last owner of an account is blocked.
+ * This deployment uses a 1:1 user-account model. Admins can create users via
+ * /v1/admin/api/users and assign platform roles, but team account/member
+ * mutation endpoints are closed to avoid cross-user resource leakage.
  */
 
 import { Hono } from 'hono';
-import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
-import { z } from 'zod';
+import { desc, eq, ilike, or, sql } from 'drizzle-orm';
 import type { AppEnv } from '../types';
 import { db } from '../shared/db';
-import { accounts, accountMembers, platformUserRoles } from '@kortix/db';
-import type { PlatformRole } from '../shared/platform-roles';
+import { accounts, platformUserRoles } from '@kortix/db';
 
 export const accountsApp = new Hono<AppEnv>();
-
-const accountRoleSchema = z.enum(['owner', 'admin', 'member']);
-const putMemberBody = z.object({ role: accountRoleSchema });
-
-const createAccountBody = z.object({
-  name: z.string().trim().min(1, 'name is required').max(255),
-});
-
-async function countOwners(accountId: string): Promise<number> {
-  const [row] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(accountMembers)
-    .where(and(eq(accountMembers.accountId, accountId), eq(accountMembers.accountRole, 'owner')));
-  return row?.n ?? 0;
-}
 
 /**
  * POST /v1/admin/api/accounts
  * Body: { name }
  *
- * Creates a new non-personal ("team") account with the caller set as the
- * initial owner. Intended for super_admin use to spin up departments or
- * shared workspaces.
- *
- * Permission: super_admin only. Regular admin is NOT allowed — creating
- * accounts is a platform-shape decision, not an operational one.
+ * Disabled in 1:1 account mode. Use /v1/admin/api/users to create a user
+ * together with that user's personal account.
  */
 accountsApp.post('/', async (c) => {
-  const callerRole = c.get('platformRole') as PlatformRole | undefined;
-  if (callerRole !== 'super_admin') {
-    return c.json({ error: 'Only super_admin can create accounts' }, 403);
-  }
-
-  const callerAccountId = c.get('userId') as string | undefined;
-  if (!callerAccountId) {
-    return c.json({ error: 'Authentication required' }, 401);
-  }
-
-  const parsed = createAccountBody.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) {
-    return c.json({ error: 'Invalid body', issues: parsed.error.issues }, 400);
-  }
-  const { name } = parsed.data;
-
-  // Transactional insert: account + owner membership. If the membership
-  // insert fails for any reason we want the account row rolled back so we
-  // don't leak an ownerless (ergo undeletable) account.
-  try {
-    const result = await db.transaction(async (tx) => {
-      const [inserted] = await tx
-        .insert(accounts)
-        .values({ name, personalAccount: false })
-        .returning({
-          accountId: accounts.accountId,
-          name: accounts.name,
-          personalAccount: accounts.personalAccount,
-          createdAt: accounts.createdAt,
-        });
-      if (!inserted) throw new Error('Account insert returned no row');
-
-      await tx.insert(accountMembers).values({
-        userId: callerAccountId,
-        accountId: inserted.accountId,
-        accountRole: 'owner',
-      });
-
-      return inserted;
-    });
-
-    return c.json({ ok: true, account: result }, 201);
-  } catch (err: any) {
-    return c.json(
-      { error: 'Failed to create account', details: err?.message || String(err) },
-      500,
-    );
-  }
+  return c.json({
+    error: 'Team account creation is disabled. Create users through /v1/admin/api/users for 1:1 account isolation.',
+  }, 410);
 });
 
 /**
@@ -241,43 +173,9 @@ accountsApp.get('/:id/members', async (c) => {
  * Blocks demoting the last owner.
  */
 accountsApp.put('/:id/members/:userId', async (c) => {
-  const accountId = c.req.param('id');
-  const userId = c.req.param('userId');
-
-  const parsed = putMemberBody.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) {
-    return c.json({ error: 'Invalid body', issues: parsed.error.issues }, 400);
-  }
-  const nextRole = parsed.data.role;
-
-  const [existing] = await db
-    .select({ role: accountMembers.accountRole })
-    .from(accountMembers)
-    .where(and(eq(accountMembers.accountId, accountId), eq(accountMembers.userId, userId)))
-    .limit(1);
-
-  if (!existing) return c.json({ error: 'Member not found' }, 404);
-
-  if (existing.role === nextRole) {
-    return c.json({ ok: true, role: nextRole, unchanged: true });
-  }
-
-  if (existing.role === 'owner' && nextRole !== 'owner') {
-    const owners = await countOwners(accountId);
-    if (owners <= 1) {
-      return c.json(
-        { error: 'Cannot demote the last owner. Promote another member first.' },
-        409,
-      );
-    }
-  }
-
-  await db
-    .update(accountMembers)
-    .set({ accountRole: nextRole })
-    .where(and(eq(accountMembers.accountId, accountId), eq(accountMembers.userId, userId)));
-
-  return c.json({ ok: true, role: nextRole });
+  return c.json({
+    error: 'Account membership mutation is disabled in 1:1 account mode.',
+  }, 410);
 });
 
 /**
@@ -285,30 +183,7 @@ accountsApp.put('/:id/members/:userId', async (c) => {
  * Removes the membership. Blocks removing the last owner.
  */
 accountsApp.delete('/:id/members/:userId', async (c) => {
-  const accountId = c.req.param('id');
-  const userId = c.req.param('userId');
-
-  const [existing] = await db
-    .select({ role: accountMembers.accountRole })
-    .from(accountMembers)
-    .where(and(eq(accountMembers.accountId, accountId), eq(accountMembers.userId, userId)))
-    .limit(1);
-
-  if (!existing) return c.json({ error: 'Member not found' }, 404);
-
-  if (existing.role === 'owner') {
-    const owners = await countOwners(accountId);
-    if (owners <= 1) {
-      return c.json(
-        { error: 'Cannot remove the last owner. Promote another member first.' },
-        409,
-      );
-    }
-  }
-
-  await db
-    .delete(accountMembers)
-    .where(and(eq(accountMembers.accountId, accountId), eq(accountMembers.userId, userId)));
-
-  return c.json({ ok: true, removed: true });
+  return c.json({
+    error: 'Account membership mutation is disabled in 1:1 account mode.',
+  }, 410);
 });

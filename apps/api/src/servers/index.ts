@@ -22,6 +22,14 @@ import { resolveAccountId } from '../shared/resolve-account';
 
 export const serversApp = new Hono<AppEnv>();
 
+function isStaleDefaultSandboxUrl(url?: string | null): boolean {
+  return Boolean(url && /\/p\/kortix-sandbox\/8000(?:\/|$)/.test(url));
+}
+
+function isLegacySharedLocalSandboxId(sandboxId?: string | null): boolean {
+  return sandboxId === 'kortix-sandbox';
+}
+
 // ─── Auth middleware ────────────────────────────────────────────────────────
 // In cloud mode: require Supabase JWT. In local mode: inject static userId.
 
@@ -53,6 +61,8 @@ serversApp.put('/sync', async (c) => {
   const results = [];
   for (const s of body.servers) {
     if (!s.id || !s.label || !s.url) continue;
+    if (isStaleDefaultSandboxUrl(s.url)) continue;
+    if (isLegacySharedLocalSandboxId(s.sandboxId)) continue;
     const [row] = await db
       .insert(serverEntries)
       .values({
@@ -96,7 +106,11 @@ serversApp.get('/', async (c) => {
     .from(serverEntries)
     .where(eq(serverEntries.accountId, accountId))
     .orderBy(serverEntries.createdAt);
-  return c.json(rows);
+  return c.json(
+    rows.filter(
+      (row) => !isStaleDefaultSandboxUrl(row.url) && !isLegacySharedLocalSandboxId(row.sandboxId),
+    ),
+  );
 });
 
 // GET /v1/servers/:id — get a single server entry (scoped to account)
@@ -110,6 +124,8 @@ serversApp.get('/:id', async (c) => {
     .from(serverEntries)
     .where(and(eq(serverEntries.accountId, accountId), eq(serverEntries.id, id)));
   if (!row) return c.json({ error: 'Not found' }, 404);
+  if (isStaleDefaultSandboxUrl(row.url)) return c.json({ error: 'Not found' }, 404);
+  if (isLegacySharedLocalSandboxId(row.sandboxId)) return c.json({ error: 'Not found' }, 404);
   return c.json(row);
 });
 
@@ -130,6 +146,12 @@ serversApp.post('/', async (c) => {
 
   if (!body.id || !body.label || !body.url) {
     return c.json({ error: 'id, label, and url are required' }, 400);
+  }
+  if (isStaleDefaultSandboxUrl(body.url)) {
+    return c.json({ error: 'stale default sandbox URL is not allowed' }, 400);
+  }
+  if (isLegacySharedLocalSandboxId(body.sandboxId)) {
+    return c.json({ error: 'legacy shared local sandbox is not allowed' }, 400);
   }
 
   const [row] = await db
@@ -179,6 +201,12 @@ serversApp.put('/:id', async (c) => {
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (body.label !== undefined) updates.label = body.label;
   if (body.url !== undefined) updates.url = body.url;
+  if (isStaleDefaultSandboxUrl(body.url)) {
+    return c.json({ error: 'stale default sandbox URL is not allowed' }, 400);
+  }
+  if (isLegacySharedLocalSandboxId(body.sandboxId)) {
+    return c.json({ error: 'legacy shared local sandbox is not allowed' }, 400);
+  }
   if (body.isDefault !== undefined) updates.isDefault = body.isDefault;
   if (body.provider !== undefined) updates.provider = body.provider;
   if (body.sandboxId !== undefined) updates.sandboxId = body.sandboxId;

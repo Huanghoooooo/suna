@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { eq, and, desc } from 'drizzle-orm';
 import { tunnelPermissions, tunnelConnections } from '@kortix/db';
 import { db } from '../../shared/db';
+import { resolveAccountId } from '../../shared/resolve-account';
 import { tunnelRelay } from '../core/relay';
 import { tunnelRateLimiter } from '../core/rate-limiter';
 import { isValidCapability, validateScope as validateScopeInput } from '../core/scope-validator';
@@ -11,7 +12,7 @@ export function createPermissionsRouter(): Hono {
   const router = new Hono();
 
   router.get('/:tunnelId', async (c: any) => {
-    const accountId = c.get('userId') as string;
+    const accountId = await resolveAccountId(c.get('userId') as string);
     const tunnelId = c.req.param('tunnelId');
 
     const [tunnel] = await db
@@ -38,7 +39,7 @@ export function createPermissionsRouter(): Hono {
   });
 
   router.post('/:tunnelId', async (c: any) => {
-    const accountId = c.get('userId') as string;
+    const accountId = await resolveAccountId(c.get('userId') as string);
     const tunnelId = c.req.param('tunnelId');
 
     const rateCheck = tunnelRateLimiter.check('permGrant', tunnelId);
@@ -105,7 +106,7 @@ export function createPermissionsRouter(): Hono {
   });
 
   router.delete('/:tunnelId/:permissionId', async (c: any) => {
-    const accountId = c.get('userId') as string;
+    const accountId = await resolveAccountId(c.get('userId') as string);
     const tunnelId = c.req.param('tunnelId');
     const permissionId = c.req.param('permissionId');
 

@@ -24,7 +24,13 @@ import { getClient } from "@/lib/opencode-sdk";
 import { Button } from "@/components/ui/button";
 import { KortixLoader } from "@/components/ui/kortix-loader";
 import { featureFlags } from "@/lib/feature-flags";
-import { buildInstancePath, getActiveInstanceIdFromCookie, getCurrentInstanceIdFromPathname } from "@/lib/instance-routes";
+import {
+	ACTIVE_INSTANCE_COOKIE,
+	ACTIVE_INSTANCE_OWNER_COOKIE,
+	buildInstancePath,
+	getActiveInstanceIdFromCookie,
+	getCurrentInstanceIdFromPathname,
+} from "@/lib/instance-routes";
 import { cn } from "@/lib/utils";
 import { useSandboxConnectionStore } from "@/stores/sandbox-connection-store";
 import { useOnboardingModeStore } from "@/stores/onboarding-mode-store";
@@ -822,6 +828,12 @@ export default function DashboardLayoutContent({
 		}
 
 		let cancelled = false;
+		const clearActiveInstanceCookies = () => {
+			try {
+				document.cookie = `${ACTIVE_INSTANCE_COOKIE}=; Max-Age=0; path=/; SameSite=Lax`;
+				document.cookie = `${ACTIVE_INSTANCE_OWNER_COOKIE}=; Max-Age=0; path=/; SameSite=Lax`;
+			} catch {}
+		};
 
 		// Try the store synchronously first — zero network cost.
 		const syncResult = switchToInstance(routeInstanceId);
@@ -858,7 +870,8 @@ export default function DashboardLayoutContent({
 				.then((result) => {
 					if (cancelled) return;
 					if (!result) {
-						router.replace(`/instances/${routeInstanceId}`);
+						clearActiveInstanceCookies();
+						router.replace('/instances');
 						return;
 					}
 					setRouteSyncing(false);
@@ -866,7 +879,8 @@ export default function DashboardLayoutContent({
 				})
 				.catch(() => {
 					if (cancelled) return;
-					router.replace(`/instances/${routeInstanceId}`);
+					clearActiveInstanceCookies();
+					router.replace('/instances');
 				});
 		}, 1500);
 

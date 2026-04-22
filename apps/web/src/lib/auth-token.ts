@@ -37,12 +37,84 @@ const TOKEN_HYDRATION_BASE_DELAY = 250;
 let cachedToken: string | null = null;
 let cachedAt = 0;
 let bootstrapToken: string | null = null;
+const previewSessionPrimedAt = new Map<string, number>();
 
 // ── Inflight deduplication ──
 let inflight: Promise<string | null> | null = null;
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getRequestUrl(input: RequestInfo | URL): string | null {
+  try {
+    if (input instanceof URL) return input.toString();
+    if (input instanceof Request) return input.url;
+    if (typeof input === 'string') return input;
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function isSandboxProxyRequestUrl(url: string | null): boolean {
+  if (!url) return false;
+  return /\/v1\/p\/(?!auth(?:\/|$))/.test(url);
+}
+
+function derivePreviewAuthEndpoint(candidateUrl: string): string | null {
+  try {
+    const url = new URL(candidateUrl);
+
+    if (/^\/proxy\/\d+(?:\/|$)/.test(url.pathname)) {
+      return `${url.origin}/v1/p/auth`;
+    }
+
+    const previewIndex = url.pathname.indexOf('/p/');
+    if (previewIndex !== -1) {
+      return `${url.origin}${url.pathname.slice(0, previewIndex)}/p/auth`;
+    }
+
+    return `${url.origin}/v1/p/auth`;
+  } catch {
+    return null;
+  }
+}
+
+async function primePreviewSessionCookie(requestUrl: string, token: string): Promise<void> {
+  const authEndpoint = derivePreviewAuthEndpoint(requestUrl);
+  if (!authEndpoint) return;
+
+  const cacheKey = `${authEndpoint}|${token}`;
+  const lastPrimedAt = previewSessionPrimedAt.get(cacheKey);
+  if (lastPrimedAt && Date.now() - lastPrimedAt < 55_000) {
+    return;
+  }
+
+  try {
+    const res = await fetch(authEndpoint, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (res.ok) {
+      previewSessionPrimedAt.set(cacheKey, Date.now());
+      if (previewSessionPrimedAt.size > 16) {
+        const cutoff = Date.now() - 55_000;
+        for (const [key, ts] of previewSessionPrimedAt.entries()) {
+          if (ts < cutoff) {
+            previewSessionPrimedAt.delete(key);
+          }
+        }
+      }
+    }
+  } catch {
+    // Best-effort only — the request itself may still succeed via Authorization.
+  }
 }
 
 /**
@@ -197,16 +269,21 @@ function fetchWithAuth(
   init: RequestInit | undefined,
   headers: Headers,
 ): Promise<Response> {
+  const credentials =
+    init?.credentials ??
+    (input instanceof Request ? input.credentials : 'include');
+
   if (input instanceof Request) {
     // Clone the Request with our auth headers baked in.
     // This guarantees Authorization is part of the Request itself,
     // not relying on fetch's init-merge behavior.
     const authedRequest = new Request(input, {
       headers,
+      credentials,
     });
     return fetch(authedRequest);
   }
-  return fetch(input, { ...init, headers });
+  return fetch(input, { ...init, headers, credentials });
 }
 
 /**
@@ -255,6 +332,7 @@ export async function authenticatedFetch(
   const { retryOnAuthError = true } = options ?? {};
 
   const token = await getAuthTokenWithRetry();
+  const requestUrl = getRequestUrl(input);
 
   // Still no token — return a synthetic 401 response instead of sending a
   // naked request. Safe for all callers including the OpenCode SDK which
@@ -264,6 +342,10 @@ export async function authenticatedFetch(
       status: 401,
       headers: { 'Content-Type': 'application/json' },
     });
+  }
+
+  if (isSandboxProxyRequestUrl(requestUrl)) {
+    await primePreviewSessionCookie(requestUrl!, token);
   }
 
   const headers = buildAuthHeaders(input, init, token);

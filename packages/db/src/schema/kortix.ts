@@ -102,6 +102,7 @@ export const accountMembers = kortixSchema.table(
   (table) => [
     index('idx_account_members_user_id').on(table.userId),
     index('idx_account_members_account_id').on(table.accountId),
+    uniqueIndex('idx_account_members_one_account_per_user').on(table.userId),
     uniqueIndex('idx_account_members_user_account').on(table.userId, table.accountId),
   ],
 );
@@ -954,4 +955,3 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
     references: [accounts.accountId],
   }),
 }));
-

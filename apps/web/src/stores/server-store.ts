@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 import { authenticatedFetch, getSupabaseAccessToken } from '@/lib/auth-token';
-import { isBillingEnabled } from '@/lib/config';
 import { getEnv } from '@/lib/env-config';
 
 /**
@@ -118,19 +117,8 @@ interface ServerStore {
 
 }
 
-/**
- * The default sandbox URL routes through the backend's unified preview proxy.
- * Uses the container name ('kortix-sandbox') as the sandbox ID — the backend
- * resolves this via Docker DNS on the shared network.
- * Same URL pattern for all providers: /v1/p/{sandboxId}/{port}/*
- */
 function getBackendUrl(): string {
   return (getEnv().BACKEND_URL || 'http://localhost:8008/v1').replace(/\/+$/, '');
-}
-
-function getDefaultSandboxUrl(): string {
-  const sandboxId = getEnv().SANDBOX_ID || 'kortix-sandbox';
-  return `${getBackendUrl()}/p/${sandboxId}/8000`;
 }
 
 function getServersApi(): string {
@@ -145,6 +133,18 @@ function getSandboxServerUrl(sandboxId: string): string {
   return `${getBackendUrl()}/p/${sandboxId}/8000`;
 }
 
+function isStaleDefaultSandboxUrl(url?: string | null): boolean {
+  return Boolean(url && /\/p\/kortix-sandbox\/8000(?:\/|$)/.test(url));
+}
+
+function isLegacySharedLocalSandboxId(sandboxId?: string | null): boolean {
+  return sandboxId === 'kortix-sandbox';
+}
+
+function isLegacySharedLocalSandboxEntry(server?: Partial<ServerEntry> | null): boolean {
+  return Boolean(server && isLegacySharedLocalSandboxId(server.sandboxId));
+}
+
 /**
  * Resolve the effective URL for any server entry.
  * Sandbox entries store url='' — their URL is derived from sandboxId.
@@ -152,7 +152,7 @@ function getSandboxServerUrl(sandboxId: string): string {
  */
 export function resolveServerUrl(server: ServerEntry): string {
   if (server.sandboxId) return getSandboxServerUrl(server.sandboxId);
-  return server.url || getDefaultSandboxUrl();
+  return server.url || '';
 }
 
 const DEFAULT_SERVER_ID = 'default';
@@ -191,6 +191,8 @@ function toApiPayload(s: ServerEntry) {
 
 function syncServerToApi(server: ServerEntry) {
   if (isManagedEntry(server)) return; // managed entries are not persisted to API
+  if (isStaleDefaultSandboxUrl(server.url)) return;
+  if (isLegacySharedLocalSandboxEntry(server)) return;
   authenticatedFetch(`${getServersApi()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -206,7 +208,7 @@ function deleteServerFromApi(id: string) {
 
 /** Bulk sync all servers to API (used on initial hydration). */
 function syncAllToApi(servers: ServerEntry[]) {
-  const custom = servers.filter((s) => !isManagedEntry(s));
+  const custom = servers.filter((s) => !isManagedEntry(s) && !isStaleDefaultSandboxUrl(s.url));
   if (custom.length === 0) return;
   authenticatedFetch(`${getServersApi()}/sync`, {
     method: 'PUT',
@@ -232,7 +234,12 @@ async function loadFromApi(localServers: ServerEntry[]): Promise<ServerEntry[] |
     }> = await res.json();
     if (!rows.length) return null;
 
-    return rows.map((r) => ({
+    const filteredRows = rows.filter(
+      (r) => !isStaleDefaultSandboxUrl(r.url) && !isLegacySharedLocalSandboxId(r.sandboxId),
+    );
+    if (!filteredRows.length) return null;
+
+    return filteredRows.map((r) => ({
       id: r.id,
       label: r.label,
       url: r.url,
@@ -245,14 +252,6 @@ async function loadFromApi(localServers: ServerEntry[]): Promise<ServerEntry[] |
     return null;
   }
 }
-
-const createDefaultServer = (): ServerEntry => ({
-  id: DEFAULT_SERVER_ID,
-  label: 'Local Sandbox',
-  url: getDefaultSandboxUrl(),
-  isDefault: true,
-  provider: 'local_docker',
-});
 
 export const useServerStore = create<ServerStore>()(
   persist(
@@ -417,18 +416,12 @@ export const useServerStore = create<ServerStore>()(
         const state = get();
         const active = state.servers.find((s) => s.id === state.activeServerId);
         if (!active) {
-          // In cloud mode, don't fall back to the local Docker URL —
-          // useSandbox will register the real sandbox shortly.
-          // Returning '' signals callers to wait / skip the request.
-          if (state.activeServerId === CLOUD_SANDBOX_SERVER_ID || isBillingEnabled()) return '';
-           // For local mode (empty activeServerId or 'default'), fall back
-           // to DEFAULT_SANDBOX_URL so the app works during the rehydration gap.
-           return getDefaultSandboxUrl();
+          return '';
         }
         // Sandbox entries: always derive URL fresh (never stale)
         if (active.sandboxId) return getSandboxServerUrl(active.sandboxId);
         // Custom entries: use the user-provided URL
-        return active.url || getDefaultSandboxUrl();
+        return active.url || '';
       },
 
       clearStatuses: () => {
@@ -550,7 +543,11 @@ export const useServerStore = create<ServerStore>()(
         //     (leaked from addSandboxServer calls in older code)
         // Only custom user-added entries (no provider) survive rehydration.
         state.servers = state.servers.filter(
-          (s) => !isManagedEntry(s) && !s.provider,
+          (s) =>
+            !isManagedEntry(s) &&
+            !s.provider &&
+            !isStaleDefaultSandboxUrl(s.url) &&
+            !isLegacySharedLocalSandboxEntry(s),
         );
 
         // Active server will be set by useSandbox hook once it loads.
@@ -630,8 +627,6 @@ export function getBackendPort(): number {
 
 /**
  * Get the sandboxId for the active server.
- * - Local mode: defaults to 'kortix-sandbox' (the Docker container name)
- * - Cloud mode: uses the server's sandboxId from the store (empty if not yet loaded)
  */
 export function getActiveSandboxId(): string | undefined {
   const state = useServerStore.getState();
@@ -657,7 +652,7 @@ export function getInstanceSubdomainOpts(
   backendPort = 8000,
 ): { sandboxId: string; backendPort: number; apiBaseUrl: string } {
   return {
-    sandboxId: getActiveSandboxId() ?? getEnv().SANDBOX_ID ?? 'kortix-sandbox',
+    sandboxId: getActiveSandboxId() ?? '',
     backendPort,
     apiBaseUrl: getBackendUrl(),
   };
@@ -682,13 +677,8 @@ export function getInstanceSubdomainOpts(
 export function deriveSubdomainOpts(
   server: ServerEntry | null | undefined,
 ): { sandboxId: string; backendPort: number; apiBaseUrl: string } {
-  // Fall back to the configured sandbox ID (from runtime env) or 'kortix-sandbox'.
-  // This ensures proxy rewriting NEVER silently degrades to raw localhost URLs
-  // just because the store hasn't hydrated the sandboxId yet, or because the
-  // provider is marked as cloud (Daytona/JustAVPS use the same /p/ proxy).
-  const sandboxId = server?.sandboxId || getEnv().SANDBOX_ID || 'kortix-sandbox';
   return {
-    sandboxId,
+    sandboxId: server?.sandboxId || '',
     backendPort: getBackendPort(),
     apiBaseUrl: getBackendUrl(),
   };

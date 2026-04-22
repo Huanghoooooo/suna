@@ -26,6 +26,7 @@ import type { AuthVariables } from '../../types';
 import { resolveAccountId as defaultResolveAccountId } from '../../shared/resolve-account';
 import { config } from '../../config';
 import { generateSandboxName } from '../services/ensure-sandbox';
+import { archiveConflictingLocalDockerSandbox } from '../services/local-sandbox-repair';
 
 // ─── Dependency Injection ────────────────────────────────────────────────────
 
@@ -181,8 +182,33 @@ export function createAccountRouter(
         )
         .limit(1);
 
-      if (active) {
-        return c.json({ success: true, data: serializeSandbox(active), status: 'ready' });
+      const healthyActive = await archiveConflictingLocalDockerSandbox(db, active);
+      if (healthyActive) {
+        let activeRow = healthyActive;
+        const configJson = (healthyActive.config as Record<string, unknown> | null) ?? null;
+        const currentServiceKey = typeof configJson?.serviceKey === 'string' ? configJson.serviceKey : '';
+        if (!currentServiceKey && healthyActive.externalId) {
+          try {
+            const { LocalDockerProvider } = await import('../providers/local-docker');
+            const provider = new LocalDockerProvider();
+            const containerEnv = await provider.getContainerEnv(healthyActive.externalId);
+            const recoveredServiceKey = containerEnv.INTERNAL_SERVICE_KEY || containerEnv.KORTIX_TOKEN || '';
+            if (recoveredServiceKey) {
+              const [patched] = await db
+                .update(sandboxes)
+                .set({
+                  config: { serviceKey: recoveredServiceKey },
+                  updatedAt: new Date(),
+                })
+                .where(eq(sandboxes.sandboxId, healthyActive.sandboxId))
+                .returning();
+              if (patched) activeRow = patched;
+            }
+          } catch (err) {
+            console.warn('[PLATFORM] Failed to backfill serviceKey for active local sandbox:', err);
+          }
+        }
+        return c.json({ success: true, data: serializeSandbox(activeRow), status: 'ready' });
       }
 
       // Check if a provisioning sandbox already exists (pull in progress)
@@ -197,7 +223,8 @@ export function createAccountRouter(
         )
         .limit(1);
 
-      if (provisioning) {
+      const healthyProvisioning = await archiveConflictingLocalDockerSandbox(db, provisioning);
+      if (healthyProvisioning) {
         const { getImagePullStatus, LocalDockerProvider } = await import('../providers/local-docker');
         const pullStatus = getImagePullStatus();
 
@@ -209,15 +236,18 @@ export function createAccountRouter(
           // Check if container is already running (auto-heal)
           try {
             const dockerProvider = new LocalDockerProvider();
-            const existing = await dockerProvider.find();
+            const existing = await dockerProvider.find(healthyProvisioning.externalId || healthyProvisioning.name);
             if (existing && existing.status === 'running') {
-              console.log(`[PLATFORM] Auto-healing stale provisioning row ${provisioning.sandboxId} — container is running`);
+              console.log(`[PLATFORM] Auto-healing stale provisioning row ${healthyProvisioning.sandboxId} — container is running`);
+              const containerEnv = await dockerProvider.getContainerEnv(existing.name);
+              const recoveredServiceKey = containerEnv.INTERNAL_SERVICE_KEY || containerEnv.KORTIX_TOKEN || '';
               const [healed] = await db
                 .update(sandboxes)
                 .set({
                   externalId: existing.name,
                   baseUrl: existing.baseUrl,
                   status: 'active',
+                  config: recoveredServiceKey ? { serviceKey: recoveredServiceKey } : healthyProvisioning.config,
                   metadata: {
                     containerName: existing.name,
                     containerId: existing.containerId,
@@ -226,7 +256,7 @@ export function createAccountRouter(
                   },
                   updatedAt: new Date(),
                 })
-                .where(eq(sandboxes.sandboxId, provisioning.sandboxId))
+                .where(eq(sandboxes.sandboxId, healthyProvisioning.sandboxId))
                 .returning();
               if (healed) {
                 return c.json({ success: true, data: serializeSandbox(healed), status: 'ready' });
@@ -236,11 +266,11 @@ export function createAccountRouter(
             console.warn(`[PLATFORM] Auto-heal check failed:`, healErr);
           }
 
-          console.warn(`[PLATFORM] Stale provisioning row ${provisioning.sandboxId} with pull state '${pullStatus.state}', cleaning up...`);
+          console.warn(`[PLATFORM] Stale provisioning row ${healthyProvisioning.sandboxId} with pull state '${pullStatus.state}', cleaning up...`);
           await db
             .update(sandboxes)
             .set({ status: 'error', updatedAt: new Date() })
-            .where(eq(sandboxes.sandboxId, provisioning.sandboxId));
+            .where(eq(sandboxes.sandboxId, healthyProvisioning.sandboxId));
           // Fall through to provision fresh below
         } else {
           return c.json({
@@ -318,6 +348,7 @@ export function createAccountRouter(
             externalId: result!.externalId,
             status: 'active',
             baseUrl: result!.baseUrl,
+            config: { serviceKey: sandboxKey.secretKey },
             metadata: result!.metadata,
             updatedAt: new Date(),
           })
@@ -375,6 +406,7 @@ export function createAccountRouter(
               externalId: result.externalId,
               baseUrl: result.baseUrl,
               status: 'active',
+              config: { serviceKey: sandboxKey.secretKey },
               metadata: result.metadata,
               updatedAt: new Date(),
             })
@@ -423,15 +455,40 @@ export function createAccountRouter(
         .orderBy(desc(sandboxes.createdAt))
         .limit(1);
 
-      if (!row) {
+      const healthyRow = await archiveConflictingLocalDockerSandbox(db, row);
+      if (!healthyRow) {
         return c.json({ success: true, status: 'none', message: 'No sandbox found' });
       }
 
-      if (row.status === 'active') {
-        return c.json({ success: true, status: 'ready', data: serializeSandbox(row) });
+      if (healthyRow.status === 'active') {
+        let activeRow = healthyRow;
+        const configJson = (healthyRow.config as Record<string, unknown> | null) ?? null;
+        const currentServiceKey = typeof configJson?.serviceKey === 'string' ? configJson.serviceKey : '';
+        if (!currentServiceKey && healthyRow.externalId) {
+          try {
+            const { LocalDockerProvider } = await import('../providers/local-docker');
+            const provider = new LocalDockerProvider();
+            const containerEnv = await provider.getContainerEnv(healthyRow.externalId);
+            const recoveredServiceKey = containerEnv.INTERNAL_SERVICE_KEY || containerEnv.KORTIX_TOKEN || '';
+            if (recoveredServiceKey) {
+              const [patched] = await db
+                .update(sandboxes)
+                .set({
+                  config: { serviceKey: recoveredServiceKey },
+                  updatedAt: new Date(),
+                })
+                .where(eq(sandboxes.sandboxId, healthyRow.sandboxId))
+                .returning();
+              if (patched) activeRow = patched;
+            }
+          } catch (err) {
+            console.warn('[PLATFORM] Failed to backfill serviceKey for active local sandbox status row:', err);
+          }
+        }
+        return c.json({ success: true, status: 'ready', data: serializeSandbox(activeRow) });
       }
 
-      if (row.status === 'provisioning') {
+      if (healthyRow.status === 'provisioning') {
         const { getImagePullStatus, LocalDockerProvider } = await import('../providers/local-docker');
         const pullStatus = getImagePullStatus();
 
@@ -441,15 +498,20 @@ export function createAccountRouter(
         if (pullStatus.state === 'idle' || pullStatus.state === 'done') {
           try {
             const provider = new LocalDockerProvider();
-            const existing = await provider.find();
+            const existing = await provider.find(healthyRow.externalId || healthyRow.name);
             if (existing && existing.status === 'running') {
-              console.log(`[PLATFORM] Auto-healing stale provisioning row ${row.sandboxId} — container is running`);
+              console.log(`[PLATFORM] Auto-healing stale provisioning row ${healthyRow.sandboxId} — container is running`);
+              const containerEnv = await provider.getContainerEnv(existing.name);
+              const recoveredServiceKey = containerEnv.INTERNAL_SERVICE_KEY || containerEnv.KORTIX_TOKEN || '';
               const [healed] = await db
                 .update(sandboxes)
                 .set({
                   externalId: existing.name,
                   baseUrl: existing.baseUrl,
                   status: 'active',
+                  config: typeof healthyRow.config === 'object' && healthyRow.config && 'serviceKey' in (healthyRow.config as Record<string, unknown>)
+                    ? healthyRow.config
+                    : recoveredServiceKey ? { serviceKey: recoveredServiceKey } : healthyRow.config,
                   metadata: {
                     containerName: existing.name,
                     containerId: existing.containerId,
@@ -458,7 +520,7 @@ export function createAccountRouter(
                   },
                   updatedAt: new Date(),
                 })
-                .where(eq(sandboxes.sandboxId, row.sandboxId))
+                .where(eq(sandboxes.sandboxId, healthyRow.sandboxId))
                 .returning();
               if (healed) {
                 return c.json({ success: true, status: 'ready', data: serializeSandbox(healed) });
@@ -478,11 +540,11 @@ export function createAccountRouter(
         });
       }
 
-      if (row.status === 'error') {
+      if (healthyRow.status === 'error') {
         return c.json({ success: true, status: 'error', message: 'Sandbox provisioning failed' });
       }
 
-      return c.json({ success: true, status: row.status });
+      return c.json({ success: true, status: healthyRow.status });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return c.json({ success: false, error: message }, 500);

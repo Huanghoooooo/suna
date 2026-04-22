@@ -14,6 +14,7 @@
  */
 
 import { authenticatedFetch } from '@/lib/auth-token';
+import { isBillingEnabled } from '@/lib/config';
 import { getEnv } from '@/lib/env-config';
 import type { ServerEntry } from '@/stores/server-store';
 
@@ -208,6 +209,14 @@ export async function ensureSandbox(opts?: {
   provider?: SandboxProviderName;
   serverType?: ServerTypeOption;
 }): Promise<{ sandbox: SandboxInfo; created: boolean }> {
+  const shouldUseLocalInit = !isBillingEnabled() && (!opts?.provider || opts.provider === 'local_docker');
+  if (shouldUseLocalInit) {
+    const { sandbox } = await createSandbox({
+      provider: 'local_docker',
+    });
+    return { sandbox, created: true };
+  }
+
   const result = await platformFetch<SandboxInfo>('/platform/init', {
     method: 'POST',
     body: opts

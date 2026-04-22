@@ -29,6 +29,7 @@ import type { AuthVariables } from '../../types';
 import { resolveAccountId as defaultResolveAccountId } from '../../shared/resolve-account';
 import * as pool from '../../pool';
 import { generateSandboxName } from '../services/ensure-sandbox';
+import { archiveConflictingLocalDockerSandbox } from '../services/local-sandbox-repair';
 
 // ─── Dependency Injection ────────────────────────────────────────────────────
 
@@ -158,7 +159,7 @@ export function createCloudSandboxRouter(
       // Return the best available sandbox: prefer active, then provisioning,
       // then stopped/error so the dashboard can show a recovery UI instead of
       // a blank 404 that leaves the user stuck.
-      const [sandbox] = await db
+      const candidates = await db
         .select()
         .from(sandboxes)
         .where(
@@ -175,8 +176,16 @@ export function createCloudSandboxRouter(
             WHEN 'error'        THEN 3
             ELSE                     4
           END`
-        )
-        .limit(1);
+        );
+
+      let sandbox: typeof sandboxes.$inferSelect | null = null;
+      for (const candidate of candidates) {
+        const repaired = await archiveConflictingLocalDockerSandbox(db, candidate);
+        if (repaired) {
+          sandbox = repaired;
+          break;
+        }
+      }
 
       if (!sandbox) {
         return c.json(
@@ -699,7 +708,15 @@ export function createCloudSandboxRouter(
         .where(eq(sandboxes.accountId, accountId))
         .orderBy(desc(sandboxes.createdAt));
 
-      return c.json({ success: true, data: rows.map(serializeSandbox) });
+      const healthyRows: typeof sandboxes.$inferSelect[] = [];
+      for (const row of rows) {
+        const repaired = await archiveConflictingLocalDockerSandbox(db, row);
+        if (repaired) {
+          healthyRows.push(repaired);
+        }
+      }
+
+      return c.json({ success: true, data: healthyRows.map(serializeSandbox) });
     } catch (err) {
       console.error('[SANDBOX-CLOUD] list error:', err);
       return c.json({ success: false, error: 'Failed to list sandboxes' }, 500);
