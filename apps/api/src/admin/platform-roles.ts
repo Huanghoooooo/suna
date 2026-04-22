@@ -31,7 +31,7 @@ const putBodySchema = z.object({ role: roleSchema });
 /**
  * Return the caller's platform role as set by requireAdmin middleware.
  */
-function callerRole(c: Parameters<Parameters<typeof platformRolesApp.get>[1]>[0]): PlatformRole {
+function callerRole(c: { get: (key: string) => unknown }): PlatformRole {
   const role = c.get('platformRole') as PlatformRole | undefined;
   if (!role) throw new HTTPException(500, { message: 'platformRole missing from context' });
   return role;
@@ -114,7 +114,7 @@ platformRolesApp.get('/', async (c) => {
  */
 platformRolesApp.put('/:accountId', async (c) => {
   const caller = callerRole(c);
-  const callerAccountId = c.get('userId') as string;
+  const callerAccountId = (c.get('accountId') as string | undefined) ?? (c.get('userId') as string);
   const targetAccountId = c.req.param('accountId');
 
   const parseResult = putBodySchema.safeParse(await c.req.json().catch(() => ({})));

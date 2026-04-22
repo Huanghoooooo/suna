@@ -6,6 +6,7 @@ import { deployments } from '@kortix/db';
 import { NotFoundError, ValidationError } from '../../errors';
 import { config } from '../../config';
 import type { AppEnv } from '../../types';
+import { resolveAccountId } from '../../shared/resolve-account';
 
 // ─── Dynamic Freestyle config ────────────────────────────────────────────────
 // The Kortix API runs in a separate container from the sandbox. API keys set
@@ -140,11 +141,11 @@ const createDeploymentSchema = z.object({
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async function getDeploymentForUser(deploymentId: string, userId: string) {
+async function getDeploymentForAccount(deploymentId: string, accountId: string) {
   const [deployment] = await db
     .select()
     .from(deployments)
-    .where(and(eq(deployments.deploymentId, deploymentId), eq(deployments.accountId, userId)));
+    .where(and(eq(deployments.deploymentId, deploymentId), eq(deployments.accountId, accountId)));
   return deployment ?? null;
 }
 
@@ -245,6 +246,7 @@ async function callFreestyle(
 // POST /v1/deployments - Create a deployment via Freestyle
 app.post('/', async (c) => {
   const userId = c.get('userId') as string;
+  const accountId = await resolveAccountId(userId);
   const body = await c.req.json();
   const parsed = createDeploymentSchema.safeParse(body);
 
@@ -275,7 +277,7 @@ app.post('/', async (c) => {
   const [deployment] = await db
     .insert(deployments)
     .values({
-      accountId: userId,
+      accountId,
       status: 'pending',
       sourceType: data.source_type,
       sourceRef: data.source_ref ?? null,
@@ -361,11 +363,12 @@ app.post('/', async (c) => {
 // GET /v1/deployments - List deployments (scoped to user)
 app.get('/', async (c) => {
   const userId = c.get('userId') as string;
+  const accountId = await resolveAccountId(userId);
   const status = c.req.query('status');
   const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10) || 50, 100);
   const offset = parseInt(c.req.query('offset') ?? '0', 10) || 0;
 
-  const conditions = [eq(deployments.accountId, userId)];
+  const conditions = [eq(deployments.accountId, accountId)];
   if (status) {
     conditions.push(eq(deployments.status, status as any));
   }
@@ -395,9 +398,10 @@ app.get('/', async (c) => {
 // GET /v1/deployments/:id - Get deployment details (scoped to user)
 app.get('/:id', async (c) => {
   const userId = c.get('userId') as string;
+  const accountId = await resolveAccountId(userId);
   const deploymentId = c.req.param('id');
 
-  const deployment = await getDeploymentForUser(deploymentId, userId);
+  const deployment = await getDeploymentForAccount(deploymentId, accountId);
   if (!deployment) {
     throw new NotFoundError('Deployment', deploymentId);
   }
@@ -408,9 +412,10 @@ app.get('/:id', async (c) => {
 // POST /v1/deployments/:id/stop - Stop a deployment (delete on Freestyle + update DB)
 app.post('/:id/stop', async (c) => {
   const userId = c.get('userId') as string;
+  const accountId = await resolveAccountId(userId);
   const deploymentId = c.req.param('id');
 
-  const deployment = await getDeploymentForUser(deploymentId, userId);
+  const deployment = await getDeploymentForAccount(deploymentId, accountId);
   if (!deployment) {
     throw new NotFoundError('Deployment', deploymentId);
   }
@@ -439,9 +444,10 @@ app.post('/:id/stop', async (c) => {
 // POST /v1/deployments/:id/redeploy - Create a new deployment with same config
 app.post('/:id/redeploy', async (c) => {
   const userId = c.get('userId') as string;
+  const accountId = await resolveAccountId(userId);
   const deploymentId = c.req.param('id');
 
-  const oldDeployment = await getDeploymentForUser(deploymentId, userId);
+  const oldDeployment = await getDeploymentForAccount(deploymentId, accountId);
   if (!oldDeployment) {
     throw new NotFoundError('Deployment', deploymentId);
   }
@@ -450,7 +456,7 @@ app.post('/:id/redeploy', async (c) => {
   const [newDeployment] = await db
     .insert(deployments)
     .values({
-      accountId: userId,
+      accountId,
       status: 'pending',
       sourceType: oldDeployment.sourceType,
       sourceRef: oldDeployment.sourceRef,
@@ -538,9 +544,10 @@ app.post('/:id/redeploy', async (c) => {
 // DELETE /v1/deployments/:id - Delete deployment record (scoped to user)
 app.delete('/:id', async (c) => {
   const userId = c.get('userId') as string;
+  const accountId = await resolveAccountId(userId);
   const deploymentId = c.req.param('id');
 
-  const deployment = await getDeploymentForUser(deploymentId, userId);
+  const deployment = await getDeploymentForAccount(deploymentId, accountId);
   if (!deployment) {
     throw new NotFoundError('Deployment', deploymentId);
   }
@@ -559,7 +566,7 @@ app.delete('/:id', async (c) => {
 
   await db
     .delete(deployments)
-    .where(and(eq(deployments.deploymentId, deploymentId), eq(deployments.accountId, userId)));
+    .where(and(eq(deployments.deploymentId, deploymentId), eq(deployments.accountId, accountId)));
 
   return c.json({ success: true, message: 'Deployment deleted' });
 });
@@ -567,9 +574,10 @@ app.delete('/:id', async (c) => {
 // GET /v1/deployments/:id/logs - Get deployment logs from Freestyle
 app.get('/:id/logs', async (c) => {
   const userId = c.get('userId') as string;
+  const accountId = await resolveAccountId(userId);
   const deploymentId = c.req.param('id');
 
-  const deployment = await getDeploymentForUser(deploymentId, userId);
+  const deployment = await getDeploymentForAccount(deploymentId, accountId);
   if (!deployment) {
     throw new NotFoundError('Deployment', deploymentId);
   }

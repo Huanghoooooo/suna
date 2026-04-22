@@ -88,6 +88,10 @@ export type AppEnv = {
   Variables: {
     userId: string;
     userEmail: string;
+    accountId?: string;
+    platformRole?: string;
+    oauthUserId?: string;
+    oauthAccountId?: string;
   };
 };
 

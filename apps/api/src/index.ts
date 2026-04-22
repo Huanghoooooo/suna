@@ -11,6 +11,7 @@ import { prettyJSON } from 'hono/pretty-json';
 import { HTTPException } from 'hono/http-exception';
 import { config } from './config';
 import { BillingError } from './errors';
+import type { AppEnv } from './types';
 
 // ─── Sub-Service Imports ──────────────────────────────────────────────────── 
 
@@ -51,6 +52,7 @@ import { memberSelfServiceApp } from './accounts/member-self-service';
 import { oauthApp } from './oauth';
 import { hasDatabase } from './shared/db';
 import { createAuditApp } from './audit';
+import { resolveAccountId } from './shared/resolve-account';
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `"'"'`)}'`;
@@ -91,7 +93,7 @@ PY`;
 
 // ─── App Setup ──────────────────────────────────────────────────────────────
 
-const app = new Hono();
+const app = new Hono<AppEnv>();
 
 // === Global Middleware === 
 
@@ -261,84 +263,40 @@ app.post('/v1/prewarm', (c) => {
   return c.json({ success: true });
 });
 
-// GET /v1/accounts — returns user's accounts.
-// Dual-read: kortix.account_members first, falls back to basejump.account_user.
+// GET /v1/accounts — returns the user's single 1:1 personal account.
 app.get('/v1/accounts', supabaseAuth, async (c: any) => {
   const userId = c.get('userId') as string;
   const userEmail = c.get('userEmail') as string;
 
-  const { eq } = await import('drizzle-orm');
-  const { accountMembers, accounts, accountUser } = await import('@kortix/db');
+  const { and, eq } = await import('drizzle-orm');
+  const { accountMembers, accounts } = await import('@kortix/db');
   const { db } = await import('./shared/db');
 
-  // 1. Try kortix.account_members (new table)
-  try {
-    const memberships = await db
-      .select({
-        accountId: accountMembers.accountId,
-        accountRole: accountMembers.accountRole,
-        name: accounts.name,
-        personalAccount: accounts.personalAccount,
-        createdAt: accounts.createdAt,
-        updatedAt: accounts.updatedAt,
-      })
-      .from(accountMembers)
-      .innerJoin(accounts, eq(accountMembers.accountId, accounts.accountId))
-      .where(eq(accountMembers.userId, userId));
+  const accountId = await resolveAccountId(userId);
+  const [membership] = await db
+    .select({
+      accountId: accountMembers.accountId,
+      accountRole: accountMembers.accountRole,
+      name: accounts.name,
+      personalAccount: accounts.personalAccount,
+      createdAt: accounts.createdAt,
+      updatedAt: accounts.updatedAt,
+    })
+    .from(accountMembers)
+    .innerJoin(accounts, eq(accountMembers.accountId, accounts.accountId))
+    .where(and(eq(accountMembers.accountId, accountId), eq(accountMembers.userId, userId)))
+    .limit(1);
 
-    if (memberships.length > 0) {
-      return c.json(memberships.map(m => ({
-        account_id: m.accountId,
-        name: m.name || userEmail || 'User',
-        slug: m.accountId.slice(0, 8),
-        personal_account: m.personalAccount,
-        created_at: m.createdAt?.toISOString() ?? new Date().toISOString(),
-        updated_at: m.updatedAt?.toISOString() ?? new Date().toISOString(),
-        account_role: m.accountRole || 'owner',
-        is_primary_owner: m.accountRole === 'owner',
-      })));
-    }
-  } catch {
-    // Table doesn't exist yet — continue to basejump fallback
-  }
-
-  // 2. Fall back to basejump.account_user (legacy, cloud prod)
-  try {
-    const legacyMemberships = await db
-      .select({
-        accountId: accountUser.accountId,
-        accountRole: accountUser.accountRole,
-      })
-      .from(accountUser)
-      .where(eq(accountUser.userId, userId));
-
-    if (legacyMemberships.length > 0) {
-      return c.json(legacyMemberships.map(m => ({
-        account_id: m.accountId,
-        name: userEmail || 'User',
-        slug: m.accountId.slice(0, 8),
-        personal_account: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        account_role: m.accountRole || 'owner',
-        is_primary_owner: m.accountRole === 'owner',
-      })));
-    }
-  } catch {
-    // basejump doesn't exist — continue to fallback
-  }
-
-  // 3. No memberships anywhere — return userId as personal account
   return c.json([
     {
-      account_id: userId,
-      name: userEmail || 'User',
-      slug: userId.slice(0, 8),
-      personal_account: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      account_role: 'owner',
-      is_primary_owner: true,
+      account_id: accountId,
+      name: membership?.name || userEmail || 'User',
+      slug: accountId.slice(0, 8),
+      personal_account: membership?.personalAccount ?? true,
+      created_at: membership?.createdAt?.toISOString() ?? new Date().toISOString(),
+      updated_at: membership?.updatedAt?.toISOString() ?? new Date().toISOString(),
+      account_role: membership?.accountRole || 'owner',
+      is_primary_owner: (membership?.accountRole || 'owner') === 'owner',
     },
   ]);
 });
@@ -347,8 +305,12 @@ app.get('/v1/accounts', supabaseAuth, async (c: any) => {
 app.get('/v1/user-roles', supabaseAuth, async (c: any) => {
   const { getPlatformRole } = await import('./shared/platform-roles');
 
-  const accountId = c.get('userId') as string;
-  const role = await getPlatformRole(accountId);
+  const userId = c.get('userId') as string;
+  const accountId = await resolveAccountId(userId);
+  let role = await getPlatformRole(accountId);
+  if (role === 'user' && accountId !== userId) {
+    role = await getPlatformRole(userId);
+  }
   const isAdmin = role === 'admin' || role === 'super_admin';
 
   return c.json({ isAdmin, role });

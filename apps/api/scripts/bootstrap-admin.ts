@@ -17,7 +17,7 @@
  *
  * Behaviour:
  *   - Looks up auth.users by email (case-insensitive).
- *   - Finds the user's personal account via kortix.account_members.
+ *   - Finds or provisions the user's 1:1 personal account.
  *   - Upserts a 'super_admin' row in kortix.platform_user_roles.
  *   - Idempotent: re-running with the same email is a no-op.
  *
@@ -77,7 +77,7 @@ async function main() {
 
     const user = users[0]!;
 
-    const memberships = await sql<{ account_id: string; personal_account: boolean; account_name: string }[]>`
+    let memberships = await sql<{ account_id: string; personal_account: boolean; account_name: string }[]>`
       SELECT am.account_id, a.personal_account, a.name AS account_name
       FROM kortix.account_members am
       JOIN kortix.accounts a ON a.account_id = am.account_id
@@ -87,11 +87,28 @@ async function main() {
     `;
 
     if (memberships.length === 0) {
-      console.error(
-        `Error: user "${email}" has no account membership.\n` +
-        '  Sign in through the app at least once to provision an account, then re-run.',
-      );
-      process.exit(3);
+      const accountName = user.email || email;
+      await sql.begin(async (tx) => {
+        await tx`
+          INSERT INTO kortix.accounts (account_id, name, personal_account)
+          VALUES (${user.id}, ${accountName}, true)
+          ON CONFLICT (account_id) DO NOTHING
+        `;
+        await tx`
+          INSERT INTO kortix.account_members (user_id, account_id, account_role)
+          VALUES (${user.id}, ${user.id}, 'owner')
+          ON CONFLICT (user_id) DO NOTHING
+        `;
+      });
+
+      memberships = await sql<{ account_id: string; personal_account: boolean; account_name: string }[]>`
+        SELECT am.account_id, a.personal_account, a.name AS account_name
+        FROM kortix.account_members am
+        JOIN kortix.accounts a ON a.account_id = am.account_id
+        WHERE am.user_id = ${user.id}
+        ORDER BY a.personal_account DESC, a.created_at ASC
+        LIMIT 1
+      `;
     }
 
     const { account_id, personal_account, account_name } = memberships[0]!;
