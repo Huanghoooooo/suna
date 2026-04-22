@@ -4,8 +4,16 @@ import { createMDX } from 'fumadocs-mdx/next';
 import { withSentryConfig } from '@sentry/nextjs';
 import { withBetterStack } from '@logtail/next';
 
+/** `standalone` is required for Docker/CI. On Windows without dev symlink rights, the trace step can EPERM. */
+function useStandaloneOutput(): boolean {
+  if (process.env.NEXT_STANDALONE === '0') return false;
+  if (process.env.NEXT_STANDALONE === '1') return true;
+  if (process.platform === 'win32') return false;
+  return true;
+}
+
 const nextConfig = (): NextConfig => ({
-  output: 'standalone',
+  output: useStandaloneOutput() ? 'standalone' : undefined,
   // Pin tracing root to monorepo root so standalone preserves
   // the correct `apps/web/server.js` path structure.
   outputFileTracingRoot: path.join(__dirname, '../../'),

@@ -1,32 +1,70 @@
-# Production compose — used by deploy-api.yml CI workflow on the VPS.
-# Build from repo root: docker compose --profile backend up -d
+# Production compose for Kortix/Suna.
+#
+# Profiles:
+#   --profile all             Start everything (CI / Linux VPS)
+#   --profile frontend        Frontend container only
+#   --profile backend         API container only (Linux — needs docker.sock)
+#   --profile frontend-only   Frontend only, API runs on host (Windows/macOS self-hosted)
+#
+# Paths are relative to this file (scripts/compose/); context: ../.. is the monorepo root.
+#
+# Run examples:
+#   docker compose -f scripts/compose/docker-compose.yml --profile all up -d --build
+#   docker compose -f scripts/compose/docker-compose.yml --profile frontend-only up -d --build
 
 services:
+  # ── Frontend (Next.js) ─────────────────────────────────────────────────────
   frontend:
     build:
-      context: .
+      context: ../..
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-https://placeholder.supabase.co}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-local-build-placeholder-anon-key}
+        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:8008/v1}
         NEXT_PUBLIC_BILLING_ENABLED: ${NEXT_PUBLIC_BILLING_ENABLED:-false}
         NEXT_PUBLIC_ENV_MODE: ${NEXT_PUBLIC_ENV_MODE:-local}
+    env_file:
+      - path: ../../apps/web/.env.local
+        required: false
+    environment:
+      # SSR/middleware runs inside the container — 127.0.0.1 is the container itself.
+      # host.docker.internal resolves to the Docker host on Windows, macOS, and Linux 20.10+.
+      SUPABASE_URL: http://host.docker.internal:54321
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0}
+      BACKEND_URL: http://host.docker.internal:8008/v1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "3000:3000"
-    profiles: [frontend, all]
+    profiles: [frontend, frontend-only, all]
     restart: unless-stopped
 
+  # ── API (Bun + Hono) ───────────────────────────────────────────────────────
+  # On Windows/macOS: Bun inside Docker cannot reliably connect to the host's
+  # Docker daemon (named pipe / grpc-proxied socket). Use --profile frontend-only
+  # and run the API on the host with `pnpm deploy:api` instead.
+  #
+  # On Linux VPS / CI: --profile backend or --profile all works fine with the
+  # bind-mounted /var/run/docker.sock.
   kortix-api:
     build:
-      context: .
+      context: ../..
       dockerfile: apps/api/Dockerfile
       args:
-        SERVICE: kortix-api
+        SERVICE: apps/api
     ports:
       - "8008:8008"
     env_file:
-      - path: apps/api/.env
+      - path: ../../apps/api/.env
         required: false
+    environment:
+      DOCKER_HOST: unix:///var/run/docker.sock
+      DATABASE_URL: postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      SUPABASE_URL: http://host.docker.internal:54321
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     profiles: [backend, all]
     restart: unless-stopped

@@ -97,21 +97,23 @@ COPY LICENSE /LICENSE
 # easy to audit when skills add new runtime assumptions.
 
 # ── OS packages ──────────────────────────────────────────────────────────────
+# gcc/g++ are large (~60 MB+); retry up to 3 times to survive CDN hiccups.
 RUN apk update \
+    && for i in 1 2 3; do apk add --no-cache gcc g++ musl-dev && break || sleep 10; done \
     && apk add --no-cache \
-        nodejs npm rsync \
-        python3-dev py3-pip py3-virtualenv \
-        curl unzip ca-certificates \
-        gcc g++ musl-dev linux-headers \
-        libffi-dev libxml2-dev libxslt-dev \
-        gcompat \
-        git github-cli jq ripgrep \
-        docker docker-cli-compose \
-        fuse-overlayfs iptables ip6tables \
-        whois \
-        fontconfig ttf-dejavu font-liberation font-noto font-noto-cjk font-noto-emoji \
-        openssh-server openssh-sftp-server \
-        bash-completion \
+    nodejs npm rsync \
+    python3-dev py3-pip py3-virtualenv \
+    curl unzip ca-certificates \
+    linux-headers \
+    libffi-dev libxml2-dev libxslt-dev \
+    gcompat \
+    git github-cli jq ripgrep \
+    docker docker-cli-compose \
+    fuse-overlayfs iptables ip6tables \
+    whois \
+    fontconfig ttf-dejavu font-liberation font-noto font-noto-cjk font-noto-emoji \
+    openssh-server openssh-sftp-server \
+    bash-completion \
     && rm -rf /var/cache/apk/*
 
 # ── Skill system dependencies ────────────────────────────────────────────────
@@ -129,15 +131,15 @@ RUN apk update \
 # *-dev: build deps for Pillow, pdf2image (pptx, pdf, logo-creator)
 RUN apk update \
     && apk add --no-cache \
-        poppler-utils poppler-dev \
-        qpdf \
-        pandoc \
-        libreoffice \
-        tesseract-ocr tesseract-ocr-data-eng \
-        ffmpeg \
-        imagemagick \
-        texlive texmf-dist-latexrecommended texmf-dist-bibtexextra \
-        jpeg-dev zlib-dev freetype-dev openjpeg-dev tiff-dev \
+    poppler-utils poppler-dev \
+    qpdf \
+    pandoc \
+    libreoffice \
+    tesseract-ocr tesseract-ocr-data-eng \
+    ffmpeg \
+    imagemagick \
+    texlive texmf-dist-latexrecommended texmf-dist-bibtexextra \
+    jpeg-dev zlib-dev freetype-dev openjpeg-dev tiff-dev \
     && rm -rf /var/cache/apk/*
 
 # ── Bun runtime ───────────────────────────────────────────────────────────────
@@ -225,28 +227,28 @@ RUN mkdir -p /workspace/.browser-profile \
     # Bake .gitignore so these dirs are always excluded from git snapshots.
     # kortix-env-setup.sh commits this in the initial workspace commit.
     && printf '%s\n' \
-        '# kortix/opencode internal dirs — excluded from agent snapshots' \
-        '.local/share/opencode/' \
-        '.cache/' \
-        '.config/' \
-        '.opencode/' \
-        '.kortix/' \
-        '.kortix-state/' \
-        '.secrets/' \
-        '.browser-profile/' \
-        '.agent-browser/' \
-        '.lss/' \
-        '.ocx/' \
-        '.XDG/' \
-        '.bun/' \
-        '.npm-global/' \
-        '.npm/' \
-        '.dbus/' \
-        '.pki/' \
-        '.ssh/' \
-        'ssl/' \
-        'opencode' \
-        > /workspace/.gitignore \
+    '# kortix/opencode internal dirs — excluded from agent snapshots' \
+    '.local/share/opencode/' \
+    '.cache/' \
+    '.config/' \
+    '.opencode/' \
+    '.kortix/' \
+    '.kortix-state/' \
+    '.secrets/' \
+    '.browser-profile/' \
+    '.agent-browser/' \
+    '.lss/' \
+    '.ocx/' \
+    '.XDG/' \
+    '.bun/' \
+    '.npm-global/' \
+    '.npm/' \
+    '.dbus/' \
+    '.pki/' \
+    '.ssh/' \
+    'ssl/' \
+    'opencode' \
+    > /workspace/.gitignore \
     && chown -R abc:abc /workspace \
     && rm -rf /config \
     && ln -s /workspace /config \
@@ -262,10 +264,12 @@ ENV KORTIX_WORKSPACE=/workspace
 
 # ── Services (s6-rc.d longrun) ──────────────────────────────────────────────
 COPY core/s6-services/ /etc/s6-overlay/s6-rc.d/
-RUN for svc in svc-kortix-master svc-opencode-serve svc-opencode-state-sync \
-        svc-chromium-persistent svc-agent-browser-session svc-agent-browser-viewer \
-        svc-static-web svc-lss-sync svc-sshd svc-docker; do \
-        touch "/etc/s6-overlay/s6-rc.d/user/contents.d/${svc}"; \
+# Strip CRLF from all s6 service scripts (Windows checkout compat)
+RUN find /etc/s6-overlay/s6-rc.d/svc-* -type f \( -name run -o -name finish \) -exec sed -i 's/\r$//' {} + \
+    && for svc in svc-kortix-master svc-opencode-serve svc-opencode-state-sync \
+    svc-chromium-persistent svc-agent-browser-session svc-agent-browser-viewer \
+    svc-static-web svc-lss-sync svc-sshd svc-docker; do \
+    touch "/etc/s6-overlay/s6-rc.d/user/contents.d/${svc}"; \
     done \
     && chmod +x /etc/s6-overlay/s6-rc.d/svc-*/run \
     && chmod +x /etc/s6-overlay/s6-rc.d/svc-*/finish 2>/dev/null || true
@@ -285,20 +289,19 @@ COPY core/init-scripts/97-secrets-to-s6-env.sh /custom-cont-init.d/97-secrets-to
 COPY core/init-scripts/kortix-env-setup.sh /custom-cont-init.d/98-kortix-env
 COPY core/init-scripts/99-restore-packages.sh /custom-cont-init.d/99-restore-packages
 COPY core/init-scripts/99-fix-opencode-ownership.sh /custom-cont-init.d/zz-fix-opencode-ownership
-RUN chmod +x /custom-cont-init.d/*
+# Windows checkouts may have CRLF line endings; strip \r so shebangs work in Linux
+RUN sed -i 's/\r$//' /custom-cont-init.d/* && chmod +x /custom-cont-init.d/*
 
 # ── Persistent package wrapper (apk-persist) ────────────────────────────────
 COPY core/scripts/apk-persist /usr/local/bin/apk-persist
-RUN chmod +x /usr/local/bin/apk-persist
+RUN sed -i 's/\r$//' /usr/local/bin/apk-persist && chmod +x /usr/local/bin/apk-persist
 
 COPY core/scripts/kortix-opencode-state /usr/local/bin/kortix-opencode-state
-RUN chmod +x /usr/local/bin/kortix-opencode-state
+RUN sed -i 's/\r$//' /usr/local/bin/kortix-opencode-state && chmod +x /usr/local/bin/kortix-opencode-state
 
 # ── Docker-in-Docker readiness helper ───────────────────────────────────────
-# Polls `docker info` until dockerd is reachable. Use from anywhere that
-# needs to run `docker ...` commands early in the boot sequence.
 COPY core/scripts/docker-wait-ready /usr/local/bin/docker-wait-ready
-RUN chmod +x /usr/local/bin/docker-wait-ready
+RUN sed -i 's/\r$//' /usr/local/bin/docker-wait-ready && chmod +x /usr/local/bin/docker-wait-ready
 
 # ── Pre-create /var/lib/docker so the named volume mounts cleanly ───────────
 # dockerd uses this as its data-root. Compose mounts a named volume here so
@@ -323,7 +326,7 @@ RUN set -eo pipefail && echo "[docker] Building sandbox runtime v${SANDBOX_VERSI
     # ── 1. kortix-master (single bun install — includes triggers, channels, opencode deps) ── \
     mkdir -p /ephemeral/kortix-master && \
     rsync -a --exclude=node_modules --exclude=bun.lock --exclude=.git \
-      /opt/build/kortix-master/ /ephemeral/kortix-master/ && \
+    /opt/build/kortix-master/ /ephemeral/kortix-master/ && \
     cd /ephemeral/kortix-master && bun install 2>&1 && \
     test -d /ephemeral/kortix-master/node_modules && \
     chmod +x /ephemeral/kortix-master/scripts/*.sh 2>/dev/null || true && \
@@ -338,14 +341,14 @@ RUN set -eo pipefail && echo "[docker] Building sandbox runtime v${SANDBOX_VERSI
     # ── 4. bun-pty musl patches ── \
     ARCH=$(uname -m) && \
     for PTY_DIR in \
-        /ephemeral/kortix-master/node_modules/bun-pty/rust-pty/target/release \
-        /opt/bun/install/cache/bun-pty@*/rust-pty/target/release; do \
-      [ -d "$PTY_DIR" ] || continue; \
-      if [ "$ARCH" = "x86_64" ]; then \
-        cp /opt/bun-pty-musl/librust_pty.so "$PTY_DIR/librust_pty.so"; \
-      else \
-        cp /opt/bun-pty-musl/librust_pty.so "$PTY_DIR/librust_pty_arm64.so"; \
-      fi; \
+    /ephemeral/kortix-master/node_modules/bun-pty/rust-pty/target/release \
+    /opt/bun/install/cache/bun-pty@*/rust-pty/target/release; do \
+    [ -d "$PTY_DIR" ] || continue; \
+    if [ "$ARCH" = "x86_64" ]; then \
+    cp /opt/bun-pty-musl/librust_pty.so "$PTY_DIR/librust_pty.so"; \
+    else \
+    cp /opt/bun-pty-musl/librust_pty.so "$PTY_DIR/librust_pty_arm64.so"; \
+    fi; \
     done && \
     \
     # ── 6. Agent browser viewer ── \
@@ -358,9 +361,9 @@ RUN set -eo pipefail && echo "[docker] Building sandbox runtime v${SANDBOX_VERSI
     \
     # ── 8. Global CLI binaries (direct install, no intermediate package.json) ── \
     npm install -g --no-audit --no-fund \
-      "opencode-ai@${OPENCODE_VERSION}" \
-      "agent-browser@${AGENT_BROWSER_VERSION}" \
-      "ocx@${OCX_VERSION}" 2>&1 && \
+    "opencode-ai@${OPENCODE_VERSION}" \
+    "agent-browser@${AGENT_BROWSER_VERSION}" \
+    "ocx@${OCX_VERSION}" 2>&1 && \
 
     # opencode postinstall caches a non-musl binary at .opencode — remove it \
     # so the launcher resolves the musl variant (Alpine is musl-based) \
@@ -390,7 +393,7 @@ RUN set -eo pipefail && echo "[docker] Building sandbox runtime v${SANDBOX_VERSI
     # creates user abc with UID 911. All runtime processes (opencode, kortix-master) \
     # run as abc via s6-setuidgid. Using 1000 causes EACCES everywhere at runtime. \
     chown -R abc:abc /ephemeral \
-      2>/dev/null || true && \
+    2>/dev/null || true && \
     \
     # ── 11. Cleanup ── \
     rm -rf /opt/build /root/.npm/_cacache /root/.npm/_logs 2>/dev/null || true && \
@@ -398,7 +401,7 @@ RUN set -eo pipefail && echo "[docker] Building sandbox runtime v${SANDBOX_VERSI
 
 # ── Startup entrypoint ────────────────────────────────────────────────────────
 COPY core/startup.sh /ephemeral/startup.sh
-RUN chmod +x /ephemeral/startup.sh
+RUN sed -i 's/\r$//' /ephemeral/startup.sh && chmod +x /ephemeral/startup.sh
 
 # ── Runtime persistence — user-installed packages survive restarts ────────────
 # These ENVs are set AFTER the build step intentionally. During build, npm/pip

@@ -1,25 +1,44 @@
 # syntax=docker.io/docker/dockerfile:1
 #
-# Lightweight runner-only image.
+# Multi-stage: a single `docker build` runs `next build` inside Linux (no host `pnpm build` required),
+# so Windows/macOS can deploy with: docker compose -f scripts/compose/docker-compose.yml --profile all up --build
 #
-# Build the frontend on the HOST first:
-#   cd apps/web && NEXT_OUTPUT=standalone pnpm run build
+# Placeholder NEXT_PUBLIC_* values match scripts/build-local-images.sh; apps/web/docker-entrypoint.sh rewrites at container startup.
 #
-# Then from repo root:
 #   docker build -f apps/web/Dockerfile -t kortix/kortix-frontend:latest .
 #
-# For CLOUD builds (kortix.ai), override billing at build time:
-#   NEXT_PUBLIC_BILLING_ENABLED=true pnpm build
-#   docker build -f apps/web/Dockerfile -t kortix/kortix-frontend:cloud .
+# For CLOUD: pass billing build-arg or bake NEXT_PUBLIC_BILLING_ENABLED=true
 #
-# Build-time env vars (baked into the image):
-#   NEXT_PUBLIC_ENV_MODE       - "local" or "cloud"
-#   NEXT_PUBLIC_BILLING_ENABLED - "true" for cloud, "false" for self-hosted
-#   NEXT_PUBLIC_BACKEND_URL   - API URL
-#   NEXT_PUBLIC_URL           - Frontend URL
-#   NEXT_PUBLIC_SUPABASE_URL  - Supabase URL
-#   NEXT_PUBLIC_SUPABASE_ANON_KEY - Supabase anon key
-#
+
+FROM node:22-slim AS builder
+WORKDIR /app
+
+ARG NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY=local-build-placeholder-anon-key
+ARG NEXT_PUBLIC_BACKEND_URL=http://localhost:8008/v1
+ARG NEXT_PUBLIC_BILLING_ENABLED=false
+ARG NEXT_PUBLIC_ENV_MODE=local
+
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
+ENV NEXT_PUBLIC_BILLING_ENABLED=$NEXT_PUBLIC_BILLING_ENABLED
+ENV NEXT_PUBLIC_ENV_MODE=$NEXT_PUBLIC_ENV_MODE
+ENV NEXT_TELEMETRY_DISABLED=1
+# Do not set NODE_ENV=production before install: pnpm would skip devDependencies (e.g. @tailwindcss/postcss) and `next build` would fail.
+ENV NODE_ENV=development
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
+COPY apps/web ./apps/web
+COPY packages/shared ./packages/shared
+
+RUN corepack enable pnpm && \
+    pnpm install --filter ./apps/web... --frozen-lockfile --shamefully-hoist
+
+ENV NODE_ENV=production
+RUN pnpm --filter ./apps/web run build
+
+# ── Runtime image (previously host-standalone only) ─────────────────────────
 FROM node:22-slim AS runner
 WORKDIR /app
 
@@ -32,10 +51,9 @@ RUN addgroup --system --gid 1001 nodejs && \
 # License
 COPY LICENSE /LICENSE
 
-# Copy pre-built standalone output from the host.
-COPY --chown=nextjs:nodejs apps/web/.next/standalone ./
-COPY --chown=nextjs:nodejs apps/web/.next/static ./apps/web/.next/static
-COPY --chown=nextjs:nodejs apps/web/public ./apps/web/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
 # Remove any .env files from the standalone output — runtime env vars
 # (set in docker-compose) must take precedence. Next.js .env files override
@@ -44,15 +62,13 @@ RUN rm -f /app/apps/web/.env /app/apps/web/.env.local /app/apps/web/.env.product
 
 # Copy entrypoint script (needs to run as root for VPS URL rewriting)
 COPY apps/web/docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+# Windows checkouts may use CRLF; Linux exec fails with "no such file or directory" on the shebang line
+RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
 
-# In local mode (no KORTIX_PUBLIC_URL), runs as nextjs user via CMD.
-# In VPS mode, entrypoint does sed as root, then exec's node as nextjs.
 USER nextjs
 
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Use entrypoint for VPS URL rewriting support
 ENTRYPOINT ["/docker-entrypoint.sh"]

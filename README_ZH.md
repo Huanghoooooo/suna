@@ -78,6 +78,8 @@ pnpm dev:api
 
 ## 3. 源码方式怎么启动 / 部署
 
+**给客户 Mac 做现场部署、双方都是电脑小白时**：请直接按 [`docs/customer-mac-deploy-novice.md`](docs/customer-mac-deploy-novice.md) 逐步操作（安装 Docker、Supabase、沙盒、`pnpm compose:up` 等）。
+
 当前仓库根脚本里主要有两种方式。
 
 ### 3.1 本地源码启动
