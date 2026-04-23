@@ -50,12 +50,12 @@ kortix uninstall   Remove Kortix completely
 ## DEV Commands
 
 - `curl -fsSL http://localhost:3000/install | bash`
-- `pnpm dev` — start frontend + API in dev mode
+- `pnpm dev` — start frontend + API in dev mode; local sandboxes are created on demand by the API
 - `pnpm dev:web` — start web app only
 - `pnpm dev:frontend` — alias for `pnpm dev:web`
 - `pnpm dev:api` — start API only
 - `pnpm dev:mobile` — start mobile app (Expo dev server)
-- `pnpm dev:core` — start core runtime with dev bind mounts (hot reload, from `core/`)
+- `pnpm dev:core` — start the fixed single compose core runtime with dev bind mounts (manual core debugging)
 - `pnpm dev:core:build` — rebuild and start the core runtime
 - `pnpm dev:sandbox` — alias for `pnpm dev:core`
 - `pnpm dev:sandbox:build` — alias for `pnpm dev:core:build`

@@ -46,7 +46,7 @@ services:
       args:
         SANDBOX_VERSION: ${SANDBOX_VERSION:-dev}
     image: kortix/computer:${SANDBOX_VERSION:-dev}
-    container_name: kortix-sandbox
+    container_name: ${SANDBOX_CONTAINER_NAME:-kortix-sandbox}
     privileged: true
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -81,7 +81,7 @@ services:
       - INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY:-}
       - TUNNEL_API_URL=${KORTIX_API_URL:-http://host.docker.internal:8008}
       - TUNNEL_TOKEN=${KORTIX_TOKEN:-}
-      - SANDBOX_ID=${SANDBOX_ID:-local}
+      - SANDBOX_ID=${SANDBOX_CONTAINER_NAME:-kortix-sandbox}
       - PROJECT_ID=${PROJECT_ID:-local}
       - ENV_MODE=${ENV_MODE:-local}
       - KORTIX_LOCAL_SOURCE=${KORTIX_LOCAL_SOURCE:-1}
@@ -128,4 +128,6 @@ services:
 
 volumes:
   sandbox_data:
+    name: ${SANDBOX_CONTAINER_NAME:-kortix-sandbox}-data
   sandbox_docker:
+    name: ${SANDBOX_CONTAINER_NAME:-kortix-sandbox}-docker
