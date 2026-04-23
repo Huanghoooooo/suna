@@ -836,7 +836,7 @@ export function InstanceManagerDialog({
       const store = useServerStore.getState();
 
       // Use the centralized registerOrUpdateSandbox which uses stable IDs
-      // ('default' for local, 'cloud-sandbox' for cloud) — no duplicates.
+      // ('sandbox-<id>' for local/additional cloud, 'cloud-sandbox' for primary cloud).
       const serverId = store.registerOrUpdateSandbox(
         {
           label,

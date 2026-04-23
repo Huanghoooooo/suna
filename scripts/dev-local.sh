@@ -48,10 +48,13 @@ print("[dev] ERROR: Timed out waiting for Supabase Postgres on 127.0.0.1:54322",
 sys.exit(1)
 PY
 
+echo "[dev] Local sandboxes are provisioned on demand by the API (multi-user/dev bind mounts enabled)."
+echo "[dev] 'pnpm dev:sandbox' is only for the fixed single compose sandbox debug flow."
+
 echo "[dev] Starting frontend..."
 pnpm --filter Kortix-Computer-Frontend dev &
 FRONTEND_PID=$!
 
 echo "[dev] Starting API..."
 cd "$ROOT_DIR"
-KORTIX_SKIP_ENSURE_SCHEMA=1 pnpm --filter kortix-api dev
+KORTIX_DEV_MODE=1 KORTIX_SKIP_ENSURE_SCHEMA=1 pnpm --filter kortix-api dev

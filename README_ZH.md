@@ -15,9 +15,9 @@
    - 重点是切换账号、旧 cookie、旧本地缓存、旧 preview session 之间的残留状态。
    - 现象通常是：新账号进不去、一直转圈、或者切账号后短暂串到旧沙箱。
 
-2. 本地开发模式下，`pnpm dev` 之外通常还需要单独起 sandbox。
-   - 也就是还要再开一个终端执行 `pnpm dev:sandbox`
-   - 这是当前开发模式的正常使用方式，不是你操作错了。
+2. 本地开发要区分两条链路：
+   - `pnpm dev`：前端 + API，本地多用户/多沙箱开发走这条，sandbox 由 API 按需创建
+   - `pnpm dev:sandbox`：固定名字的 compose 单实例 sandbox，只适合调试 core runtime，不适合作为多用户本地开发入口
 
 3. Preview / 沙箱代理这块虽然已经修过一轮，但仍然建议把它当成“需要继续观察”的区域。
    - 尤其是账号切换后访问 `/v1/p/...`
@@ -53,15 +53,19 @@ pnpm dev
 - Web: `http://localhost:3000`
 - API: `http://localhost:8008`
 
-### 2.3 单独启动本地 sandbox
+### 2.3 本地多用户 / 多容器开发
 
-再开一个终端：
+直接用：
 
 ```bash
-pnpm dev:sandbox
+pnpm dev
 ```
 
-如果你改了 sandbox 相关依赖、镜像层、Docker 构建内容，用：
+然后在页面里创建实例即可。API 会按账号动态创建多个 `local_docker` 容器；`pnpm dev` 已经带上 `KORTIX_DEV_MODE=1`，这些运行时创建的容器也会自动挂载本地源码。
+
+`pnpm dev:sandbox` 不是这条链路的必需步骤。它只会启动一个固定名的 compose sandbox，适合单独调试 core runtime。
+
+如果你改了 sandbox 镜像层、Dockerfile、系统依赖，需要单独验证固定 compose sandbox，再用：
 
 ```bash
 pnpm dev:sandbox:build
@@ -87,10 +91,9 @@ pnpm dev:api
 ```bash
 supabase start
 pnpm dev
-pnpm dev:sandbox
 ```
 
-这是最适合开发排查 bug 的方式。
+这是现在推荐的本地多账号/多沙箱开发方式。
 
 ### 3.2 本地源码“接近正式启动”的方式
 
@@ -108,7 +111,7 @@ bash scripts/start-local.sh
 
 但这条链路我这里没有完整验证过，所以当前建议：
 
-1. 开发调试优先用 `pnpm dev + pnpm dev:sandbox`
+1. 开发调试优先用 `pnpm dev`
 2. 真要走部署/交付，先按仓库已有英文 `README.md`、`docs/deployment-modes.md`、`docs/development-release-guide.md` 再完整对一遍
 
 ### 3.3 Docker / core 运行时

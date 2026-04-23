@@ -29,12 +29,12 @@ import { getCurrentInstanceIdFromPathname, getActiveInstanceIdFromCookie } from 
 
 /**
  * Derive a stable, deterministic server-store ID for a sandbox.
- * - Local docker: always 'default' (single local sandbox)
+ * - Local docker: always 'sandbox-<sandbox_id>'
  * - Cloud primary: 'cloud-sandbox' (backward-compat with existing persisted activeServerId)
  * - Cloud additional: 'sandbox-<sandboxId>'
  */
 function stableIdForSandbox(sandbox: SandboxInfo, isPrimary: boolean): string {
-  if (sandbox.provider === 'local_docker') return 'default';
+  if (sandbox.provider === 'local_docker') return `sandbox-${sandbox.sandbox_id}`;
   if (isPrimary) return 'cloud-sandbox';
   return `sandbox-${sandbox.sandbox_id}`;
 }
@@ -63,7 +63,7 @@ function registerSandboxServer(sandbox: SandboxInfo, autoSwitch: boolean, isPrim
       instanceId: sandbox.sandbox_id,
       mappedPorts: extractMappedPorts(sandbox),
     },
-    { autoSwitch, isLocal, stableId: isLocal ? undefined : stableId },
+    { autoSwitch, isLocal, stableId },
   );
 
   // For cloud mode, registerOrUpdateSandbox returns the targetId.

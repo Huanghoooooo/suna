@@ -143,6 +143,7 @@ const optFloat = (def: number) =>
 /** Optional boolean — 'true' → true, anything else → false. */
 const optBoolTrue = z.string().optional().default('true').transform((v) => v !== 'false');
 const optBoolFalse = z.string().optional().default('false').transform((v) => v === 'true');
+const optBoolLooseFalse = z.string().optional().default('false').transform((v) => /^(1|true|yes|on)$/i.test(v));
 
 // ─── Env Schema ─────────────────────────────────────────────────────────────
 //
@@ -240,6 +241,7 @@ const envSchema = z.object({
   ALLOWED_SANDBOX_PROVIDERS:   optStrDefault('local_docker'),
   SANDBOX_IMAGE:               optStr,  // overridden below if empty
   KORTIX_LOCAL_IMAGES:         optBoolFalse,
+  KORTIX_DEV_MODE:             optBoolLooseFalse,
   DOCKER_HOST:                 optStr,
   SANDBOX_NETWORK:             optStr,
   SANDBOX_PORT_BASE:           optInt(14000),
@@ -533,6 +535,7 @@ export const config = {
   ALLOWED_SANDBOX_PROVIDERS: allowedProviders,
   SANDBOX_IMAGE: env.SANDBOX_IMAGE || 'kortix/computer:latest',
   KORTIX_LOCAL_IMAGES: env.KORTIX_LOCAL_IMAGES,
+  KORTIX_DEV_MODE: env.KORTIX_DEV_MODE,
   DOCKER_HOST: env.DOCKER_HOST,
   SANDBOX_NETWORK: env.SANDBOX_NETWORK,
   SANDBOX_PORT_BASE: env.SANDBOX_PORT_BASE,

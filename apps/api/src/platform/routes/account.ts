@@ -180,6 +180,7 @@ export function createAccountRouter(
             eq(sandboxes.status, 'active'),
           ),
         )
+        .orderBy(desc(sandboxes.updatedAt), desc(sandboxes.createdAt))
         .limit(1);
 
       const healthyActive = await archiveConflictingLocalDockerSandbox(db, active);
@@ -221,6 +222,7 @@ export function createAccountRouter(
             eq(sandboxes.status, 'provisioning'),
           ),
         )
+        .orderBy(desc(sandboxes.updatedAt), desc(sandboxes.createdAt))
         .limit(1);
 
       const healthyProvisioning = await archiveConflictingLocalDockerSandbox(db, provisioning);

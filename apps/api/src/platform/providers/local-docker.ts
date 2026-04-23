@@ -6,6 +6,7 @@ import { resolve } from 'path';
 import { config, SANDBOX_VERSION } from '../../config';
 import { generateSandboxKeyPair } from '../../shared/crypto';
 import { getAuthCandidates, getSandboxServiceKeyByExternalId } from '../services/sandbox-auth';
+import { buildLocalDockerDevBinds } from './local-docker-dev-binds';
 import type {
   SandboxProvider,
   ProviderName,
@@ -925,6 +926,10 @@ export class LocalDockerProvider implements SandboxProvider {
 
     const sandboxApiBase = getSandboxInternalApiUrl();
     const routerBase = `${sandboxApiBase}/v1/router`;
+    const devBindMounts = buildLocalDockerDevBinds({
+      env: { KORTIX_DEV_MODE: config.KORTIX_DEV_MODE ? 'true' : 'false' },
+      warn: (message) => console.warn(message),
+    });
 
     const env = [
       'PUID=911',
@@ -962,6 +967,7 @@ export class LocalDockerProvider implements SandboxProvider {
       `SERPER_API_URL=${routerBase}/serper`,
       `FIRECRAWL_API_URL=${routerBase}/firecrawl`,
       ...(config.KORTIX_LOCAL_IMAGES ? ['KORTIX_LOCAL_SOURCE=1'] : []),
+      ...(config.KORTIX_DEV_MODE ? ['KORTIX_DEV_MODE=1'] : []),
       `ENV_MODE=${config.KORTIX_BILLING_INTERNAL_ENABLED ? 'cloud' : 'local'}`,
       `CORS_ALLOWED_ORIGINS=${[config.FRONTEND_URL, config.KORTIX_URL].filter(Boolean).join(',')}`,
       ...filteredSandboxEnv,
@@ -980,6 +986,7 @@ export class LocalDockerProvider implements SandboxProvider {
         Binds: [
           `${this.getCurrentVolumeName()}:/workspace`,
           `${this.getCurrentVolumeName()}:/config`,
+          ...devBindMounts,
         ],
         ...(config.SANDBOX_NETWORK ? { NetworkMode: config.SANDBOX_NETWORK } : {}),
       },
@@ -991,9 +998,11 @@ export class LocalDockerProvider implements SandboxProvider {
     });
 
     await container.start();
-    console.log(
-      `[LOCAL-DOCKER] Sandbox created and started on ports ${PORT_BASE}-${PORT_BASE + 7}`,
-    );
+    const portSummary = this.getCurrentContainerName() === CONTAINER_NAME
+      ? `ports ${PORT_BASE}-${PORT_BASE + 7}`
+      : 'dynamic localhost ports';
+    const devMountSummary = devBindMounts.length > 0 ? ` with ${devBindMounts.length} dev bind mounts` : '';
+    console.log(`[LOCAL-DOCKER] Sandbox ${this.getCurrentContainerName()} created and started on ${portSummary}${devMountSummary}`);
   }
 
   /**

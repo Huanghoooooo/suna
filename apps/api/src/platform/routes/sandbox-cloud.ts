@@ -175,7 +175,9 @@ export function createCloudSandboxRouter(
             WHEN 'stopped'      THEN 2
             WHEN 'error'        THEN 3
             ELSE                     4
-          END`
+          END`,
+          desc(sandboxes.updatedAt),
+          desc(sandboxes.createdAt),
         );
 
       let sandbox: typeof sandboxes.$inferSelect | null = null;
@@ -644,6 +646,89 @@ export function createCloudSandboxRouter(
 
       const metadata = (sandbox.metadata as Record<string, unknown> | null) ?? {};
       const currentStatus = sandbox.status;
+
+      if (sandbox.provider === 'local_docker') {
+        const { LocalDockerProvider, getImagePullStatus } = await import('../providers/local-docker');
+        const provider = new LocalDockerProvider();
+        const pullStatus = getImagePullStatus();
+
+        if (currentStatus === 'active') {
+          return c.json({
+            status: 'active',
+            stage: null,
+            stageProgress: 100,
+            stageMessage: null,
+            machineInfo: null,
+            stages: null,
+            error: null,
+            startedAt: sandbox.createdAt?.toISOString() ?? null,
+          });
+        }
+
+        if (currentStatus === 'provisioning') {
+          try {
+            const existing = await provider.find(sandbox.externalId || sandbox.name);
+            if (existing && existing.status === 'running') {
+              const containerEnv = await provider.getContainerEnv(existing.name);
+              const recoveredServiceKey = containerEnv.INTERNAL_SERVICE_KEY || containerEnv.KORTIX_TOKEN || '';
+              const [healed] = await db
+                .update(sandboxes)
+                .set({
+                  externalId: existing.name,
+                  baseUrl: existing.baseUrl,
+                  status: 'active',
+                  config: typeof sandbox.config === 'object' && sandbox.config && 'serviceKey' in (sandbox.config as Record<string, unknown>)
+                    ? sandbox.config
+                    : recoveredServiceKey ? { serviceKey: recoveredServiceKey } : sandbox.config,
+                  metadata: {
+                    ...(metadata ?? {}),
+                    containerName: existing.name,
+                    containerId: existing.containerId,
+                    image: existing.image,
+                    mappedPorts: existing.mappedPorts,
+                  },
+                  updatedAt: new Date(),
+                })
+                .where(eq(sandboxes.sandboxId, sandbox.sandboxId))
+                .returning();
+              if (healed) {
+                return c.json({
+                  status: 'active',
+                  stage: null,
+                  stageProgress: 100,
+                  stageMessage: null,
+                  machineInfo: null,
+                  stages: null,
+                  error: null,
+                  startedAt: healed.createdAt?.toISOString() ?? null,
+                });
+              }
+            }
+          } catch (healErr) {
+            console.warn('[SANDBOX-CLOUD] local sandbox heal check failed:', healErr);
+          }
+
+          const stage = pullStatus.state === 'done' ? 'creating' : 'pulling';
+          const stageProgress =
+            pullStatus.state === 'done' ? 95 :
+            pullStatus.state === 'pulling' ? Math.max(5, pullStatus.progress) :
+            8;
+          const stageMessage =
+            pullStatus.state === 'done' ? 'Creating container...' :
+            pullStatus.message || 'Provisioning local sandbox...';
+
+          return c.json({
+            status: pullStatus.state === 'error' ? 'error' : 'provisioning',
+            stage,
+            stageProgress,
+            stageMessage,
+            machineInfo: null,
+            stages: null,
+            error: pullStatus.state === 'error' ? (pullStatus.error || pullStatus.message || 'Provisioning failed') : null,
+            startedAt: sandbox.createdAt?.toISOString() ?? null,
+          });
+        }
+      }
 
       // NOTE: Self-healing is now handled by the background provision-poller service
       // (sandbox-provision-poller.ts) which polls JustAVPS every 8s for all provisioning

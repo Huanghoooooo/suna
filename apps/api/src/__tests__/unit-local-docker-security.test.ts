@@ -9,7 +9,7 @@ describe('local docker fallback shell safety', () => {
     expect(source).toContain('function shellQuote(value: string)');
     expect(source).toContain('function buildDockerEnvWriteCommand(payload: Record<string, string>, targetDir: string): string');
     expect(source).toContain("ENV_WRITE_PAYLOAD_B64");
-    expect(source).toContain('docker exec ${shellQuote(CONTAINER_NAME)} bash -c ');
+    expect(source).toContain("execFileSync('docker', ['exec', this.getCurrentContainerName(containerName), 'bash', '-c', bashScript], {");
   });
 
   test('local docker uses one canonical sandbox auth token in both directions', () => {
@@ -18,6 +18,6 @@ describe('local docker fallback shell safety', () => {
     expect(source).toContain('const serviceKey = authToken;');
     expect(source).toContain('INTERNAL_SERVICE_KEY: token');
     expect(source).toContain('TUNNEL_TOKEN: token');
-    expect(source).toContain('getCanonicalServiceKey()');
+    expect(source).toContain('getCanonicalServiceKey(containerName)');
   });
 });
