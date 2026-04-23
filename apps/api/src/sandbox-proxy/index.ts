@@ -52,7 +52,11 @@ export function invalidateProviderCache(externalId: string): void {
 export async function resolveProvider(externalId: string): Promise<{ provider: CachedProviderName; baseUrl: string; serviceKey: string; proxyToken: string; slug: string } | null> {
   const cached = providerCache.get(externalId);
   if (cached && Date.now() < cached.expiresAt) {
+    if (cached.provider === 'local_docker') {
+      providerCache.delete(externalId);
+    } else {
     return { provider: cached.provider, baseUrl: cached.baseUrl, serviceKey: cached.serviceKey, proxyToken: cached.proxyToken, slug: cached.slug };
+    }
   }
   providerCache.delete(externalId);
 
@@ -71,7 +75,7 @@ export async function resolveProvider(externalId: string): Promise<{ provider: C
     if (!sandbox) return null;
 
     const provider = sandbox.provider as CachedProviderName;
-    const baseUrl = sandbox.baseUrl || '';
+    let baseUrl = sandbox.baseUrl || '';
     const configJson = (sandbox.config || {}) as Record<string, unknown>;
     let serviceKey = typeof configJson.serviceKey === 'string' ? configJson.serviceKey : '';
     const metaJson = (sandbox.metadata || {}) as Record<string, unknown>;
@@ -100,6 +104,34 @@ export async function resolveProvider(externalId: string): Promise<{ provider: C
       }
     }
 
+    if (provider === 'local_docker') {
+      try {
+        const { LocalDockerProvider } = await import('../platform/providers/local-docker');
+        const localProvider = new LocalDockerProvider();
+        const liveSandbox = await localProvider.find(externalId);
+        if (liveSandbox?.baseUrl && liveSandbox.baseUrl !== baseUrl) {
+          baseUrl = liveSandbox.baseUrl;
+          await db
+            .update(sandboxes)
+            .set({
+              baseUrl: liveSandbox.baseUrl,
+              metadata: {
+                ...metaJson,
+                containerName: liveSandbox.name,
+                containerId: liveSandbox.containerId,
+                image: liveSandbox.image,
+                mappedPorts: liveSandbox.mappedPorts,
+              },
+              updatedAt: new Date(),
+            })
+            .where(eq(sandboxes.externalId, externalId));
+          console.log(`[PREVIEW] Refreshed local sandbox baseUrl for ${externalId} -> ${liveSandbox.baseUrl}`);
+        }
+      } catch (err) {
+        console.warn(`[PREVIEW] Failed to refresh local sandbox baseUrl for ${externalId}:`, err);
+      }
+    }
+
     // Refresh the JustAVPS proxy token if it's missing, legacy, or within the
     // refresh buffer of expiry. Shared helper in providers/justavps.ts handles
     // minting, persistence, old-token revocation, and in-process dedup.
@@ -112,7 +144,10 @@ export async function resolveProvider(externalId: string): Promise<{ provider: C
     }
 
     // Don't cache JustAVPS entries without a proxy token — retry on next request
-    const cacheTtl = (provider === 'justavps' && !proxyToken) ? 0 : PROVIDER_CACHE_TTL_MS;
+    const cacheTtl =
+      provider === 'local_docker' ? 0 :
+      (provider === 'justavps' && !proxyToken) ? 0 :
+      PROVIDER_CACHE_TTL_MS;
     providerCache.set(externalId, { provider, baseUrl, serviceKey, proxyToken, slug, expiresAt: Date.now() + cacheTtl });
     return { provider, baseUrl, serviceKey, proxyToken, slug };
   } catch (err) {

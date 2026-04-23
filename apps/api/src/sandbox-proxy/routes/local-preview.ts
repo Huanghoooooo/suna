@@ -61,37 +61,56 @@ function isExpectedStartupPreview(path: string, status: number, bodySnippet: str
 // ─── Service Key Sync ────────────────────────────────────────────────────────
 // Ensures the running sandbox container has the canonical auth bundle from the DB.
 // Triggered on first 401 from the sandbox (auth drift after startup/restart).
-// Retries up to MAX_SYNC_ATTEMPTS on failure before giving up.
+// Retries up to MAX_SYNC_ATTEMPTS per sandbox before giving up.
 const MAX_SYNC_ATTEMPTS = 3;
-let _syncAttempts = 0;
-let _serviceKeySynced = false;
+type LocalPreviewSyncState = {
+  attempts: number;
+  synced: boolean;
+  lastServiceKey: string;
+};
+const localPreviewSyncState = new Map<string, LocalPreviewSyncState>();
 
-function trySyncServiceKey(serviceKey: string): boolean {
-  if (_serviceKeySynced) return false;
-  if (_syncAttempts >= MAX_SYNC_ATTEMPTS) {
-    console.error(`[LOCAL-PREVIEW] Sandbox auth sync failed after ${MAX_SYNC_ATTEMPTS} attempts, giving up`);
+function getSyncState(sandboxId: string, serviceKey: string): LocalPreviewSyncState {
+  const existing = localPreviewSyncState.get(sandboxId);
+  if (existing && existing.lastServiceKey === serviceKey) return existing;
+
+  const next: LocalPreviewSyncState = {
+    attempts: 0,
+    synced: false,
+    lastServiceKey: serviceKey,
+  };
+  localPreviewSyncState.set(sandboxId, next);
+  return next;
+}
+
+function trySyncServiceKey(sandboxId: string, serviceKey: string): boolean {
+  if (!serviceKey) return false;
+
+  const state = getSyncState(sandboxId, serviceKey);
+  if (state.attempts >= MAX_SYNC_ATTEMPTS) {
+    console.error(`[LOCAL-PREVIEW] Sandbox ${sandboxId} auth sync failed after ${MAX_SYNC_ATTEMPTS} attempts, giving up`);
     return false;
   }
-  _syncAttempts++;
-  try {
-    if (!serviceKey) return false;
 
+  state.attempts += 1;
+  try {
     const env: Record<string, string> = { ...process.env as Record<string, string> };
     if (config.DOCKER_HOST && !config.DOCKER_HOST.includes('://')) {
       env.DOCKER_HOST = `unix://${config.DOCKER_HOST}`;
     }
 
-    console.log(`[LOCAL-PREVIEW] Syncing sandbox auth bundle to container (attempt ${_syncAttempts}/${MAX_SYNC_ATTEMPTS})...`);
+    console.log(`[LOCAL-PREVIEW] Syncing sandbox ${sandboxId} auth bundle to container (attempt ${state.attempts}/${MAX_SYNC_ATTEMPTS})...`);
     execSync(
-      `docker exec ${shellQuote(config.SANDBOX_CONTAINER_NAME)} bash -c ${shellQuote(buildCanonicalSandboxAuthCommand(serviceKey, config.KORTIX_URL.replace(/\/v1\/router\/?$/, '') || `http://host.docker.internal:${config.PORT}`))}`,
+      `docker exec ${shellQuote(sandboxId)} bash -c ${shellQuote(buildCanonicalSandboxAuthCommand(serviceKey, config.KORTIX_URL.replace(/\/v1\/router\/?$/, '') || `http://host.docker.internal:${config.PORT}`))}`,
       { timeout: 15_000, stdio: 'pipe', env },
     );
-    _serviceKeySynced = true;
-    console.log('[LOCAL-PREVIEW] Sandbox auth bundle synced');
+    state.synced = true;
+    state.attempts = 0;
+    console.log(`[LOCAL-PREVIEW] Sandbox ${sandboxId} auth bundle synced`);
     return true;
   } catch (err: any) {
-    console.error(`[LOCAL-PREVIEW] Failed to sync sandbox auth bundle (attempt ${_syncAttempts}/${MAX_SYNC_ATTEMPTS}):`, err.message || err);
-    // Don't set _serviceKeySynced — allow retry on next 401
+    console.error(`[LOCAL-PREVIEW] Failed to sync sandbox ${sandboxId} auth bundle (attempt ${state.attempts}/${MAX_SYNC_ATTEMPTS}):`, err.message || err);
+    // Don't set synced — allow retry on next 401 for this sandbox/service key.
     return false;
   }
 }
@@ -237,8 +256,8 @@ export async function proxyToSandbox(
   // (for example http://localhost:32797), so we must not treat the mere
   // presence of baseUrlOverride as "not local". Restrict the auto-heal to
   // local-loopback targets where docker exec can actually reach the container.
-  if (response.status === 401 && !_serviceKeySynced && canSyncLocalSandboxAuth(baseUrlOverride)) {
-    const synced = trySyncServiceKey(serviceKey);
+  if (response.status === 401 && canSyncLocalSandboxAuth(baseUrlOverride)) {
+    const synced = trySyncServiceKey(sandboxId, serviceKey);
     if (synced) {
       // Retry the request with the same key (now the sandbox should accept it)
       const retryController = new AbortController();
