@@ -91,7 +91,7 @@ sseRouter.get('/:id/provision-stream', async (c) => {
       event: 'status',
     });
 
-    if (sandbox.status === 'active' || sandbox.status === 'error') {
+    if (sandbox.provider === 'local_docker' || sandbox.status === 'active' || sandbox.status === 'error') {
       await stream.writeSSE({ data: JSON.stringify({ done: true }), event: 'done' });
       return;
     }
