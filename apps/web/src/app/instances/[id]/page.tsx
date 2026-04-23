@@ -1,13 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 
 import { useAuth } from '@/components/AuthProvider';
 import { ConnectingScreen } from '@/components/dashboard/connecting-screen';
-import { authenticatedFetch } from '@/lib/auth-token';
-import { getEnv } from '@/lib/env-config';
 import {
   ACTIVE_INSTANCE_COOKIE,
   ACTIVE_INSTANCE_OWNER_COOKIE,
@@ -58,23 +56,14 @@ export default function InstanceDetailPage() {
     router.replace('/instances');
   }, [authLoading, user, isLoading, sandbox, router]);
 
-  // Cloud provisioning poller (SSE stream from backend).
-  const isLocalDocker = sandbox?.provider === 'local_docker';
   const poller = useSandboxPoller({
-    sandboxId: isLocalDocker ? undefined : id,
+    sandboxId: id,
   });
 
-  // Local docker pull progress
-  const [localProgress, setLocalProgress] = useState<{
-    progress: number;
-    message: string;
-  } | null>(null);
-  const localPollingRef = useRef(false);
-
-  // Kick cloud poller on provisioning transition
+  // Kick provisioning poller on provisioning transition
   const autoStartedRef = useRef(false);
   useEffect(() => {
-    if (!sandbox || autoStartedRef.current || isLocalDocker) return;
+    if (!sandbox || autoStartedRef.current) return;
     if (sandbox.status === 'provisioning') {
       autoStartedRef.current = true;
       const knownStage = (sandbox.metadata as Record<string, unknown> | null)
@@ -82,59 +71,12 @@ export default function InstanceDetailPage() {
       if (knownStage) poller.seedStage?.(knownStage);
       poller.poll();
     }
-  }, [sandbox, poller, isLocalDocker]);
+  }, [sandbox, poller]);
 
   // When the poller says ready, refetch to flip state to active.
   useEffect(() => {
     if (poller.status === 'ready') refetch();
   }, [poller.status, refetch]);
-
-  // Local docker: poll init status endpoint for progress/message.
-  useEffect(() => {
-    if (!sandbox || !isLocalDocker || sandbox.status !== 'provisioning') return;
-    if (localPollingRef.current) return;
-    localPollingRef.current = true;
-    let stopped = false;
-    const backendUrl = getEnv().BACKEND_URL || 'http://localhost:8008/v1';
-
-    const poll = async () => {
-      if (stopped) return;
-      try {
-        const res = await authenticatedFetch(
-          `${backendUrl}/platform/init/local/status`,
-        );
-        const data = await res.json();
-        if (data.status === 'ready') {
-          setLocalProgress({ progress: 100, message: 'Ready' });
-          localPollingRef.current = false;
-          refetch();
-          return;
-        }
-        if (data.status === 'error') {
-          setLocalProgress(null);
-          localPollingRef.current = false;
-          refetch();
-          return;
-        }
-        setLocalProgress({
-          progress: data.progress || 0,
-          message:
-            data.status === 'creating'
-              ? 'Creating container…'
-              : data.message || 'Pulling sandbox image…',
-        });
-        if (!stopped) setTimeout(poll, 2000);
-      } catch {
-        if (!stopped) setTimeout(poll, 3000);
-      }
-    };
-
-    poll();
-    return () => {
-      stopped = true;
-      localPollingRef.current = false;
-    };
-  }, [sandbox, isLocalDocker, refetch]);
 
   // Active sandbox: redirect IMMEDIATELY to the dashboard. The dashboard's
   // own ConnectingScreen (same component, same visuals) handles the health
@@ -163,20 +105,14 @@ export default function InstanceDetailPage() {
   // Provisioning — use determinate progress from the appropriate poller
   if (sandbox.status === 'provisioning') {
     const label = sandbox.name || 'workspace';
-    const progressPct = isLocalDocker
-      ? localProgress?.progress ?? 0
-      : poller.progress ?? 0;
-    const stageLabel = isLocalDocker
-      ? localProgress?.message
-      : undefined;
     return (
       <ConnectingScreen
         provisioning={{
-          progress: progressPct,
-          stageLabel,
-          stages: isLocalDocker ? null : poller.stages,
-          currentStage: isLocalDocker ? null : poller.currentStage,
-          machineInfo: isLocalDocker ? null : poller.machineInfo,
+          progress: poller.progress ?? 0,
+          stageLabel: poller.currentStage ? undefined : 'Provisioning local sandbox…',
+          stages: poller.stages,
+          currentStage: poller.currentStage,
+          machineInfo: poller.machineInfo,
         }}
         labelOverride={label}
         title="Provisioning workspace"

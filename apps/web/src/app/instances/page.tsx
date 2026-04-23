@@ -11,6 +11,7 @@ import { ConnectingScreen } from '@/components/dashboard/connecting-screen';
 import {
   listSandboxes,
   ensureSandbox,
+  createSandbox,
   restartSandbox,
   type SandboxInfo,
 } from '@/lib/platform-client';
@@ -94,8 +95,7 @@ export default function InstancesPage() {
     }
   }, [sandboxes]);
 
-  // Local mode: auto-create the single sandbox if none exists, then redirect.
-  // Only 1 instance allowed in local mode.
+  // Local mode: auto-create the first sandbox if none exists, then redirect.
   useEffect(() => {
     if (!user || isLoading || autoCreating || isCloud) return;
     const usable = sandboxes?.filter((s) => s.status !== 'archived' && s.status !== 'error') ?? [];
@@ -199,15 +199,15 @@ export default function InstancesPage() {
     if (isCloud) {
       setCheckoutOpen(true);
     } else {
-      // Local mode: create directly, no checkout
+      // Local mode: explicitly create a new local sandbox.
       setAutoCreating(true);
-      ensureSandbox()
+      createSandbox({ provider: 'local_docker' })
         .then(({ sandbox }) => {
           router.push(`/instances/${sandbox.sandbox_id}`);
         })
         .catch((err) => {
           const message = err instanceof Error ? err.message : '创建实例失败';
-          console.error('[InstancesPage] ensureSandbox failed:', err);
+          console.error('[InstancesPage] createSandbox failed:', err);
           sonnerToast.error(message);
         })
         .finally(() => setAutoCreating(false));

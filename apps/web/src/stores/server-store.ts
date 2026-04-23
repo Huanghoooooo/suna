@@ -95,8 +95,9 @@ interface ServerStore {
   /**
    * Register or update a managed sandbox entry in the store.
    *
-   * In local mode: updates the existing 'default' entry's metadata.
-   * In cloud mode: creates or updates the 'cloud-sandbox' entry.
+   * Managed sandboxes use stable IDs:
+   * - Local / additional cloud: `sandbox-<instanceId>`
+   * - Primary cloud: `cloud-sandbox`
    *
    * Returns the server ID of the registered entry.
    */
@@ -109,9 +110,9 @@ interface ServerStore {
   }, options?: {
     /** If true, auto-switch to this sandbox when user hasn't manually selected */
     autoSwitch?: boolean;
-    /** If true, this is local mode — update default entry instead of cloud-sandbox */
+    /** Legacy flag kept for backward compatibility with old callers. */
     isLocal?: boolean;
-    /** Optional stable ID to use for cloud sandboxes (e.g. "sandbox-<sandboxId>") */
+    /** Optional stable ID to use for managed sandboxes. */
     stableId?: string;
   }) => string;
 
@@ -164,7 +165,7 @@ function generateId(): string {
 
 // ── API sync helpers (fire-and-forget) ──────────────────────────────────────
 // ONLY custom user-added instances are synced to the servers API.
-// Managed sandbox entries ('default', 'cloud-sandbox') come from the
+// Managed sandbox entries ('cloud-sandbox', 'sandbox-<id>') come from the
 // sandboxes table via useSandbox() — they live in zustand/localStorage only.
 
 /** IDs of managed entries that should NOT be synced to the servers API. */
@@ -439,51 +440,16 @@ export const useServerStore = create<ServerStore>()(
         const isLocal = options?.isLocal ?? false;
         const autoSwitch = options?.autoSwitch ?? false;
 
-        // In local mode, upsert the default entry (create if missing after rehydration).
-        if (isLocal) {
-          const defaultEntry = state.servers.find((s) => s.id === DEFAULT_SERVER_ID);
-          if (defaultEntry) {
-            get().updateServerSilent(DEFAULT_SERVER_ID, {
-              mappedPorts: sandbox.mappedPorts,
-              provider: sandbox.provider,
-              sandboxId: sandbox.sandboxId,
-              instanceId: sandbox.instanceId,
-              ...(sandbox.label ? { label: sandbox.label } : {}),
-            });
-          } else {
-            // Entry was stripped on rehydration — re-create it now.
-            const newDefault: ServerEntry = {
-              id: DEFAULT_SERVER_ID,
-              label: sandbox.label || 'Local Sandbox',
-              url: '',
-              isDefault: true,
-              provider: sandbox.provider,
-              sandboxId: sandbox.sandboxId,
-              instanceId: sandbox.instanceId,
-              mappedPorts: sandbox.mappedPorts,
-            };
-            set((s) => ({ servers: [...s.servers, newDefault] }));
-          }
-          // Auto-switch to local default if nothing is selected.
-          if (autoSwitch) {
-            const fresh = get();
-            const currentId = fresh.activeServerId;
-            const noActiveServer = !currentId || !fresh.servers.some((s) => s.id === currentId);
-            if (!fresh.userSelected && noActiveServer) {
-              get().setActiveServer(DEFAULT_SERVER_ID, { auto: true });
-            }
-          }
-          return DEFAULT_SERVER_ID;
-        }
-
-        // Cloud mode: use the stable ID from options, or fall back to CLOUD_SANDBOX_SERVER_ID.
+        // Managed sandboxes always use a stable per-instance entry ID.
         // First check if an entry with this instanceId already exists under ANY id —
         // prevents duplicates when different callers derive different stable IDs for
         // the same sandbox (e.g. 'cloud-sandbox' vs 'sandbox-<id>').
         const existingByInstance = sandbox.instanceId
           ? state.servers.find((s) => s.instanceId === sandbox.instanceId && isManagedEntry(s))
           : null;
-        const targetId = existingByInstance?.id ?? options?.stableId ?? CLOUD_SANDBOX_SERVER_ID;
+        const targetId = existingByInstance?.id
+          ?? options?.stableId
+          ?? (sandbox.instanceId ? `sandbox-${sandbox.instanceId}` : generateId());
         const existing = existingByInstance ?? state.servers.find((s) => s.id === targetId);
 
         if (existing) {
@@ -511,14 +477,14 @@ export const useServerStore = create<ServerStore>()(
 
         // Auto-switch to the sandbox if the user hasn't manually picked a server.
         // Covers: empty activeServerId (after rehydration stripped managed entries),
-        // DEFAULT_SERVER_ID (local mode), or the same targetId (no-op in setActiveServer).
+        // a legacy DEFAULT_SERVER_ID local entry, or the same targetId (no-op in setActiveServer).
         // Uses get() for fresh state so the newly-added entry is visible.
         if (autoSwitch) {
           const fresh = get();
           const currentId = fresh.activeServerId;
           const noActiveServer = !currentId || !fresh.servers.some((s) => s.id === currentId);
           if (!fresh.userSelected && (noActiveServer || currentId === DEFAULT_SERVER_ID)) {
-            get().setActiveServer(isLocal ? DEFAULT_SERVER_ID : targetId, { auto: true });
+            get().setActiveServer(targetId, { auto: true });
           }
         }
 
@@ -718,10 +684,9 @@ function getTabStore() {
  * Derive a stable server-store ID for a sandbox by instanceId.
  * - If the instanceId matches the current cloud-sandbox entry → 'cloud-sandbox'
  * - Otherwise → 'sandbox-<instanceId>'
- * - Local docker → 'default'
  */
 function stableServerIdForInstance(instanceId: string, provider?: string): string {
-  if (provider === 'local_docker') return DEFAULT_SERVER_ID;
+  if (provider === 'local_docker') return `sandbox-${instanceId}`;
   // Reuse 'cloud-sandbox' if it's already mapped to this instance
   const state = useServerStore.getState();
   const cloud = state.servers.find((s) => s.id === CLOUD_SANDBOX_SERVER_ID);
@@ -820,7 +785,7 @@ export async function switchToInstanceAsync(
   const isLocal = match.provider === 'local_docker';
   const existing = store.servers.find((s) => s.instanceId === instanceId);
   const stableId = isLocal
-    ? undefined
+    ? existing?.id ?? stableServerIdForInstance(instanceId, match.provider)
     : existing?.id ?? stableServerIdForInstance(instanceId, match.provider);
   const serverId = store.registerOrUpdateSandbox(
     {
@@ -830,7 +795,7 @@ export async function switchToInstanceAsync(
       instanceId: match.sandbox_id,
       mappedPorts: extractMappedPorts(match),
     },
-    { autoSwitch: false, isLocal, stableId: isLocal ? undefined : stableId },
+    { autoSwitch: false, isLocal, stableId },
   );
   switchToServerEntry(serverId);
   return { serverId, alreadyActive: false };
