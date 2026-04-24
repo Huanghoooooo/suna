@@ -138,8 +138,9 @@ RUN apk update \
     tesseract-ocr tesseract-ocr-data-eng \
     ffmpeg \
     imagemagick \
-    texlive texmf-dist-latexrecommended texmf-dist-bibtexextra \
     jpeg-dev zlib-dev freetype-dev openjpeg-dev tiff-dev \
+    && (apk add --no-cache texlive texmf-dist-latexrecommended texmf-dist-bibtexextra || true) \
+    && (command -v pdflatex >/dev/null || echo "WARNING: pdflatex not available — paper-creator skill disabled") \
     && rm -rf /var/cache/apk/*
 
 # ── Bun runtime ───────────────────────────────────────────────────────────────
