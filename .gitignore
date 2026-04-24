@@ -115,3 +115,6 @@ ehthumbs.db
 Desktop.ini
 CLAUDE.md
 $apiLog
+
+# claude自建api
+scripts/claude/
