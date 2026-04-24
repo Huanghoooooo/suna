@@ -33,8 +33,8 @@ enabled = false
 # ─── Auth (GoTrue) ────────────────────────────────────────────────────────────
 [auth]
 enabled = true
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://127.0.0.1:3000", "http://localhost:3000"]
+site_url = "http://10.0.0.49"
+additional_redirect_urls = ["http://127.0.0.1:3000", "http://localhost:3000", "http://10.0.0.49"]
 enable_signup = true
 
 [auth.email]
