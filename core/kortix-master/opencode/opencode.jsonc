@@ -5,7 +5,9 @@
     "task": "deny",
   },
   "autoupdate": false,
-  "disabled_providers": ["opencode"],
+  "disabled_providers": ["opencode", "openrouter"],
+  "model": "apipool/claude-opus-4-7",
+  "small_model": "apipool/claude-opus-4-7",
   "default_agent": "general",
   // Shared system prompt base — always injected into every agent session.
   // Agent-specific persona/loop/rules live in ./agents/<name>.md.
@@ -21,43 +23,19 @@
   // `apps/api/.env`, then redeploy. See docs/custom-providers.md.
   // ──────────────────────────────────────────────────────────────────────────
   "provider": {
-    // Kortix-hosted router (default). Uses KORTIX_TOKEN from the sandbox env.
-    "kortix": {
+    // API Pool (default) — requires OPENROUTER_API_KEY.
+    "apipool": {
+      "name": "Wu tong",
       "npm": "@ai-sdk/openai-compatible",
-      "env": ["KORTIX_TOKEN", "KORTIX_API_URL"],
       "options": {
-        "baseURL": "{env:KORTIX_API_URL}/v1/router",
-        "apiKey": "{env:KORTIX_TOKEN}",
+        "baseURL": "https://api.apipool.dev/v1",
+        "apiKey": "{env:OPENROUTER_API_KEY}",
       },
       "models": {
-        "minimax-m27": {
-          "name": "MiniMax M2.7",
-          "id": "minimax/minimax-m2.7",
-          "family": "kortix",
-          "cost": { "input": 0.3, "output": 1.2 },
-          "limit": { "context": 204800, "output": 131072 },
-        },
-        "glm-turbo": {
-          "name": "GLM-5 Turbo",
-          "id": "z-ai/glm-5-turbo",
-          "family": "kortix",
-          "cost": { "input": 1.2, "output": 4.0 },
-          "limit": { "context": 202752, "output": 131072 },
-        },
-        "kimi": {
-          "name": "Kimi K2.5",
-          "id": "moonshotai/kimi-k2.5",
-          "family": "kortix",
-          "cost": { "input": 0.45, "output": 2.2 },
-          "limit": { "context": 262144, "output": 65535 },
-        },
-        "minimax": {
-          "name": "MiniMax M2.5",
-          "id": "minimax/minimax-m2.5",
-          "family": "kortix",
-          "cost": { "input": 0.2, "output": 1.17 },
-          "limit": { "context": 196608, "output": 65536 },
-        },
+        "claude-opus-4-7": {
+          "name": "Claude Opus 4.7",
+          "id": "claude-opus-4-7",
+        }
       },
     },
     // GLM 官方（智谱）— requires BIGMODEL_API_KEY.
@@ -72,25 +50,6 @@
         "glm-5-1": {
           "name": "GLM-5.1",
           "id": "glm-5.1",
-        },
-      },
-    },
-    // Claude 中转（apipool.dev）— requires CLAUDE_API_KEY.
-    "claude": {
-      "name": "Claude (apipool)",
-      "npm": "@ai-sdk/openai-compatible",
-      "options": {
-        "baseURL": "https://api.apipool.dev/v1",
-        "apiKey": "{env:CLAUDE_API_KEY}",
-      },
-      "models": {
-        "claude-opus-4-7": {
-          "name": "Claude Opus 4.7",
-          "id": "claude-opus-4-7",
-        },
-        "claude-sonnet-4-6": {
-          "name": "Claude Sonnet 4.6",
-          "id": "claude-sonnet-4-6",
         },
       },
     },
