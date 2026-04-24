@@ -1451,18 +1451,6 @@ export function ServerSelector() {
           />
         ))}
       </div>
-
-      {/* Manage */}
-      <div className="px-1 pt-1">
-        <button
-          type="button"
-          className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-          onClick={() => router.push('/instances')}
-        >
-          <Settings2 className="size-3" />
-          Manage instances
-        </button>
-      </div>
     </div>
   );
 }

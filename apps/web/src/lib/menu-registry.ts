@@ -934,15 +934,12 @@ const VISIBLE_IDS = new Set<string>([
   'files-quick',
   'files',
   'workspace',
-  'providers-quick',
-  'api-keys-quick',
   // 用户下拉菜单
   'pref-general',
   'account-billing',
   'logout',
   // 管理员（再经 requiresAdmin 过滤）
   'admin-accounts',
-  'admin-skills',
   // 账号自治（任何登录用户可见，UI 内部按账号内角色过滤）
   'team',
 ]);

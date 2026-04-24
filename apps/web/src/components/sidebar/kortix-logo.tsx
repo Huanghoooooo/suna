@@ -14,7 +14,6 @@ interface KortixLogoProps {
 // visual rhythm; `variant` is accepted for API compatibility but both render
 // the same wordmark.
 export function KortixLogo({ size = 24, variant = 'symbol', className }: KortixLogoProps) {
-  void variant;
   return (
     <span
       aria-label="Wutong"
@@ -26,7 +25,7 @@ export function KortixLogo({ size = 24, variant = 'symbol', className }: KortixL
       style={{ fontSize: `${size}px`, lineHeight: 1.2 }}
       suppressHydrationWarning
     >
-      Wutong
+      {variant === 'symbol' ? 'W' : 'Wutong'}
     </span>
   );
 }

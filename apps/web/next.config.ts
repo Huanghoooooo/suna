@@ -40,6 +40,9 @@ const nextConfig = (): NextConfig => ({
     },
   },
 
+  // Disable dev indicator overlay
+  devIndicators: false,
+
   // Performance optimizations
   experimental: {
     // Optimize package imports for faster builds and smaller bundles

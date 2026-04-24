@@ -2366,21 +2366,6 @@ export function SessionChatInput({
                 <TooltipContent side="top"><p>Attach files</p></TooltipContent>
               </Tooltip>
 
-              {agents.length > 0 && onAgentChange && (
-                <AgentSelector
-                  agents={agents}
-                  selectedAgent={selectedAgent}
-                  onSelect={onAgentChange}
-                />
-              )}
-              {models.length > 0 && onModelChange && (
-                <ModelSelector
-                  models={models}
-                  selectedModel={selectedModel}
-                  onSelect={onModelChange}
-                  providers={providers}
-                />
-              )}
               {variants.length > 0 && onVariantChange && (
                 <VariantSelector
                   variants={variants}

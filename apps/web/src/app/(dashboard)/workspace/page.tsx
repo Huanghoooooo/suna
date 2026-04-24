@@ -78,10 +78,10 @@ interface WorkspaceItem {
 }
 
 const COMPOSER_PRESETS: Record<WorkspaceComposerKind, { title: string; prompt: string }> = {
-  agent:   { title: 'New agent',   prompt: "HEY let's build a new agent. Ask what job it should own, then scaffold it in the right workspace location and wire up any supporting skills." },
-  skill:   { title: 'New skill',   prompt: "HEY let's build a new skill. Ask what should trigger it, then create the SKILL.md and any supporting files in the right workspace location." },
-  command: { title: 'New command', prompt: "HEY let's build a new slash command. Ask what the command should do, then add it in the right workspace location and connect it to the correct agent." },
-  project: { title: 'New project', prompt: "HEY let's set up a new project. Ask for the name and purpose, then create it in the right workspace location with a clean starting structure." },
+  agent:   { title: '新建 Agent',   prompt: "HEY let's build a new agent. Ask what job it should own, then scaffold it in the right workspace location and wire up any supporting skills." },
+  skill:   { title: '新建技能',   prompt: "HEY let's build a new skill. Ask what should trigger it, then create the SKILL.md and any supporting files in the right workspace location." },
+  command: { title: '新建命令', prompt: "HEY let's build a new slash command. Ask what the command should do, then add it in the right workspace location and connect it to the correct agent." },
+  project: { title: '新建项目', prompt: "HEY let's set up a new project. Ask for the name and purpose, then create it in the right workspace location with a clean starting structure." },
 };
 
 // ---------------------------------------------------------------------------
@@ -105,20 +105,20 @@ function mcpServerName(id: string): string | undefined {
 // ---------------------------------------------------------------------------
 
 const KIND_CONFIG: Record<ItemKind, { icon: typeof Bot; label: string }> = {
-  project:   { icon: FolderOpen, label: 'Project' },
+  project:   { icon: FolderOpen, label: '项目' },
   agent:     { icon: Bot,        label: 'Agent' },
-  skill:     { icon: Sparkles,   label: 'Skill' },
-  command:   { icon: Terminal,    label: 'Command' },
-  tool:      { icon: Wrench,     label: 'Tool' },
+  skill:     { icon: Sparkles,   label: '技能' },
+  command:   { icon: Terminal,    label: '命令' },
+  tool:      { icon: Wrench,     label: '工具' },
   mcp:       { icon: Plug,       label: 'MCP' },
-  connector: { icon: Link,       label: 'Connector' },
+  connector: { icon: Link,       label: '连接器' },
 };
 
 const SCOPE_LABEL: Record<ItemScope, string> = {
-  project:    'Project',
-  global:     'Global',
-  external:   'External',
-  'built-in': 'Built-in',
+  project:    '项目',
+  global:     '全局',
+  external:   '外部',
+  'built-in': '内置',
 };
 
 // ---------------------------------------------------------------------------
@@ -357,9 +357,9 @@ function EmptyState({ hasFilters, onClear }: { hasFilters: boolean; onClear: () 
   if (hasFilters) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
-        No items match your filters.{' '}
+        没有匹配的项目。{' '}
         <Button onClick={onClear} variant="link" size="sm" className="h-auto p-0 ">
-          Clear filters
+          清除筛选
         </Button>
       </div>
     );
@@ -369,7 +369,7 @@ function EmptyState({ hasFilters, onClear }: { hasFilters: boolean; onClear: () 
       <Blocks className="h-7 w-7 text-muted-foreground/30 mb-3" />
       <p className="text-sm font-medium text-foreground mb-1">还没有内容</p>
       <p className="text-xs text-muted-foreground text-center max-w-xs">
-        Use the actions above to add agents, skills, commands, projects, or MCP servers.
+        使用上方的快捷操作来添加 Agent、技能、命令、项目或 MCP 服务器。
       </p>
     </div>
   );
@@ -469,7 +469,7 @@ export default function WorkspacePage() {
 
     if (mcpStatus) {
       Object.entries(mcpStatus).filter(([, s]) => s.status !== 'disabled').forEach(([name, status]) => {
-        const label = status.status === 'connected' ? 'Connected' : status.status === 'failed' ? 'Failed' : status.status === 'needs_auth' ? 'Needs Auth' : 'Pending';
+        const label = status.status === 'connected' ? '已连接' : status.status === 'failed' ? '失败' : status.status === 'needs_auth' ? '需要授权' : '等待中';
         items.push({ id: `mcp:${name}`, name, description: status.status === 'failed' ? (status as any).error : undefined, kind: 'mcp', scope: 'external', meta: label, raw: { serverName: name, status } });
       });
     }
@@ -517,11 +517,11 @@ export default function WorkspacePage() {
   }, [allItems, kindFilter, scopeFilter, search]);
 
   const activeScopeTabs = useMemo(() => {
-    const tabs: { value: ScopeFilter; label: string }[] = [{ value: 'all', label: 'All' }];
-    if (scopeCounts.project > 0)    tabs.push({ value: 'project',    label: 'Project' });
-    if (scopeCounts.global > 0)     tabs.push({ value: 'global',     label: 'Global' });
-    if (scopeCounts.external > 0)   tabs.push({ value: 'external',   label: 'External' });
-    if (scopeCounts['built-in'] > 0) tabs.push({ value: 'built-in',  label: 'Built-in' });
+    const tabs: { value: ScopeFilter; label: string }[] = [{ value: 'all', label: '全部' }];
+    if (scopeCounts.project > 0)    tabs.push({ value: 'project',    label: '项目' });
+    if (scopeCounts.global > 0)     tabs.push({ value: 'global',     label: '全局' });
+    if (scopeCounts.external > 0)   tabs.push({ value: 'external',   label: '外部' });
+    if (scopeCounts['built-in'] > 0) tabs.push({ value: 'built-in',  label: '内置' });
     return tabs;
   }, [scopeCounts]);
 
@@ -529,21 +529,21 @@ export default function WorkspacePage() {
   const clearFilters = () => { setSearch(''); setKindFilter('all'); setScopeFilter('all'); };
 
   const quickActions = [
-    { title: 'New agent',   desc: 'Scaffold a new agent in your workspace',              meta: `${kindCounts.agent} live`,    icon: Bot,      kind: 'agent'   as WorkspaceComposerKind },
-    { title: 'New skill',   desc: 'Build a skill with the right trigger and file layout', meta: `${kindCounts.skill} live`,    icon: Sparkles, kind: 'skill'   as WorkspaceComposerKind },
-    { title: 'New command', desc: 'Create a slash command and wire it to an agent',       meta: `${kindCounts.command} live`,  icon: Terminal, kind: 'command' as WorkspaceComposerKind },
-    { title: 'New project', desc: 'Set up a new project with a clean structure',          meta: `${kindCounts.project} live`,  icon: FolderOpen, kind: 'project' as WorkspaceComposerKind },
+    { title: '新建 Agent',   desc: '在工作区中搭建一个新的 Agent',              meta: `${kindCounts.agent} 个`,    icon: Bot,      kind: 'agent'   as WorkspaceComposerKind },
+    { title: '新建技能',   desc: '创建技能并配置触发条件和文件结构', meta: `${kindCounts.skill} 个`,    icon: Sparkles, kind: 'skill'   as WorkspaceComposerKind },
+    { title: '新建命令', desc: '创建斜杠命令并关联到 Agent',       meta: `${kindCounts.command} 个`,  icon: Terminal, kind: 'command' as WorkspaceComposerKind },
+    { title: '新建项目', desc: '创建一个结构清晰的新项目',          meta: `${kindCounts.project} 个`,  icon: FolderOpen, kind: 'project' as WorkspaceComposerKind },
   ];
 
   const kindTabs = [
-    { value: 'all'       as KindFilter, label: 'All' },
-    { value: 'project'   as KindFilter, label: 'Projects' },
-    { value: 'agent'     as KindFilter, label: 'Agents' },
-    { value: 'skill'     as KindFilter, label: 'Skills' },
-    { value: 'command'   as KindFilter, label: 'Commands' },
-    { value: 'tool'      as KindFilter, label: 'Tools' },
+    { value: 'all'       as KindFilter, label: '全部' },
+    { value: 'project'   as KindFilter, label: '项目' },
+    { value: 'agent'     as KindFilter, label: 'Agent' },
+    { value: 'skill'     as KindFilter, label: '技能' },
+    { value: 'command'   as KindFilter, label: '命令' },
+    { value: 'tool'      as KindFilter, label: '工具' },
     { value: 'mcp'       as KindFilter, label: 'MCP' },
-    { value: 'connector' as KindFilter, label: 'Connectors' },
+    { value: 'connector' as KindFilter, label: '连接器' },
   ] as const;
 
   return (
@@ -595,8 +595,8 @@ export default function WorkspacePage() {
             {/* MCP + Settings row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
               {[
-                { title: 'Add MCP server', desc: 'Register a new MCP server and connect its tools', meta: `${kindCounts.mcp} connected`, icon: Plug, onClick: () => openSettings('mcp') },
-                { title: 'Settings', desc: 'Providers, permissions, and workspace defaults', meta: undefined, icon: Settings, onClick: () => openSettings('general') },
+                { title: '添加 MCP 服务器', desc: '注册新的 MCP 服务器并连接其工具', meta: `${kindCounts.mcp} 已连接`, icon: Plug, onClick: () => openSettings('mcp') },
+                { title: '设置', desc: '提供商、权限和工作区默认配置', meta: undefined, icon: Settings, onClick: () => openSettings('general') },
               ].map((action) => {
                 const Icon = action.icon;
                 return (
@@ -678,7 +678,7 @@ export default function WorkspacePage() {
           {!isLoading && allItems.length > 0 && (
             <div className="flex items-center gap-2 mb-4">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {kindFilter === 'all' ? 'All items' : kindFilter === 'mcp' ? 'MCP Servers' : `${kindFilter.charAt(0).toUpperCase()}${kindFilter.slice(1)}s`}
+                {kindFilter === 'all' ? '全部' : kindFilter === 'mcp' ? 'MCP 服务器' : KIND_CONFIG[kindFilter as ItemKind]?.label ?? kindFilter}
               </span>
               <span className="text-xs tabular-nums text-muted-foreground/50">{filteredItems.length}</span>
             </div>
@@ -729,7 +729,7 @@ export default function WorkspacePage() {
                             }
                           }}
                         >
-                          View
+                          查看
                         </Button>
                       }
                     />
