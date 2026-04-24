@@ -6,6 +6,7 @@ import { resolve } from 'path';
 import { config, SANDBOX_VERSION } from '../../config';
 import { generateSandboxKeyPair } from '../../shared/crypto';
 import { getAuthCandidates, getSandboxServiceKeyByExternalId } from '../services/sandbox-auth';
+import { getOptionalSandboxSecrets } from '../services/sandbox-env-sync';
 import { buildLocalDockerDevBinds } from './local-docker-dev-binds';
 import type {
   SandboxProvider,
@@ -630,6 +631,7 @@ export class LocalDockerProvider implements SandboxProvider {
       REPLICATE_API_URL: `${routerBase}/replicate`,
       SERPER_API_URL: `${routerBase}/serper`,
       FIRECRAWL_API_URL: `${routerBase}/firecrawl`,
+      ...getOptionalSandboxSecrets(),
     };
 
     // Read current state from the live master env (s6 env dir) — NOT from

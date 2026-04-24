@@ -39,6 +39,13 @@ fi
 [ -s "$API_URL_FILE" ] && \
   export KORTIX_API_URL="$(cat "$API_URL_FILE")"
 
+# Source all LLM provider keys from s6 env dir so opencode.jsonc {env:...}
+# templates resolve correctly (keys are injected by kortix-api after container start).
+S6_ENV_DIR="/run/s6/container_environment"
+for key in OPENROUTER_API_KEY ANTHROPIC_API_KEY OPENAI_API_KEY XAI_API_KEY GEMINI_API_KEY GROQ_API_KEY CONTEXT7_API_KEY; do
+  [ -s "${S6_ENV_DIR}/${key}" ] && export "${key}=$(cat "${S6_ENV_DIR}/${key}")"
+done
+
 # Safety check: if KORTIX_API_URL is still unset or points to localhost, warn loudly.
 # This catches pool sandboxes where env injection failed or was delayed.
 if [ -z "$KORTIX_API_URL" ] || echo "$KORTIX_API_URL" | grep -q "localhost"; then

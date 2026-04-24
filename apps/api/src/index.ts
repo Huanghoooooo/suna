@@ -53,6 +53,7 @@ import { oauthApp } from './oauth';
 import { hasDatabase } from './shared/db';
 import { createAuditApp } from './audit';
 import { resolveAccountId } from './shared/resolve-account';
+import { getOptionalSandboxSecrets } from './platform/services/sandbox-env-sync';
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `"'"'`)}'`;
@@ -674,6 +675,7 @@ async function injectSandboxToken(sandboxId: string, accountId: string): Promise
     TUNNEL_TOKEN: token,
     KORTIX_API_URL: kortixApiUrl,
     TUNNEL_API_URL: kortixApiUrl,
+    ...getOptionalSandboxSecrets(),
     // Self-hosted: skip onboarding wizard (no setup needed for local Docker)
     ...(config.SANDBOX_NETWORK ? { ONBOARDING_COMPLETE: 'true' } : {}),
   };
