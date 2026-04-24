@@ -1,6 +1,5 @@
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { sandboxes, type Database } from '@kortix/db';
-import { config } from '../../config';
 
 type SandboxRow = typeof sandboxes.$inferSelect;
 
@@ -15,31 +14,6 @@ export async function archiveConflictingLocalDockerSandbox(
   }
   if (!CONFLICTING_LOCAL_STATUSES.includes(row.status as (typeof CONFLICTING_LOCAL_STATUSES)[number])) {
     return row;
-  }
-
-  if (row.externalId === config.SANDBOX_CONTAINER_NAME) {
-    const metadata = (row.metadata as Record<string, unknown> | null) ?? {};
-    const [archived] = await db
-      .update(sandboxes)
-      .set({
-        status: 'archived',
-        metadata: {
-          ...metadata,
-          archivedReason: 'legacy_shared_local_sandbox',
-          conflictingExternalId: row.externalId,
-          archivedAt: new Date().toISOString(),
-        },
-        updatedAt: new Date(),
-      })
-      .where(eq(sandboxes.sandboxId, row.sandboxId))
-      .returning();
-
-    console.warn(
-      `[PLATFORM] Archived legacy shared local sandbox ${row.sandboxId} for account ${row.accountId}; ` +
-      `external_id ${row.externalId} is no longer allowed in per-user mode`,
-    );
-
-    return archived ? null : row;
   }
 
   const [conflict] = await db
