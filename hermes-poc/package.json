@@ -1,0 +1,14 @@
+{
+  "name": "wutong-hermes-poc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Wutong Agent Hermes runtime POC with enterprise workbench, confirmation cards, RBAC and append-only audit chain.",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/poc.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
