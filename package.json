@@ -3,6 +3,11 @@
   "private": true,
   "scripts": {
     "dev": "bash scripts/dev-local.sh",
+    "single:dev": "bash scripts/single/dev.sh",
+    "single:deploy": "bash scripts/single/deploy.sh",
+    "single:stop": "bash scripts/single/stop.sh",
+    "single:api": "pnpm --filter kortix-single-api dev",
+    "single:web": "pnpm --filter kortix-single-web dev",
     "dev:prod": "bash scripts/dev-prod.sh",
     "dev:web": "pnpm --filter Kortix-Computer-Frontend dev",
     "dev:frontend": "pnpm --filter Kortix-Computer-Frontend dev",

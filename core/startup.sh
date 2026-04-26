@@ -209,12 +209,11 @@ echo "[startup] Fixing workspace ownership..."
 chown -R "$WORKSPACE_UID:$WORKSPACE_GID" /workspace 2>/dev/null || true
 chmod 700 "$(dirname "$SECRET_FILE_PATH")" 2>/dev/null || true
 
-# Also fix /opt dirs — the Dockerfile chowns these to abc:abc at build time,
-# but if the image was built with an older Dockerfile that used 1000:1000,
-# this ensures they are corrected at runtime too.
-chown -R "$WORKSPACE_UID:$WORKSPACE_GID" \
-  /ephemeral \
-  2>/dev/null || true
+# /ephemeral is shipped with the image and can contain a very large runtime
+# tree. Recursively chowning it at boot can stall the sandbox before s6 starts.
+# The Dockerfile already fixes ownership at build time, so only touch the
+# entrypoint itself as a cheap compatibility guard for older images.
+chown "$WORKSPACE_UID:$WORKSPACE_GID" /ephemeral/startup.sh 2>/dev/null || true
 
 # ── Initialize ocx (marketplace CLI) ────────────────────────────────────────
 # Runs AFTER chown so all files ocx creates are owned by abc, not root.
@@ -233,11 +232,20 @@ if command -v ocx >/dev/null 2>&1; then
   # Detect the exact bad pattern and replace with valid JSONC.
   OPENCODE_USER_CONFIG="/workspace/.opencode/opencode.jsonc"
   if [ -f "$OPENCODE_USER_CONFIG" ]; then
-    # Detect exact broken template: has $schema line followed by comment, no comma anywhere on non-comment lines
-    if grep -qF '// Add MCP servers' "$OPENCODE_USER_CONFIG" 2>/dev/null \
-       && ! grep -v '^[[:space:]]*//' "$OPENCODE_USER_CONFIG" | grep -q ',' 2>/dev/null; then
-      echo "[startup] Repairing malformed opencode.jsonc (missing comma after \$schema)..."
-      su -s /bin/sh abc -c "printf '%s\n' '{' '	\"\\\$schema\": \"https://opencode.ai/config.json\"' '}' > '$OPENCODE_USER_CONFIG'"
+    # Detect exact broken templates:
+    # - ocx init template with comments and missing comma
+    # - older startup repair bug that wrote "\$schema", which is invalid JSONC
+    if { grep -qF '// Add MCP servers' "$OPENCODE_USER_CONFIG" 2>/dev/null \
+         && ! grep -v '^[[:space:]]*//' "$OPENCODE_USER_CONFIG" | grep -q ',' 2>/dev/null; } \
+       || grep -qF '"\$schema"' "$OPENCODE_USER_CONFIG" 2>/dev/null \
+       || grep -qF '"": "https://opencode.ai/config.json"' "$OPENCODE_USER_CONFIG" 2>/dev/null; then
+      echo "[startup] Repairing malformed opencode.jsonc..."
+      cat > "$OPENCODE_USER_CONFIG" <<'EOF'
+{
+  "$schema": "https://opencode.ai/config.json"
+}
+EOF
+      chown abc:abc "$OPENCODE_USER_CONFIG" 2>/dev/null || true
     fi
   fi
   # Always ensure registry aliases exist (idempotent)

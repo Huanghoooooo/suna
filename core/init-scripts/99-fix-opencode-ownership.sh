@@ -33,9 +33,12 @@ chown -R "$ABC_UID:$ABC_GID" \
   /workspace/.git \
   2>/dev/null || true
 
-# /ephemeral dirs — shipped runtime that abc may need to write into (plugin caches, etc.)
-chown -R "$ABC_UID:$ABC_GID" \
+# /ephemeral is shipped with the image and can be very large. Recursively
+# chowning it at boot stalls the sandbox before services become ready. Build
+# time already owns this tree; only touch a few top-level writable guards.
+chown "$ABC_UID:$ABC_GID" \
   /ephemeral \
+  /ephemeral/startup.sh \
   2>/dev/null || true
 
 echo "[fix-ownership] Done."
