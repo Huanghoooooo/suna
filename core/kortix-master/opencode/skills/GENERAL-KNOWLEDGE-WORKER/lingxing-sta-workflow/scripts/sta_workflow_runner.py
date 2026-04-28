@@ -108,6 +108,49 @@ def api_async(path: str, params: dict, ctx: dict, label: str = "") -> dict:
     return data
 
 
+def build_placement_confirmation_card(placement_options: list[dict], requested_quantity: int) -> list[dict]:
+    """Return a compact preview that can be shown to users before confirmation."""
+    cards = []
+    for index, placement in enumerate(placement_options):
+        shipments = placement.get("shipmentInformationList", [])
+        shipment_cards = []
+        known_total = 0
+        for shipment in shipments:
+            quantity = (
+                shipment.get("quantity")
+                or shipment.get("shipmentQuantity")
+                or shipment.get("totalQuantity")
+                or shipment.get("itemQuantity")
+                or 0
+            )
+            if isinstance(quantity, (int, float)):
+                known_total += int(quantity)
+            shipment_cards.append(
+                {
+                    "shipmentId": shipment.get("shipmentId"),
+                    "destination": (
+                        shipment.get("destinationFulfillmentCenterId")
+                        or shipment.get("fulfillmentCenterId")
+                        or shipment.get("warehouseCode")
+                        or shipment.get("destination")
+                    ),
+                    "quantity": quantity or None,
+                    "raw": shipment,
+                }
+            )
+        cards.append(
+            {
+                "placement_index": index,
+                "placementOptionId": placement.get("placementOptionId"),
+                "requested_quantity": requested_quantity,
+                "known_preview_quantity": known_total or None,
+                "shipment_count": len(shipments),
+                "shipments": shipment_cards,
+            }
+        )
+    return cards
+
+
 # ── 步骤 1: 创建 STA 货件 ────────────────────────────────────────────
 
 
@@ -227,10 +270,38 @@ def step3_delivery(inbound_plan_id: str, args: argparse.Namespace, ctx: dict) ->
         ctx,
         "查询货件方案",
     )
-    placement = resp["data"]["placementOptionList"][0]
+    placement_options = resp["data"].get("placementOptionList", [])
+    if not placement_options:
+        fail("查询货件方案", "未返回可用货件方案")
+
+    confirmation_card = build_placement_confirmation_card(placement_options, args.quantity)
+    if not args.auto_confirm_placement:
+        fail(
+            "发货卡片确认",
+            "已生成货件方案预览，但默认禁止自动确认。请先把以下发货卡片展示给用户，"
+            "确认目的仓数量、每仓数量和总数量后，再使用 --auto-confirm-placement 继续："
+            f"{json.dumps(confirmation_card, ensure_ascii=False)}",
+        )
+
+    if args.placement_option_index < 0 or args.placement_option_index >= len(placement_options):
+        fail(
+            "发货卡片确认",
+            f"placement-option-index 超出范围: {args.placement_option_index}",
+        )
+
+    placement = placement_options[args.placement_option_index]
     placement_option_id = placement["placementOptionId"]
-    shipment_id = placement["shipmentInformationList"][0]["shipmentId"]
-    log("3", f"placementOptionId={placement_option_id}, shipmentId={shipment_id}")
+    shipment_list = placement.get("shipmentInformationList", [])
+    if not shipment_list:
+        fail("查询货件方案", f"方案 {placement_option_id} 未返回 shipmentInformationList")
+    if len(shipment_list) > 1 and not args.allow_split_destinations:
+        fail(
+            "发货卡片确认",
+            "当前货件方案会拆到多个 FBA 仓库。用户未明确接受多仓前禁止继续。"
+            f"{json.dumps(build_placement_confirmation_card([placement], args.quantity), ensure_ascii=False)}",
+        )
+    shipment_ids = [shipment["shipmentId"] for shipment in shipment_list]
+    log("3", f"placementOptionId={placement_option_id}, shipmentIds={shipment_ids}")
 
     # 3.3 生成承运方式
     log("3", "生成承运方式...")
@@ -240,72 +311,92 @@ def step3_delivery(inbound_plan_id: str, args: argparse.Namespace, ctx: dict) ->
         {
             "sid": args.sid,
             "inboundPlanId": inbound_plan_id,
-            "shipmentIdList": [{"shipmentId": shipment_id, "shipingTime": ship_date}],
+            "shipmentIdList": [
+                {"shipmentId": shipment_id, "shipingTime": ship_date}
+                for shipment_id in shipment_ids
+            ],
         },
         ctx,
         "生成承运方式",
     )
 
-    # 3.4 查询承运方式
-    log("3", "查询承运方式...")
-    resp = api(
-        "/amzStaServer/openapi/inbound-shipment/getTransportList",
-        {"sid": args.sid, "inboundPlanId": inbound_plan_id, "shipmentId": shipment_id},
-        ctx,
-        "查询承运方式",
-    )
-    transport_list = resp["data"]["transportVOList"]
-    # 按 workflow: 选择 其他承运人 + 小包裹快递
-    chosen = None
-    for t in transport_list:
-        if (
-            t.get("shippingMode") == "GROUND_SMALL_PARCEL"
-            and t.get("shippingSolution") == "USE_YOUR_OWN_CARRIER"
-            and t.get("alphaCode") == "Other"
-        ):
-            chosen = t
-            break
-    if not chosen:
-        # fallback: 任意 SPD + 自有承运人
+    shipment_distribution_info = []
+    for shipment_id in shipment_ids:
+        # 3.4 查询承运方式
+        log("3", f"查询承运方式: shipmentId={shipment_id}")
+        resp = api(
+            "/amzStaServer/openapi/inbound-shipment/getTransportList",
+            {"sid": args.sid, "inboundPlanId": inbound_plan_id, "shipmentId": shipment_id},
+            ctx,
+            "查询承运方式",
+        )
+        transport_list = resp["data"]["transportVOList"]
+        # 按 workflow: 选择 其他承运人 + 小包裹快递
+        chosen = None
         for t in transport_list:
             if (
                 t.get("shippingMode") == "GROUND_SMALL_PARCEL"
                 and t.get("shippingSolution") == "USE_YOUR_OWN_CARRIER"
+                and t.get("alphaCode") == "Other"
             ):
                 chosen = t
                 break
-    if not chosen:
-        chosen = transport_list[0]
-    log("3", f"选择承运方式: {chosen['alphaName']} ({chosen['shippingMode']})")
+        if not chosen:
+            # fallback: 任意 SPD + 自有承运人
+            for t in transport_list:
+                if (
+                    t.get("shippingMode") == "GROUND_SMALL_PARCEL"
+                    and t.get("shippingSolution") == "USE_YOUR_OWN_CARRIER"
+                ):
+                    chosen = t
+                    break
+        if not chosen:
+            chosen = transport_list[0]
+        log("3", f"选择承运方式: {chosen['alphaName']} ({chosen['shippingMode']})")
 
-    # 3.5 生成可选送达时间
-    log("3", "生成可选送达时间...")
-    api_async(
-        "/amzStaServer/openapi/inbound-shipment/generateDeliveryDateList",
-        {"sid": args.sid, "inboundPlanId": inbound_plan_id, "shipmentId": shipment_id},
-        ctx,
-        "生成可选送达时间",
-    )
+        # 3.5 生成可选送达时间
+        log("3", f"生成可选送达时间: shipmentId={shipment_id}")
+        api_async(
+            "/amzStaServer/openapi/inbound-shipment/generateDeliveryDateList",
+            {"sid": args.sid, "inboundPlanId": inbound_plan_id, "shipmentId": shipment_id},
+            ctx,
+            "生成可选送达时间",
+        )
 
-    # 3.6 查询可选送达时间
-    log("3", "查询可选送达时间...")
-    resp = api(
-        "/amzStaServer/openapi/inbound-shipment/getDeliveryDateList",
-        {"sid": args.sid, "inboundPlanId": inbound_plan_id, "shipmentId": shipment_id},
-        ctx,
-        "查询可选送达时间",
-    )
-    delivery_windows = resp["data"]["shipmentList"]
-    # 按 workflow: 选择当前日期后约一个月的窗口
-    target_date = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
-    chosen_window = delivery_windows[0]
-    for w in delivery_windows:
-        if w["startDate"] <= target_date <= w["endDate"]:
-            chosen_window = w
-            break
-    if not chosen_window.get("deliveryWindowOptionId"):
-        chosen_window = delivery_windows[-1]
-    log("3", f"选择送达时段: {chosen_window['startDate']} ~ {chosen_window['endDate']}")
+        # 3.6 查询可选送达时间
+        log("3", f"查询可选送达时间: shipmentId={shipment_id}")
+        resp = api(
+            "/amzStaServer/openapi/inbound-shipment/getDeliveryDateList",
+            {"sid": args.sid, "inboundPlanId": inbound_plan_id, "shipmentId": shipment_id},
+            ctx,
+            "查询可选送达时间",
+        )
+        delivery_windows = resp["data"]["shipmentList"]
+        # 按 workflow: 选择当前日期后约一个月的窗口
+        target_date = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+        chosen_window = delivery_windows[0]
+        for w in delivery_windows:
+            if w["startDate"] <= target_date <= w["endDate"]:
+                chosen_window = w
+                break
+        if not chosen_window.get("deliveryWindowOptionId"):
+            chosen_window = delivery_windows[-1]
+        log("3", f"选择送达时段: {chosen_window['startDate']} ~ {chosen_window['endDate']}")
+
+        shipment_distribution_info.append(
+            {
+                "alphaCode": chosen["alphaCode"],
+                "alphaName": chosen["alphaName"],
+                "deliveryWindowOptionId": chosen_window["deliveryWindowOptionId"],
+                "endDate": chosen_window["endDate"],
+                "shipingTime": ship_date,
+                "shipmentId": shipment_id,
+                "shippingMode": chosen["shippingMode"],
+                "shippingSolution": chosen["shippingSolution"],
+                "startDate": chosen_window["startDate"],
+                "transportationOptionId": chosen["transportationOptionId"],
+            }
+        )
 
     # 3.7 确认货件方案
     log("3", "确认货件方案...")
@@ -315,7 +406,7 @@ def step3_delivery(inbound_plan_id: str, args: argparse.Namespace, ctx: dict) ->
             "sid": args.sid,
             "inboundPlanId": inbound_plan_id,
             "placementOptionId": placement_option_id,
-            "shipmentIds": [shipment_id],
+            "shipmentIds": shipment_ids,
         },
         ctx,
         "确认货件方案",
@@ -328,26 +419,13 @@ def step3_delivery(inbound_plan_id: str, args: argparse.Namespace, ctx: dict) ->
         {
             "sid": args.sid,
             "inboundPlanId": inbound_plan_id,
-            "shipmentDistributionInfo": [
-                {
-                    "alphaCode": chosen["alphaCode"],
-                    "alphaName": chosen["alphaName"],
-                    "deliveryWindowOptionId": chosen_window["deliveryWindowOptionId"],
-                    "endDate": chosen_window["endDate"],
-                    "shipingTime": ship_date,
-                    "shipmentId": shipment_id,
-                    "shippingMode": chosen["shippingMode"],
-                    "shippingSolution": chosen["shippingSolution"],
-                    "startDate": chosen_window["startDate"],
-                    "transportationOptionId": chosen["transportationOptionId"],
-                }
-            ],
+            "shipmentDistributionInfo": shipment_distribution_info,
         },
         ctx,
         "提交货件配送服务",
     )
     log("3", "配送服务提交完成")
-    return shipment_id
+    return ",".join(shipment_ids)
 
 
 # ── 步骤 4: 箱子标签 ─────────────────────────────────────────────────
@@ -415,6 +493,22 @@ def main() -> None:
     parser.add_argument("--box-length", type=float, default=40.0, help="箱子长度 CM")
     parser.add_argument("--box-width", type=float, default=35.0, help="箱子宽度 CM")
     parser.add_argument("--box-weight", type=float, default=6.0, help="箱子重量 KG")
+    parser.add_argument(
+        "--auto-confirm-placement",
+        action="store_true",
+        help="用户已明确确认发货卡片后才允许确认货件方案",
+    )
+    parser.add_argument(
+        "--placement-option-index",
+        type=int,
+        default=0,
+        help="用户确认的 placementOptionList 下标",
+    )
+    parser.add_argument(
+        "--allow-split-destinations",
+        action="store_true",
+        help="用户已明确接受拆分到多个 FBA 仓库时才允许继续",
+    )
     args = parser.parse_args()
 
     # 获取 token
